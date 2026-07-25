@@ -19,6 +19,7 @@ class MenuDiezMilScreen extends StatefulWidget {
 class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   bool _modoDios = false;
   AjustesEstado _ajustes = const AjustesEstado();
+  _DificultadPc _dificultad = _DificultadPc.medio;
 
   Future<void> _abrirAjustes() async {
     await showDialog<void>(
@@ -63,6 +64,65 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _elegirDificultad() async {
+    final elegida = await showDialog<_DificultadPc>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text(
+          'Dificultad',
+          style: TextStyle(color: AppColors.acento, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final d in _DificultadPc.values) ...[
+              if (d != _DificultadPc.values.first) const SizedBox(height: 10),
+              // El borde de la opción elegida va por afuera para no achicar
+              // el botón.
+              Container(
+                decoration: BoxDecoration(
+                  // Radio del botón (18) + grosor del borde.
+                  borderRadius: BorderRadius.circular(21),
+                  border: Border.all(
+                    color: d == _dificultad ? Colors.black : Colors.transparent,
+                    width: 3,
+                  ),
+                ),
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(d),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: d.color,
+                    foregroundColor: const Color(0xFF1A0A00),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                  ),
+                  child: Text(
+                    d.etiqueta,
+                    style: const TextStyle(
+                      color: Color(0xFF1A0A00),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (elegida != null && mounted) {
+      setState(() => _dificultad = elegida);
+    }
   }
 
   void _explicarModoDios() {
@@ -206,6 +266,22 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
                       onPressed: () => _abrirVsPc(Modo.seis),
                       child: const Text('Jugar vs PC · 6 dados'),
                     ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: _elegirDificultad,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _dificultad.color,
+                        foregroundColor: const Color(0xFF1A0A00),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'Dificultad · ${_dificultad.etiqueta}',
+                        style: const TextStyle(
+                          color: Color(0xFF1A0A00),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -215,6 +291,17 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
       ),
     );
   }
+}
+
+enum _DificultadPc {
+  facil('Fácil', AppColors.mint),
+  medio('Medio', AppColors.acento),
+  dificil('Difícil', AppColors.peligro);
+
+  const _DificultadPc(this.etiqueta, this.color);
+
+  final String etiqueta;
+  final Color color;
 }
 
 /// Etiqueta de sección + toggle de Modo Dios + ícono de ayuda.
