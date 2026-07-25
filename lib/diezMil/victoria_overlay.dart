@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
 import '../theme/app_theme.dart';
 import 'estadisticas.dart';
@@ -141,7 +142,7 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
       color: Colors.black.withValues(alpha: 0.72),
       child: Stack(
         children: [
-          if (widget.animaciones)
+          if (widget.animaciones) ...[
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: _confeti,
@@ -150,6 +151,10 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
                 ),
               ),
             ),
+            const Positioned.fill(
+              child: IgnorePointer(child: _FuegosArtificialesCapa()),
+            ),
+          ],
           SafeArea(
             child: Center(
               child: FadeTransition(
@@ -670,6 +675,178 @@ class _GlowButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Explosiones Lottie en posiciones/escalas/retardos aleatorios.
+class _FuegosArtificialesCapa extends StatefulWidget {
+  const _FuegosArtificialesCapa();
+
+  static const _assets = [
+    'assets/lottie/fireworks_a.json',
+    'assets/lottie/fireworks_b.json',
+    'assets/lottie/fireworks_c.json',
+  ];
+
+  @override
+  State<_FuegosArtificialesCapa> createState() =>
+      _FuegosArtificialesCapaState();
+}
+
+class _FuegoBurst {
+  _FuegoBurst({
+    required this.id,
+    required this.asset,
+    required this.leftFrac,
+    required this.topFrac,
+    required this.size,
+    required this.delay,
+  });
+
+  final Key id;
+  final String asset;
+  final double leftFrac;
+  final double topFrac;
+  final double size;
+  final Duration delay;
+}
+
+class _FuegosArtificialesCapaState extends State<_FuegosArtificialesCapa> {
+  final _rng = math.Random();
+  late List<_FuegoBurst> _bursts;
+
+  @override
+  void initState() {
+    super.initState();
+    _bursts = List.generate(5, (_) => _nuevoBurst());
+  }
+
+  _FuegoBurst _nuevoBurst() {
+    // Zonas fuera del cartel central: arriba, abajo, izquierda o derecha.
+    final zona = _rng.nextInt(4);
+    late final double leftFrac;
+    late final double topFrac;
+
+    switch (zona) {
+      case 0: // arriba
+        leftFrac = -0.05 + _rng.nextDouble() * 0.85;
+        topFrac = -0.08 + _rng.nextDouble() * 0.14;
+      case 1: // abajo
+        leftFrac = -0.05 + _rng.nextDouble() * 0.85;
+        topFrac = 0.72 + _rng.nextDouble() * 0.18;
+      case 2: // izquierda
+        leftFrac = -0.12 + _rng.nextDouble() * 0.18;
+        topFrac = 0.08 + _rng.nextDouble() * 0.58;
+      default: // derecha
+        leftFrac = 0.72 + _rng.nextDouble() * 0.22;
+        topFrac = 0.08 + _rng.nextDouble() * 0.58;
+    }
+
+    return _FuegoBurst(
+      id: UniqueKey(),
+      asset: _FuegosArtificialesCapa
+          ._assets[_rng.nextInt(_FuegosArtificialesCapa._assets.length)],
+      leftFrac: leftFrac,
+      topFrac: topFrac,
+      size: 140 + _rng.nextDouble() * 130,
+      delay: Duration(milliseconds: _rng.nextInt(700)),
+    );
+  }
+
+  void _reemplazar(Key id) {
+    if (!mounted) return;
+    setState(() {
+      final i = _bursts.indexWhere((b) => b.id == id);
+      if (i >= 0) _bursts[i] = _nuevoBurst();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return Stack(
+      children: [
+        for (final burst in _bursts)
+          Positioned(
+            left: burst.leftFrac * size.width,
+            top: burst.topFrac * size.height,
+            width: burst.size,
+            height: burst.size,
+            child: _FuegoLottie(
+              key: burst.id,
+              asset: burst.asset,
+              delay: burst.delay,
+              onFinished: () => _reemplazar(burst.id),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FuegoLottie extends StatefulWidget {
+  const _FuegoLottie({
+    super.key,
+    required this.asset,
+    required this.delay,
+    required this.onFinished,
+  });
+
+  final String asset;
+  final Duration delay;
+  final VoidCallback onFinished;
+
+  @override
+  State<_FuegoLottie> createState() => _FuegoLottieState();
+}
+
+class _FuegoLottieState extends State<_FuegoLottie>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  bool _listo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _reproducir(LottieComposition composition) async {
+    if (_listo) return;
+    _listo = true;
+    _ctrl.duration = composition.duration;
+    if (widget.delay > Duration.zero) {
+      await Future<void>.delayed(widget.delay);
+      if (!mounted) return;
+    }
+    try {
+      await _ctrl.forward(from: 0);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    // Pausa corta entre explosiones del mismo slot.
+    await Future<void>.delayed(
+      Duration(milliseconds: 180 + math.Random().nextInt(420)),
+    );
+    if (mounted) widget.onFinished();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Lottie.asset(
+      widget.asset,
+      controller: _ctrl,
+      fit: BoxFit.contain,
+      onLoaded: _reproducir,
+      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
     );
   }
 }
