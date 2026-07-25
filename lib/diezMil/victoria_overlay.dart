@@ -22,11 +22,14 @@ class VictoriaOverlay extends StatefulWidget {
     required this.ganador,
     required this.estadisticas,
     required this.onVolver,
+    this.subtitulo,
   });
 
   final String ganador;
   final EstadisticasPartida estadisticas;
   final VoidCallback onVolver;
+  /// Si viene de una rendición: p.ej. "Jugador 1 se ha rendido".
+  final String? subtitulo;
 
   @override
   State<VictoriaOverlay> createState() => _VictoriaOverlayState();
@@ -40,6 +43,7 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
   late final Animation<double> _escala;
   late final Animation<double> _opacidad;
   bool _mostrarStats = false;
+  String? _statsJugador;
 
   @override
   void initState() {
@@ -68,6 +72,40 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
     super.dispose();
   }
 
+  Widget _construirContenido() {
+    if (!_mostrarStats) {
+      return _WinnerCard(
+        ganador: widget.ganador,
+        pulso: _pulso,
+        subtitulo: widget.subtitulo,
+        onEstadisticas: () => setState(() {
+          _mostrarStats = true;
+          _statsJugador = null;
+        }),
+        onVolver: widget.onVolver,
+      );
+    }
+
+    if (_statsJugador == null) {
+      return _StatsSelector(
+        jugadores: widget.estadisticas.porJugador.keys.toList(),
+        ganador: widget.ganador,
+        onSeleccionar: (nombre) =>
+            setState(() => _statsJugador = nombre),
+        onCerrar: () => setState(() => _mostrarStats = false),
+        onVolver: widget.onVolver,
+      );
+    }
+
+    final jugador = widget.estadisticas.de(_statsJugador!);
+    return _StatsPanel(
+      jugador: jugador!,
+      ganador: widget.ganador,
+      onCerrar: () => setState(() => _statsJugador = null),
+      onVolver: widget.onVolver,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -92,21 +130,7 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
                     constraints: const BoxConstraints(maxWidth: 420),
                     child: Padding(
                       padding: const EdgeInsets.all(18),
-                      child: _mostrarStats
-                          ? _StatsPanel(
-                              estadisticas: widget.estadisticas,
-                              ganador: widget.ganador,
-                              onCerrar: () =>
-                                  setState(() => _mostrarStats = false),
-                              onVolver: widget.onVolver,
-                            )
-                          : _WinnerCard(
-                              ganador: widget.ganador,
-                              pulso: _pulso,
-                              onEstadisticas: () =>
-                                  setState(() => _mostrarStats = true),
-                              onVolver: widget.onVolver,
-                            ),
+                      child: _construirContenido(),
                     ),
                   ),
                 ),
@@ -125,12 +149,14 @@ class _WinnerCard extends StatelessWidget {
     required this.pulso,
     required this.onEstadisticas,
     required this.onVolver,
+    this.subtitulo,
   });
 
   final String ganador;
   final AnimationController pulso;
   final VoidCallback onEstadisticas;
   final VoidCallback onVolver;
+  final String? subtitulo;
 
   @override
   Widget build(BuildContext context) {
@@ -204,10 +230,10 @@ class _WinnerCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'llegó a 10.000 y se lleva la partida',
+          Text(
+            subtitulo ?? 'llegó a 10.000 y se lleva la partida',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textoSuave,
               fontWeight: FontWeight.w600,
             ),
@@ -232,23 +258,24 @@ class _WinnerCard extends StatelessWidget {
   }
 }
 
-class _StatsPanel extends StatelessWidget {
-  const _StatsPanel({
-    required this.estadisticas,
+/// Paso 1: elegir de qué jugador ver las estadísticas.
+class _StatsSelector extends StatelessWidget {
+  const _StatsSelector({
+    required this.jugadores,
     required this.ganador,
+    required this.onSeleccionar,
     required this.onCerrar,
     required this.onVolver,
   });
 
-  final EstadisticasPartida estadisticas;
+  final List<String> jugadores;
   final String ganador;
+  final ValueChanged<String> onSeleccionar;
   final VoidCallback onCerrar;
   final VoidCallback onVolver;
 
   @override
   Widget build(BuildContext context) {
-    final jugadores = estadisticas.porJugador.values.toList();
-
     return Container(
       width: double.infinity,
       constraints: BoxConstraints(
@@ -266,6 +293,7 @@ class _StatsPanel extends StatelessWidget {
         boxShadow: neonGlow(AppColors.azul, blur: 18),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -286,153 +314,196 @@ class _StatsPanel extends StatelessWidget {
               ),
             ],
           ),
-          Text(
-            'Ganó: $ganador',
-            style: const TextStyle(
-              color: AppColors.mint,
-              fontWeight: FontWeight.w800,
+          const Text(
+            'Elegí un jugador',
+            style: TextStyle(
+              color: AppColors.textoSuave,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: ListView.separated(
-              itemCount: jugadores.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) {
-                final e = jugadores[i];
-                final esGanador = e.nombre == ganador;
-                final accent =
-                    esGanador ? AppColors.acento : AppColors.azul;
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.carta.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: accent.withValues(alpha: 0.8),
-                      width: esGanador ? 2 : 1.2,
+          const SizedBox(height: 16),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  for (var i = 0; i < jugadores.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 12),
+                    _GlowButton(
+                      label: jugadores[i].toUpperCase(),
+                      icon: jugadores[i] == ganador
+                          ? Icons.emoji_events
+                          : Icons.person,
+                      color: jugadores[i] == ganador
+                          ? AppColors.acento
+                          : AppColors.azul,
+                      onPressed: () => onSeleccionar(jugadores[i]),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            esGanador
-                                ? Icons.emoji_events
-                                : Icons.person,
-                            color: accent,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              e.nombre.toUpperCase(),
-                              style: TextStyle(
-                                color: accent,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                          if (esGanador)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.acento,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'GANADOR',
-                                style: TextStyle(
-                                  color: Color(0xFF1A0A00),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          _StatPill(
-                            label: 'TOTALES',
-                            valor: '${e.tirosTotales}',
-                            color: AppColors.texto,
-                          ),
-                          const SizedBox(width: 6),
-                          _StatPill(
-                            label: 'SUMÓ',
-                            valor: '${e.tirosConPuntos}',
-                            color: AppColors.mint,
-                          ),
-                          const SizedBox(width: 6),
-                          _StatPill(
-                            label: 'NO SUMÓ',
-                            valor: '${e.tirosSinPuntos}',
-                            color: AppColors.peligro,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Tiradas:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textoSuave,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      if (e.tiradas.isEmpty)
-                        const Text(
-                          'Sin tiradas registradas',
-                          style: TextStyle(color: AppColors.textoSuave),
-                        )
-                      else
-                        ...e.tiradas.map(
-                          (t) => Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 78,
-                                  child: Text(
-                                    'Tirada ${t.numero}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    t.sumo
-                                        ? '+${_pts(t.puntos)} pts'
-                                        : '0 pts (no sumó)',
-                                    style: TextStyle(
-                                      color: t.sumo
-                                          ? AppColors.mint
-                                          : AppColors.peligro,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+                  ],
+                ],
+              ),
             ),
+          ),
+          const SizedBox(height: 16),
+          _GlowButton(
+            label: 'VOLVER AL MENÚ',
+            icon: Icons.home_rounded,
+            color: AppColors.violeta,
+            onPressed: onVolver,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Paso 2: estadísticas de un jugador concreto.
+class _StatsPanel extends StatelessWidget {
+  const _StatsPanel({
+    required this.jugador,
+    required this.ganador,
+    required this.onCerrar,
+    required this.onVolver,
+  });
+
+  final EstadisticasJugador jugador;
+  final String ganador;
+  final VoidCallback onCerrar;
+  final VoidCallback onVolver;
+
+  @override
+  Widget build(BuildContext context) {
+    final esGanador = jugador.nombre == ganador;
+    final accent = esGanador ? AppColors.acento : AppColors.azul;
+
+    return Container(
+      width: double.infinity,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF2A1450), Color(0xFF12081F)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: accent, width: 2),
+        boxShadow: neonGlow(accent, blur: 18),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: onCerrar,
+                icon: const Icon(Icons.arrow_back, color: AppColors.texto),
+                tooltip: 'Elegir otro jugador',
+              ),
+              Expanded(
+                child: Text(
+                  jugador.nombre.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    color: accent,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          if (esGanador)
+            const Text(
+              'GANADOR',
+              style: TextStyle(
+                color: AppColors.mint,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
+              ),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _StatPill(
+                label: 'TOTALES',
+                valor: '${jugador.tirosTotales}',
+                color: AppColors.texto,
+              ),
+              const SizedBox(width: 6),
+              _StatPill(
+                label: 'SUMÓ',
+                valor: '${jugador.tirosConPuntos}',
+                color: AppColors.mint,
+              ),
+              const SizedBox(width: 6),
+              _StatPill(
+                label: 'NO SUMÓ',
+                valor: '${jugador.tirosSinPuntos}',
+                color: AppColors.peligro,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Tiradas:',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: AppColors.textoSuave,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: jugador.tiradas.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Sin tiradas registradas',
+                      style: TextStyle(color: AppColors.textoSuave),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: jugador.tiradas.length,
+                    itemBuilder: (context, i) {
+                      final t = jugador.tiradas[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 78,
+                              child: Text(
+                                'Tirada ${t.numero}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                t.sumo
+                                    ? '+${_pts(t.puntos)} pts'
+                                    : '0 pts (no sumó)',
+                                style: TextStyle(
+                                  color: t.sumo
+                                      ? AppColors.mint
+                                      : AppColors.peligro,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
           ),
           const SizedBox(height: 10),
           _GlowButton(
@@ -511,38 +582,47 @@ class _GlowButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       height: 50,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  color.withValues(alpha: 0.95),
-                  color.withValues(alpha: 0.65),
+          boxShadow: neonGlow(color, blur: 12),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(16),
+            splashColor: Colors.white24,
+            highlightColor: Colors.white10,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.95),
+                    color.withValues(alpha: 0.65),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: Colors.white, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      fontSize: 15,
+                    ),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
-              boxShadow: neonGlow(color, blur: 12),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 22),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.8,
-                    fontSize: 15,
-                  ),
-                ),
-              ],
             ),
           ),
         ),

@@ -387,8 +387,14 @@ ResumenTirada aplicarPuntosTirada(
   );
 }
 
-bool puedePlantarse(Partida partida) =>
-    partida.turno.puntosTurno > 0 && partida.ganador == null;
+/// Si el jugador todavía no abrió, necesita [apertura] puntos en el turno.
+bool puedePlantarse(Partida partida) {
+  if (partida.ganador != null) return false;
+  final j = partida.jugadorActual;
+  final puntosTurno = partida.turno.puntosTurno;
+  if (puntosTurno <= 0) return false;
+  return j.abierto || puntosTurno >= apertura;
+}
 
 ResumenPlantarse plantarse(Partida partida) {
   final j = partida.jugadorActual;

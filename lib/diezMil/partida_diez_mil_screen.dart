@@ -36,8 +36,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   String? _mensaje;
   bool _esperandoEspecial = false;
   bool _mostrarVictoria = false;
-  final Map<String, int> _mejorTurno = {};
-  int _navIndex = 0;
+  bool _mostrarMenu = false;
+  bool _confirmarRendicion = false;
+  String? _subtituloVictoria;
+  int _mejorTiradaPartida = 0;
+  String? _mejorTiradaJugador;
 
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
@@ -48,9 +51,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     _partida = nuevaPartida(widget.nombres, widget.modo);
     _stats = EstadisticasPartida(widget.nombres);
     iniciarTurno(_partida);
-    for (final j in _partida.jugadores) {
-      _mejorTurno[j.nombre] = 0;
-    }
   }
 
   void _lanzarVictoria() {
@@ -79,6 +79,42 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         ),
       ),
     );
+  }
+
+  void _abrirMenu() {
+    if (_partida.ganador != null || _mostrarVictoria) return;
+    setState(() {
+      _mostrarMenu = true;
+      _confirmarRendicion = false;
+    });
+  }
+
+  void _cerrarMenu() {
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+    });
+  }
+
+  void _rendirse() {
+    if (_partida.ganador != null) return;
+    final rendido = _partida.jugadorActual;
+    final rivales =
+        _partida.jugadores.where((j) => !identical(j, rendido)).toList();
+    if (rivales.isEmpty) return;
+
+    rivales.sort((a, b) => b.puntos.compareTo(a.puntos));
+    final ganador = rivales.first;
+
+    setState(() {
+      _partida.ganador = ganador.nombre;
+      _subtituloVictoria = '${rendido.nombre} se ha rendido';
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+      _esperandoEspecial = false;
+      _mensaje = null;
+    });
+    _lanzarVictoria();
   }
 
   // TEMPORAL (testing): elegí a mano los dados de la próxima tirada.
@@ -186,6 +222,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   void _aplicar(ResultadoTirada resultado, Especial? especial) {
     final nombre = _partida.jugadorActual.nombre;
+    final turnoPrevio = _partida.turno.puntosTurno;
     final resumen = aplicarPuntosTirada(_partida, resultado, especial);
     final puntosReg = resumen.bust ? 0 : resumen.puntosTirada;
     _stats.registrar(nombre, puntosReg);
@@ -194,6 +231,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       _ultimaTirada = resultado;
       _ultimoResumen = resumen;
       _esperandoEspecial = false;
+      // Al ganar por tirada se banca el turno completo: cuenta como su total.
+      if (resumen.victoria) {
+        _registrarMejorTirada(nombre, turnoPrevio + puntosReg);
+      }
       if (resumen.victoria) {
         _mensaje = '¡${_partida.jugadorActual.nombre} gana!';
       } else if (resumen.bust) {
@@ -230,6 +271,13 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     _aplicar(tirada, aceptar ? tirada.combosOpcionales.first.especial : null);
   }
 
+  void _registrarMejorTirada(String nombre, int puntos) {
+    if (puntos > _mejorTiradaPartida) {
+      _mejorTiradaPartida = puntos;
+      _mejorTiradaJugador = nombre;
+    }
+  }
+
   void _plantarse() {
     if (!puedePlantarse(_partida) || _esperandoEspecial) return;
     final nombre = _partida.jugadorActual.nombre;
@@ -244,16 +292,17 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
           _mensaje =
               'Te pasaste (${_pts(banco.intento ?? 0)}). Seguís en ${_pts(banco.puntos)}.';
         case 'victoria':
-          _mejorTurno[nombre] = math.max(_mejorTurno[nombre] ?? 0, sumados);
+          _registrarMejorTirada(nombre, sumados);
           _mensaje = '¡$nombre llega a $meta y gana!';
         case 'banco':
-          _mejorTurno[nombre] = math.max(_mejorTurno[nombre] ?? 0, sumados);
+          _registrarMejorTirada(nombre, banco.sumados ?? sumados);
           _mensaje =
               'Bancás ${_pts(banco.sumados ?? 0)}. Total: ${_pts(banco.puntos)}.';
         default:
           _mensaje = null;
       }
     });
+
 
     if (_partida.ganador != null) {
       _lanzarVictoria();
@@ -298,186 +347,213 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         children: [
           const Positioned.fill(child: _EpicBackdrop()),
           SafeArea(
-            child: Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 540),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _Header(
-                              dados: _partida.modo.dados,
-                              onBack: () => Navigator.of(context).maybePop(),
-                              onSettings: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Ajustes próximamente'),
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
-                              },
-                            ),
-                            for (var i = 0;
-                                i < _partida.jugadores.length;
-                                i++)
-                              _PlayerCard(
-                                jugador: _partida.jugadores[i],
-                                index: i,
-                                activo: !terminada &&
-                                    identical(_partida.jugadores[i], j),
-                                esTu: i == 0,
-                                mejorTurno: _mejorTurno[
-                                        _partida.jugadores[i].nombre] ??
-                                    0,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 540),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 2, 14, 2),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: constraints.maxWidth,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _Header(
+                                dados: _partida.modo.dados,
+                                onMenu: terminada ? () {} : _abrirMenu,
+                                onSettings: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Ajustes próximamente'),
+                                      duration: Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
                               ),
-                            _TurnoBanner(
-                              nombre: terminada
-                                  ? (_partida.ganador ?? '')
-                                  : j.nombre,
-                              terminada: terminada,
-                              ptsTurno: t.puntosTurno,
-                              ptsTirada: ptsTirada,
-                              mensaje: _mensaje,
-                            ),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _DadosZona(
-                                    cantidad: _partida.modo.dados,
-                                    dados: _ultimaTirada?.dados,
-                                    suman: _dadosQueSuman(),
-                                  ),
+                              const SizedBox(height: 6),
+                              for (var i = 0;
+                                  i < _partida.jugadores.length;
+                                  i++) ...[
+                                _PlayerCard(
+                                  jugador: _partida.jugadores[i],
+                                  index: i,
+                                  activo: !terminada &&
+                                      identical(_partida.jugadores[i], j),
+                                  esTu: i == 0,
                                 ),
-                                const SizedBox(width: 6),
-                                // TEMPORAL (testing): forzar próxima tirada
-                                Tooltip(
-                                  message: _dadosForzados == null
-                                      ? 'Forzar próxima tirada'
-                                      : 'Próxima: ${_dadosForzados!.join(' ')}',
-                                  child: Material(
-                                    color: AppColors.carta,
-                                    shape: const CircleBorder(),
-                                    child: InkWell(
-                                      customBorder: const CircleBorder(),
-                                      onTap: terminada
-                                          ? null
-                                          : _configurarDadosForzados,
-                                      child: Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
+                                const SizedBox(height: 6),
+                              ],
+                              Center(
+                                child: _MejorTiradaBanner(
+                                  puntos: _mejorTiradaPartida,
+                                  jugador: _mejorTiradaJugador,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              _TurnoBanner(
+                                nombre: terminada
+                                    ? (_partida.ganador ?? '')
+                                    : j.nombre,
+                                terminada: terminada,
+                                ptsTurno: t.puntosTurno,
+                                ptsTirada: ptsTirada,
+                                mensaje: _mensaje,
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _DadosZona(
+                                      cantidad: _partida.modo.dados,
+                                      dados: _ultimaTirada?.dados,
+                                      suman: _dadosQueSuman(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  // TEMPORAL (testing): forzar próxima tirada
+                                  Tooltip(
+                                    message: _dadosForzados == null
+                                        ? 'Forzar próxima tirada'
+                                        : 'Próxima: ${_dadosForzados!.join(' ')}',
+                                    child: Material(
+                                      color: AppColors.carta,
+                                      shape: const CircleBorder(),
+                                      child: InkWell(
+                                        customBorder: const CircleBorder(),
+                                        onTap: terminada
+                                            ? null
+                                            : _configurarDadosForzados,
+                                        child: Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: _dadosForzados != null
+                                                  ? AppColors.mint
+                                                  : AppColors.textoSuave
+                                                      .withValues(alpha: 0.5),
+                                              width: _dadosForzados != null
+                                                  ? 2
+                                                  : 1,
+                                            ),
+                                            boxShadow: _dadosForzados != null
+                                                ? neonGlow(AppColors.mint,
+                                                    blur: 10)
+                                                : null,
+                                          ),
+                                          child: Icon(
+                                            Icons.bug_report,
+                                            size: 20,
                                             color: _dadosForzados != null
                                                 ? AppColors.mint
-                                                : AppColors.textoSuave
-                                                    .withValues(alpha: 0.5),
-                                            width:
-                                                _dadosForzados != null ? 2 : 1,
+                                                : AppColors.textoSuave,
                                           ),
-                                          boxShadow: _dadosForzados != null
-                                              ? neonGlow(AppColors.mint,
-                                                  blur: 10)
-                                              : null,
-                                        ),
-                                        child: Icon(
-                                          Icons.bug_report,
-                                          size: 20,
-                                          color: _dadosForzados != null
-                                              ? AppColors.mint
-                                              : AppColors.textoSuave,
                                         ),
                                       ),
                                     ),
                                   ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              _CombosBar(
+                                combos: (_ultimoResumen != null &&
+                                        !_ultimoResumen!.bust)
+                                    ? _ultimoResumen!.combos
+                                    : const [],
+                                total: ptsTirada,
+                              ),
+                              const SizedBox(height: 6),
+                              if (_esperandoEspecial &&
+                                  _ultimaTirada != null) ...[
+                                Text(
+                                  'Sacaste ${nombreEspecial(_ultimaTirada!.combosOpcionales.first.especial!)} '
+                                  '(${_ultimaTirada!.combosOpcionales.first.puntos} pts). ¿Aceptás?',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
                                 ),
-                              ],
-                            ),
-                            _CombosBar(
-                              combos: (_ultimoResumen != null &&
-                                      !_ultimoResumen!.bust)
-                                  ? _ultimoResumen!.combos
-                                  : const [],
-                              total: ptsTirada,
-                            ),
-                            if (_esperandoEspecial &&
-                                _ultimaTirada != null) ...[
-                              Text(
-                                'Sacaste ${nombreEspecial(_ultimaTirada!.combosOpcionales.first.especial!)} '
-                                '(${_ultimaTirada!.combosOpcionales.first.puntos} pts). ¿Aceptás?',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
+                                const SizedBox(height: 6),
+                                _ArcadeButton(
+                                  label: 'ACEPTAR ESPECIAL',
+                                  icon: Icons.auto_awesome,
+                                  tono: _BotonTono.dorado,
+                                  onPressed: () => _responderEspecial(true),
                                 ),
-                              ),
-                              _ArcadeButton(
-                                label: 'ACEPTAR ESPECIAL',
-                                icon: Icons.auto_awesome,
-                                tono: _BotonTono.dorado,
-                                onPressed: () => _responderEspecial(true),
-                              ),
-                              _ArcadeButton(
-                                label: 'COMBOS NORMALES',
-                                icon: Icons.casino_outlined,
-                                tono: _BotonTono.violeta,
-                                onPressed: () => _responderEspecial(false),
-                              ),
-                            ] else if (!terminada) ...[
-                              _ArcadeButton(
-                                label: 'TIRAR DADOS',
-                                icon: Icons.casino,
-                                tono: _BotonTono.dorado,
-                                onPressed: _tirar,
-                              ),
-                              _ArcadeButton(
-                                label: 'PLANTARSE',
-                                icon: Icons.pan_tool_alt_outlined,
-                                tono: _BotonTono.violeta,
-                                onPressed: puedePlantarse(_partida)
-                                    ? _plantarse
-                                    : null,
-                              ),
-                            ] else
-                              _ArcadeButton(
-                                label: 'VOLVER',
-                                icon: Icons.arrow_back,
-                                tono: _BotonTono.dorado,
-                                onPressed: () => Navigator.of(context).pop(),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                _BottomNav(
-                  index: _navIndex,
-                  onSelect: (i) {
-                    setState(() => _navIndex = i);
-                    if (i == 3) _mostrarReglas();
-                    if (i == 1 || i == 2 || i == 4) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Próximamente'),
-                          duration: Duration(seconds: 1),
+                                const SizedBox(height: 6),
+                                _ArcadeButton(
+                                  label: 'COMBOS NORMALES',
+                                  icon: Icons.casino_outlined,
+                                  tono: _BotonTono.violeta,
+                                  onPressed: () => _responderEspecial(false),
+                                ),
+                              ] else if (!terminada) ...[
+                                _ArcadeButton(
+                                  label: 'TIRAR DADOS',
+                                  icon: Icons.casino,
+                                  tono: _BotonTono.dorado,
+                                  onPressed: _tirar,
+                                ),
+                                const SizedBox(height: 6),
+                                _ArcadeButton(
+                                  label: !j.abierto &&
+                                          t.puntosTurno < apertura
+                                      ? 'PLANTARSE · FALTAN ${_pts(apertura - t.puntosTurno)}'
+                                      : 'PLANTARSE',
+                                  icon: Icons.pan_tool_alt_outlined,
+                                  tono: _BotonTono.violeta,
+                                  onPressed: puedePlantarse(_partida)
+                                      ? _plantarse
+                                      : null,
+                                ),
+                              ] else
+                                _ArcadeButton(
+                                  label: 'VOLVER',
+                                  icon: Icons.arrow_back,
+                                  tono: _BotonTono.dorado,
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(),
+                                ),
+                            ],
+                          ),
                         ),
                       );
-                    }
-                  },
+                    },
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
+          if (_mostrarMenu && !terminada)
+            Positioned.fill(
+              child: _PartidaMenuOverlay(
+                jugador: j.nombre,
+                confirmarRendicion: _confirmarRendicion,
+                onCerrar: _cerrarMenu,
+                onReglas: () {
+                  _cerrarMenu();
+                  _mostrarReglas();
+                },
+                onRendirse: () =>
+                    setState(() => _confirmarRendicion = true),
+                onConfirmarRendicion: _rendirse,
+                onCancelarRendicion: () =>
+                    setState(() => _confirmarRendicion = false),
+              ),
+            ),
           if (_mostrarVictoria && _partida.ganador != null)
             Positioned.fill(
               child: VictoriaOverlay(
                 ganador: _partida.ganador!,
                 estadisticas: _stats,
+                subtitulo: _subtituloVictoria,
                 onVolver: () => Navigator.of(context).pop(),
               ),
             ),
@@ -582,19 +658,19 @@ class _LasersPainter extends CustomPainter {
 class _Header extends StatelessWidget {
   const _Header({
     required this.dados,
-    required this.onBack,
+    required this.onMenu,
     required this.onSettings,
   });
 
   final int dados;
-  final VoidCallback onBack;
+  final VoidCallback onMenu;
   final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _RoundIcon(icon: Icons.menu, onTap: onBack),
+        _RoundIcon(icon: Icons.menu, onTap: onMenu),
         Expanded(
           child: Column(
             children: [
@@ -702,20 +778,246 @@ class _RoundIcon extends StatelessWidget {
   }
 }
 
+/// Menú central: jugador actual, reglas y rendirse.
+class _PartidaMenuOverlay extends StatelessWidget {
+  const _PartidaMenuOverlay({
+    required this.jugador,
+    required this.confirmarRendicion,
+    required this.onCerrar,
+    required this.onReglas,
+    required this.onRendirse,
+    required this.onConfirmarRendicion,
+    required this.onCancelarRendicion,
+  });
+
+  final String jugador;
+  final bool confirmarRendicion;
+  final VoidCallback onCerrar;
+  final VoidCallback onReglas;
+  final VoidCallback onRendirse;
+  final VoidCallback onConfirmarRendicion;
+  final VoidCallback onCancelarRendicion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF3B1D6E),
+                      Color(0xFF1A0A33),
+                      Color(0xFF2A1050),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppColors.acento, width: 2),
+                  boxShadow: neonGlow(AppColors.acento, blur: 18),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'MENÚ',
+                            style: TextStyle(
+                              color: AppColors.acento,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: onCerrar,
+                          icon: const Icon(Icons.close, color: AppColors.texto),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      jugador.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.texto,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        shadows: [
+                          Shadow(
+                            color: AppColors.acento.withValues(alpha: 0.7),
+                            blurRadius: 14,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Turno actual',
+                      style: TextStyle(
+                        color: AppColors.textoSuave.withValues(alpha: 0.95),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    _ArcadeButton(
+                      label: 'REGLAS',
+                      icon: Icons.menu_book_rounded,
+                      tono: _BotonTono.azul,
+                      onPressed: onReglas,
+                    ),
+                    const SizedBox(height: 10),
+                    if (!confirmarRendicion)
+                      _ArcadeButton(
+                        label: 'RENDIRSE',
+                        icon: Icons.flag_rounded,
+                        tono: _BotonTono.rojo,
+                        onPressed: onRendirse,
+                      )
+                    else ...[
+                      const Text(
+                        '¿Confirmás tu derrota?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.peligro,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _ArcadeButton(
+                        label: 'CONFIRMAR RENDICIÓN',
+                        icon: Icons.check_circle_outline,
+                        tono: _BotonTono.rojo,
+                        onPressed: onConfirmarRendicion,
+                      ),
+                      const SizedBox(height: 10),
+                      _ArcadeButton(
+                        label: 'CANCELAR',
+                        icon: Icons.close,
+                        tono: _BotonTono.violeta,
+                        onPressed: onCancelarRendicion,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MejorTiradaBanner extends StatelessWidget {
+  const _MejorTiradaBanner({
+    required this.puntos,
+    this.jugador,
+  });
+
+  final int puntos;
+  final String? jugador;
+
+  @override
+  Widget build(BuildContext context) {
+    const violeta = AppColors.violeta;
+    const rosa = AppColors.rosa;
+    final detalle = puntos > 0
+        ? '${jugador != null ? '${jugador!.toUpperCase()} · ' : ''}${_pts(puntos)} PTS'
+        : '—';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2A1450).withValues(alpha: 0.95),
+            const Color(0xFF1A0B33).withValues(alpha: 0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: rosa.withValues(alpha: 0.85),
+          width: 1.4,
+        ),
+        boxShadow: [
+          ...neonGlow(rosa, blur: 12),
+          ...neonGlow(violeta, blur: 8),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.emoji_events,
+            color: AppColors.acento,
+            size: 16,
+            shadows: [
+              Shadow(color: AppColors.acento, blurRadius: 10),
+            ],
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'MEJOR TIRADA',
+            style: TextStyle(
+              color: AppColors.texto,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            detalle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: violeta,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              shadows: [
+                Shadow(
+                  color: violeta.withValues(alpha: 0.85),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PlayerCard extends StatelessWidget {
   const _PlayerCard({
     required this.jugador,
     required this.index,
     required this.activo,
     required this.esTu,
-    required this.mejorTurno,
   });
 
   final Jugador jugador;
   final int index;
   final bool activo;
   final bool esTu;
-  final int mejorTurno;
 
   @override
   Widget build(BuildContext context) {
@@ -724,7 +1026,7 @@ class _PlayerCard extends StatelessWidget {
     final faltan = math.max(0, meta - jugador.puntos);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -919,11 +1221,9 @@ class _PlayerCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 if (activo)
-                  _Chip(
-                    icon: Icons.local_fire_department,
-                    label: mejorTurno > 0
-                        ? 'MEJOR ${_pts(mejorTurno)}'
-                        : 'A JUGAR',
+                  const _Chip(
+                    icon: Icons.campaign,
+                    label: 'SU TURNO',
                     color: AppColors.acentoSuave,
                   )
                 else
@@ -1222,7 +1522,7 @@ class _CombosBar extends StatelessWidget {
   }
 }
 
-enum _BotonTono { dorado, violeta }
+enum _BotonTono { dorado, violeta, azul, rojo }
 
 class _ArcadeButton extends StatelessWidget {
   const _ArcadeButton({
@@ -1240,143 +1540,105 @@ class _ArcadeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
-    final colors = tono == _BotonTono.dorado
-        ? const [Color(0xFFFFF3B0), Color(0xFFFFD54F), Color(0xFFFF9800)]
-        : const [Color(0xFFCE93D8), Color(0xFFAB47BC), Color(0xFF6A1B9A)];
-    final glow =
-        tono == _BotonTono.dorado ? AppColors.acento : AppColors.rosa;
-    final fg = tono == _BotonTono.dorado
-        ? const Color(0xFF4A1B6D)
-        : Colors.white;
+    final List<Color> colors;
+    final Color glow;
+    final Color fg;
+
+    switch (tono) {
+      case _BotonTono.dorado:
+        colors = const [
+          Color(0xFFFFF3B0),
+          Color(0xFFFFD54F),
+          Color(0xFFFF9800),
+        ];
+        glow = AppColors.acento;
+        fg = const Color(0xFF4A1B6D);
+      case _BotonTono.violeta:
+        colors = const [
+          Color(0xFFCE93D8),
+          Color(0xFFAB47BC),
+          Color(0xFF6A1B9A),
+        ];
+        glow = AppColors.rosa;
+        fg = Colors.white;
+      case _BotonTono.azul:
+        colors = const [
+          Color(0xFF81D4FA),
+          Color(0xFF29B6F6),
+          Color(0xFF0277BD),
+        ];
+        glow = AppColors.azul;
+        fg = Colors.white;
+      case _BotonTono.rojo:
+        colors = const [
+          Color(0xFFFF8A80),
+          Color(0xFFFF5252),
+          Color(0xFFC62828),
+        ];
+        glow = AppColors.peligro;
+        fg = Colors.white;
+    }
 
     return Opacity(
       opacity: enabled ? 1 : 0.4,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          child: Ink(
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: colors,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.65),
-                width: 1.6,
-              ),
-              boxShadow: enabled ? neonGlow(glow, blur: 16, spread: 1) : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: fg, size: 24),
-                const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: fg,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                    shadows: const [
-                      Shadow(color: Colors.white38, blurRadius: 4),
-                    ],
-                  ),
+          boxShadow: enabled ? neonGlow(glow, blur: 16, spread: 1) : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(20),
+            splashColor: Colors.white24,
+            highlightColor: Colors.white10,
+            child: Ink(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: colors,
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.index, required this.onSelect});
-
-  final int index;
-  final ValueChanged<int> onSelect;
-
-  static const _items = [
-    (Icons.casino, 'JUGAR', AppColors.acento),
-    (Icons.emoji_events, 'RANKING', AppColors.azul),
-    (Icons.bar_chart, 'ESTADÍSTICAS', AppColors.rosa),
-    (Icons.menu_book, 'REGLAS', AppColors.mint),
-    (Icons.settings, 'AJUSTES', AppColors.violeta),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-      decoration: BoxDecoration(
-        color: AppColors.nav.withValues(alpha: 0.96),
-        border: Border(
-          top: BorderSide(
-            color: AppColors.violeta.withValues(alpha: 0.5),
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < _items.length; i++)
-            Expanded(
-              child: InkWell(
-                onTap: () => onSelect(i),
-                borderRadius: BorderRadius.circular(14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.carta,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: i == index
-                              ? _items[i].$3
-                              : _items[i].$3.withValues(alpha: 0.45),
-                          width: i == index ? 1.8 : 1.1,
-                        ),
-                        boxShadow: i == index
-                            ? neonGlow(_items[i].$3, blur: 12)
-                            : neonGlow(_items[i].$3, blur: 4),
-                      ),
-                      child: Icon(
-                        _items[i].$1,
-                        size: 19,
-                        color: i == index
-                            ? _items[i].$3
-                            : _items[i].$3.withValues(alpha: 0.8),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _items[i].$2,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.65),
+                  width: 1.6,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: fg, size: 24),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 8,
+                        color: fg,
+                        fontSize: 17,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 0.3,
-                        color: i == index
-                            ? _items[i].$3
-                            : AppColors.textoSuave,
+                        letterSpacing: 1,
+                        shadows: const [
+                          Shadow(color: Colors.white38, blurRadius: 4),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
 }
+
+
+

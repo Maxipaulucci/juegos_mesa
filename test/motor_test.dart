@@ -31,4 +31,26 @@ void main() {
     expect(banco.ok, isFalse);
     expect(banco.motivo, 'apertura');
   });
+
+  test('sin abrir no se puede plantar antes de 750', () {
+    final partida = nuevaPartida(['A', 'B'], Modo.cinco);
+    iniciarTurno(partida);
+
+    partida.turno.puntosTurno = 50;
+    expect(puedePlantarse(partida), isFalse);
+
+    partida.turno.puntosTurno = 749;
+    expect(puedePlantarse(partida), isFalse);
+
+    partida.turno.puntosTurno = 750;
+    expect(puedePlantarse(partida), isTrue);
+  });
+
+  test('ya abierto puede plantarse con pocos puntos', () {
+    final partida = nuevaPartida(['A', 'B'], Modo.cinco);
+    iniciarTurno(partida);
+    partida.jugadorActual.abierto = true;
+    partida.turno.puntosTurno = 50;
+    expect(puedePlantarse(partida), isTrue);
+  });
 }
