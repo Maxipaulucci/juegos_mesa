@@ -22,14 +22,18 @@ class VictoriaOverlay extends StatefulWidget {
     required this.ganador,
     required this.estadisticas,
     required this.onVolver,
+    required this.onVolverAJugar,
     this.subtitulo,
+    this.animaciones = true,
   });
 
   final String ganador;
   final EstadisticasPartida estadisticas;
   final VoidCallback onVolver;
+  final VoidCallback onVolverAJugar;
   /// Si viene de una rendición: p.ej. "Jugador 1 se ha rendido".
   final String? subtitulo;
+  final bool animaciones;
 
   @override
   State<VictoriaOverlay> createState() => _VictoriaOverlayState();
@@ -48,20 +52,37 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
   @override
   void initState() {
     super.initState();
+    final conAnim = widget.animaciones;
+
     _entrada = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
+      duration: Duration(milliseconds: conAnim ? 700 : 0),
+    );
     _pulso = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
+    );
     _confeti = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
-    )..repeat();
-    _escala = CurvedAnimation(parent: _entrada, curve: Curves.elasticOut);
-    _opacidad = CurvedAnimation(parent: _entrada, curve: Curves.easeOut);
+    );
+
+    if (conAnim) {
+      _entrada.forward();
+      _pulso.repeat(reverse: true);
+      _confeti.repeat();
+    } else {
+      _entrada.value = 1;
+    }
+
+    _escala = CurvedAnimation(
+      parent: _entrada,
+      curve: conAnim ? Curves.elasticOut : Curves.linear,
+    );
+    _opacidad = CurvedAnimation(
+      parent: _entrada,
+      curve: conAnim ? Curves.easeOut : Curves.linear,
+    );
   }
 
   @override
@@ -77,11 +98,13 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
       return _WinnerCard(
         ganador: widget.ganador,
         pulso: _pulso,
+        animaciones: widget.animaciones,
         subtitulo: widget.subtitulo,
         onEstadisticas: () => setState(() {
           _mostrarStats = true;
           _statsJugador = null;
         }),
+        onVolverAJugar: widget.onVolverAJugar,
         onVolver: widget.onVolver,
       );
     }
@@ -112,14 +135,15 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
       color: Colors.black.withValues(alpha: 0.72),
       child: Stack(
         children: [
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _confeti,
-              builder: (_, __) => CustomPaint(
-                painter: _ConfetiPainter(progreso: _confeti.value),
+          if (widget.animaciones)
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _confeti,
+                builder: (_, __) => CustomPaint(
+                  painter: _ConfetiPainter(progreso: _confeti.value),
+                ),
               ),
             ),
-          ),
           SafeArea(
             child: Center(
               child: FadeTransition(
@@ -148,112 +172,125 @@ class _WinnerCard extends StatelessWidget {
     required this.ganador,
     required this.pulso,
     required this.onEstadisticas,
+    required this.onVolverAJugar,
     required this.onVolver,
     this.subtitulo,
+    this.animaciones = true,
   });
 
   final String ganador;
   final AnimationController pulso;
   final VoidCallback onEstadisticas;
+  final VoidCallback onVolverAJugar;
   final VoidCallback onVolver;
   final String? subtitulo;
+  final bool animaciones;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: pulso,
-      builder: (context, child) {
-        final glow = 14 + pulso.value * 18;
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(22, 28, 22, 20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF3B1D6E),
-                Color(0xFF1A0A33),
-                Color(0xFF2A1050),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: AppColors.acento, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.acento.withValues(alpha: 0.55),
-                blurRadius: glow,
-                spreadRadius: 2,
-              ),
-              BoxShadow(
-                color: AppColors.rosa.withValues(alpha: 0.35),
-                blurRadius: glow * 1.2,
-              ),
+    Widget card(double glow) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(22, 28, 22, 20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF3B1D6E),
+              Color(0xFF1A0A33),
+              Color(0xFF2A1050),
             ],
           ),
-          child: child,
-        );
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('🏆', style: TextStyle(fontSize: 52)),
-          const SizedBox(height: 8),
-          ShaderMask(
-            shaderCallback: (b) => const LinearGradient(
-              colors: [Colors.white, AppColors.acento, AppColors.rosa],
-            ).createShader(b),
-            child: const Text(
-              '¡GANADOR!',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppColors.acento, width: 2.5),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.acento.withValues(alpha: 0.55),
+              blurRadius: glow,
+              spreadRadius: 2,
+            ),
+            BoxShadow(
+              color: AppColors.rosa.withValues(alpha: 0.35),
+              blurRadius: glow * 1.2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🏆', style: TextStyle(fontSize: 52)),
+            const SizedBox(height: 8),
+            ShaderMask(
+              shaderCallback: (b) => const LinearGradient(
+                colors: [Colors.white, AppColors.acento, AppColors.rosa],
+              ).createShader(b),
+              child: const Text(
+                '¡GANADOR!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            ganador.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.acento,
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              shadows: [
-                Shadow(
-                  color: AppColors.acento.withValues(alpha: 0.8),
-                  blurRadius: 16,
-                ),
-              ],
+            const SizedBox(height: 10),
+            Text(
+              ganador.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.acento,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                shadows: [
+                  Shadow(
+                    color: AppColors.acento.withValues(alpha: 0.8),
+                    blurRadius: 16,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitulo ?? 'llegó a 10.000 y se lleva la partida',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textoSuave,
-              fontWeight: FontWeight.w600,
+            const SizedBox(height: 6),
+            Text(
+              subtitulo ?? 'Llegó a 10.000 y se lleva la partida',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textoSuave,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          _GlowButton(
-            label: 'ESTADÍSTICAS',
-            icon: Icons.bar_chart_rounded,
-            color: AppColors.azul,
-            onPressed: onEstadisticas,
-          ),
-          const SizedBox(height: 10),
-          _GlowButton(
-            label: 'VOLVER AL MENÚ',
-            icon: Icons.home_rounded,
-            color: AppColors.violeta,
-            onPressed: onVolver,
-          ),
-        ],
-      ),
+            const SizedBox(height: 24),
+            _GlowButton(
+              label: 'ESTADÍSTICAS',
+              icon: Icons.bar_chart_rounded,
+              color: AppColors.azul,
+              onPressed: onEstadisticas,
+            ),
+            const SizedBox(height: 10),
+            _GlowButton(
+              label: 'VOLVER A JUGAR',
+              icon: Icons.replay_rounded,
+              color: AppColors.mint,
+              onPressed: onVolverAJugar,
+            ),
+            const SizedBox(height: 10),
+            _GlowButton(
+              label: 'VOLVER AL MENÚ',
+              icon: Icons.home_rounded,
+              color: AppColors.violeta,
+              onPressed: onVolver,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!animaciones) return card(20);
+
+    return AnimatedBuilder(
+      animation: pulso,
+      builder: (context, _) => card(14 + pulso.value * 18),
     );
   }
 }

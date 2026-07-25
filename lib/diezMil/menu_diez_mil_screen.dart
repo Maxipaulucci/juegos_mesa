@@ -69,6 +69,7 @@ class MenuDiezMilScreen extends StatelessWidget {
                     builder: (_) => const PartidaDiezMilScreen(
                       nombres: ['Jugador 1', 'Jugador 2'],
                       modo: Modo.cinco,
+                      partidaRapida: true,
                     ),
                   ),
                 );
@@ -83,6 +84,7 @@ class MenuDiezMilScreen extends StatelessWidget {
                     builder: (_) => const PartidaDiezMilScreen(
                       nombres: ['Jugador 1', 'Jugador 2'],
                       modo: Modo.seis,
+                      partidaRapida: true,
                     ),
                   ),
                 );

@@ -14,7 +14,7 @@ class RegistroTirada {
 class EstadisticasJugador {
   EstadisticasJugador(this.nombre);
 
-  final String nombre;
+  String nombre;
   final List<RegistroTirada> tiradas = [];
 
   int get tirosTotales => tiradas.length;
@@ -43,4 +43,12 @@ class EstadisticasPartida {
   }
 
   EstadisticasJugador? de(String nombre) => porJugador[nombre];
+
+  void renombrar(String anterior, String nuevo) {
+    if (anterior == nuevo) return;
+    final e = porJugador.remove(anterior);
+    if (e == null) return;
+    e.nombre = nuevo;
+    porJugador[nuevo] = e;
+  }
 }

@@ -59,7 +59,7 @@ class EstadoTurno {
 class Jugador {
   Jugador(this.nombre);
 
-  final String nombre;
+  String nombre;
   int puntos = 0;
   bool abierto = false;
 }

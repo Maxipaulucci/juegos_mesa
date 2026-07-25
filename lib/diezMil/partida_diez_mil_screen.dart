@@ -20,18 +20,22 @@ class PartidaDiezMilScreen extends StatefulWidget {
     super.key,
     required this.nombres,
     required this.modo,
+    this.partidaRapida = false,
   });
 
   final List<String> nombres;
   final Modo modo;
+  /// Solo en partida rápida se puede editar el nombre tocando la tarjeta.
+  final bool partidaRapida;
 
   @override
   State<PartidaDiezMilScreen> createState() => _PartidaDiezMilScreenState();
 }
 
 class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
-  late final Partida _partida;
-  late final EstadisticasPartida _stats;
+  late Partida _partida;
+  late EstadisticasPartida _stats;
+  late List<String> _nombres;
   ResultadoTirada? _ultimaTirada;
   ResumenTirada? _ultimoResumen;
   String? _mensaje;
@@ -48,12 +52,138 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
 
+  static const int _maxNombre = 15;
+
   @override
   void initState() {
     super.initState();
-    _partida = nuevaPartida(widget.nombres, widget.modo);
-    _stats = EstadisticasPartida(widget.nombres);
+    _nombres = List.of(widget.nombres);
+    _iniciarPartidaNueva();
+  }
+
+  void _iniciarPartidaNueva() {
+    _partida = nuevaPartida(_nombres, widget.modo);
+    _stats = EstadisticasPartida(_nombres);
     iniciarTurno(_partida);
+    _ultimaTirada = null;
+    _ultimoResumen = null;
+    _mensaje = null;
+    _esperandoEspecial = false;
+    _mostrarVictoria = false;
+    _mostrarMenu = false;
+    _mostrarAjustes = false;
+    _confirmarRendicion = false;
+    _subtituloVictoria = null;
+    _mejorTiradaPartida = 0;
+    _mejorTiradaJugador = null;
+    _dadosForzados = null;
+  }
+
+  void _volverAJugar() {
+    setState(_iniciarPartidaNueva);
+  }
+
+  Future<void> _renombrarJugador(int index) async {
+    if (!widget.partidaRapida || _partida.ganador != null) return;
+    final actual = _partida.jugadores[index].nombre;
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle: const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final t = ctrl.text.trim();
+                if (_validarNombre(t, index) case final e?) {
+                  setDialogState(() => error = e);
+                  return;
+                }
+                Navigator.of(context).pop(t);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+
+    setState(() {
+      final anterior = _partida.jugadores[index].nombre;
+      _partida.jugadores[index].nombre = nuevo;
+      _nombres[index] = nuevo;
+      _stats.renombrar(anterior, nuevo);
+      if (_mejorTiradaJugador == anterior) {
+        _mejorTiradaJugador = nuevo;
+      }
+      if (_partida.ganador == anterior) {
+        _partida.ganador = nuevo;
+      }
+      if (_subtituloVictoria != null &&
+          _subtituloVictoria!.contains(anterior)) {
+        _subtituloVictoria =
+            _subtituloVictoria!.replaceFirst(anterior, nuevo);
+      }
+    });
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    final ocupado = _partida.jugadores.asMap().entries.any(
+          (e) => e.key != index && e.value.nombre == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
   }
 
   void _lanzarVictoria() {
@@ -243,9 +373,9 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       } else if (resumen.bust) {
         _mensaje =
             'No sumaste nada. Perdés los ${resumen.puntosPerdidos} pts del turno.';
-      } else if (resumen.hotDice) {
-        _mensaje = '¡Hot dice! Tirás de nuevo con ${_partida.modo.dados} dados.';
       } else {
+        // Hot dice y tiradas normales usan el mismo texto del banner
+        // ("X PTS EN ESTA TIRADA · TURNO Y").
         _mensaje = null;
       }
     });
@@ -387,6 +517,12 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                   activo: !terminada &&
                                       identical(_partida.jugadores[i], j),
                                   esTu: i == 0,
+                                  puedeRenombrar: widget.partidaRapida &&
+                                      !terminada,
+                                  onRenombrar: widget.partidaRapida &&
+                                          !terminada
+                                      ? () => _renombrarJugador(i)
+                                      : null,
                                 ),
                                 const SizedBox(height: 6),
                               ],
@@ -564,6 +700,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                 ganador: _partida.ganador!,
                 estadisticas: _stats,
                 subtitulo: _subtituloVictoria,
+                animaciones: _ajustes.animaciones,
+                onVolverAJugar: _volverAJugar,
                 onVolver: () => Navigator.of(context).pop(),
               ),
             ),
@@ -1022,12 +1160,16 @@ class _PlayerCard extends StatelessWidget {
     required this.index,
     required this.activo,
     required this.esTu,
+    this.puedeRenombrar = false,
+    this.onRenombrar,
   });
 
   final Jugador jugador;
   final int index;
   final bool activo;
   final bool esTu;
+  final bool puedeRenombrar;
+  final VoidCallback? onRenombrar;
 
   @override
   Widget build(BuildContext context) {
@@ -1114,13 +1256,61 @@ class _PlayerCard extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        jugador.nombre.toUpperCase(),
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14,
-                          letterSpacing: 0.5,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: puedeRenombrar ? onRenombrar : null,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Ink(
+                            padding: EdgeInsets.symmetric(
+                              vertical: puedeRenombrar ? 4 : 2,
+                              horizontal: puedeRenombrar ? 8 : 2,
+                            ),
+                            decoration: puedeRenombrar
+                                ? BoxDecoration(
+                                    color: const Color(0xFF0E061C),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: AppColors.violeta
+                                          .withValues(alpha: 0.7),
+                                      width: 1.2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black
+                                            .withValues(alpha: 0.45),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  )
+                                : null,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    jugador.nombre.toUpperCase(),
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                if (puedeRenombrar) ...[
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    Icons.edit_rounded,
+                                    size: 14,
+                                    color: AppColors.violeta
+                                        .withValues(alpha: 0.95),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
