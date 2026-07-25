@@ -41,6 +41,9 @@ class VictoriaOverlay extends StatefulWidget {
 
 class _VictoriaOverlayState extends State<VictoriaOverlay>
     with TickerProviderStateMixin {
+  /// El reloj del confeti avanza en segundos reales durante una hora.
+  static const int _cicloConfetiSegundos = 3600;
+
   late final AnimationController _entrada;
   late final AnimationController _pulso;
   late final AnimationController _confeti;
@@ -62,15 +65,18 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _confeti = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    );
+    // Reloj continuo en segundos: nunca vuelve a cero, así el confeti no
+    // reaparece de golpe en las mismas posiciones.
+    _confeti = AnimationController.unbounded(vsync: this);
 
     if (conAnim) {
       _entrada.forward();
       _pulso.repeat(reverse: true);
-      _confeti.repeat();
+      _confeti.repeat(
+        min: 0,
+        max: _cicloConfetiSegundos.toDouble(),
+        period: const Duration(seconds: _cicloConfetiSegundos),
+      );
     } else {
       _entrada.value = 1;
     }
@@ -140,7 +146,7 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
               child: AnimatedBuilder(
                 animation: _confeti,
                 builder: (_, __) => CustomPaint(
-                  painter: _ConfetiPainter(progreso: _confeti.value),
+                  painter: _ConfetiPainter(tiempo: _confeti.value),
                 ),
               ),
             ),
@@ -671,12 +677,16 @@ class _GlowButton extends StatelessWidget {
 class _ConfetiPiece {
   _ConfetiPiece(math.Random rng, Size size)
       : x = rng.nextDouble() * size.width,
-        y0 = -20 - rng.nextDouble() * size.height,
+        // Desfase inicial repartido a lo largo del recorrido completo para
+        // que las piezas no reaparezcan todas juntas.
+        desfase = rng.nextDouble(),
         w = 6 + rng.nextDouble() * 8,
         h = 8 + rng.nextDouble() * 12,
-        speed = 0.35 + rng.nextDouble() * 0.9,
+        velocidad = 90 + rng.nextDouble() * 220,
         spin = rng.nextDouble() * math.pi * 2,
-        spinSpeed = (rng.nextDouble() - 0.5) * 8,
+        spinSpeed = (rng.nextDouble() - 0.5) * 4,
+        derivaAmplitud = 6 + rng.nextDouble() * 26,
+        derivaFrecuencia = 0.4 + rng.nextDouble() * 1.1,
         color = [
           AppColors.acento,
           AppColors.azul,
@@ -687,19 +697,23 @@ class _ConfetiPiece {
         ][rng.nextInt(6)];
 
   final double x;
-  final double y0;
+  final double desfase;
   final double w;
   final double h;
-  final double speed;
+  /// Píxeles por segundo.
+  final double velocidad;
   final double spin;
   final double spinSpeed;
+  final double derivaAmplitud;
+  final double derivaFrecuencia;
   final Color color;
 }
 
 class _ConfetiPainter extends CustomPainter {
-  _ConfetiPainter({required this.progreso});
+  _ConfetiPainter({required this.tiempo});
 
-  final double progreso;
+  /// Segundos transcurridos, siempre creciente (evita saltos al reiniciar).
+  final double tiempo;
   static List<_ConfetiPiece>? _pieces;
   static Size? _lastSize;
 
@@ -712,12 +726,17 @@ class _ConfetiPainter extends CustomPainter {
     }
 
     final paint = Paint();
+    final recorrido = size.height + 80;
+
     for (final p in _pieces!) {
-      final y = (p.y0 + progreso * size.height * (1.4 + p.speed)) %
-          (size.height + 40);
-      final angulo = p.spin + progreso * p.spinSpeed;
+      final avance = p.desfase * recorrido + tiempo * p.velocidad;
+      final y = avance % recorrido - 40;
+      final x =
+          p.x + math.sin(tiempo * p.derivaFrecuencia + p.spin) * p.derivaAmplitud;
+      final angulo = p.spin + tiempo * p.spinSpeed;
+
       canvas.save();
-      canvas.translate(p.x, y);
+      canvas.translate(x, y);
       canvas.rotate(angulo);
       paint.color = p.color;
       canvas.drawRRect(
@@ -733,5 +752,5 @@ class _ConfetiPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ConfetiPainter oldDelegate) =>
-      oldDelegate.progreso != progreso;
+      oldDelegate.tiempo != tiempo;
 }
