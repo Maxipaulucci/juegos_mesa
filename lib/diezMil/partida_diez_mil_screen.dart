@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 
 import '../theme/app_theme.dart';
 import 'dado_widget.dart';
+import 'estadisticas.dart';
 import 'motor.dart';
 import 'textos.dart';
+import 'victoria_overlay.dart';
 
 final _fmt = NumberFormat('#,###', 'es_AR');
 
@@ -28,10 +30,12 @@ class PartidaDiezMilScreen extends StatefulWidget {
 
 class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   late final Partida _partida;
+  late final EstadisticasPartida _stats;
   ResultadoTirada? _ultimaTirada;
   ResumenTirada? _ultimoResumen;
   String? _mensaje;
   bool _esperandoEspecial = false;
+  bool _mostrarVictoria = false;
   final Map<String, int> _mejorTurno = {};
   int _navIndex = 0;
 
@@ -39,10 +43,19 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   void initState() {
     super.initState();
     _partida = nuevaPartida(widget.nombres, widget.modo);
+    _stats = EstadisticasPartida(widget.nombres);
     iniciarTurno(_partida);
     for (final j in _partida.jugadores) {
       _mejorTurno[j.nombre] = 0;
     }
+  }
+
+  void _lanzarVictoria() {
+    if (_mostrarVictoria) return;
+    Future<void>.delayed(const Duration(milliseconds: 450), () {
+      if (!mounted || _partida.ganador == null) return;
+      setState(() => _mostrarVictoria = true);
+    });
   }
 
   void _mostrarReglas() {
@@ -81,7 +94,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _aplicar(ResultadoTirada resultado, Especial? especial) {
+    final nombre = _partida.jugadorActual.nombre;
     final resumen = aplicarPuntosTirada(_partida, resultado, especial);
+    final puntosReg = resumen.bust ? 0 : resumen.puntosTirada;
+    _stats.registrar(nombre, puntosReg);
+
     setState(() {
       _ultimaTirada = resultado;
       _ultimoResumen = resumen;
@@ -98,7 +115,12 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       }
     });
 
-    if (resumen.bust && _partida.ganador == null) {
+    if (_partida.ganador != null) {
+      _lanzarVictoria();
+      return;
+    }
+
+    if (resumen.bust) {
       Future<void>.delayed(const Duration(milliseconds: 1100), () {
         if (!mounted || _partida.ganador != null) return;
         setState(() {
@@ -142,17 +164,20 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       }
     });
 
-    if (_partida.ganador == null) {
-      Future<void>.delayed(const Duration(milliseconds: 800), () {
-        if (!mounted || _partida.ganador != null) return;
-        setState(() {
-          pasarTurno(_partida);
-          _ultimaTirada = null;
-          _ultimoResumen = null;
-          _mensaje = null;
-        });
-      });
+    if (_partida.ganador != null) {
+      _lanzarVictoria();
+      return;
     }
+
+    Future<void>.delayed(const Duration(milliseconds: 800), () {
+      if (!mounted || _partida.ganador != null) return;
+      setState(() {
+        pasarTurno(_partida);
+        _ultimaTirada = null;
+        _ultimoResumen = null;
+        _mensaje = null;
+      });
+    });
   }
 
   List<bool> _dadosQueSuman() {
@@ -180,116 +205,113 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       backgroundColor: AppColors.fondo,
       body: Stack(
         children: [
-          const Positioned.fill(child: _NeonBackdrop()),
+          const Positioned.fill(child: _EpicBackdrop()),
           SafeArea(
             child: Column(
               children: [
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
-                    child: Column(
-                      children: [
-                        _Header(
-                          dados: _partida.modo.dados,
-                          onBack: () => Navigator.of(context).maybePop(),
-                          onSettings: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Ajustes próximamente'),
-                                duration: Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        for (var i = 0; i < _partida.jugadores.length; i++) ...[
-                          _PlayerCard(
-                            jugador: _partida.jugadores[i],
-                            index: i,
-                            activo: !terminada &&
-                                identical(_partida.jugadores[i], j),
-                            esTu: i == 0,
-                            mejorTurno:
-                                _mejorTurno[_partida.jugadores[i].nombre] ?? 0,
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-                        const SizedBox(height: 4),
-                        _TurnoBanner(
-                          nombre: terminada
-                              ? (_partida.ganador ?? '')
-                              : j.nombre,
-                          terminada: terminada,
-                          ptsTurno: t.puntosTurno,
-                          ptsTirada: ptsTirada,
-                        ),
-                        const SizedBox(height: 14),
-                        _DadosZona(
-                          cantidad: _partida.modo.dados,
-                          dados: _ultimaTirada?.dados,
-                          suman: _dadosQueSuman(),
-                        ),
-                        const SizedBox(height: 12),
-                        if (_ultimoResumen != null && !_ultimoResumen!.bust)
-                          _CombosBar(
-                            combos: _ultimoResumen!.combos,
-                            total: _ultimoResumen!.puntosTirada,
-                          ),
-                        if (_mensaje != null) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            _mensaje!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.texto,
-                              fontWeight: FontWeight.w600,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 540),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _Header(
+                              dados: _partida.modo.dados,
+                              onBack: () => Navigator.of(context).maybePop(),
+                              onSettings: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Ajustes próximamente'),
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                              },
                             ),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        if (_esperandoEspecial && _ultimaTirada != null) ...[
-                          Text(
-                            'Sacaste ${nombreEspecial(_ultimaTirada!.combosOpcionales.first.especial!)} '
-                            '(${_ultimaTirada!.combosOpcionales.first.puntos} pts). ¿Aceptás?',
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          _ArcadeButton(
-                            label: 'ACEPTAR ESPECIAL',
-                            icon: Icons.auto_awesome,
-                            tono: _BotonTono.dorado,
-                            onPressed: () => _responderEspecial(true),
-                          ),
-                          const SizedBox(height: 10),
-                          _ArcadeButton(
-                            label: 'COMBOS NORMALES',
-                            icon: Icons.casino_outlined,
-                            tono: _BotonTono.violeta,
-                            onPressed: () => _responderEspecial(false),
-                          ),
-                        ] else if (!terminada) ...[
-                          _ArcadeButton(
-                            label: 'TIRAR DADOS',
-                            icon: Icons.casino,
-                            tono: _BotonTono.dorado,
-                            onPressed: _tirar,
-                          ),
-                          const SizedBox(height: 10),
-                          _ArcadeButton(
-                            label: 'PLANTARSE',
-                            icon: Icons.pan_tool_alt_outlined,
-                            tono: _BotonTono.violeta,
-                            onPressed:
-                                puedePlantarse(_partida) ? _plantarse : null,
-                          ),
-                        ] else
-                          _ArcadeButton(
-                            label: 'VOLVER',
-                            icon: Icons.arrow_back,
-                            tono: _BotonTono.dorado,
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                      ],
+                            for (var i = 0;
+                                i < _partida.jugadores.length;
+                                i++)
+                              _PlayerCard(
+                                jugador: _partida.jugadores[i],
+                                index: i,
+                                activo: !terminada &&
+                                    identical(_partida.jugadores[i], j),
+                                esTu: i == 0,
+                                mejorTurno: _mejorTurno[
+                                        _partida.jugadores[i].nombre] ??
+                                    0,
+                              ),
+                            _TurnoBanner(
+                              nombre: terminada
+                                  ? (_partida.ganador ?? '')
+                                  : j.nombre,
+                              terminada: terminada,
+                              ptsTurno: t.puntosTurno,
+                              ptsTirada: ptsTirada,
+                              mensaje: _mensaje,
+                            ),
+                            _DadosZona(
+                              cantidad: _partida.modo.dados,
+                              dados: _ultimaTirada?.dados,
+                              suman: _dadosQueSuman(),
+                            ),
+                            _CombosBar(
+                              combos: (_ultimoResumen != null &&
+                                      !_ultimoResumen!.bust)
+                                  ? _ultimoResumen!.combos
+                                  : const [],
+                              total: ptsTirada,
+                            ),
+                            if (_esperandoEspecial &&
+                                _ultimaTirada != null) ...[
+                              Text(
+                                'Sacaste ${nombreEspecial(_ultimaTirada!.combosOpcionales.first.especial!)} '
+                                '(${_ultimaTirada!.combosOpcionales.first.puntos} pts). ¿Aceptás?',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              _ArcadeButton(
+                                label: 'ACEPTAR ESPECIAL',
+                                icon: Icons.auto_awesome,
+                                tono: _BotonTono.dorado,
+                                onPressed: () => _responderEspecial(true),
+                              ),
+                              _ArcadeButton(
+                                label: 'COMBOS NORMALES',
+                                icon: Icons.casino_outlined,
+                                tono: _BotonTono.violeta,
+                                onPressed: () => _responderEspecial(false),
+                              ),
+                            ] else if (!terminada) ...[
+                              _ArcadeButton(
+                                label: 'TIRAR DADOS',
+                                icon: Icons.casino,
+                                tono: _BotonTono.dorado,
+                                onPressed: _tirar,
+                              ),
+                              _ArcadeButton(
+                                label: 'PLANTARSE',
+                                icon: Icons.pan_tool_alt_outlined,
+                                tono: _BotonTono.violeta,
+                                onPressed: puedePlantarse(_partida)
+                                    ? _plantarse
+                                    : null,
+                              ),
+                            ] else
+                              _ArcadeButton(
+                                label: 'VOLVER',
+                                icon: Icons.arrow_back,
+                                tono: _BotonTono.dorado,
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -311,52 +333,105 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
               ],
             ),
           ),
+          if (_mostrarVictoria && _partida.ganador != null)
+            Positioned.fill(
+              child: VictoriaOverlay(
+                ganador: _partida.ganador!,
+                estadisticas: _stats,
+                onVolver: () => Navigator.of(context).pop(),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _NeonBackdrop extends StatelessWidget {
-  const _NeonBackdrop();
+/// Fondo épico: rayos láser diagonales + destellos + resplandor central.
+class _EpicBackdrop extends StatelessWidget {
+  const _EpicBackdrop();
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: RadialGradient(
-          center: Alignment(0, -0.2),
-          radius: 1.15,
+          center: Alignment(0, -0.25),
+          radius: 1.25,
           colors: [
-            Color(0xFF2A1450),
-            AppColors.fondo,
-            Color(0xFF070312),
+            Color(0xFF321A5E),
+            Color(0xFF1B0D38),
+            Color(0xFF0A0418),
           ],
-          stops: [0.0, 0.55, 1.0],
+          stops: [0.0, 0.5, 1.0],
         ),
       ),
-      child: CustomPaint(painter: _SparklesPainter()),
+      child: CustomPaint(painter: _LasersPainter(), size: Size.infinite),
     );
   }
 }
 
-class _SparklesPainter extends CustomPainter {
+class _LasersPainter extends CustomPainter {
+  static const _colores = [
+    AppColors.acento,
+    AppColors.azul,
+    AppColors.rosa,
+    AppColors.violeta,
+    AppColors.mint,
+  ];
+
   @override
   void paint(Canvas canvas, Size size) {
-    final rng = math.Random(7);
-    final paint = Paint();
-    for (var i = 0; i < 42; i++) {
+    final centro = Offset(size.width / 2, size.height * 0.30);
+    final rng = math.Random(11);
+
+    // Rayos láser que salen del centro hacia afuera
+    for (var i = 0; i < 22; i++) {
+      final angulo = rng.nextDouble() * math.pi * 2;
+      final largo = size.longestSide * (0.5 + rng.nextDouble() * 0.6);
+      final color = _colores[i % _colores.length];
+      final ancho = 1.2 + rng.nextDouble() * 2.6;
+
+      final fin = Offset(
+        centro.dx + math.cos(angulo) * largo,
+        centro.dy + math.sin(angulo) * largo,
+      );
+      final inicio = Offset(
+        centro.dx + math.cos(angulo) * 30,
+        centro.dy + math.sin(angulo) * 30,
+      );
+
+      final paint = Paint()
+        ..shader = LinearGradient(
+          colors: [
+            color.withValues(alpha: 0.5),
+            color.withValues(alpha: 0.0),
+          ],
+        ).createShader(Rect.fromPoints(inicio, fin))
+        ..strokeWidth = ancho
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawLine(inicio, fin, paint);
+    }
+
+    // Destellos / partículas brillantes
+    for (var i = 0; i < 70; i++) {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * size.height;
-      final r = 0.6 + rng.nextDouble() * 1.8;
-      paint.color = [
-        AppColors.acento,
-        AppColors.azul,
-        AppColors.rosa,
-        AppColors.violeta,
-      ][i % 4]
-          .withValues(alpha: 0.18 + rng.nextDouble() * 0.25);
+      final r = 0.6 + rng.nextDouble() * 2.2;
+      final color = _colores[i % _colores.length];
+      final paint = Paint()
+        ..color = color.withValues(alpha: 0.25 + rng.nextDouble() * 0.45);
       canvas.drawCircle(Offset(x, y), r, paint);
+
+      // Cruz de brillo en algunas estrellas
+      if (i % 6 == 0) {
+        final linea = Paint()
+          ..color = color.withValues(alpha: 0.5)
+          ..strokeWidth = 0.8;
+        canvas.drawLine(Offset(x - r * 3, y), Offset(x + r * 3, y), linea);
+        canvas.drawLine(Offset(x, y - r * 3), Offset(x, y + r * 3), linea);
+      }
     }
   }
 
@@ -383,37 +458,68 @@ class _Header extends StatelessWidget {
         Expanded(
           child: Column(
             children: [
-              ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  colors: [Colors.white, AppColors.acento, AppColors.azul],
-                ).createShader(bounds),
-                child: const Text(
-                  'DIEZ MIL',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                    color: Colors.white,
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Sombra 3D del título
+                  Text(
+                    'DIEZ MIL',
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                      foreground: Paint()
+                        ..style = PaintingStyle.stroke
+                        ..strokeWidth = 7
+                        ..color = const Color(0xFF2A1160),
+                    ),
                   ),
-                ),
+                  ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white,
+                        Color(0xFFFFE082),
+                        AppColors.acento,
+                      ],
+                    ).createShader(bounds),
+                    child: const Text(
+                      'DIEZ MIL',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(color: AppColors.acento, blurRadius: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
               Container(
-                margin: const EdgeInsets.only(top: 4),
+                margin: const EdgeInsets.only(top: 2),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [AppColors.azulSuave, AppColors.violeta],
                   ),
                   borderRadius: BorderRadius.circular(99),
-                  boxShadow: neonGlow(AppColors.azul, blur: 8),
+                  border: Border.all(
+                    color: AppColors.acento.withValues(alpha: 0.8),
+                  ),
+                  boxShadow: neonGlow(AppColors.azul, blur: 10),
                 ),
                 child: Text(
                   '★  $dados DADOS  ★',
                   style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.4,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -445,8 +551,9 @@ class _RoundIcon extends StatelessWidget {
           height: 42,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.violeta.withValues(alpha: 0.7)),
-            boxShadow: neonGlow(AppColors.violeta, blur: 8),
+            border:
+                Border.all(color: AppColors.rosa.withValues(alpha: 0.85), width: 1.6),
+            boxShadow: neonGlow(AppColors.rosa, blur: 10),
           ),
           child: Icon(icon, color: AppColors.texto, size: 20),
         ),
@@ -475,54 +582,82 @@ class _PlayerCard extends StatelessWidget {
     final accent = index.isEven ? AppColors.acento : AppColors.azul;
     final pct = (jugador.puntos / meta).clamp(0.0, 1.0);
     final faltan = math.max(0, meta - jugador.puntos);
-    final borderColor = activo ? accent : accent.withValues(alpha: 0.45);
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.carta.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor, width: activo ? 2 : 1.2),
-        boxShadow: activo ? neonGlow(accent, blur: 16) : null,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.carta.withValues(alpha: 0.95),
+            const Color(0xFF190B33).withValues(alpha: 0.95),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: activo ? accent : accent.withValues(alpha: 0.55),
+          width: activo ? 2.4 : 1.4,
+        ),
+        boxShadow: activo
+            ? neonGlow(accent, blur: 20, spread: 1)
+            : neonGlow(accent, blur: 8),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Avatar con anillo brillante y corona
           Stack(
             clipBehavior: Clip.none,
+            alignment: Alignment.center,
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [
-                      accent.withValues(alpha: 0.35),
-                      AppColors.fondoSuave,
+                      accent,
+                      accent.withValues(alpha: 0.25),
                     ],
                   ),
-                  border: Border.all(color: accent, width: 2.5),
-                  boxShadow: neonGlow(accent, blur: 10),
+                  boxShadow: neonGlow(accent, blur: 14),
                 ),
-                child: Icon(
-                  index.isEven ? Icons.face : Icons.face_6,
-                  color: accent,
-                  size: 28,
+                padding: const EdgeInsets.all(3),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.fondoSuave,
+                  ),
+                  child: Icon(
+                    index.isEven ? Icons.face : Icons.face_6,
+                    color: accent,
+                    size: 32,
+                  ),
                 ),
               ),
               if (activo)
-                Positioned(
-                  top: -6,
-                  right: -4,
-                  child: Icon(Icons.workspace_premium, color: accent, size: 18),
+                const Positioned(
+                  top: -12,
+                  child: Icon(
+                    Icons.workspace_premium,
+                    color: AppColors.acento,
+                    size: 22,
+                    shadows: [
+                      Shadow(color: AppColors.acento, blurRadius: 12),
+                    ],
+                  ),
                 ),
             ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
+          // Columna principal
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
@@ -531,26 +666,27 @@ class _PlayerCard extends StatelessWidget {
                         jugador.nombre.toUpperCase(),
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          letterSpacing: 0.4,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
-                    if (esTu && activo) ...[
-                      const SizedBox(width: 6),
+                    if (activo) ...[
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: accent,
-                          borderRadius: BorderRadius.circular(6),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFE082), AppColors.acento],
+                          ),
+                          borderRadius: BorderRadius.circular(99),
+                          boxShadow: neonGlow(AppColors.acento, blur: 8),
                         ),
-                        child: const Text(
-                          'TU TURNO',
-                          style: TextStyle(
+                        child: Text(
+                          esTu ? 'TU TURNO' : 'SU TURNO',
+                          style: const TextStyle(
                             color: Color(0xFF1A0A00),
                             fontSize: 9,
                             fontWeight: FontWeight.w900,
@@ -560,73 +696,104 @@ class _PlayerCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 2),
                 Text(
                   '${_pts(jugador.puntos)} PTS',
                   style: TextStyle(
                     color: accent,
-                    fontSize: 24,
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
+                    height: 1.1,
                     shadows: [
-                      Shadow(color: accent.withValues(alpha: 0.6), blurRadius: 10),
+                      Shadow(
+                        color: accent.withValues(alpha: 0.8),
+                        blurRadius: 14,
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'FALTAN ${_pts(faltan)} PTS PARA GANAR',
-                  style: TextStyle(
-                    color: accent.withValues(alpha: 0.9),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    const Icon(Icons.emoji_events,
+                        color: AppColors.acento, size: 13),
+                    const SizedBox(width: 4),
+                    Text(
+                      'FALTAN ${_pts(faltan)} PTS PARA GANAR',
+                      style: TextStyle(
+                        color: accent.withValues(alpha: 0.95),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(99),
-                  child: LinearProgressIndicator(
-                    value: pct,
-                    minHeight: 8,
-                    backgroundColor: AppColors.fondo,
-                    color: accent,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${(pct * 100).round()}% DEL OBJETIVO',
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: pct,
+                          minHeight: 9,
+                          backgroundColor:
+                              Colors.black.withValues(alpha: 0.45),
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${(pct * 100).round()}%',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (jugador.abierto)
-                const _Chip(
-                  icon: Icons.check_circle,
-                  label: 'ABIERTO',
-                  color: AppColors.mint,
-                ),
-              const SizedBox(height: 4),
-              if (activo && mejorTurno > 0)
+          const SizedBox(width: 10),
+          // Panel de estado a la derecha
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accent.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 _Chip(
-                  icon: Icons.local_fire_department,
-                  label: 'MEJOR ${_pts(mejorTurno)}',
-                  color: AppColors.acento,
-                )
-              else if (!activo)
-                const _Chip(
-                  icon: Icons.schedule,
-                  label: 'ESPERANDO',
-                  color: AppColors.azul,
+                  icon: jugador.abierto
+                      ? Icons.check_circle
+                      : Icons.lock_outline,
+                  label: jugador.abierto ? 'ABIERTO' : 'SIN ABRIR',
+                  color: jugador.abierto
+                      ? AppColors.mint
+                      : AppColors.textoSuave,
                 ),
-            ],
+                const SizedBox(height: 5),
+                if (activo)
+                  _Chip(
+                    icon: Icons.local_fire_department,
+                    label: mejorTurno > 0
+                        ? 'MEJOR ${_pts(mejorTurno)}'
+                        : 'A JUGAR',
+                    color: AppColors.acentoSuave,
+                  )
+                else
+                  const _Chip(
+                    icon: Icons.schedule,
+                    label: 'ESPERANDO',
+                    color: AppColors.azul,
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -647,28 +814,22 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color, shadows: [
+          Shadow(color: color.withValues(alpha: 0.8), blurRadius: 8),
+        ]),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -679,49 +840,100 @@ class _TurnoBanner extends StatelessWidget {
     required this.terminada,
     required this.ptsTurno,
     required this.ptsTirada,
+    required this.mensaje,
   });
 
   final String nombre;
   final bool terminada;
   final int ptsTurno;
   final int ptsTirada;
+  final String? mensaje;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.violeta, AppColors.acentoSuave],
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '«',
+              style: TextStyle(
+                color: AppColors.violeta,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-            borderRadius: BorderRadius.circular(99),
-            boxShadow: neonGlow(AppColors.acento, blur: 10),
-          ),
-          child: Text(
-            terminada
-                ? '★  GANÓ: ${nombre.toUpperCase()}  ★'
-                : '★  TURNO DE: ${nombre.toUpperCase()}  ★',
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 12,
-              letterSpacing: 0.5,
+            const SizedBox(width: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    AppColors.violeta,
+                    AppColors.rosa,
+                    AppColors.acentoSuave,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+                boxShadow: neonGlow(AppColors.rosa, blur: 14),
+              ),
+              child: Text(
+                terminada
+                    ? '★ GANÓ: ${nombre.toUpperCase()} ★'
+                    : '★ TURNO DE: ${nombre.toUpperCase()} ★',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 0.6,
+                  color: Colors.white,
+                  shadows: [Shadow(color: Colors.black45, blurRadius: 4)],
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: 8),
+            const Text(
+              '»',
+              style: TextStyle(
+                color: AppColors.violeta,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          terminada
-              ? 'Partida terminada'
-              : ptsTirada > 0
-                  ? '$ptsTirada PTS EN ESTA TIRADA'
-                  : 'TURNO: ${_pts(ptsTurno)} PTS',
-          style: const TextStyle(
-            color: AppColors.mint,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+        const SizedBox(height: 4),
+        SizedBox(
+          height: 32,
+          child: Center(
+            child: Text(
+              mensaje ??
+                  (terminada
+                      ? 'PARTIDA TERMINADA'
+                      : ptsTirada > 0
+                          ? '$ptsTirada PTS EN ESTA TIRADA · TURNO ${_pts(ptsTurno)}'
+                          : 'TURNO: ${_pts(ptsTurno)} PTS'),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.mint,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+                shadows: [
+                  Shadow(
+                    color: AppColors.mint.withValues(alpha: 0.7),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -742,40 +954,44 @@ class _DadosZona extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final tamano =
-        ((width - 40 - (cantidad - 1) * 8) / cantidad).clamp(44.0, 62.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tamano = ((constraints.maxWidth - (cantidad - 1) * 10) /
+                cantidad)
+            .clamp(44.0, 76.0);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: RadialGradient(
-          colors: [
-            AppColors.azul.withValues(alpha: 0.22),
-            Colors.transparent,
-          ],
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < cantidad; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
-            if (dados == null)
-              DadoFace(valor: 1, vacio: true, tamano: tamano)
-            else if (i < dados!.length)
-              DadoFace(
-                valor: dados![i],
-                suma: i < suman.length && suman[i],
-                tamano: tamano,
-              )
-            else
-              DadoFace(valor: 1, vacio: true, tamano: tamano),
-          ],
-        ],
-      ),
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            gradient: RadialGradient(
+              radius: 1.2,
+              colors: [
+                AppColors.violeta.withValues(alpha: 0.3),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < cantidad; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                if (dados == null)
+                  DadoFace(valor: 1, vacio: true, tamano: tamano)
+                else if (i < dados!.length)
+                  DadoFace(
+                    valor: dados![i],
+                    suma: i < suman.length && suman[i],
+                    tamano: tamano,
+                  )
+                else
+                  DadoFace(valor: 1, vacio: true, tamano: tamano),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -790,55 +1006,72 @@ class _CombosBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.carta,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cartaBorde),
-        boxShadow: neonGlow(AppColors.violeta, blur: 8),
+        gradient: const LinearGradient(
+          colors: [
+            AppColors.carta,
+            Color(0xFF190B33),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.violeta.withValues(alpha: 0.6)),
+        boxShadow: neonGlow(AppColors.violeta, blur: 10),
       ),
       child: Row(
         children: [
-          const Icon(Icons.star, color: AppColors.acento, size: 18),
+          const Icon(
+            Icons.star,
+            color: AppColors.acento,
+            size: 20,
+            shadows: [Shadow(color: AppColors.acento, blurRadius: 10)],
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
                   'COMBOS ACTIVOS',
                   style: TextStyle(
-                    color: AppColors.textoSuave,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
+                    color: AppColors.acento,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
                   ),
                 ),
                 Text(
                   combos.isEmpty
-                      ? '—'
+                      ? 'Tirá los dados para sumar puntos'
                       : combos
-                          .map((c) => '${c.nombre.toUpperCase()} (+${c.puntos})')
-                          .join('  ·  '),
-                  style: const TextStyle(
-                    color: AppColors.mint,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                          .map((c) =>
+                              '${c.nombre.toUpperCase()} (+${c.puntos})')
+                          .join('   '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: combos.isEmpty
+                        ? AppColors.textoSuave
+                        : AppColors.mint,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             'TOTAL +$total',
             style: TextStyle(
               color: AppColors.mint,
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w900,
               shadows: [
                 Shadow(
-                  color: AppColors.mint.withValues(alpha: 0.7),
-                  blurRadius: 10,
+                  color: AppColors.mint.withValues(alpha: 0.85),
+                  blurRadius: 12,
                 ),
               ],
             ),
@@ -868,11 +1101,13 @@ class _ArcadeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
     final colors = tono == _BotonTono.dorado
-        ? const [Color(0xFFFFE082), AppColors.acento, AppColors.acentoSuave]
-        : const [Color(0xFFB388FF), AppColors.violeta, Color(0xFF4527A0)];
+        ? const [Color(0xFFFFF3B0), Color(0xFFFFD54F), Color(0xFFFF9800)]
+        : const [Color(0xFFCE93D8), Color(0xFFAB47BC), Color(0xFF6A1B9A)];
+    final glow =
+        tono == _BotonTono.dorado ? AppColors.acento : AppColors.rosa;
     final fg = tono == _BotonTono.dorado
-        ? const Color(0xFF1A0A00)
-        : AppColors.texto;
+        ? const Color(0xFF4A1B6D)
+        : Colors.white;
 
     return Opacity(
       opacity: enabled ? 1 : 0.4,
@@ -880,37 +1115,37 @@ class _ArcadeButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           child: Ink(
-            height: 54,
+            height: 52,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: colors,
               ),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: enabled
-                  ? neonGlow(
-                      tono == _BotonTono.dorado
-                          ? AppColors.acento
-                          : AppColors.violeta,
-                      blur: 12,
-                    )
-                  : null,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.65),
+                width: 1.6,
+              ),
+              boxShadow: enabled ? neonGlow(glow, blur: 16, spread: 1) : null,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: fg, size: 22),
-                const SizedBox(width: 8),
+                Icon(icon, color: fg, size: 24),
+                const SizedBox(width: 10),
                 Text(
                   label,
                   style: TextStyle(
                     color: fg,
-                    fontSize: 15,
+                    fontSize: 17,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 0.8,
+                    letterSpacing: 1,
+                    shadows: const [
+                      Shadow(color: Colors.white38, blurRadius: 4),
+                    ],
                   ),
                 ),
               ],
@@ -929,20 +1164,24 @@ class _BottomNav extends StatelessWidget {
   final ValueChanged<int> onSelect;
 
   static const _items = [
-    (Icons.sports_esports, 'JUGAR', AppColors.acento),
-    (Icons.emoji_events, 'RANKING', AppColors.acentoSuave),
-    (Icons.pie_chart, 'ESTADÍSTICAS', AppColors.rosa),
-    (Icons.menu_book, 'REGLAS', AppColors.azul),
+    (Icons.casino, 'JUGAR', AppColors.acento),
+    (Icons.emoji_events, 'RANKING', AppColors.azul),
+    (Icons.bar_chart, 'ESTADÍSTICAS', AppColors.rosa),
+    (Icons.menu_book, 'REGLAS', AppColors.mint),
     (Icons.settings, 'AJUSTES', AppColors.violeta),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
-        color: AppColors.nav.withValues(alpha: 0.95),
-        border: const Border(top: BorderSide(color: AppColors.cartaBorde)),
+        color: AppColors.nav.withValues(alpha: 0.96),
+        border: Border(
+          top: BorderSide(
+            color: AppColors.violeta.withValues(alpha: 0.5),
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -955,35 +1194,41 @@ class _BottomNav extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: AppColors.carta,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: i == index
                               ? _items[i].$3
-                              : _items[i].$3.withValues(alpha: 0.35),
-                          width: i == index ? 1.6 : 1,
+                              : _items[i].$3.withValues(alpha: 0.45),
+                          width: i == index ? 1.8 : 1.1,
                         ),
                         boxShadow: i == index
-                            ? neonGlow(_items[i].$3, blur: 10)
-                            : null,
+                            ? neonGlow(_items[i].$3, blur: 12)
+                            : neonGlow(_items[i].$3, blur: 4),
                       ),
                       child: Icon(
                         _items[i].$1,
-                        size: 18,
-                        color: i == index ? _items[i].$3 : AppColors.textoSuave,
+                        size: 19,
+                        color: i == index
+                            ? _items[i].$3
+                            : _items[i].$3.withValues(alpha: 0.8),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       _items[i].$2,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 7.5,
-                        fontWeight: FontWeight.w800,
-                        color: i == index ? _items[i].$3 : AppColors.textoSuave,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3,
+                        color: i == index
+                            ? _items[i].$3
+                            : AppColors.textoSuave,
                       ),
                     ),
                   ],
