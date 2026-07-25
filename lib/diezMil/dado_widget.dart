@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Dado tradicional con puntos (1–6), estilo mockup.
+import '../theme/app_theme.dart';
+
+/// Dado con puntos, estilo arcade (dorado = suma, blanco = no suma).
 class DadoFace extends StatelessWidget {
   const DadoFace({
     super.key,
@@ -15,15 +17,22 @@ class DadoFace extends StatelessWidget {
   final double tamano;
   final bool vacio;
 
-  static const _dorado = Color(0xFFF5C518);
-  static const _blanco = Color(0xFFF4F1EA);
-  static const _punto = Color(0xFF141414);
-
   @override
   Widget build(BuildContext context) {
-    final fondo = vacio
-        ? const Color(0xFF244A3A)
-        : (suma ? _dorado : _blanco);
+    if (vacio) {
+      return Container(
+        width: tamano,
+        height: tamano,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(tamano * 0.22),
+          color: AppColors.carta,
+          border: Border.all(color: AppColors.cartaBorde),
+        ),
+      );
+    }
+
+    final base = suma ? AppColors.acento : const Color(0xFFF5F0E8);
+    final highlight = suma ? const Color(0xFFFFE082) : Colors.white;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -31,30 +40,28 @@ class DadoFace extends StatelessWidget {
       width: tamano,
       height: tamano,
       decoration: BoxDecoration(
-        color: fondo,
         borderRadius: BorderRadius.circular(tamano * 0.22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [highlight, base, suma ? AppColors.acentoSuave : const Color(0xFFD8D0C4)],
+          stops: const [0.0, 0.45, 1.0],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
-          if (suma)
-            BoxShadow(
-              color: _dorado.withValues(alpha: 0.45),
-              blurRadius: 12,
-              spreadRadius: 1,
-            ),
+          if (suma) ...neonGlow(AppColors.acento, blur: 12),
         ],
       ),
-      child: vacio
-          ? null
-          : CustomPaint(
-              painter: _PuntosDadoPainter(
-                valor: valor.clamp(1, 6),
-                color: _punto,
-              ),
-            ),
+      child: CustomPaint(
+        painter: _PuntosDadoPainter(
+          valor: valor.clamp(1, 6),
+          color: const Color(0xFF141414),
+        ),
+      ),
     );
   }
 }

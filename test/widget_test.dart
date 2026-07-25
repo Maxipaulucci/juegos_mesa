@@ -6,7 +6,7 @@ void main() {
   testWidgets('muestra el menú de juegos', (WidgetTester tester) async {
     await tester.pumpWidget(const JuegosMesaApp());
 
-    expect(find.text('Juegos de Mesa'), findsOneWidget);
+    expect(find.text('JUEGOS DE MESA'), findsOneWidget);
     expect(find.text('Diez Mil'), findsOneWidget);
   });
 }
