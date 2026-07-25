@@ -39,6 +39,9 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   final Map<String, int> _mejorTurno = {};
   int _navIndex = 0;
 
+  // TEMPORAL (testing): fuerza los valores de la próxima tirada.
+  List<int>? _dadosForzados;
+
   @override
   void initState() {
     super.initState();
@@ -78,9 +81,97 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     );
   }
 
+  // TEMPORAL (testing): elegí a mano los dados de la próxima tirada.
+  Future<void> _configurarDadosForzados() async {
+    final cantidad = _partida.turno.dadosEnMano;
+    final ctrl = TextEditingController(
+      text: _dadosForzados?.join(' ') ?? '',
+    );
+    String? error;
+
+    final valores = await showDialog<List<int>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            '🎯 Forzar próxima tirada',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Escribí $cantidad valores (1 a 6) separados por espacio.\nEj: 1 1 5 5 6',
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: List.filled(cantidad, '•').join(' '),
+                  errorText: error,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            if (_dadosForzados != null)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(<int>[]),
+                child: const Text(
+                  'Quitar',
+                  style: TextStyle(color: AppColors.peligro),
+                ),
+              ),
+            ElevatedButton(
+              onPressed: () {
+                final partes = ctrl.text
+                    .split(RegExp(r'[\s,;]+'))
+                    .where((p) => p.isNotEmpty)
+                    .toList();
+                final nums = partes.map(int.tryParse).toList();
+                if (nums.length != cantidad ||
+                    nums.any((n) => n == null || n < 1 || n > 6)) {
+                  setDialogState(() {
+                    error =
+                        'Ingresá exactamente $cantidad números entre 1 y 6.';
+                  });
+                  return;
+                }
+                Navigator.of(context).pop(nums.cast<int>());
+              },
+              child: const Text('Aplicar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (valores == null) return;
+    setState(() {
+      _dadosForzados = valores.isEmpty ? null : valores;
+    });
+  }
+
   void _tirar() {
     if (_partida.ganador != null || _esperandoEspecial) return;
-    final resultado = ejecutarTirada(_partida);
+    final resultado = ejecutarTirada(_partida, dadosForzados: _dadosForzados);
+    _dadosForzados = null;
     if (hayOpcionales(resultado)) {
       setState(() {
         _ultimaTirada = resultado;
@@ -252,10 +343,59 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                               ptsTirada: ptsTirada,
                               mensaje: _mensaje,
                             ),
-                            _DadosZona(
-                              cantidad: _partida.modo.dados,
-                              dados: _ultimaTirada?.dados,
-                              suman: _dadosQueSuman(),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _DadosZona(
+                                    cantidad: _partida.modo.dados,
+                                    dados: _ultimaTirada?.dados,
+                                    suman: _dadosQueSuman(),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // TEMPORAL (testing): forzar próxima tirada
+                                Tooltip(
+                                  message: _dadosForzados == null
+                                      ? 'Forzar próxima tirada'
+                                      : 'Próxima: ${_dadosForzados!.join(' ')}',
+                                  child: Material(
+                                    color: AppColors.carta,
+                                    shape: const CircleBorder(),
+                                    child: InkWell(
+                                      customBorder: const CircleBorder(),
+                                      onTap: terminada
+                                          ? null
+                                          : _configurarDadosForzados,
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: _dadosForzados != null
+                                                ? AppColors.mint
+                                                : AppColors.textoSuave
+                                                    .withValues(alpha: 0.5),
+                                            width:
+                                                _dadosForzados != null ? 2 : 1,
+                                          ),
+                                          boxShadow: _dadosForzados != null
+                                              ? neonGlow(AppColors.mint,
+                                                  blur: 10)
+                                              : null,
+                                        ),
+                                        child: Icon(
+                                          Icons.bug_report,
+                                          size: 20,
+                                          color: _dadosForzados != null
+                                              ? AppColors.mint
+                                              : AppColors.textoSuave,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             _CombosBar(
                               combos: (_ultimoResumen != null &&
