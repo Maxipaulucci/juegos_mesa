@@ -51,6 +51,20 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
     );
   }
 
+  void _abrirVsPc(Modo modo) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PartidaDiezMilScreen(
+          nombres: const ['Jugador 1', 'PC'],
+          modo: modo,
+          contraPc: true,
+          modoDios: _modoDios,
+          ajustesIniciales: _ajustes,
+        ),
+      ),
+    );
+  }
+
   void _explicarModoDios() {
     showDialog<void>(
       context: context,
@@ -101,7 +115,7 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -225,6 +239,24 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
             OutlinedButton(
               onPressed: () => _abrirPartidaRapida(Modo.seis),
               child: const Text('Partida rápida · 6 dados'),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Jugar vs PC',
+              style: TextStyle(
+                color: AppColors.textoSuave,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => _abrirVsPc(Modo.cinco),
+              child: const Text('Jugar vs PC · 5 dados'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => _abrirVsPc(Modo.seis),
+              child: const Text('Jugar vs PC · 6 dados'),
             ),
           ],
         ),

@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import 'ajustes_overlay.dart';
 import 'dado_widget.dart';
 import 'estadisticas.dart';
+import 'ia_diez_mil.dart';
 import 'motor.dart';
 import 'textos.dart';
 import 'victoria_overlay.dart';
@@ -22,6 +23,7 @@ class PartidaDiezMilScreen extends StatefulWidget {
     required this.nombres,
     required this.modo,
     this.partidaRapida = false,
+    this.contraPc = false,
     this.modoDios = false,
     this.ajustesIniciales = const AjustesEstado(),
   });
@@ -30,6 +32,8 @@ class PartidaDiezMilScreen extends StatefulWidget {
   final Modo modo;
   /// Solo en partida rápida se puede editar el nombre tocando la tarjeta.
   final bool partidaRapida;
+  /// Partida local contra la PC (segundo jugador).
+  final bool contraPc;
   /// Muestra el botón temporal para forzar la próxima tirada.
   final bool modoDios;
   final AjustesEstado ajustesIniciales;
@@ -57,8 +61,21 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
+  int _pcToken = 0;
 
   static const int _maxNombre = 15;
+
+  bool get _turnoDeLaPc =>
+      widget.contraPc &&
+      _partida.ganador == null &&
+      _partida.jugadorActual.nombre == nombreJugadorPc;
+
+  bool _puedeRenombrar(int index) {
+    if (_partida.ganador != null) return false;
+    final nombre = _partida.jugadores[index].nombre;
+    if (widget.contraPc) return nombre != nombreJugadorPc;
+    return widget.partidaRapida;
+  }
 
   @override
   void initState() {
@@ -69,6 +86,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _iniciarPartidaNueva() {
+    _pcToken++;
     _partida = nuevaPartida(_nombres, widget.modo);
     _stats = EstadisticasPartida(_nombres);
     iniciarTurno(_partida);
@@ -90,8 +108,50 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     setState(_iniciarPartidaNueva);
   }
 
+  void _programarJugadaPc({int demoraMs = 900}) {
+    if (!_turnoDeLaPc) return;
+    final token = _pcToken;
+    Future<void>.delayed(Duration(milliseconds: demoraMs), () {
+      if (!mounted || token != _pcToken || !_turnoDeLaPc) return;
+      _ejecutarJugadaPc();
+    });
+  }
+
+  void _ejecutarJugadaPc() {
+    if (!_turnoDeLaPc || _mostrarVictoria) return;
+
+    if (_esperandoEspecial && _ultimaTirada != null) {
+      _responderEspecial(iaAceptaEspecial(_ultimaTirada!));
+      return;
+    }
+
+    // Tras una tirada con puntos: plantarse o seguir.
+    if (_ultimoResumen != null &&
+        !_ultimoResumen!.bust &&
+        _partida.turno.puntosTurno > 0 &&
+        !_esperandoEspecial) {
+      if (iaDebePlantarse(_partida)) {
+        _plantarse();
+        return;
+      }
+    }
+
+    _tirar();
+  }
+
+  void _pasarTurnoYContinuar() {
+    if (!mounted || _partida.ganador != null) return;
+    setState(() {
+      pasarTurno(_partida);
+      _ultimaTirada = null;
+      _ultimoResumen = null;
+      _mensaje = null;
+    });
+    _programarJugadaPc();
+  }
+
   Future<void> _renombrarJugador(int index) async {
-    if (!widget.partidaRapida || _partida.ganador != null) return;
+    if (!_puedeRenombrar(index)) return;
     final actual = _partida.jugadores[index].nombre;
     final ctrl = TextEditingController(text: actual);
     String? error;
@@ -238,7 +298,13 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   void _rendirse() {
     if (_partida.ganador != null) return;
-    final rendido = _partida.jugadorActual;
+    // En vs PC siempre se rinde el humano, aunque sea turno de la máquina.
+    final rendido = widget.contraPc
+        ? _partida.jugadores.firstWhere(
+            (j) => j.nombre != nombreJugadorPc,
+            orElse: () => _partida.jugadorActual,
+          )
+        : _partida.jugadorActual;
     final rivales =
         _partida.jugadores.where((j) => !identical(j, rendido)).toList();
     if (rivales.isEmpty) return;
@@ -246,6 +312,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     rivales.sort((a, b) => b.puntos.compareTo(a.puntos));
     final ganador = rivales.first;
 
+    _pcToken++;
     setState(() {
       _partida.ganador = ganador.nombre;
       _subtituloVictoria = '${rendido.nombre} se ha rendido';
@@ -377,6 +444,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         _esperandoEspecial = true;
         _mensaje = null;
       });
+      if (_turnoDeLaPc) _programarJugadaPc(demoraMs: 700);
       return;
     }
     _aplicar(resultado, null);
@@ -415,16 +483,15 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     }
 
     if (resumen.bust) {
+      final token = _pcToken;
       Future<void>.delayed(const Duration(milliseconds: 1100), () {
-        if (!mounted || _partida.ganador != null) return;
-        setState(() {
-          pasarTurno(_partida);
-          _ultimaTirada = null;
-          _ultimoResumen = null;
-          _mensaje = null;
-        });
+        if (!mounted || token != _pcToken || _partida.ganador != null) return;
+        _pasarTurnoYContinuar();
       });
+      return;
     }
+
+    if (_turnoDeLaPc) _programarJugadaPc(demoraMs: 850);
   }
 
   void _responderEspecial(bool aceptar) {
@@ -471,14 +538,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       return;
     }
 
+    final token = _pcToken;
     Future<void>.delayed(const Duration(milliseconds: 800), () {
-      if (!mounted || _partida.ganador != null) return;
-      setState(() {
-        pasarTurno(_partida);
-        _ultimaTirada = null;
-        _ultimoResumen = null;
-        _mensaje = null;
-      });
+      if (!mounted || token != _pcToken || _partida.ganador != null) return;
+      _pasarTurnoYContinuar();
     });
   }
 
@@ -546,10 +609,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                   activo: !terminada &&
                                       identical(_partida.jugadores[i], j),
                                   esTu: i == 0,
-                                  puedeRenombrar: widget.partidaRapida &&
-                                      !terminada,
-                                  onRenombrar: widget.partidaRapida &&
-                                          !terminada
+                                  puedeRenombrar: _puedeRenombrar(i),
+                                  onRenombrar: _puedeRenombrar(i)
                                       ? () => _renombrarJugador(i)
                                       : null,
                                 ),
@@ -651,47 +712,67 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                               if (_esperandoEspecial &&
                                   _ultimaTirada != null) ...[
                                 Text(
-                                  'Sacaste ${nombreEspecial(_ultimaTirada!.combosOpcionales.first.especial!)} '
-                                  '(${_ultimaTirada!.combosOpcionales.first.puntos} pts). ¿Aceptás?',
+                                  _turnoDeLaPc
+                                      ? 'La PC está eligiendo el especial…'
+                                      : 'Sacaste ${nombreEspecial(_ultimaTirada!.combosOpcionales.first.especial!)} '
+                                          '(${_ultimaTirada!.combosOpcionales.first.puntos} pts). ¿Aceptás?',
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
                                   ),
                                 ),
-                                const SizedBox(height: 6),
-                                _ArcadeButton(
-                                  label: 'ACEPTAR ESPECIAL',
-                                  icon: Icons.auto_awesome,
-                                  tono: _BotonTono.dorado,
-                                  onPressed: () => _responderEspecial(true),
-                                ),
-                                const SizedBox(height: 6),
-                                _ArcadeButton(
-                                  label: 'COMBOS NORMALES',
-                                  icon: Icons.casino_outlined,
-                                  tono: _BotonTono.violeta,
-                                  onPressed: () => _responderEspecial(false),
-                                ),
+                                if (!_turnoDeLaPc) ...[
+                                  const SizedBox(height: 6),
+                                  _ArcadeButton(
+                                    label: 'ACEPTAR ESPECIAL',
+                                    icon: Icons.auto_awesome,
+                                    tono: _BotonTono.dorado,
+                                    onPressed: () => _responderEspecial(true),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _ArcadeButton(
+                                    label: 'COMBOS NORMALES',
+                                    icon: Icons.casino_outlined,
+                                    tono: _BotonTono.violeta,
+                                    onPressed: () =>
+                                        _responderEspecial(false),
+                                  ),
+                                ],
                               ] else if (!terminada) ...[
-                                _ArcadeButton(
-                                  label: 'TIRAR DADOS',
-                                  icon: Icons.casino,
-                                  tono: _BotonTono.dorado,
-                                  onPressed: _tirar,
-                                ),
-                                const SizedBox(height: 6),
-                                _ArcadeButton(
-                                  label: !j.abierto &&
-                                          t.puntosTurno < apertura
-                                      ? 'PLANTARSE · FALTAN ${_pts(apertura - t.puntosTurno)}'
-                                      : 'PLANTARSE',
-                                  icon: Icons.pan_tool_alt_outlined,
-                                  tono: _BotonTono.violeta,
-                                  onPressed: puedePlantarse(_partida)
-                                      ? _plantarse
-                                      : null,
-                                ),
+                                if (_turnoDeLaPc)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Text(
+                                      'Turno de la PC…',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: AppColors.textoSuave,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  )
+                                else ...[
+                                  _ArcadeButton(
+                                    label: 'TIRAR DADOS',
+                                    icon: Icons.casino,
+                                    tono: _BotonTono.dorado,
+                                    onPressed: _tirar,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _ArcadeButton(
+                                    label: !j.abierto &&
+                                            t.puntosTurno < apertura
+                                        ? 'PLANTARSE · FALTAN ${_pts(apertura - t.puntosTurno)}'
+                                        : 'PLANTARSE',
+                                    icon: Icons.pan_tool_alt_outlined,
+                                    tono: _BotonTono.violeta,
+                                    onPressed: puedePlantarse(_partida)
+                                        ? _plantarse
+                                        : null,
+                                  ),
+                                ],
                               ] else
                                 _ArcadeButton(
                                   label: 'VOLVER',
@@ -713,7 +794,14 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
           if (_mostrarMenu && !terminada)
             Positioned.fill(
               child: _PartidaMenuOverlay(
-                jugador: j.nombre,
+                jugador: widget.contraPc
+                    ? _partida.jugadores
+                        .firstWhere(
+                          (p) => p.nombre != nombreJugadorPc,
+                          orElse: () => j,
+                        )
+                        .nombre
+                    : j.nombre,
                 confirmarRendicion: _confirmarRendicion,
                 onCerrar: _cerrarMenu,
                 onReglas: () {
