@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../theme/app_theme.dart';
+import 'ajustes_overlay.dart';
 import 'dado_widget.dart';
 import 'estadisticas.dart';
 import 'motor.dart';
@@ -37,10 +38,12 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   bool _esperandoEspecial = false;
   bool _mostrarVictoria = false;
   bool _mostrarMenu = false;
+  bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
   String? _subtituloVictoria;
   int _mejorTiradaPartida = 0;
   String? _mejorTiradaJugador;
+  AjustesEstado _ajustes = const AjustesEstado();
 
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
@@ -367,12 +370,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                 dados: _partida.modo.dados,
                                 onMenu: terminada ? () {} : _abrirMenu,
                                 onSettings: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Ajustes próximamente'),
-                                      duration: Duration(seconds: 1),
-                                    ),
-                                  );
+                                  setState(() {
+                                    _mostrarAjustes = true;
+                                    _mostrarMenu = false;
+                                    _confirmarRendicion = false;
+                                  });
                                 },
                               ),
                               const SizedBox(height: 6),
@@ -546,6 +548,14 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                 onConfirmarRendicion: _rendirse,
                 onCancelarRendicion: () =>
                     setState(() => _confirmarRendicion = false),
+              ),
+            ),
+          if (_mostrarAjustes)
+            Positioned.fill(
+              child: AjustesOverlay(
+                ajustes: _ajustes,
+                onChanged: (a) => setState(() => _ajustes = a),
+                onCerrar: () => setState(() => _mostrarAjustes = false),
               ),
             ),
           if (_mostrarVictoria && _partida.ganador != null)
@@ -1481,23 +1491,30 @@ class _CombosBar extends StatelessWidget {
                     letterSpacing: 1,
                   ),
                 ),
-                Text(
-                  combos.isEmpty
-                      ? 'Tirá los dados para sumar puntos'
-                      : combos
-                          .map((c) =>
-                              '${c.nombre.toUpperCase()} (+${c.puntos})')
-                          .join('   '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: combos.isEmpty
-                        ? AppColors.textoSuave
-                        : AppColors.mint,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                const SizedBox(height: 4),
+                if (combos.isEmpty)
+                  const Text(
+                    'Tirá los dados para sumar puntos',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textoSuave,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  )
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < combos.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 10),
+                          _ComboChip(combo: combos[i]),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1518,6 +1535,56 @@ class _CombosBar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Chip visual: "3 [dado] (+500)" o etiqueta legible para especiales.
+class _ComboChip extends StatelessWidget {
+  const _ComboChip({required this.combo});
+
+  final Combo combo;
+
+  static const _nombresEspeciales = {
+    'escalera': 'Escalera',
+    'tres_pares': 'Tres pares',
+    'cuatro_y_par': 'Cuatro y par',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final especial = _nombresEspeciales[combo.nombre];
+    final caraUnica = combo.dadosUsados.isNotEmpty &&
+        combo.dadosUsados.every((d) => d == combo.dadosUsados.first);
+
+    final estiloPts = const TextStyle(
+      color: AppColors.mint,
+      fontSize: 12,
+      fontWeight: FontWeight.w900,
+    );
+
+    if (especial != null || !caraUnica) {
+      return Text(
+        '${especial ?? combo.nombre} (+${combo.puntos})',
+        style: estiloPts,
+      );
+    }
+
+    final cantidad = combo.dadosUsados.length;
+    final cara = combo.dadosUsados.first;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$cantidad',
+          style: estiloPts,
+        ),
+        const SizedBox(width: 4),
+        DadoFace(valor: cara, suma: true, tamano: 18),
+        const SizedBox(width: 4),
+        Text('(+${combo.puntos})', style: estiloPts),
+      ],
     );
   }
 }

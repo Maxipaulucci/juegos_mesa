@@ -225,7 +225,19 @@ ResultadoTirada analizarTirada(List<int> dados, Modo modo) {
     final cara = entry.key;
     final cant = entry.value;
     if (cant >= 5 && (usados[cara] ?? 0) == 0) {
-      final pts = cara == 1 ? 10000 : cara * 1000;
+      // Cinco 1 = 10.000 = meta → victoria instantánea (como seis iguales).
+      if (cara == 1) {
+        return ResultadoTirada(
+          dados: dados,
+          contadores: contadores,
+          combosAuto: [
+            Combo(nombre: 'cinco_1', puntos: meta, dadosUsados: _dadosDe(1, 5)),
+          ],
+          combosOpcionales: const [],
+          victoriaInmediata: true,
+        );
+      }
+      final pts = cara * 1000;
       auto.add(Combo(nombre: 'cinco_$cara', puntos: pts, dadosUsados: _dadosDe(cara, 5)));
       usados[cara] = (usados[cara] ?? 0) + 5;
     }

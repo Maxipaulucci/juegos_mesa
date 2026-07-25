@@ -23,6 +23,19 @@ void main() {
     expect(r.combosAuto.single.puntos, 500);
   });
 
+  test('cinco unos gana automáticamente', () {
+    final r = analizarTirada([1, 1, 1, 1, 1], Modo.cinco);
+    expect(r.victoriaInmediata, isTrue);
+
+    final partida = nuevaPartida(['A', 'B'], Modo.cinco);
+    iniciarTurno(partida);
+    final resultado = ejecutarTirada(partida, dadosForzados: [1, 1, 1, 1, 1]);
+    final resumen = aplicarPuntosTirada(partida, resultado);
+    expect(resumen.victoria, isTrue);
+    expect(partida.ganador, 'A');
+    expect(partida.jugadorActual.puntos, meta);
+  });
+
   test('apertura requiere 750', () {
     final partida = nuevaPartida(['A', 'B'], Modo.cinco);
     iniciarTurno(partida);
