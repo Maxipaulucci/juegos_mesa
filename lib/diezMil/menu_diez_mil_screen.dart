@@ -61,7 +61,7 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
         ),
         title: const Row(
           children: [
-            Icon(Icons.help, color: AppColors.mint),
+            Icon(Icons.help, color: AppColors.textoSuave),
             SizedBox(width: 8),
             Text(
               'Modo Dios',
