@@ -87,6 +87,8 @@ class ResumenTirada {
     required this.combos,
     required this.victoria,
     this.puntosPerdidos = 0,
+    this.pasado = false,
+    this.intentoTotal,
   });
 
   final int puntosTirada;
@@ -97,6 +99,9 @@ class ResumenTirada {
   final List<Combo> combos;
   final bool victoria;
   final int puntosPerdidos;
+  /// Si al sumar el turno al total se supera [meta], el turno se anula.
+  final bool pasado;
+  final int? intentoTotal;
 }
 
 class ResumenPlantarse {
@@ -379,6 +384,43 @@ ResumenTirada aplicarPuntosTirada(
 
   t.puntosTurno += pts;
 
+  // Si con estos puntos ya te pasás de 10.000, el turno se pierde al toque.
+  final intento = j.puntos + t.puntosTurno;
+  if (intento > meta) {
+    final perdidos = t.puntosTurno;
+    t.puntosTurno = 0;
+    return ResumenTirada(
+      puntosTirada: pts,
+      puntosTurno: 0,
+      dadosRestantes: 0,
+      bust: false,
+      hotDice: false,
+      combos: combos,
+      victoria: false,
+      pasado: true,
+      intentoTotal: intento,
+      puntosPerdidos: perdidos,
+    );
+  }
+
+  // Exacto a 10.000: banca automática y victoria.
+  if (intento == meta) {
+    j.puntos = meta;
+    j.abierto = true;
+    partida.ganador = j.nombre;
+    final sumados = t.puntosTurno;
+    t.puntosTurno = 0;
+    return ResumenTirada(
+      puntosTirada: pts,
+      puntosTurno: sumados,
+      dadosRestantes: 0,
+      bust: false,
+      hotDice: quedan == 0,
+      combos: combos,
+      victoria: true,
+    );
+  }
+
   final bool hot;
   if (quedan == 0) {
     t.dadosEnMano = partida.modo.dados;
@@ -466,3 +508,31 @@ void pasarTurno(Partida partida) {
 
 bool hayOpcionales(ResultadoTirada resultado) =>
     resultado.combosOpcionales.isNotEmpty;
+
+/// Quita los especiales que harían superar los 10.000 puntos.
+///
+/// Los combos normales siguen disponibles porque pueden tener un puntaje
+/// distinto al especial de la misma tirada.
+ResultadoTirada filtrarEspecialesQuePasanMeta(
+  Partida partida,
+  ResultadoTirada resultado,
+) {
+  if (resultado.combosOpcionales.isEmpty) return resultado;
+
+  final base = partida.jugadorActual.puntos + partida.turno.puntosTurno;
+  final permitidos = resultado.combosOpcionales
+      .where((combo) => base + combo.puntos <= meta)
+      .toList();
+
+  if (permitidos.length == resultado.combosOpcionales.length) {
+    return resultado;
+  }
+
+  return ResultadoTirada(
+    dados: resultado.dados,
+    contadores: resultado.contadores,
+    combosAuto: resultado.combosAuto,
+    combosOpcionales: permitidos,
+    victoriaInmediata: resultado.victoriaInmediata,
+  );
+}

@@ -88,7 +88,8 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
           'de los dados que te deja elegir a mano los valores de la próxima '
           'tirada, en vez de dejarlos al azar.\n\n'
           'Sirve para probar combos y situaciones puntuales sin depender de '
-          'la suerte. Solo está disponible en partidas rápidas.',
+          'la suerte. Funciona en partidas rápidas y jugando contra la PC '
+          '(en tu turno).',
           style: TextStyle(color: AppColors.texto, height: 1.45),
         ),
         actions: [
@@ -115,152 +116,189 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '¿Cómo querés jugar?',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.texto,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Creá una sala con código o unite a una existente.',
-              style: TextStyle(color: AppColors.textoSuave),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        const CrearSalaScreen(juegoId: MenuDiezMilScreen.juegoId),
-                  ),
-                );
-              },
-              child: const Text('Crear'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const UnirseSalaScreen(
-                      juegoId: MenuDiezMilScreen.juegoId,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: constraints.maxWidth - 0.1,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '¿Cómo querés jugar?',
+                      style:
+                          Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: AppColors.texto,
+                                fontWeight: FontWeight.w700,
+                              ),
                     ),
-                  ),
-                );
-              },
-              child: const Text('Unirse'),
-            ),
-            const SizedBox(height: 28),
-            const Divider(color: AppColors.fondoSuave),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Flexible(
-                  fit: FlexFit.loose,
-                  child: Text(
-                    'Probar sin sala (mismo celular)',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.textoSuave,
-                      fontSize: 13,
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Creá una sala con código o unite a una existente.',
+                      style: TextStyle(color: AppColors.textoSuave),
                     ),
-                  ),
+                    const SizedBox(height: 18),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const CrearSalaScreen(
+                              juegoId: MenuDiezMilScreen.juegoId,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Crear'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const UnirseSalaScreen(
+                              juegoId: MenuDiezMilScreen.juegoId,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Unirse'),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(color: AppColors.fondoSuave),
+                    const SizedBox(height: 12),
+                    _FilaModoDios(
+                      etiqueta: 'Probar sin sala (mismo celular)',
+                      activo: _modoDios,
+                      onChanged: (v) => setState(() => _modoDios = v),
+                      onInfo: _explicarModoDios,
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: () => _abrirPartidaRapida(Modo.cinco),
+                      child: const Text('Partida rápida · 5 dados'),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: () => _abrirPartidaRapida(Modo.seis),
+                      child: const Text('Partida rápida · 6 dados'),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(color: AppColors.fondoSuave),
+                    const SizedBox(height: 12),
+                    _FilaModoDios(
+                      etiqueta: 'Jugar vs PC',
+                      activo: _modoDios,
+                      onChanged: (v) => setState(() => _modoDios = v),
+                      onInfo: _explicarModoDios,
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: () => _abrirVsPc(Modo.cinco),
+                      child: const Text('Jugar vs PC · 5 dados'),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: () => _abrirVsPc(Modo.seis),
+                      child: const Text('Jugar vs PC · 6 dados'),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0E061C),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.violeta.withValues(alpha: 0.7),
-                      width: 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Modo Dios',
-                        style: TextStyle(
-                          color: AppColors.texto,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _ModoDiosToggle(
-                        activo: _modoDios,
-                        onChanged: (v) => setState(() => _modoDios = v),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Material(
-                  color: Colors.transparent,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: _explicarModoDios,
-                    customBorder: const CircleBorder(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(2),
-                      child: Icon(
-                        Icons.help,
-                        size: 18,
-                        color: AppColors.textoSuave,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => _abrirPartidaRapida(Modo.cinco),
-              child: const Text('Partida rápida · 5 dados'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () => _abrirPartidaRapida(Modo.seis),
-              child: const Text('Partida rápida · 6 dados'),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Jugar vs PC',
-              style: TextStyle(
-                color: AppColors.textoSuave,
-                fontSize: 13,
               ),
             ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () => _abrirVsPc(Modo.cinco),
-              child: const Text('Jugar vs PC · 5 dados'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () => _abrirVsPc(Modo.seis),
-              child: const Text('Jugar vs PC · 6 dados'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
+    );
+  }
+}
+
+/// Etiqueta de sección + toggle de Modo Dios + ícono de ayuda.
+class _FilaModoDios extends StatelessWidget {
+  const _FilaModoDios({
+    required this.etiqueta,
+    required this.activo,
+    required this.onChanged,
+    required this.onInfo,
+  });
+
+  final String etiqueta;
+  final bool activo;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback onInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Flexible(
+          fit: FlexFit.loose,
+          child: Text(
+            etiqueta,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textoSuave,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E061C),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.violeta.withValues(alpha: 0.7),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.45),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Modo Dios',
+                style: TextStyle(
+                  color: AppColors.texto,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _ModoDiosToggle(activo: activo, onChanged: onChanged),
+            ],
+          ),
+        ),
+        const SizedBox(width: 6),
+        Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onInfo,
+            customBorder: const CircleBorder(),
+            child: const Padding(
+              padding: EdgeInsets.all(2),
+              child: Icon(
+                Icons.help,
+                size: 18,
+                color: AppColors.textoSuave,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

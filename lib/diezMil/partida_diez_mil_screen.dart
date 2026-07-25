@@ -70,6 +70,12 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       _partida.ganador == null &&
       _partida.jugadorActual.nombre == nombreJugadorPc;
 
+  /// Tras bust o pasarse de 10.000 el turno ya está perdido y espera el cambio.
+  bool get _esperandoCambioDeTurno {
+    final r = _ultimoResumen;
+    return r != null && (r.bust || r.pasado);
+  }
+
   bool _puedeRenombrar(int index) {
     if (_partida.ganador != null) return false;
     final nombre = _partida.jugadores[index].nombre;
@@ -253,10 +259,17 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     return null;
   }
 
-  void _lanzarVictoria() {
+  void _lanzarVictoria({
+    Duration demora = const Duration(milliseconds: 450),
+  }) {
     if (_mostrarVictoria) return;
-    Future<void>.delayed(const Duration(milliseconds: 450), () {
-      if (!mounted || _partida.ganador == null) return;
+    final token = _pcToken;
+    Future<void>.delayed(demora, () {
+      if (!mounted ||
+          token != _pcToken ||
+          _partida.ganador == null) {
+        return;
+      }
       setState(() => _mostrarVictoria = true);
     });
   }
@@ -434,8 +447,13 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _tirar() {
-    if (_partida.ganador != null || _esperandoEspecial) return;
-    final resultado = ejecutarTirada(_partida, dadosForzados: _dadosForzados);
+    if (_partida.ganador != null ||
+        _esperandoEspecial ||
+        _esperandoCambioDeTurno) {
+      return;
+    }
+    final tirada = ejecutarTirada(_partida, dadosForzados: _dadosForzados);
+    final resultado = filtrarEspecialesQuePasanMeta(_partida, tirada);
     _dadosForzados = null;
     if (hayOpcionales(resultado)) {
       setState(() {
@@ -467,6 +485,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       }
       if (resumen.victoria) {
         _mensaje = '¡${_partida.jugadorActual.nombre} gana!';
+      } else if (resumen.pasado) {
+        _mensaje =
+            '¡Te pasaste de 10.000 (${_pts(resumen.intentoTotal ?? 0)})! '
+            'Perdés los ${_pts(resumen.puntosPerdidos)} pts del turno.';
       } else if (resumen.bust) {
         _mensaje =
             'No sumaste nada. Perdés los ${resumen.puntosPerdidos} pts del turno.';
@@ -478,13 +500,17 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     });
 
     if (_partida.ganador != null) {
-      _lanzarVictoria();
+      _lanzarVictoria(
+        demora: resultado.victoriaInmediata
+            ? const Duration(milliseconds: 450)
+            : const Duration(seconds: 3),
+      );
       return;
     }
 
-    if (resumen.bust) {
+    if (resumen.bust || resumen.pasado) {
       final token = _pcToken;
-      Future<void>.delayed(const Duration(milliseconds: 1100), () {
+      Future<void>.delayed(const Duration(milliseconds: 1400), () {
         if (!mounted || token != _pcToken || _partida.ganador != null) return;
         _pasarTurnoYContinuar();
       });
@@ -508,7 +534,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _plantarse() {
-    if (!puedePlantarse(_partida) || _esperandoEspecial) return;
+    if (!puedePlantarse(_partida) ||
+        _esperandoEspecial ||
+        _esperandoCambioDeTurno) {
+      return;
+    }
     final nombre = _partida.jugadorActual.nombre;
     final sumados = _partida.turno.puntosTurno;
     final banco = plantarse(_partida);
@@ -661,7 +691,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                           shape: const CircleBorder(),
                                           child: InkWell(
                                             customBorder: const CircleBorder(),
-                                            onTap: terminada
+                                            onTap: terminada || _turnoDeLaPc
                                                 ? null
                                                 : _configurarDadosForzados,
                                             child: Container(
@@ -740,7 +770,20 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                   ),
                                 ],
                               ] else if (!terminada) ...[
-                                if (_turnoDeLaPc)
+                                if (_esperandoCambioDeTurno)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Text(
+                                      'Cambiando de turno…',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: AppColors.textoSuave,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  )
+                                else if (_turnoDeLaPc)
                                   const Padding(
                                     padding: EdgeInsets.symmetric(vertical: 8),
                                     child: Text(
@@ -774,12 +817,18 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                   ),
                                 ],
                               ] else
-                                _ArcadeButton(
-                                  label: 'VOLVER',
-                                  icon: Icons.arrow_back,
-                                  tono: _BotonTono.dorado,
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    '¡${_partida.ganador} LLEGÓ A 10.000!',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: AppColors.acento,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
                                 ),
                             ],
                           ),
@@ -1514,7 +1563,7 @@ class _PlayerCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${(pct * 100).round()}%',
+                      '${(pct * 100).floor()}%',
                       style: TextStyle(
                         color: accent,
                         fontSize: 11,

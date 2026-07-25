@@ -66,4 +66,52 @@ void main() {
     partida.turno.puntosTurno = 50;
     expect(puedePlantarse(partida), isTrue);
   });
+
+  test('pasarse de 10000 anula el turno al aplicar la tirada', () {
+    final partida = nuevaPartida(['A', 'B'], Modo.cinco);
+    iniciarTurno(partida);
+    partida.jugadorActual.abierto = true;
+    partida.jugadorActual.puntos = 9950;
+
+    final resultado = ejecutarTirada(partida, dadosForzados: [1, 2, 3, 4, 6]);
+    final resumen = aplicarPuntosTirada(partida, resultado);
+
+    expect(resumen.pasado, isTrue);
+    expect(resumen.intentoTotal, 10050);
+    expect(partida.turno.puntosTurno, 0);
+    expect(partida.jugadorActual.puntos, 9950);
+    expect(partida.ganador, isNull);
+  });
+
+  test('llegar exacto a 10000 gana al aplicar la tirada', () {
+    final partida = nuevaPartida(['A', 'B'], Modo.cinco);
+    iniciarTurno(partida);
+    partida.jugadorActual.abierto = true;
+    partida.jugadorActual.puntos = 9900;
+
+    final resultado = ejecutarTirada(partida, dadosForzados: [1, 2, 3, 4, 6]);
+    final resumen = aplicarPuntosTirada(partida, resultado);
+
+    expect(resumen.victoria, isTrue);
+    expect(partida.jugadorActual.puntos, meta);
+    expect(partida.ganador, 'A');
+  });
+
+  test('especial que supera 10000 se descarta y usa combos normales', () {
+    final partida = nuevaPartida(['A', 'B'], Modo.seis);
+    iniciarTurno(partida);
+    partida.jugadorActual.abierto = true;
+    partida.jugadorActual.puntos = 8550;
+
+    final tirada =
+        ejecutarTirada(partida, dadosForzados: [1, 1, 2, 2, 3, 3]);
+    expect(tirada.combosOpcionales.single.puntos, 1500);
+
+    final filtrada = filtrarEspecialesQuePasanMeta(partida, tirada);
+    expect(filtrada.combosOpcionales, isEmpty);
+
+    final resumen = aplicarPuntosTirada(partida, filtrada);
+    expect(resumen.puntosTirada, 200);
+    expect(resumen.pasado, isFalse);
+  });
 }
