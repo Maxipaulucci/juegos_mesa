@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../theme/app_theme.dart';
@@ -21,12 +22,17 @@ class PartidaDiezMilScreen extends StatefulWidget {
     required this.nombres,
     required this.modo,
     this.partidaRapida = false,
+    this.modoDios = false,
+    this.ajustesIniciales = const AjustesEstado(),
   });
 
   final List<String> nombres;
   final Modo modo;
   /// Solo en partida rápida se puede editar el nombre tocando la tarjeta.
   final bool partidaRapida;
+  /// Muestra el botón temporal para forzar la próxima tirada.
+  final bool modoDios;
+  final AjustesEstado ajustesIniciales;
 
   @override
   State<PartidaDiezMilScreen> createState() => _PartidaDiezMilScreenState();
@@ -47,7 +53,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   String? _subtituloVictoria;
   int _mejorTiradaPartida = 0;
   String? _mejorTiradaJugador;
-  AjustesEstado _ajustes = const AjustesEstado();
+  late AjustesEstado _ajustes;
 
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
@@ -58,6 +64,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   void initState() {
     super.initState();
     _nombres = List.of(widget.nombres);
+    _ajustes = widget.ajustesIniciales;
     _iniciarPartidaNueva();
   }
 
@@ -254,7 +261,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   Future<void> _configurarDadosForzados() async {
     final cantidad = _partida.turno.dadosEnMano;
     final ctrl = TextEditingController(
-      text: _dadosForzados?.join(' ') ?? '',
+      text: _dadosForzados?.join('') ?? '',
     );
     String? error;
 
@@ -272,10 +279,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Escribí $cantidad valores (1 a 6) separados por espacio.\nEj: 1 1 5 5 6',
+                'Escribí $cantidad números del 1 al 6, sin espacios.\n'
+                'Ej: ${List.filled(cantidad, '1').join()}',
                 style: const TextStyle(
                   color: AppColors.textoSuave,
                   fontSize: 13,
@@ -286,47 +294,68 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                 controller: ctrl,
                 autofocus: true,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: AppColors.texto),
+                maxLength: cantidad,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[1-6]')),
+                  LengthLimitingTextInputFormatter(cantidad),
+                ],
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  letterSpacing: 4,
+                  fontWeight: FontWeight.w700,
+                ),
                 decoration: InputDecoration(
-                  hintText: List.filled(cantidad, '•').join(' '),
+                  hintText: List.filled(cantidad, '•').join(),
+                  counterText: '',
                   errorText: error,
                 ),
+                onChanged: (_) {
+                  if (error != null) {
+                    setDialogState(() => error = null);
+                  }
+                },
               ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final texto = ctrl.text.trim();
+                  if (texto.length != cantidad ||
+                      texto.split('').any((c) {
+                        final n = int.tryParse(c);
+                        return n == null || n < 1 || n > 6;
+                      })) {
+                    setDialogState(() {
+                      error =
+                          'Ingresá exactamente $cantidad números entre 1 y 6.';
+                    });
+                    return;
+                  }
+                  final nums = texto.split('').map(int.parse).toList();
+                  Navigator.of(context).pop(nums);
+                },
+                child: const Text('Aplicar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+              if (_dadosForzados != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(<int>[]),
+                  child: const Text(
+                    'Quitar',
+                    style: TextStyle(color: AppColors.peligro),
+                  ),
+                ),
+              ],
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            if (_dadosForzados != null)
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(<int>[]),
-                child: const Text(
-                  'Quitar',
-                  style: TextStyle(color: AppColors.peligro),
-                ),
-              ),
-            ElevatedButton(
-              onPressed: () {
-                final partes = ctrl.text
-                    .split(RegExp(r'[\s,;]+'))
-                    .where((p) => p.isNotEmpty)
-                    .toList();
-                final nums = partes.map(int.tryParse).toList();
-                if (nums.length != cantidad ||
-                    nums.any((n) => n == null || n < 1 || n > 6)) {
-                  setDialogState(() {
-                    error =
-                        'Ingresá exactamente $cantidad números entre 1 y 6.';
-                  });
-                  return;
-                }
-                Navigator.of(context).pop(nums.cast<int>());
-              },
-              child: const Text('Aplicar'),
-            ),
-          ],
         ),
       ),
     );
@@ -543,59 +572,71 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                 mensaje: _mensaje,
                               ),
                               const SizedBox(height: 6),
-                              Row(
+                              Stack(
+                                alignment: Alignment.center,
                                 children: [
-                                  Expanded(
+                                  // Margen simétrico solo si el botón de
+                                  // testing está visible (Modo Dios).
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: widget.modoDios ? 46 : 0,
+                                    ),
                                     child: _DadosZona(
                                       cantidad: _partida.modo.dados,
                                       dados: _ultimaTirada?.dados,
                                       suman: _dadosQueSuman(),
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
                                   // TEMPORAL (testing): forzar próxima tirada
-                                  Tooltip(
-                                    message: _dadosForzados == null
-                                        ? 'Forzar próxima tirada'
-                                        : 'Próxima: ${_dadosForzados!.join(' ')}',
-                                    child: Material(
-                                      color: AppColors.carta,
-                                      shape: const CircleBorder(),
-                                      child: InkWell(
-                                        customBorder: const CircleBorder(),
-                                        onTap: terminada
-                                            ? null
-                                            : _configurarDadosForzados,
-                                        child: Container(
-                                          width: 40,
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: _dadosForzados != null
-                                                  ? AppColors.mint
-                                                  : AppColors.textoSuave
-                                                      .withValues(alpha: 0.5),
-                                              width: _dadosForzados != null
-                                                  ? 2
-                                                  : 1,
+                                  if (widget.modoDios)
+                                    Positioned(
+                                      right: 0,
+                                      child: Tooltip(
+                                        message: _dadosForzados == null
+                                            ? 'Forzar próxima tirada'
+                                            : 'Próxima: ${_dadosForzados!.join(' ')}',
+                                        child: Material(
+                                          color: AppColors.carta,
+                                          shape: const CircleBorder(),
+                                          child: InkWell(
+                                            customBorder: const CircleBorder(),
+                                            onTap: terminada
+                                                ? null
+                                                : _configurarDadosForzados,
+                                            child: Container(
+                                              width: 40,
+                                              height: 40,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: _dadosForzados != null
+                                                      ? AppColors.mint
+                                                      : AppColors.textoSuave
+                                                          .withValues(
+                                                              alpha: 0.5),
+                                                  width: _dadosForzados != null
+                                                      ? 2
+                                                      : 1,
+                                                ),
+                                                boxShadow:
+                                                    _dadosForzados != null
+                                                        ? neonGlow(
+                                                            AppColors.mint,
+                                                            blur: 10)
+                                                        : null,
+                                              ),
+                                              child: Icon(
+                                                Icons.bug_report,
+                                                size: 20,
+                                                color: _dadosForzados != null
+                                                    ? AppColors.mint
+                                                    : AppColors.textoSuave,
+                                              ),
                                             ),
-                                            boxShadow: _dadosForzados != null
-                                                ? neonGlow(AppColors.mint,
-                                                    blur: 10)
-                                                : null,
-                                          ),
-                                          child: Icon(
-                                            Icons.bug_report,
-                                            size: 20,
-                                            color: _dadosForzados != null
-                                                ? AppColors.mint
-                                                : AppColors.textoSuave,
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               ),
                               const SizedBox(height: 6),
