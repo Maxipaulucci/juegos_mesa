@@ -138,8 +138,15 @@ bool _decisionDificil(
   // El rival viene de un turno enorme: el partido cambió, arriesga más.
   if (ultimoTurnoRival >= 1500) return pts >= 900;
 
+  // Con 1 dado (~33% de sumar) asegura turnos sólidos, sobre todo si va ganando.
+  if (t.dadosEnMano == 1) {
+    if (pts >= 300) return true;
+    if (pts >= 200 && ventaja > 0) return true;
+    return false;
+  }
+
   // Caso general: compara lo que arriesga contra la chance de sumar.
-  // Ej.: 1 dado (33% de sumar) con 800 pts → riesgo 536 → se planta.
+  // Ej.: 2 dados (56% de sumar) con 800 pts → riesgo 352 → se planta.
   final riesgo = pts * (1 - probabilidadDeSumar(t.dadosEnMano));
   return riesgo >= 220;
 }

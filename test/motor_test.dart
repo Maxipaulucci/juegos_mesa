@@ -214,5 +214,18 @@ void main() {
         isTrue,
       );
     });
+
+    test('difícil se planta con 1 dado, 300 pts y ventaja modesta', () {
+      final p = armar(
+        puntosPc: 4900,
+        puntosRival: 4000,
+        puntosTurno: 300,
+        dadosEnMano: 1,
+      );
+      expect(
+        iaDebePlantarse(p, dificultad: DificultadPc.dificil, rng: rngSinError),
+        isTrue,
+      );
+    });
   });
 }
