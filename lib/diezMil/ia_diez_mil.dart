@@ -65,6 +65,10 @@ bool iaDebePlantarse(
   if (total == meta) return true; // cierra la partida
   if (total > meta) return false; // pasarse anula el turno
 
+  // Con 1 dado y turno ya sólido: plantarse siempre (no se aplica error humano).
+  // Arriesgar ~67% de perder el turno por un solo dado no vale la pena.
+  if (j.abierto && t.dadosEnMano == 1 && pts >= 300) return true;
+
   var decision = switch (dificultad) {
     DificultadPc.facil => _decisionFacil(j, pts, r),
     DificultadPc.medio => _decisionMedia(j, t, pts),
@@ -91,11 +95,8 @@ bool _decisionMedia(Jugador j, EstadoTurno t, int pts) {
   // Llegó a la apertura: la asegura.
   if (!j.abierto) return true;
 
-  if (t.dadosEnMano == 1) {
-    if (pts < 400) return false;
-    if (pts > 600) return true;
-    return pts >= 500;
-  }
+  // 1 dado + ≥300 ya se resolvió arriba en iaDebePlantarse.
+  if (t.dadosEnMano == 1) return false;
   if (t.dadosEnMano == 2) return pts >= 300;
   if (t.dadosEnMano == 3) return pts >= 450;
   return pts >= 800;
@@ -123,6 +124,12 @@ bool _decisionDificil(
     return true;
   }
 
+  // 1 dado: ≥300 ya se resolvió arriba. Con 200+ y ventaja, tampoco arriesga.
+  if (t.dadosEnMano == 1) {
+    if (pts >= 200 && ventaja > 0) return true;
+    return false;
+  }
+
   // Cerca de ganar: prioriza cerrar la partida sin regalar el turno.
   if (faltan <= 800) return pts >= 300;
 
@@ -136,14 +143,8 @@ bool _decisionDificil(
   if (ventaja >= 2000) return pts >= 500;
 
   // El rival viene de un turno enorme: el partido cambió, arriesga más.
+  // (No aplica con 1 dado: esa regla ya cortó arriba.)
   if (ultimoTurnoRival >= 1500) return pts >= 900;
-
-  // Con 1 dado (~33% de sumar) asegura turnos sólidos, sobre todo si va ganando.
-  if (t.dadosEnMano == 1) {
-    if (pts >= 300) return true;
-    if (pts >= 200 && ventaja > 0) return true;
-    return false;
-  }
 
   // Caso general: compara lo que arriesga contra la chance de sumar.
   // Ej.: 2 dados (56% de sumar) con 800 pts → riesgo 352 → se planta.

@@ -175,16 +175,24 @@ void main() {
       }
     });
 
-    test('media se planta con 1 dado y más de 600 en el turno', () {
-      final p = armar(puntosPc: 2000, puntosRival: 2000, puntosTurno: 700, dadosEnMano: 1);
-      expect(
-        iaDebePlantarse(p, dificultad: DificultadPc.medio, rng: rngSinError),
-        isTrue,
-      );
+    test('todas se plantan con 1 dado y 300+ en el turno', () {
+      for (final d in DificultadPc.values) {
+        final p = armar(
+          puntosPc: 5750,
+          puntosRival: 5000,
+          puntosTurno: 300,
+          dadosEnMano: 1,
+        );
+        expect(
+          iaDebePlantarse(p, dificultad: d, rng: rngSinError),
+          isTrue,
+          reason: d.name,
+        );
+      }
     });
 
-    test('media sigue con 1 dado y menos de 400 en el turno', () {
-      final p = armar(puntosPc: 2000, puntosRival: 2000, puntosTurno: 300, dadosEnMano: 1);
+    test('media sigue con 1 dado y menos de 300 en el turno', () {
+      final p = armar(puntosPc: 2000, puntosRival: 2000, puntosTurno: 250, dadosEnMano: 1);
       expect(
         iaDebePlantarse(p, dificultad: DificultadPc.medio, rng: rngSinError),
         isFalse,
@@ -215,15 +223,20 @@ void main() {
       );
     });
 
-    test('difícil se planta con 1 dado, 300 pts y ventaja modesta', () {
+    test('difícil se planta con 1 dado y 450 aunque el rival bancó 1500', () {
       final p = armar(
-        puntosPc: 4900,
-        puntosRival: 4000,
-        puntosTurno: 300,
+        puntosPc: 5750,
+        puntosRival: 5000,
+        puntosTurno: 450,
         dadosEnMano: 1,
       );
       expect(
-        iaDebePlantarse(p, dificultad: DificultadPc.dificil, rng: rngSinError),
+        iaDebePlantarse(
+          p,
+          dificultad: DificultadPc.dificil,
+          ultimoTurnoRival: 1500,
+          rng: rngSinError,
+        ),
         isTrue,
       );
     });
