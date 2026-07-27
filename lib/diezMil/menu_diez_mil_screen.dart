@@ -413,133 +413,141 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
+          final padH = 24.0;
+          final padVTop = 12.0;
+          final padVBot = 16.0;
+          final anchoUtil = constraints.maxWidth - padH * 2;
           return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.topCenter,
-              child: SizedBox(
-                width: constraints.maxWidth - 0.1,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '¿Cómo querés jugar?',
-                      style:
-                          Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: AppColors.texto,
-                                fontWeight: FontWeight.w700,
+            padding: EdgeInsets.fromLTRB(padH, padVTop, padH, padVBot),
+            child: SizedBox(
+              width: anchoUtil,
+              height: constraints.maxHeight - padVTop - padVBot,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: anchoUtil,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '¿Cómo querés jugar?',
+                        style:
+                            Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: AppColors.texto,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Creá una sala con código o unite a una existente.',
+                        style: TextStyle(color: AppColors.textoSuave),
+                      ),
+                      const SizedBox(height: 18),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const CrearSalaScreen(
+                                juegoId: MenuDiezMilScreen.juegoId,
                               ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Creá una sala con código o unite a una existente.',
-                      style: TextStyle(color: AppColors.textoSuave),
-                    ),
-                    const SizedBox(height: 18),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const CrearSalaScreen(
-                              juegoId: MenuDiezMilScreen.juegoId,
                             ),
-                          ),
-                        );
-                      },
-                      child: const Text('Crear'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const UnirseSalaScreen(
-                              juegoId: MenuDiezMilScreen.juegoId,
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Text('Unirse'),
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(color: AppColors.fondoSuave),
-                    const SizedBox(height: 12),
-                    _FilaOpcionToggle(
-                      etiqueta: 'Probar sin sala (mismo celular)',
-                      opcion: 'Decidir orden',
-                      activo: _decidirOrden,
-                      onChanged: (v) => setState(() => _decidirOrden = v),
-                      onInfo: _explicarDecidirOrden,
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: () => _abrirPartidaRapida(Modo.cinco),
-                      child: const Text('Partida rápida · 5 dados'),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: () => _abrirPartidaRapida(Modo.seis),
-                      child: const Text('Partida rápida · 6 dados'),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _elegirCantidadJugadores,
-                            child: Text(
-                              'Jugadores · $_cantidadJugadores',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _editarNombres,
-                            child: const Text('Nombres'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(color: AppColors.fondoSuave),
-                    const SizedBox(height: 12),
-                    _FilaOpcionToggle(
-                      etiqueta: 'Jugar vs PC',
-                      opcion: 'Modo Dios',
-                      activo: _modoDios,
-                      onChanged: (v) => setState(() => _modoDios = v),
-                      onInfo: _explicarModoDios,
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: () => _abrirVsPc(Modo.cinco),
-                      child: const Text('Jugar vs PC · 5 dados'),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: () => _abrirVsPc(Modo.seis),
-                      child: const Text('Jugar vs PC · 6 dados'),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: _elegirDificultad,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _dificultad.color,
-                        foregroundColor: const Color(0xFF1A0A00),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                          );
+                        },
+                        child: const Text('Crear'),
                       ),
-                      child: Text(
-                        'Dificultad · ${_dificultad.etiqueta}',
-                        style: const TextStyle(
-                          color: Color(0xFF1A0A00),
-                          fontWeight: FontWeight.w800,
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const UnirseSalaScreen(
+                                juegoId: MenuDiezMilScreen.juegoId,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Unirse'),
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(color: AppColors.fondoSuave),
+                      const SizedBox(height: 12),
+                      _FilaOpcionToggle(
+                        etiqueta: 'Probar sin sala (mismo celular)',
+                        opcion: 'Decidir orden',
+                        activo: _decidirOrden,
+                        onChanged: (v) => setState(() => _decidirOrden = v),
+                        onInfo: _explicarDecidirOrden,
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: () => _abrirPartidaRapida(Modo.cinco),
+                        child: const Text('Partida rápida · 5 dados'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: () => _abrirPartidaRapida(Modo.seis),
+                        child: const Text('Partida rápida · 6 dados'),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _elegirCantidadJugadores,
+                              child: Text(
+                                'Jugadores · $_cantidadJugadores',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _editarNombres,
+                              child: const Text('Nombres'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(color: AppColors.fondoSuave),
+                      const SizedBox(height: 12),
+                      _FilaOpcionToggle(
+                        etiqueta: 'Jugar vs PC',
+                        opcion: 'Modo Dios',
+                        activo: _modoDios,
+                        onChanged: (v) => setState(() => _modoDios = v),
+                        onInfo: _explicarModoDios,
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: () => _abrirVsPc(Modo.cinco),
+                        child: const Text('Jugar vs PC · 5 dados'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: () => _abrirVsPc(Modo.seis),
+                        child: const Text('Jugar vs PC · 6 dados'),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _elegirDificultad,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _dificultad.color,
+                          foregroundColor: const Color(0xFF1A0A00),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          'Dificultad · ${_dificultad.etiqueta}',
+                          style: const TextStyle(
+                            color: Color(0xFF1A0A00),
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

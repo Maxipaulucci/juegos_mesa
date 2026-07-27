@@ -34,9 +34,9 @@ class DadoFace extends StatelessWidget {
     final base = suma ? AppColors.acento : const Color(0xFFF5F0E8);
     final highlight = suma ? const Color(0xFFFFE082) : Colors.white;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOutCubic,
+    // Sin AnimatedContainer: el color dorado debe aparecer junto con el
+    // resultado de la tirada, no con un fade de 250 ms después.
+    return Container(
       width: tamano,
       height: tamano,
       decoration: BoxDecoration(
@@ -44,7 +44,11 @@ class DadoFace extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [highlight, base, suma ? AppColors.acentoSuave : const Color(0xFFD8D0C4)],
+          colors: [
+            highlight,
+            base,
+            suma ? AppColors.acentoSuave : const Color(0xFFD8D0C4),
+          ],
           stops: const [0.0, 0.45, 1.0],
         ),
         boxShadow: [

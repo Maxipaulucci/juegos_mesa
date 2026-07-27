@@ -52,7 +52,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   ResultadoTirada? _ultimaTirada;
   ResumenTirada? _ultimoResumen;
   String? _mensaje;
-  bool _esperandoEspecial = false;
   bool _mostrarVictoria = false;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
@@ -92,6 +91,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   bool _puedeRenombrar(int index) {
     if (_partida.ganador != null) return false;
+    if (_partida.jugadores[index].rendido) return false;
     final nombre = _partida.jugadores[index].nombre;
     if (widget.contraPc) return nombre != nombreJugadorPc;
     return widget.partidaRapida;
@@ -113,7 +113,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     _ultimaTirada = null;
     _ultimoResumen = null;
     _mensaje = null;
-    _esperandoEspecial = false;
     _mostrarVictoria = false;
     _mostrarMenu = false;
     _mostrarAjustes = false;
@@ -144,16 +143,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   void _ejecutarJugadaPc() {
     if (!_turnoDeLaPc || _mostrarVictoria) return;
 
-    if (_esperandoEspecial && _ultimaTirada != null) {
-      _responderEspecial(iaAceptaEspecial(_ultimaTirada!));
-      return;
-    }
-
     // Tras una tirada con puntos: plantarse o seguir.
     if (_ultimoResumen != null &&
         !_ultimoResumen!.bust &&
-        _partida.turno.puntosTurno > 0 &&
-        !_esperandoEspecial) {
+        _partida.turno.puntosTurno > 0) {
       if (iaDebePlantarse(
         _partida,
         dificultad: widget.dificultadPc,
@@ -355,7 +348,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       rendido.rendido = true;
       _mostrarMenu = false;
       _confirmarRendicion = false;
-      _esperandoEspecial = false;
       _animandoTirada = false;
       _dadosAnimados = null;
       _ultimaTirada = null;
@@ -415,8 +407,9 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Escribí $cantidad números del 1 al 6, sin espacios.\n'
-                'Ej: ${List.filled(cantidad, '1').join()}',
+                'Escribí de 1 a $cantidad números del 1 al 6, sin espacios.\n'
+                'Los que falten salen al azar.\n'
+                'Ej: 1111',
                 style: const TextStyle(
                   color: AppColors.textoSuave,
                   fontSize: 13,
@@ -452,14 +445,15 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
               ElevatedButton(
                 onPressed: () {
                   final texto = ctrl.text.trim();
-                  if (texto.length != cantidad ||
+                  if (texto.isEmpty ||
+                      texto.length > cantidad ||
                       texto.split('').any((c) {
                         final n = int.tryParse(c);
                         return n == null || n < 1 || n > 6;
                       })) {
                     setDialogState(() {
                       error =
-                          'Ingresá exactamente $cantidad números entre 1 y 6.';
+                          'Ingresá entre 1 y $cantidad números entre 1 y 6.';
                     });
                     return;
                   }
@@ -501,7 +495,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   Future<void> _tirar() async {
     if (_partida.ganador != null ||
-        _esperandoEspecial ||
         _esperandoCambioDeTurno ||
         _partida.jugadorActual.rendido ||
         _animandoTirada) {
@@ -513,7 +506,14 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     _dadosForzados = null;
 
     // Se tira ya el resultado real; la animación solo lo “revela”.
-    final tirada = ejecutarTirada(_partida, dadosForzados: forzados);
+    final cantidad = _partida.turno.dadosEnMano;
+    final dadosFinales = forzados == null
+        ? null
+        : [
+            ...forzados,
+            ...tirar(math.max(0, cantidad - forzados.length), _rngTirada),
+          ];
+    final tirada = ejecutarTirada(_partida, dadosForzados: dadosFinales);
     final resultado = filtrarEspecialesQuePasanMeta(_partida, tirada);
     final finales = resultado.dados;
 
@@ -533,30 +533,16 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
               List.generate(finales.length, (_) => _rngTirada.nextInt(6) + 1);
         });
       }
-
-      if (!mounted || token != _pcToken) return;
-      setState(() => _dadosAnimados = List.of(finales));
-      await Future<void>.delayed(const Duration(milliseconds: 120));
       if (!mounted || token != _pcToken) return;
     }
 
+    // Fin de animación + resultado en el mismo frame.
+    // Especiales (tres pares / cuatro+par) se aplican solos si no pasan meta.
     if (!mounted || token != _pcToken) return;
-    setState(() {
-      _animandoTirada = false;
-      _dadosAnimados = null;
-    });
-
-    if (hayOpcionales(resultado)) {
-      setState(() {
-        _ultimaTirada = resultado;
-        _ultimoResumen = null;
-        _esperandoEspecial = true;
-        _mensaje = null;
-      });
-      if (_turnoDeLaPc) _programarJugadaPc(demoraMs: 700);
-      return;
-    }
-    _aplicar(resultado, null);
+    final especial = hayOpcionales(resultado)
+        ? resultado.combosOpcionales.first.especial
+        : null;
+    _aplicar(resultado, especial);
   }
 
   void _aplicar(ResultadoTirada resultado, Especial? especial) {
@@ -567,15 +553,17 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     _stats.registrar(nombre, puntosReg);
 
     setState(() {
+      _animandoTirada = false;
+      _dadosAnimados = null;
       _ultimaTirada = resultado;
       _ultimoResumen = resumen;
-      _esperandoEspecial = false;
       // Al ganar por tirada se banca el turno completo: cuenta como su total.
       if (resumen.victoria) {
         _registrarMejorTirada(nombre, turnoPrevio + puntosReg);
       }
       if (resumen.victoria) {
-        _mensaje = '¡${_partida.jugadorActual.nombre} gana!';
+        // Se muestra la tirada/turno en el banner (no "X gana!").
+        _mensaje = null;
       } else if (resumen.pasado) {
         _mensaje =
             '¡Te pasaste de 10.000 (${_pts(resumen.intentoTotal ?? 0)})! '
@@ -611,12 +599,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     if (_turnoDeLaPc) _programarJugadaPc(demoraMs: 850);
   }
 
-  void _responderEspecial(bool aceptar) {
-    final tirada = _ultimaTirada;
-    if (tirada == null) return;
-    _aplicar(tirada, aceptar ? tirada.combosOpcionales.first.especial : null);
-  }
-
   void _registrarMejorTirada(String nombre, int puntos) {
     if (puntos > _mejorTiradaPartida) {
       _mejorTiradaPartida = puntos;
@@ -626,7 +608,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   void _plantarse() {
     if (!puedePlantarse(_partida) ||
-        _esperandoEspecial ||
         _esperandoCambioDeTurno ||
         _animandoTirada ||
         _partida.jugadorActual.rendido) {
@@ -645,7 +626,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
               'Te pasaste (${_pts(banco.intento ?? 0)}). Seguís en ${_pts(banco.puntos)}.';
         case 'victoria':
           _registrarMejorTirada(nombre, sumados);
-          _mensaje = '¡$nombre llega a $meta y gana!';
+          // Banner: puntos del turno ganador (no "X gana!").
+          _mensaje = null;
         case 'banco':
           _registrarMejorTirada(nombre, banco.sumados ?? sumados);
           if (widget.contraPc && nombre != nombreJugadorPc) {
@@ -675,10 +657,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     final tirada = _ultimaTirada;
     final resumen = _ultimoResumen;
     if (tirada == null) return const [];
-    // Al elegir especial vs combos normales, todos los dados en amarillo.
-    if (_esperandoEspecial) {
-      return List.filled(tirada.dados.length, true);
-    }
     if (resumen == null || resumen.bust) {
       return List.filled(tirada.dados.length, false);
     }
@@ -696,6 +674,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     final ptsTirada = (_ultimoResumen != null && !_ultimoResumen!.bust)
         ? _ultimoResumen!.puntosTirada
         : 0;
+    // Tras victoria el turno queda en 0; el resumen guarda el total bancado.
+    final ptsTurno = (_ultimoResumen != null && !_ultimoResumen!.bust)
+        ? _ultimoResumen!.puntosTurno
+        : t.puntosTurno;
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
@@ -807,7 +789,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                     ? (_partida.ganador ?? '')
                                     : j.nombre,
                                 terminada: terminada,
-                                ptsTurno: t.puntosTurno,
+                                ptsTurno: ptsTurno,
                                 ptsTirada: ptsTirada,
                                 mensaje: _mensaje,
                               ),
@@ -841,7 +823,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                       child: Tooltip(
                                         message: _dadosForzados == null
                                             ? 'Forzar próxima tirada'
-                                            : 'Próxima: ${_dadosForzados!.join(' ')}',
+                                            : 'Próxima: ${_dadosForzados!.join(' ')}'
+                                                ' + azar',
                                         child: Material(
                                           color: AppColors.carta,
                                           shape: const CircleBorder(),
@@ -895,37 +878,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                 total: ptsTirada,
                               ),
                               const SizedBox(height: 6),
-                              if (_esperandoEspecial &&
-                                  _ultimaTirada != null) ...[
-                                Text(
-                                  _turnoDeLaPc
-                                      ? 'La PC está eligiendo el especial…'
-                                      : 'Sacaste ${nombreEspecial(_ultimaTirada!.combosOpcionales.first.especial!)} '
-                                          '(${_ultimaTirada!.combosOpcionales.first.puntos} pts). ¿Aceptás?',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                if (!_turnoDeLaPc) ...[
-                                  const SizedBox(height: 6),
-                                  _ArcadeButton(
-                                    label: 'ACEPTAR ESPECIAL',
-                                    icon: Icons.auto_awesome,
-                                    tono: _BotonTono.dorado,
-                                    onPressed: () => _responderEspecial(true),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _ArcadeButton(
-                                    label: 'COMBOS NORMALES',
-                                    icon: Icons.casino_outlined,
-                                    tono: _BotonTono.violeta,
-                                    onPressed: () =>
-                                        _responderEspecial(false),
-                                  ),
-                                ],
-                              ] else if (!terminada) ...[
+                              if (!terminada) ...[
                                 if (_esperandoCambioDeTurno)
                                   const Padding(
                                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -2160,11 +2113,9 @@ class _TurnoBanner extends StatelessWidget {
           child: Center(
             child: Text(
               mensaje ??
-                  (terminada
-                      ? 'PARTIDA TERMINADA'
-                      : ptsTirada > 0
-                          ? '$ptsTirada PTS EN ESTA TIRADA · TURNO ${_pts(ptsTurno)}'
-                          : 'TURNO: ${_pts(ptsTurno)} PTS'),
+                  (ptsTirada > 0
+                      ? '$ptsTirada PTS EN ESTA TIRADA · TURNO ${_pts(ptsTurno)}'
+                      : 'TURNO: ${_pts(ptsTurno)} PTS'),
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

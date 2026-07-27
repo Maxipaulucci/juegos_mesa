@@ -43,14 +43,6 @@ double probabilidadDeSumar(int n) => switch (n) {
       _ => 0.93,
     };
 
-/// Acepta el especial si da igual o más puntos que los combos normales.
-bool iaAceptaEspecial(ResultadoTirada resultado) {
-  if (resultado.combosOpcionales.isEmpty) return false;
-  final auto = puntosDeCombos(resultado.combosAuto);
-  final especial = resultado.combosOpcionales.first.puntos;
-  return especial >= auto;
-}
-
 /// Decide si plantarse (true) o seguir tirando (false) tras sumar puntos.
 ///
 /// [ultimoTurnoRival] son los puntos que bancó el rival en su último turno,

@@ -52,6 +52,8 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
   late final Animation<double> _opacidad;
   bool _mostrarStats = false;
   String? _statsJugador;
+  /// false = se ve el fondo de la partida; el cartel se oculta.
+  bool _cartelVisible = true;
 
   @override
   void initState() {
@@ -139,9 +141,12 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.72),
+      color: _cartelVisible
+          ? Colors.black.withValues(alpha: 0.72)
+          : Colors.transparent,
       child: Stack(
         children: [
+          // Confeti / fuegos siguen aunque el cartel se oculte.
           if (widget.animaciones) ...[
             Positioned.fill(
               child: AnimatedBuilder(
@@ -155,24 +160,73 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
               child: IgnorePointer(child: _FuegosArtificialesCapa()),
             ),
           ],
-          SafeArea(
-            child: Center(
-              child: FadeTransition(
-                opacity: _opacidad,
-                child: ScaleTransition(
-                  scale: _escala,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: _construirContenido(),
+          if (_cartelVisible)
+            SafeArea(
+              child: Center(
+                child: FadeTransition(
+                  opacity: _opacidad,
+                  child: ScaleTransition(
+                    scale: _escala,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: _construirContenido(),
+                      ),
                     ),
+                  ),
+                ),
+              ),
+            ),
+          // Fijo arriba-centro (sobre el título DIEZ MIL).
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: _BotonOjoVictoria(
+                  cartelVisible: _cartelVisible,
+                  onTap: () => setState(
+                    () => _cartelVisible = !_cartelVisible,
                   ),
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Ojo sutil (violeta) encima del cartel para ver el fondo.
+class _BotonOjoVictoria extends StatelessWidget {
+  const _BotonOjoVictoria({
+    required this.cartelVisible,
+    required this.onTap,
+  });
+
+  final bool cartelVisible;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.violeta.withValues(alpha: 0.28),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            cartelVisible
+                ? Icons.visibility_rounded
+                : Icons.visibility_off_rounded,
+            color: AppColors.violeta.withValues(alpha: 0.85),
+            size: 22,
+          ),
+        ),
       ),
     );
   }

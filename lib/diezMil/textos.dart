@@ -27,8 +27,8 @@ String reglasDe(Modo modo) {
    - Cada 5 suma 50.
    - Tres iguales: valor × 100 (los 1 valen 1000).
    - Escalera 1-2-3-4-5-6: 1500 puntos.
-   - Tres pares: 1500 (podés aceptar o puntuar dados sueltos).
-   - Cuatro iguales + un par: 1500 (idem, es opcional).
+   - Tres pares: 1500 puntos (se aplica solo).
+   - Cuatro iguales + un par: 1500 puntos (se aplica solo).
    - Seis iguales: victoria inmediata.
 
 · Para abrir necesitás al menos $apertura puntos en un solo turno.
