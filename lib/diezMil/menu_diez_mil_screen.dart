@@ -11,9 +11,22 @@ import 'standby_store.dart';
 import 'unirse_sala_screen.dart';
 
 class MenuDiezMilScreen extends StatefulWidget {
-  const MenuDiezMilScreen({super.key});
+  const MenuDiezMilScreen({
+    super.key,
+    this.titulo = 'Diez Mil',
+    this.juegoId = juegoIdDiezMil,
+  });
 
-  static const juegoId = 'diezMil';
+  static const juegoIdDiezMil = 'diezMil';
+  static const juegoIdGenerala = 'generala';
+
+  /// Título del AppBar (p. ej. "Diez Mil" o "Generala").
+  final String titulo;
+
+  /// Id para salas online y para saber qué juego arrancar.
+  final String juegoId;
+
+  bool get esDiezMil => juegoId == juegoIdDiezMil;
 
   @override
   State<MenuDiezMilScreen> createState() => _MenuDiezMilScreenState();
@@ -46,6 +59,10 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   }
 
   Future<void> _abrirPartidaRapida(Modo modo) async {
+    if (!widget.esDiezMil) {
+      _mostrarEnDesarrollo();
+      return;
+    }
     var nombres = List<String>.of(_nombresRapida);
     if (_decidirOrden) {
       final ordenados = await Navigator.of(context).push<List<String>>(
@@ -65,6 +82,33 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
           partidaRapida: true,
           ajustesIniciales: _ajustes,
         ),
+      ),
+    );
+  }
+
+  void _mostrarEnDesarrollo() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          widget.titulo,
+          style: const TextStyle(color: AppColors.acento, fontSize: 18),
+        ),
+        content: Text(
+          'El menú ya está listo. La partida de ${widget.titulo} se va a '
+          'armar a continuación.',
+          style: const TextStyle(color: AppColors.texto, height: 1.45),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Entendido'),
+          ),
+        ],
       ),
     );
   }
@@ -250,6 +294,10 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   }
 
   void _abrirVsPc(Modo modo) {
+    if (!widget.esDiezMil) {
+      _mostrarEnDesarrollo();
+      return;
+    }
     final resume = DiezMilStandByStore.consumirSiCoincide(modo, _dificultad);
     final nombres = resume?.nombres ?? const ['Jugador 1', 'PC'];
     Navigator.of(context).push(
@@ -405,7 +453,7 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Diez Mil'),
+        title: Text(widget.titulo),
         actions: [
           IconButton(
             onPressed: _abrirAjustes,
@@ -453,8 +501,8 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const CrearSalaScreen(
-                                juegoId: MenuDiezMilScreen.juegoId,
+                              builder: (_) => CrearSalaScreen(
+                                juegoId: widget.juegoId,
                               ),
                             ),
                           );
@@ -466,8 +514,8 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const UnirseSalaScreen(
-                                juegoId: MenuDiezMilScreen.juegoId,
+                              builder: (_) => UnirseSalaScreen(
+                                juegoId: widget.juegoId,
                               ),
                             ),
                           );
@@ -485,15 +533,21 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
                         onInfo: _explicarDecidirOrden,
                       ),
                       const SizedBox(height: 10),
-                      OutlinedButton(
-                        onPressed: () => _abrirPartidaRapida(Modo.cinco),
-                        child: const Text('Partida rápida · 5 dados'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton(
-                        onPressed: () => _abrirPartidaRapida(Modo.seis),
-                        child: const Text('Partida rápida · 6 dados'),
-                      ),
+                      if (widget.esDiezMil) ...[
+                        OutlinedButton(
+                          onPressed: () => _abrirPartidaRapida(Modo.cinco),
+                          child: const Text('Partida rápida · 5 dados'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: () => _abrirPartidaRapida(Modo.seis),
+                          child: const Text('Partida rápida · 6 dados'),
+                        ),
+                      ] else
+                        OutlinedButton(
+                          onPressed: () => _abrirPartidaRapida(Modo.cinco),
+                          child: const Text('Partida rápida'),
+                        ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -525,15 +579,21 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
                         onInfo: _explicarModoDios,
                       ),
                       const SizedBox(height: 10),
-                      OutlinedButton(
-                        onPressed: () => _abrirVsPc(Modo.cinco),
-                        child: const Text('Jugar vs PC · 5 dados'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton(
-                        onPressed: () => _abrirVsPc(Modo.seis),
-                        child: const Text('Jugar vs PC · 6 dados'),
-                      ),
+                      if (widget.esDiezMil) ...[
+                        OutlinedButton(
+                          onPressed: () => _abrirVsPc(Modo.cinco),
+                          child: const Text('Jugar vs PC · 5 dados'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: () => _abrirVsPc(Modo.seis),
+                          child: const Text('Jugar vs PC · 6 dados'),
+                        ),
+                      ] else
+                        OutlinedButton(
+                          onPressed: () => _abrirVsPc(Modo.cinco),
+                          child: const Text('Jugar vs PC'),
+                        ),
                       const SizedBox(height: 8),
                       ElevatedButton(
                         onPressed: _elegirDificultad,

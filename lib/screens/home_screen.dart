@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../diezMil/menu_diez_mil_screen.dart';
+import '../generala/menu_generala_screen.dart';
 import '../theme/app_theme.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -124,11 +125,17 @@ class HomeScreen extends StatelessWidget {
                           enabled: false,
                         ),
                         const SizedBox(height: 12),
-                        const _JuegoTile(
+                        _JuegoTile(
                           titulo: 'Generala',
-                          subtitulo: 'Próximamente',
+                          subtitulo: 'Dados · tabla de anotación',
                           accent: AppColors.violeta,
-                          enabled: false,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const MenuGeneralaScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
