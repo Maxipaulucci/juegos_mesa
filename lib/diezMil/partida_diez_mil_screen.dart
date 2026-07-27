@@ -10,6 +10,7 @@ import 'dado_widget.dart';
 import 'estadisticas.dart';
 import 'ia_diez_mil.dart';
 import 'motor.dart';
+import 'standby_store.dart';
 import 'textos.dart';
 import 'victoria_overlay.dart';
 
@@ -27,6 +28,7 @@ class PartidaDiezMilScreen extends StatefulWidget {
     this.dificultadPc = DificultadPc.medio,
     this.modoDios = false,
     this.ajustesIniciales = const AjustesEstado(),
+    this.resume,
   });
 
   final List<String> nombres;
@@ -40,6 +42,8 @@ class PartidaDiezMilScreen extends StatefulWidget {
   /// Muestra el botón temporal para forzar la próxima tirada.
   final bool modoDios;
   final AjustesEstado ajustesIniciales;
+  /// Si no es `null`, la pantalla arranca restaurando el estado en memoria.
+  final PartidaDiezMilResume? resume;
 
   @override
   State<PartidaDiezMilScreen> createState() => _PartidaDiezMilScreenState();
@@ -61,6 +65,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   int _mejorTiradaPartida = 0;
   String? _mejorTiradaJugador;
   late AjustesEstado _ajustes;
+  /// Pausa simple en modo vs PC: el juego queda en espera sin guardar.
+  bool _standBy = false;
 
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
@@ -100,6 +106,38 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.resume != null) {
+      final r = widget.resume!;
+      _nombres = r.nombres;
+      _ajustes = r.ajustesIniciales;
+      _partida = r.partida;
+      _stats = r.estadisticas;
+      _ultimaTirada = r.ultimaTirada;
+      _ultimoResumen = r.ultimoResumen;
+      _mensaje = r.mensaje;
+      _mejorTiradaPartida = r.mejorTiradaPartida;
+      _mejorTiradaJugador = r.mejorTiradaJugador;
+      _ultimoTurnoHumano = r.ultimoTurnoHumano;
+
+      _mostrarVictoria = false;
+      _mostrarMenu = false;
+      _mostrarAjustes = false;
+      _confirmarRendicion = false;
+      _mostrarListaJugadores = false;
+      _subtituloVictoria = null;
+      _animandoTirada = false;
+      _dadosAnimados = null;
+      _dadosForzados = null;
+      _standBy = false;
+      _pcToken++;
+      // Si al reingresar toca jugar a la PC, reprogramamos.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_turnoDeLaPc) _programarJugadaPc();
+      });
+      return;
+    }
+
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales;
     _iniciarPartidaNueva();
@@ -125,6 +163,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     _dadosAnimados = null;
     _dadosForzados = null;
     _ultimoTurnoHumano = 0;
+    _standBy = false;
   }
 
   void _volverAJugar() {
@@ -141,7 +180,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _ejecutarJugadaPc() {
-    if (!_turnoDeLaPc || _mostrarVictoria) return;
+    if (!_turnoDeLaPc || _mostrarVictoria || _standBy) return;
 
     // Tras una tirada con puntos: plantarse o seguir.
     if (_ultimoResumen != null &&
@@ -161,7 +200,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _pasarTurnoYContinuar() {
-    if (!mounted || _partida.ganador != null) return;
+    if (!mounted || _partida.ganador != null || _standBy) return;
     setState(() {
       pasarTurno(_partida);
       _ultimaTirada = null;
@@ -169,6 +208,39 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       _mensaje = null;
     });
     _programarJugadaPc();
+  }
+
+  void _continuarDesdeStandBy() {
+    if (!widget.contraPc) return;
+    setState(() => _standBy = false);
+    if (_turnoDeLaPc) _programarJugadaPc();
+  }
+
+  void _salirGuardandoResumeYVolverAlMenu() {
+    if (!widget.contraPc) return;
+    if (_partida.ganador != null) return;
+
+    DiezMilStandByStore.guardar(
+      PartidaDiezMilResume(
+        partida: _partida,
+        estadisticas: _stats,
+        nombres: _nombres,
+        modo: widget.modo,
+        contraPc: true,
+        dificultadPc: widget.dificultadPc,
+        modoDios: widget.modoDios,
+        ajustesIniciales: _ajustes,
+        ultimaTirada: _ultimaTirada,
+        ultimoResumen: _ultimoResumen,
+        mensaje: _mensaje,
+        mejorTiradaPartida: _mejorTiradaPartida,
+        mejorTiradaJugador: _mejorTiradaJugador,
+        ultimoTurnoHumano: _ultimoTurnoHumano,
+      ),
+    );
+
+    _pcToken++; // cancela cualquier jugada pendiente
+    Navigator.of(context).pop();
   }
 
   Future<void> _renombrarJugador(int index) async {
@@ -497,6 +569,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     if (_partida.ganador != null ||
         _esperandoCambioDeTurno ||
         _partida.jugadorActual.rendido ||
+        _standBy ||
         _animandoTirada) {
       return;
     }
@@ -610,7 +683,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     if (!puedePlantarse(_partida) ||
         _esperandoCambioDeTurno ||
         _animandoTirada ||
-        _partida.jugadorActual.rendido) {
+        _partida.jugadorActual.rendido ||
+        _standBy) {
       return;
     }
     final nombre = _partida.jugadorActual.nombre;
@@ -961,14 +1035,16 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                         )
                         .nombre
                     : j.nombre,
-                confirmarRendicion: _confirmarRendicion,
+                esContraPc: widget.contraPc,
+                confirmarRendicion: _confirmarRendicion && !widget.contraPc,
                 onCerrar: _cerrarMenu,
                 onReglas: () {
                   _cerrarMenu();
                   _mostrarReglas();
                 },
-                onRendirse: () =>
-                    setState(() => _confirmarRendicion = true),
+                onRendirse: widget.contraPc
+                    ? _salirGuardandoResumeYVolverAlMenu
+                    : () => setState(() => _confirmarRendicion = true),
                 onConfirmarRendicion: _rendirse,
                 onCancelarRendicion: () =>
                     setState(() => _confirmarRendicion = false),
@@ -994,6 +1070,16 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                 },
                 onCerrar: () =>
                     setState(() => _mostrarListaJugadores = false),
+              ),
+            ),
+          if (_standBy)
+            Positioned.fill(
+              child: _StandByOverlay(
+                onContinuar: _continuarDesdeStandBy,
+                onVolverAlMenu: () {
+                  _pcToken++;
+                  Navigator.of(context).pop();
+                },
               ),
             ),
           if (_mostrarVictoria && _partida.ganador != null)
@@ -1350,6 +1436,7 @@ class _ListaJugadoresOverlay extends StatelessWidget {
 class _PartidaMenuOverlay extends StatelessWidget {
   const _PartidaMenuOverlay({
     required this.jugador,
+    required this.esContraPc,
     required this.confirmarRendicion,
     required this.onCerrar,
     required this.onReglas,
@@ -1359,6 +1446,7 @@ class _PartidaMenuOverlay extends StatelessWidget {
   });
 
   final String jugador;
+  final bool esContraPc;
   final bool confirmarRendicion;
   final VoidCallback onCerrar;
   final VoidCallback onReglas;
@@ -1458,7 +1546,14 @@ class _PartidaMenuOverlay extends StatelessWidget {
                           onPressed: onReglas,
                         ),
                         const SizedBox(height: 10),
-                        if (!confirmarRendicion)
+                        if (esContraPc)
+                          _ArcadeButton(
+                            label: 'SALIR',
+                            icon: Icons.logout_rounded,
+                            tono: _BotonTono.rojo,
+                            onPressed: onRendirse,
+                          )
+                        else if (!confirmarRendicion)
                           _ArcadeButton(
                             label: 'RENDIRSE',
                             icon: Icons.flag_rounded,
@@ -1493,6 +1588,98 @@ class _PartidaMenuOverlay extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Overlay simple de pausa (stand by) para modo vs PC.
+/// No guarda la partida: solo detiene la PC hasta que se presione "Continuar".
+class _StandByOverlay extends StatelessWidget {
+  const _StandByOverlay({
+    required this.onContinuar,
+    required this.onVolverAlMenu,
+  });
+
+  final VoidCallback onContinuar;
+  final VoidCallback onVolverAlMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF3B1D6E),
+                      Color(0xFF1A0A33),
+                      Color(0xFF2A1050),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppColors.acento, width: 2),
+                  boxShadow: neonGlow(AppColors.acento, blur: 18),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.pause_circle_rounded,
+                      color: AppColors.acento,
+                      size: 44,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Partida en espera',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.acento,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'La PC quedó pausada. Podés continuar cuando quieras.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textoSuave,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    _ArcadeButton(
+                      label: 'CONTINUAR',
+                      icon: Icons.play_arrow_rounded,
+                      tono: _BotonTono.azul,
+                      onPressed: onContinuar,
+                    ),
+                    const SizedBox(height: 10),
+                    _ArcadeButton(
+                      label: 'VOLVER AL MENÚ',
+                      icon: Icons.home_rounded,
+                      tono: _BotonTono.violeta,
+                      onPressed: onVolverAlMenu,
+                    ),
+                  ],
                 ),
               ),
             ),

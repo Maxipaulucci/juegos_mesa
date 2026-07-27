@@ -7,6 +7,7 @@ import 'decidir_orden_screen.dart';
 import 'ia_diez_mil.dart';
 import 'motor.dart';
 import 'partida_diez_mil_screen.dart';
+import 'standby_store.dart';
 import 'unirse_sala_screen.dart';
 
 class MenuDiezMilScreen extends StatefulWidget {
@@ -249,15 +250,18 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   }
 
   void _abrirVsPc(Modo modo) {
+    final resume = DiezMilStandByStore.consumirSiCoincide(modo, _dificultad);
+    final nombres = resume?.nombres ?? const ['Jugador 1', 'PC'];
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PartidaDiezMilScreen(
-          nombres: const ['Jugador 1', 'PC'],
+          nombres: nombres,
           modo: modo,
           contraPc: true,
-          dificultadPc: _dificultad,
-          modoDios: _modoDios,
-          ajustesIniciales: _ajustes,
+          dificultadPc: resume?.dificultadPc ?? _dificultad,
+          modoDios: resume?.modoDios ?? _modoDios,
+          ajustesIniciales: resume?.ajustesIniciales ?? _ajustes,
+          resume: resume,
         ),
       ),
     );
