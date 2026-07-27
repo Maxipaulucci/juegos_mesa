@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
-import 'ajustes_overlay.dart';
-import 'crear_sala_screen.dart';
-import 'decidir_orden_screen.dart';
-import 'ia_diez_mil.dart';
-import 'motor.dart';
-import 'partida_diez_mil_screen.dart';
-import 'standby_store.dart';
-import 'unirse_sala_screen.dart';
+import 'package:app_juegos_mesa/diezMil/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/diezMil/crear_sala_screen.dart';
+import 'package:app_juegos_mesa/diezMil/decidir_orden_screen.dart';
+import 'package:app_juegos_mesa/diezMil/ia_diez_mil.dart';
+import 'package:app_juegos_mesa/diezMil/motor.dart';
+import 'package:app_juegos_mesa/diezMil/partida_diez_mil_screen.dart';
+import 'package:app_juegos_mesa/diezMil/standby_store.dart';
+import 'package:app_juegos_mesa/diezMil/unirse_sala_screen.dart';
+import 'package:app_juegos_mesa/generala/partida_generala_screen.dart';
+import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class MenuDiezMilScreen extends StatefulWidget {
   const MenuDiezMilScreen({
@@ -59,10 +60,6 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   }
 
   Future<void> _abrirPartidaRapida(Modo modo) async {
-    if (!widget.esDiezMil) {
-      _mostrarEnDesarrollo();
-      return;
-    }
     var nombres = List<String>.of(_nombresRapida);
     if (_decidirOrden) {
       final ordenados = await Navigator.of(context).push<List<String>>(
@@ -74,6 +71,19 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
       nombres = ordenados;
     }
     if (!mounted) return;
+    if (!widget.esDiezMil) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PartidaGeneralaScreen(
+            nombres: nombres,
+            modo: Modo.cinco,
+            partidaRapida: true,
+            ajustesIniciales: _ajustes,
+          ),
+        ),
+      );
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PartidaDiezMilScreen(
@@ -82,33 +92,6 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
           partidaRapida: true,
           ajustesIniciales: _ajustes,
         ),
-      ),
-    );
-  }
-
-  void _mostrarEnDesarrollo() {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(
-          widget.titulo,
-          style: const TextStyle(color: AppColors.acento, fontSize: 18),
-        ),
-        content: Text(
-          'El menú ya está listo. La partida de ${widget.titulo} se va a '
-          'armar a continuación.',
-          style: const TextStyle(color: AppColors.texto, height: 1.45),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Entendido'),
-          ),
-        ],
       ),
     );
   }
@@ -295,7 +278,18 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
 
   void _abrirVsPc(Modo modo) {
     if (!widget.esDiezMil) {
-      _mostrarEnDesarrollo();
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PartidaGeneralaScreen(
+            nombres: const ['Jugador 1', 'PC'],
+            modo: Modo.cinco,
+            contraPc: true,
+            dificultadPc: _dificultad,
+            modoDios: _modoDios,
+            ajustesIniciales: _ajustes,
+          ),
+        ),
+      );
       return;
     }
     final resume = DiezMilStandByStore.consumirSiCoincide(modo, _dificultad);

@@ -29,7 +29,6 @@ class PartidaDiezMilScreen extends StatefulWidget {
     this.modoDios = false,
     this.ajustesIniciales = const AjustesEstado(),
     this.resume,
-    this.esGenerala = false,
   });
 
   final List<String> nombres;
@@ -45,8 +44,6 @@ class PartidaDiezMilScreen extends StatefulWidget {
   final AjustesEstado ajustesIniciales;
   /// Si no es `null`, la pantalla arranca restaurando el estado en memoria.
   final PartidaDiezMilResume? resume;
-  /// Variante visual Generala (oculta meta 10k, mejor tirada, etc.).
-  final bool esGenerala;
 
   @override
   State<PartidaDiezMilScreen> createState() => _PartidaDiezMilScreenState();
@@ -780,9 +777,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               _Header(
-                                titulo: widget.esGenerala ? 'GENERALA' : 'DIEZ MIL',
                                 dados: _partida.modo.dados,
-                                mostrarDados: !widget.esGenerala,
                                 onMenu: terminada ? () {} : _abrirMenu,
                                 onSettings: () {
                                   setState(() {
