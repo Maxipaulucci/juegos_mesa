@@ -13,7 +13,7 @@ String reglasDe(Modo modo) {
    - Cinco iguales: valor × 1000 (los 1 valen 10.000).
    - Escalera 1-2-3-4-5 o 2-3-4-5-6: 500 puntos.
 
-· Para abrir (empezar a anotar) necesitás al menos $apertura puntos en un solo turno.
+· Para abrir (empezar a anotar) necesitás al menos ${modo.apertura} puntos en un solo turno.
 · Si una tirada no suma nada, perdés los puntos de ese turno (farkle).
 · Los dados que sumaron se retiran; si suman todos, volvés a tirar con los 5 (hot dice).
 · Si te pasás de $meta, se anula el turno. Hay que caer exactamente en $meta.
@@ -31,7 +31,7 @@ String reglasDe(Modo modo) {
    - Cuatro iguales + un par: 1500 puntos (se aplica solo).
    - Seis iguales: victoria inmediata.
 
-· Para abrir necesitás al menos $apertura puntos en un solo turno.
+· Para abrir necesitás al menos ${modo.apertura} puntos en un solo turno.
 · Tirada en cero = perdés el turno. Pasarte de $meta anula el turno.
 · Hay que caer exactamente en $meta para ganar.
 '''.trim();

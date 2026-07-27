@@ -5,7 +5,6 @@ library;
 import 'dart:math';
 
 const int meta = 10000;
-const int apertura = 750;
 
 enum Modo {
   cinco(5),
@@ -13,6 +12,12 @@ enum Modo {
 
   const Modo(this.dados);
   final int dados;
+
+  /// Puntos mínimos en un turno para empezar a anotar.
+  int get apertura => switch (this) {
+        Modo.cinco => 500,
+        Modo.seis => 750,
+      };
 }
 
 enum Especial { tresPares, cuatroYPar, seisIguales }
@@ -446,13 +451,13 @@ ResumenTirada aplicarPuntosTirada(
   );
 }
 
-/// Si el jugador todavía no abrió, necesita [apertura] puntos en el turno.
+/// Si el jugador todavía no abrió, necesita [Modo.apertura] puntos en el turno.
 bool puedePlantarse(Partida partida) {
   if (partida.ganador != null) return false;
   final j = partida.jugadorActual;
   final puntosTurno = partida.turno.puntosTurno;
   if (puntosTurno <= 0) return false;
-  return j.abierto || puntosTurno >= apertura;
+  return j.abierto || puntosTurno >= partida.modo.apertura;
 }
 
 ResumenPlantarse plantarse(Partida partida) {
@@ -460,6 +465,7 @@ ResumenPlantarse plantarse(Partida partida) {
   final t = partida.turno;
   final puntosTurno = t.puntosTurno;
   final anterior = j.puntos;
+  final apertura = partida.modo.apertura;
 
   if (puntosTurno <= 0) {
     return ResumenPlantarse(ok: false, motivo: 'sin_puntos', puntos: j.puntos);

@@ -694,7 +694,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     setState(() {
       switch (banco.motivo) {
         case 'apertura':
-          _mensaje = 'No llegaste a $apertura. Seguís en ${_pts(banco.puntos)}.';
+          _mensaje =
+              'No llegaste a ${_partida.modo.apertura}. Seguís en ${_pts(banco.puntos)}.';
         case 'pasado':
           _mensaje =
               'Te pasaste (${_pts(banco.intento ?? 0)}). Seguís en ${_pts(banco.puntos)}.';
@@ -989,8 +990,9 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                   const SizedBox(height: 6),
                                   _ArcadeButton(
                                     label: !j.abierto &&
-                                            t.puntosTurno < apertura
-                                        ? 'PLANTARSE · FALTAN ${_pts(apertura - t.puntosTurno)}'
+                                            t.puntosTurno <
+                                                _partida.modo.apertura
+                                        ? 'PLANTARSE · FALTAN ${_pts(_partida.modo.apertura - t.puntosTurno)}'
                                         : 'PLANTARSE',
                                     icon: Icons.pan_tool_alt_outlined,
                                     tono: _BotonTono.violeta,

@@ -51,23 +51,34 @@ void main() {
     expect(partida.jugadorActual.puntos, meta);
   });
 
-  test('apertura requiere 750', () {
+  test('apertura con 5 dados requiere 500', () {
     final partida = nuevaPartida(['A', 'B'], Modo.cinco);
     iniciarTurno(partida);
-    partida.turno.puntosTurno = 700;
+    partida.turno.puntosTurno = 450;
     final banco = plantarse(partida);
     expect(banco.ok, isFalse);
     expect(banco.motivo, 'apertura');
   });
 
-  test('sin abrir no se puede plantar antes de 750', () {
+  test('sin abrir no se puede plantar antes de 500 (5 dados)', () {
     final partida = nuevaPartida(['A', 'B'], Modo.cinco);
     iniciarTurno(partida);
 
     partida.turno.puntosTurno = 50;
     expect(puedePlantarse(partida), isFalse);
 
-    partida.turno.puntosTurno = 749;
+    partida.turno.puntosTurno = 499;
+    expect(puedePlantarse(partida), isFalse);
+
+    partida.turno.puntosTurno = 500;
+    expect(puedePlantarse(partida), isTrue);
+  });
+
+  test('apertura con 6 dados sigue en 750', () {
+    final partida = nuevaPartida(['A', 'B'], Modo.seis);
+    iniciarTurno(partida);
+
+    partida.turno.puntosTurno = 500;
     expect(puedePlantarse(partida), isFalse);
 
     partida.turno.puntosTurno = 750;
