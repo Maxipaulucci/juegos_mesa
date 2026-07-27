@@ -59,40 +59,81 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 36),
-                  _JuegoTile(
-                    titulo: 'Diez Mil',
-                    subtitulo: 'Dados · 5 o 6',
-                    accent: AppColors.acento,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const MenuDiezMilScreen(),
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _JuegoTile(
+                          titulo: 'Diez Mil',
+                          subtitulo: 'Dados · 5 o 6',
+                          accent: AppColors.acento,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const MenuDiezMilScreen(),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Escoba del 15',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.azul,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Tutti Frutti',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.rosa,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Canasta',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.violeta,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Casita robada',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.mint,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Chancho va',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.acentoSuave,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Desconfío',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.azulSuave,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Jodete',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.peligro,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'Generala',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.violeta,
+                          enabled: false,
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  const _JuegoTile(
-                    titulo: 'Escoba del 15',
-                    subtitulo: 'Próximamente',
-                    accent: AppColors.azul,
-                    enabled: false,
-                  ),
-                  const SizedBox(height: 12),
-                  const _JuegoTile(
-                    titulo: 'Tutti Frutti',
-                    subtitulo: 'Próximamente',
-                    accent: AppColors.rosa,
-                    enabled: false,
-                  ),
-                  const SizedBox(height: 12),
-                  const _JuegoTile(
-                    titulo: 'Canasta',
-                    subtitulo: 'Próximamente',
-                    accent: AppColors.violeta,
-                    enabled: false,
-                  ),
-                  const Spacer(),
                   const Text(
                     'Elegí un juego para crear o unirte a una sala',
                     textAlign: TextAlign.center,
