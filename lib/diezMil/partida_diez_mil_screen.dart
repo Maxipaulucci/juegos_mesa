@@ -24,6 +24,7 @@ class PartidaDiezMilScreen extends StatefulWidget {
     required this.modo,
     this.partidaRapida = false,
     this.contraPc = false,
+    this.dificultadPc = DificultadPc.medio,
     this.modoDios = false,
     this.ajustesIniciales = const AjustesEstado(),
   });
@@ -34,6 +35,8 @@ class PartidaDiezMilScreen extends StatefulWidget {
   final bool partidaRapida;
   /// Partida local contra la PC (segundo jugador).
   final bool contraPc;
+  /// Cómo juega la PC (solo aplica si [contraPc] es true).
+  final DificultadPc dificultadPc;
   /// Muestra el botón temporal para forzar la próxima tirada.
   final bool modoDios;
   final AjustesEstado ajustesIniciales;
@@ -62,6 +65,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
   int _pcToken = 0;
+  /// Puntos que bancó el humano en su último turno (para la IA difícil).
+  int _ultimoTurnoHumano = 0;
 
   static const int _maxNombre = 15;
 
@@ -108,6 +113,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     _mejorTiradaPartida = 0;
     _mejorTiradaJugador = null;
     _dadosForzados = null;
+    _ultimoTurnoHumano = 0;
   }
 
   void _volverAJugar() {
@@ -136,7 +142,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         !_ultimoResumen!.bust &&
         _partida.turno.puntosTurno > 0 &&
         !_esperandoEspecial) {
-      if (iaDebePlantarse(_partida)) {
+      if (iaDebePlantarse(
+        _partida,
+        dificultad: widget.dificultadPc,
+        ultimoTurnoRival: _ultimoTurnoHumano,
+      )) {
         _plantarse();
         return;
       }
@@ -555,6 +565,9 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
           _mensaje = '¡$nombre llega a $meta y gana!';
         case 'banco':
           _registrarMejorTirada(nombre, banco.sumados ?? sumados);
+          if (widget.contraPc && nombre != nombreJugadorPc) {
+            _ultimoTurnoHumano = banco.sumados ?? sumados;
+          }
           _mensaje =
               'Bancás ${_pts(banco.sumados ?? 0)}. Total: ${_pts(banco.puntos)}.';
         default:

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'ajustes_overlay.dart';
 import 'crear_sala_screen.dart';
+import 'ia_diez_mil.dart';
 import 'motor.dart';
 import 'partida_diez_mil_screen.dart';
 import 'unirse_sala_screen.dart';
@@ -19,7 +20,7 @@ class MenuDiezMilScreen extends StatefulWidget {
 class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   bool _modoDios = false;
   AjustesEstado _ajustes = const AjustesEstado();
-  _DificultadPc _dificultad = _DificultadPc.medio;
+  DificultadPc _dificultad = DificultadPc.medio;
 
   Future<void> _abrirAjustes() async {
     await showDialog<void>(
@@ -59,6 +60,7 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
           nombres: const ['Jugador 1', 'PC'],
           modo: modo,
           contraPc: true,
+          dificultadPc: _dificultad,
           modoDios: _modoDios,
           ajustesIniciales: _ajustes,
         ),
@@ -67,7 +69,7 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   }
 
   Future<void> _elegirDificultad() async {
-    final elegida = await showDialog<_DificultadPc>(
+    final elegida = await showDialog<DificultadPc>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.carta,
@@ -82,8 +84,8 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final d in _DificultadPc.values) ...[
-              if (d != _DificultadPc.values.first) const SizedBox(height: 10),
+            for (final d in DificultadPc.values) ...[
+              if (d != DificultadPc.values.first) const SizedBox(height: 10),
               // El borde de la opción elegida va por afuera para no achicar
               // el botón.
               Container(
@@ -293,15 +295,13 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
   }
 }
 
-enum _DificultadPc {
-  facil('Fácil', AppColors.mint),
-  medio('Medio', AppColors.acento),
-  dificil('Difícil', AppColors.peligro);
-
-  const _DificultadPc(this.etiqueta, this.color);
-
-  final String etiqueta;
-  final Color color;
+/// Color de UI para cada dificultad (la lógica vive en ia_diez_mil.dart).
+extension DificultadPcUi on DificultadPc {
+  Color get color => switch (this) {
+        DificultadPc.facil => AppColors.mint,
+        DificultadPc.medio => AppColors.acento,
+        DificultadPc.dificil => AppColors.peligro,
+      };
 }
 
 /// Etiqueta de sección + toggle de Modo Dios + ícono de ayuda.
