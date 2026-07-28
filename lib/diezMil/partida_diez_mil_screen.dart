@@ -1145,10 +1145,11 @@ class _LasersPainter extends CustomPainter {
     final centro = Offset(size.width / 2, size.height * 0.30);
     final rng = math.Random(11);
 
-    // Rayos láser que salen del centro hacia afuera
+    // Rayos láser que salen del centro hacia afuera (siempre más allá del borde).
+    final largoMin = size.longestSide * 1.15;
     for (var i = 0; i < 22; i++) {
       final angulo = rng.nextDouble() * math.pi * 2;
-      final largo = size.longestSide * (0.5 + rng.nextDouble() * 0.6);
+      final largo = largoMin + rng.nextDouble() * size.longestSide * 0.35;
       final color = _colores[i % _colores.length];
       final ancho = 1.2 + rng.nextDouble() * 2.6;
 
