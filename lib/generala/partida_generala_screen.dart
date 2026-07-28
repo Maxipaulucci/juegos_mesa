@@ -7,6 +7,7 @@ import 'package:app_juegos_mesa/diezMil/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/diezMil/dado_widget.dart';
 import 'package:app_juegos_mesa/diezMil/ia_diez_mil.dart';
 import 'package:app_juegos_mesa/generala/motor_generala.dart';
+import 'package:app_juegos_mesa/generala/standby_store.dart';
 import 'package:app_juegos_mesa/generala/tablero_generala.dart';
 import 'package:app_juegos_mesa/generala/textos.dart';
 import 'package:app_juegos_mesa/generala/victoria_generala_overlay.dart';
@@ -22,7 +23,7 @@ class PartidaGeneralaScreen extends StatefulWidget {
     this.dificultadPc = DificultadPc.medio,
     this.modoDios = false,
     this.ajustesIniciales = const AjustesEstado(),
-    this.resume, // reservado; Generala aún no persiste standby
+    this.resume,
   });
 
   final List<String> nombres;
@@ -32,7 +33,7 @@ class PartidaGeneralaScreen extends StatefulWidget {
   final DificultadPc dificultadPc;
   final bool modoDios;
   final AjustesEstado ajustesIniciales;
-  final Object? resume;
+  final PartidaGeneralaResume? resume;
 
   @override
   State<PartidaGeneralaScreen> createState() => _PartidaGeneralaScreenState();
@@ -179,6 +180,31 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.resume != null) {
+      final r = widget.resume!;
+      _nombres = List.of(r.nombres);
+      _ajustes = r.ajustesIniciales;
+      _partida = r.partida;
+      _mostrarVictoria = false;
+      _mostrarMenu = false;
+      _mostrarAjustes = false;
+      _mostrarTablero = false;
+      _modoAnotar = false;
+      _confirmarRendicion = false;
+      _subtituloVictoria = null;
+      _animandoTirada = false;
+      _pausandoResultado = false;
+      _categoriaPcResaltada = null;
+      _dadosAnimados = null;
+      _dadosForzados = null;
+      _pcToken++;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_turnoDeLaPc) _programarJugadaPc();
+      });
+      return;
+    }
+
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales;
     _iniciarPartidaNueva();
@@ -207,8 +233,32 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   }
 
   void _volverAJugar() {
+    GeneralaStandByStore.limpiar();
     setState(_iniciarPartidaNueva);
     if (_turnoDeLaPc) _programarJugadaPc();
+  }
+
+  void _salirGuardandoResumeYVolverAlMenu() {
+    if (!widget.contraPc) return;
+    if (_partida.ganador != null) {
+      GeneralaStandByStore.limpiar();
+      Navigator.of(context).pop();
+      return;
+    }
+
+    GeneralaStandByStore.guardar(
+      PartidaGeneralaResume(
+        partida: _partida,
+        nombres: _nombres,
+        contraPc: true,
+        dificultadPc: widget.dificultadPc,
+        modoDios: widget.modoDios,
+        ajustesIniciales: _ajustes,
+      ),
+    );
+
+    _pcToken++; // cancela cualquier jugada pendiente de la PC
+    Navigator.of(context).pop();
   }
 
   Future<void> _abrirAjustes() async {
@@ -449,7 +499,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   void _rendirse() {
     if (_partida.ganador != null) return;
     if (widget.contraPc) {
-      Navigator.of(context).pop();
+      _salirGuardandoResumeYVolverAlMenu();
       return;
     }
 
@@ -813,7 +863,10 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                 subtitulo: _subtituloVictoria,
                 animaciones: _ajustes.animaciones,
                 onVolverAJugar: _volverAJugar,
-                onVolver: () => Navigator.of(context).pop(),
+                onVolver: () {
+                  GeneralaStandByStore.limpiar();
+                  Navigator.of(context).pop();
+                },
               ),
             ),
           if (_mostrarMenu)
@@ -830,9 +883,14 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                   _confirmarRendicion = false;
                 }),
                 onReglas: _abrirReglas,
-                onSalirORendirse: widget.contraPc || terminada
-                    ? () => Navigator.of(context).pop()
-                    : () => setState(() => _confirmarRendicion = true),
+                onSalirORendirse: terminada
+                    ? () {
+                        GeneralaStandByStore.limpiar();
+                        Navigator.of(context).pop();
+                      }
+                    : (widget.contraPc
+                        ? _salirGuardandoResumeYVolverAlMenu
+                        : () => setState(() => _confirmarRendicion = true)),
                 onConfirmarRendicion: _rendirse,
                 onCancelarRendicion: () =>
                     setState(() => _confirmarRendicion = false),

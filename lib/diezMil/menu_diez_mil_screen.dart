@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/diezMil/partida_diez_mil_screen.dart';
 import 'package:app_juegos_mesa/diezMil/standby_store.dart';
 import 'package:app_juegos_mesa/diezMil/unirse_sala_screen.dart';
 import 'package:app_juegos_mesa/generala/partida_generala_screen.dart';
+import 'package:app_juegos_mesa/generala/standby_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class MenuDiezMilScreen extends StatefulWidget {
@@ -278,15 +279,18 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
 
   void _abrirVsPc(Modo modo) {
     if (!widget.esDiezMil) {
+      final resume = GeneralaStandByStore.consumirSiCoincide(_dificultad);
+      final nombres = resume?.nombres ?? const ['Jugador 1', 'PC'];
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => PartidaGeneralaScreen(
-            nombres: const ['Jugador 1', 'PC'],
+            nombres: nombres,
             modo: Modo.cinco,
             contraPc: true,
-            dificultadPc: _dificultad,
-            modoDios: _modoDios,
-            ajustesIniciales: _ajustes,
+            dificultadPc: resume?.dificultadPc ?? _dificultad,
+            modoDios: resume?.modoDios ?? _modoDios,
+            ajustesIniciales: resume?.ajustesIniciales ?? _ajustes,
+            resume: resume,
           ),
         ),
       );
