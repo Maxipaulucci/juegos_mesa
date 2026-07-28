@@ -5,8 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../theme/app_theme.dart';
-import 'ajustes_overlay.dart';
-import 'dado_widget.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'estadisticas.dart';
 import 'ia_diez_mil.dart';
 import 'motor.dart';
@@ -758,7 +759,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       backgroundColor: AppColors.fondo,
       body: Stack(
         children: [
-          const Positioned.fill(child: _EpicBackdrop()),
+          const Positioned.fill(child: EpicBackdrop()),
           SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -1108,97 +1109,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 }
 
 /// Fondo épico: rayos láser diagonales + destellos + resplandor central.
-class _EpicBackdrop extends StatelessWidget {
-  const _EpicBackdrop();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(0, -0.25),
-          radius: 1.25,
-          colors: [
-            Color(0xFF321A5E),
-            Color(0xFF1B0D38),
-            Color(0xFF0A0418),
-          ],
-          stops: [0.0, 0.5, 1.0],
-        ),
-      ),
-      child: CustomPaint(painter: _LasersPainter(), size: Size.infinite),
-    );
-  }
-}
-
-class _LasersPainter extends CustomPainter {
-  static const _colores = [
-    AppColors.acento,
-    AppColors.azul,
-    AppColors.rosa,
-    AppColors.violeta,
-    AppColors.mint,
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final centro = Offset(size.width / 2, size.height * 0.30);
-    final rng = math.Random(11);
-
-    // Rayos láser que salen del centro hacia afuera (siempre más allá del borde).
-    final largoMin = size.longestSide * 1.15;
-    for (var i = 0; i < 22; i++) {
-      final angulo = rng.nextDouble() * math.pi * 2;
-      final largo = largoMin + rng.nextDouble() * size.longestSide * 0.35;
-      final color = _colores[i % _colores.length];
-      final ancho = 1.2 + rng.nextDouble() * 2.6;
-
-      final fin = Offset(
-        centro.dx + math.cos(angulo) * largo,
-        centro.dy + math.sin(angulo) * largo,
-      );
-      final inicio = Offset(
-        centro.dx + math.cos(angulo) * 30,
-        centro.dy + math.sin(angulo) * 30,
-      );
-
-      final paint = Paint()
-        ..shader = LinearGradient(
-          colors: [
-            color.withValues(alpha: 0.5),
-            color.withValues(alpha: 0.0),
-          ],
-        ).createShader(Rect.fromPoints(inicio, fin))
-        ..strokeWidth = ancho
-        ..strokeCap = StrokeCap.round;
-
-      canvas.drawLine(inicio, fin, paint);
-    }
-
-    // Destellos / partículas brillantes
-    for (var i = 0; i < 70; i++) {
-      final x = rng.nextDouble() * size.width;
-      final y = rng.nextDouble() * size.height;
-      final r = 0.6 + rng.nextDouble() * 2.2;
-      final color = _colores[i % _colores.length];
-      final paint = Paint()
-        ..color = color.withValues(alpha: 0.25 + rng.nextDouble() * 0.45);
-      canvas.drawCircle(Offset(x, y), r, paint);
-
-      // Cruz de brillo en algunas estrellas
-      if (i % 6 == 0) {
-        final linea = Paint()
-          ..color = color.withValues(alpha: 0.5)
-          ..strokeWidth = 0.8;
-        canvas.drawLine(Offset(x - r * 3, y), Offset(x + r * 3, y), linea);
-        canvas.drawLine(Offset(x, y - r * 3), Offset(x, y + r * 3), linea);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
 
 class _Header extends StatelessWidget {
   const _Header({

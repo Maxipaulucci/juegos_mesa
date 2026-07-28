@@ -3,35 +3,13 @@ library;
 
 import 'dart:math';
 
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+
 import 'motor.dart';
 
-const String nombreJugadorPc = 'PC';
+export 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 
 final _rng = Random();
-
-/// Dificultades disponibles para jugar contra la PC.
-enum DificultadPc {
-  /// 🎲 Temeraria: casi siempre sigue tirando. 20% de errores.
-  facil('Fácil'),
-
-  /// ⚖ Equilibrada: razona el turno actual. 8% de errores.
-  medio('Medio'),
-
-  /// 🧠 Calculadora: mira toda la partida y estima probabilidades.
-  /// 2% de errores.
-  dificil('Difícil');
-
-  const DificultadPc(this.etiqueta);
-
-  final String etiqueta;
-
-  /// Porcentaje de decisiones malas (error humano).
-  double get error => switch (this) {
-        DificultadPc.facil => 0.20,
-        DificultadPc.medio => 0.08,
-        DificultadPc.dificil => 0.02,
-      };
-}
 
 /// Probabilidad aproximada de que una tirada de [n] dados sume algo.
 double probabilidadDeSumar(int n) => switch (n) {

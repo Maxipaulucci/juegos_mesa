@@ -1,5 +1,5 @@
-import 'package:app_juegos_mesa/diezMil/ajustes_overlay.dart';
-import 'package:app_juegos_mesa/diezMil/ia_diez_mil.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/generala/motor_generala.dart';
 
 /// Resume en memoria para partidas vs PC (se pierde al cerrar/reiniciar la app).
