@@ -358,8 +358,9 @@ void _marcarCaras(EstadoTurnoGenerala t, Set<int> caras) {
 void _marcarSoloCara(EstadoTurnoGenerala t, int cara) =>
     _marcarCaras(t, {cara});
 
-void _marcarTodos(EstadoTurnoGenerala t) {
+void _marcarTodos(EstadoTurnoGenerala t, {bool descendente = false}) {
   t.guardados = List.filled(dadosGenerala, true);
+  compactarDadosGuardados(t, descendente: descendente);
 }
 
 /// Guarda dados útiles para escalera (una de cada cara hacia 12345 o 23456).
@@ -428,6 +429,7 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
     return;
   }
   if (esEscalera(t.dados) && buscaEscalera) {
+    // Escalera completa: seleccionar todo y ordenar de menor a mayor.
     _marcarTodos(t);
     return;
   }
@@ -520,8 +522,11 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
 }
 
 /// Agrupa a la izquierda los dados guardados (amarillos), ordenados de menor
-/// a mayor, y a la derecha el resto.
-void compactarDadosGuardados(EstadoTurnoGenerala t) {
+/// a mayor (o de mayor a menor si [descendente]), y a la derecha el resto.
+void compactarDadosGuardados(
+  EstadoTurnoGenerala t, {
+  bool descendente = false,
+}) {
   if (!t.hayDados) return;
   final kept = <int>[];
   final free = <int>[];
@@ -532,7 +537,11 @@ void compactarDadosGuardados(EstadoTurnoGenerala t) {
       free.add(t.dados[i]);
     }
   }
-  kept.sort();
+  if (descendente) {
+    kept.sort((a, b) => b.compareTo(a));
+  } else {
+    kept.sort();
+  }
   t.dados = [...kept, ...free];
   t.guardados = [
     ...List.filled(kept.length, true),
