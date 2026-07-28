@@ -313,6 +313,163 @@ void autoSeleccionarDadosUtiles(EstadoTurnoGenerala t) {
   compactarDadosGuardados(t);
 }
 
+void _marcarCaras(EstadoTurnoGenerala t, Set<int> caras) {
+  for (var i = 0; i < dadosGenerala; i++) {
+    t.guardados[i] = caras.contains(t.dados[i]);
+  }
+  compactarDadosGuardados(t);
+}
+
+void _marcarSoloCara(EstadoTurnoGenerala t, int cara) =>
+    _marcarCaras(t, {cara});
+
+void _marcarTodos(EstadoTurnoGenerala t) {
+  t.guardados = List.filled(dadosGenerala, true);
+}
+
+/// Guarda dados útiles para escalera (una de cada cara hacia 12345 o 23456).
+void _marcarParaEscalera(EstadoTurnoGenerala t) {
+  final targets = [
+    {1, 2, 3, 4, 5},
+    {2, 3, 4, 5, 6},
+  ];
+  var mejorKept = <int>[];
+  for (final target in targets) {
+    final pool = List<int>.of(t.dados);
+    final kept = <int>[];
+    for (final face in target) {
+      final idx = pool.indexOf(face);
+      if (idx >= 0) {
+        kept.add(face);
+        pool.removeAt(idx);
+      }
+    }
+    if (kept.length > mejorKept.length) mejorKept = kept;
+  }
+  final usados = <int>{};
+  for (var i = 0; i < dadosGenerala; i++) {
+    final d = t.dados[i];
+    if (mejorKept.contains(d) && !usados.contains(d)) {
+      t.guardados[i] = true;
+      usados.add(d);
+    } else {
+      t.guardados[i] = false;
+    }
+  }
+  compactarDadosGuardados(t);
+}
+
+/// Caras con ≥2, orden: más cantidad, luego cara más alta.
+List<int> _carasConParOrdenadas(Map<int, int> counts) {
+  final caras = [
+    for (final e in counts.entries)
+      if (e.value >= 2) e.key,
+  ];
+  caras.sort((a, b) {
+    final cmp = counts[b]!.compareTo(counts[a]!);
+    return cmp != 0 ? cmp : b.compareTo(a);
+  });
+  return caras;
+}
+
+/// La PC elige qué guardar mirando casillas aún libres del tablero.
+void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
+  if (!t.hayDados) return;
+
+  final buscaGenerala = puedeElegirCategoria(j, CategoriaGenerala.generala) ||
+      puedeElegirCategoria(j, CategoriaGenerala.generalaDoble);
+  final buscaEscalera =
+      puedeElegirCategoria(j, CategoriaGenerala.escalera);
+  final buscaFull = puedeElegirCategoria(j, CategoriaGenerala.full);
+  final buscaPoker = puedeElegirCategoria(j, CategoriaGenerala.poker);
+  final numerosLibres = <int>{
+    for (final c in CategoriaGenerala.values)
+      if (c.esNumero && puedeElegirCategoria(j, c)) c.cara!,
+  };
+
+  // Manos ya armadas que todavía se pueden anotar.
+  if (esGenerala(t.dados) && buscaGenerala) {
+    _marcarTodos(t);
+    return;
+  }
+  if (esEscalera(t.dados) && buscaEscalera) {
+    _marcarTodos(t);
+    return;
+  }
+  if (esFull(t.dados) && buscaFull) {
+    _marcarTodos(t);
+    return;
+  }
+  if (esPoker(t.dados) && (buscaPoker || buscaGenerala)) {
+    final counts = contarCaras(t.dados);
+    final cara = counts.entries.firstWhere((e) => e.value >= 4).key;
+    _marcarSoloCara(t, cara);
+    return;
+  }
+
+  final counts = contarCaras(t.dados);
+  final pares = _carasConParOrdenadas(counts);
+
+  // FULL libre y hay material (dos pares o trío).
+  if (buscaFull) {
+    if (pares.length >= 2) {
+      _marcarCaras(t, pares.take(2).toSet());
+      return;
+    }
+    if (pares.isNotEmpty && (counts[pares.first] ?? 0) >= 3) {
+      _marcarSoloCara(t, pares.first);
+      return;
+    }
+  }
+
+  // Generala o póker: un solo par/grupo (no se queda con dos pares inútiles).
+  if (buscaGenerala || buscaPoker) {
+    if (pares.isNotEmpty) {
+      _marcarSoloCara(t, pares.first);
+      return;
+    }
+    if (buscaGenerala) {
+      final cara = t.dados.reduce((a, b) => a > b ? a : b);
+      _marcarSoloCara(t, cara);
+      return;
+    }
+  }
+
+  // Pares cuyos números todavía están libres en el tablero.
+  final paresDeNumeroLibre =
+      pares.where(numerosLibres.contains).toList(growable: false);
+  if (paresDeNumeroLibre.isNotEmpty) {
+    _marcarCaras(t, paresDeNumeroLibre.toSet());
+    return;
+  }
+
+  // Escalera libre.
+  if (buscaEscalera) {
+    _marcarParaEscalera(t);
+    return;
+  }
+
+  // Mejor número libre presente en los dados.
+  var mejorCara = 0;
+  var mejorPts = 0;
+  for (final cara in numerosLibres) {
+    final n = counts[cara] ?? 0;
+    if (n == 0) continue;
+    final pts = cara * n;
+    if (pts > mejorPts) {
+      mejorPts = pts;
+      mejorCara = cara;
+    }
+  }
+  if (mejorCara > 0) {
+    _marcarSoloCara(t, mejorCara);
+    return;
+  }
+
+  // Nada útil: soltar todo y volver a tirar.
+  t.guardados = List.filled(dadosGenerala, false);
+}
+
 /// Agrupa a la izquierda los dados guardados (amarillos) y a la derecha el resto.
 void compactarDadosGuardados(EstadoTurnoGenerala t) {
   if (!t.hayDados) return;

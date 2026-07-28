@@ -297,7 +297,11 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     final forzados = _dadosForzados;
     _dadosForzados = null;
     tirarDadosGenerala(_t, dadosForzados: forzados, rng: _rng);
-    autoSeleccionarDadosUtiles(_t);
+    if (_turnoDeLaPc) {
+      elegirGuardadosPc(_j, _t);
+    } else {
+      autoSeleccionarDadosUtiles(_t);
+    }
 
     setState(() {
       _animandoTirada = false;

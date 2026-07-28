@@ -238,4 +238,34 @@ void main() {
     expect(t.dados.last, 2);
     expect(t.guardados.last, isFalse);
   });
+
+  test('PC suelta un par si full/poker llenos y busca generala', () {
+    final j = JugadorGenerala('PC');
+    for (final c in CategoriaGenerala.values) {
+      if (c.esNumero) j.casillas[c] = c.cara! * 2;
+    }
+    j.casillas[CategoriaGenerala.full] = ptsFull;
+    j.casillas[CategoriaGenerala.poker] = ptsPoker;
+    // Generala libre; escalera también pero prioriza generala → un solo par.
+    final t = EstadoTurnoGenerala();
+    tirarDadosGenerala(t, dadosForzados: [3, 3, 4, 4, 2]);
+    elegirGuardadosPc(j, t);
+    expect(t.guardados.where((g) => g).length, 2);
+    expect(t.dados.take(2).toSet(), {4}); // cara más alta del empate de pares
+  });
+
+  test('PC arma escalera si es lo único libre', () {
+    final j = JugadorGenerala('PC');
+    for (final c in CategoriaGenerala.values) {
+      if (c != CategoriaGenerala.escalera) {
+        j.casillas[c] = 0;
+      }
+    }
+    final t = EstadoTurnoGenerala();
+    tirarDadosGenerala(t, dadosForzados: [3, 3, 4, 4, 5]);
+    elegirGuardadosPc(j, t);
+    // Un 3, un 4 y el 5 hacia escalera (no los dos pares).
+    expect(t.guardados.where((g) => g).length, 3);
+    expect(t.dados.take(3).toSet(), {3, 4, 5});
+  });
 }
