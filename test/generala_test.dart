@@ -46,6 +46,53 @@ void main() {
           yaTieneGenerala: true),
       ptsGeneralaDoble,
     );
+    // Se puede tachar la casilla aunque no haya generala previa.
+    final j = JugadorGenerala('A');
+    expect(
+      puedeElegirCategoria(j, CategoriaGenerala.generalaDoble),
+      isTrue,
+    );
+  });
+
+  test('PC tacha doble, luego generala, luego números bajos', () {
+    final j = JugadorGenerala('A');
+    // Sin puntos útiles en casillas libres (números de estos dados ya llenos).
+    final dados = [2, 2, 3, 3, 4];
+    j.casillas[CategoriaGenerala.dos] = 4;
+    j.casillas[CategoriaGenerala.tres] = 6;
+    j.casillas[CategoriaGenerala.cuatro] = 4;
+    j.casillas[CategoriaGenerala.full] = 30;
+    j.casillas[CategoriaGenerala.poker] = 40;
+
+    expect(
+      elegirCategoriaPc(j, dados, servida: false),
+      CategoriaGenerala.generalaDoble,
+    );
+    j.casillas[CategoriaGenerala.generalaDoble] = 0;
+    expect(
+      elegirCategoriaPc(j, dados, servida: false),
+      CategoriaGenerala.generala,
+    );
+    j.casillas[CategoriaGenerala.generala] = 0;
+    // Números bajos libres primero (1 antes que 5/6/escalera).
+    expect(
+      elegirCategoriaPc(j, dados, servida: false),
+      CategoriaGenerala.uno,
+    );
+    j.casillas[CategoriaGenerala.uno] = 0;
+    expect(
+      elegirCategoriaPc(j, dados, servida: false),
+      CategoriaGenerala.cinco,
+    );
+  });
+
+  test('PC prefiere puntos positivos antes de tachar', () {
+    final j = JugadorGenerala('A');
+    j.casillas[CategoriaGenerala.generalaDoble] = 0;
+    expect(
+      elegirCategoriaPc(j, [2, 2, 2, 5, 5], servida: false),
+      CategoriaGenerala.full,
+    );
   });
 
   test('turno: 3 tiradas y anotar pasa al siguiente', () {

@@ -222,17 +222,63 @@ bool puedeAnotarTemprano(
 bool casillaOcupada(JugadorGenerala jugador, CategoriaGenerala categoria) =>
     jugador.casillas[categoria] != null;
 
-/// Si la casilla se puede elegir para anotar (vacía y, en doble, con generala previa).
+/// Si la casilla se puede elegir para anotar (vacía).
+/// Generala doble se puede tachar con 0 aunque no haya generala previa;
+/// los 100 pts solo aplican si ya tenía generala (ver [puntosCategoria]).
 bool puedeElegirCategoria(
   JugadorGenerala jugador,
   CategoriaGenerala categoria,
 ) {
-  if (casillaOcupada(jugador, categoria)) return false;
-  if (categoria == CategoriaGenerala.generalaDoble &&
-      !jugador.generalaAnotada) {
-    return false;
+  return !casillaOcupada(jugador, categoria);
+}
+
+/// Orden al tachar con 0: doble → generala → números (1…6) → especiales.
+const List<CategoriaGenerala> ordenTacharPc = [
+  CategoriaGenerala.generalaDoble,
+  CategoriaGenerala.generala,
+  CategoriaGenerala.uno,
+  CategoriaGenerala.dos,
+  CategoriaGenerala.tres,
+  CategoriaGenerala.cuatro,
+  CategoriaGenerala.cinco,
+  CategoriaGenerala.seis,
+  CategoriaGenerala.escalera,
+  CategoriaGenerala.full,
+  CategoriaGenerala.poker,
+];
+
+/// Elige qué anotar la PC: máxima puntuación positiva; si no, tacha según [ordenTacharPc].
+CategoriaGenerala? elegirCategoriaPc(
+  JugadorGenerala jugador,
+  List<int> dados, {
+  required bool servida,
+}) {
+  final disponibles = [
+    for (final c in CategoriaGenerala.values)
+      if (puedeElegirCategoria(jugador, c)) c,
+  ];
+  if (disponibles.isEmpty) return null;
+
+  CategoriaGenerala? mejorPositiva;
+  var mejorPts = 0;
+  for (final cat in disponibles) {
+    final pts = puntosCategoria(
+      cat,
+      dados,
+      yaTieneGenerala: jugador.generalaAnotada,
+      servida: servida,
+    );
+    if (pts > mejorPts) {
+      mejorPts = pts;
+      mejorPositiva = cat;
+    }
   }
-  return true;
+  if (mejorPositiva != null) return mejorPositiva;
+
+  for (final cat in ordenTacharPc) {
+    if (disponibles.contains(cat)) return cat;
+  }
+  return disponibles.first;
 }
 
 void toggleDadoGuardado(EstadoTurnoGenerala t, int index) {

@@ -239,30 +239,20 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     if (!_modoAnotar) _abrirAnotar();
     await Future<void>.delayed(const Duration(milliseconds: 700));
     if (!mounted || !_turnoDeLaPc) return;
-    final cat = _mejorCategoriaPc();
-    if (cat != null) _anotar(cat);
-  }
-
-  CategoriaGenerala? _mejorCategoriaPc() {
-    final j = _j;
-    CategoriaGenerala? mejor;
-    var mejorPts = -1;
-    for (final cat in CategoriaGenerala.values) {
-      if (!puedeElegirCategoria(j, cat)) continue;
-      final pts = puntosCategoria(
-        cat,
-        _t.dados,
-        yaTieneGenerala: j.generalaAnotada,
-        servida: _t.tiradasHechas == 1,
-      );
-      // Prefiere puntos positivos; si todo es 0, tacha el número más bajo vacío.
-      final score = pts > 0 ? pts + 1000 : (cat.esNumero ? -cat.index : -100);
-      if (score > mejorPts) {
-        mejorPts = score;
-        mejor = cat;
-      }
+    final cat = elegirCategoriaPc(
+      _j,
+      _t.dados,
+      servida: _t.tiradasHechas == 1,
+    );
+    if (cat != null) {
+      _anotar(cat);
+    } else {
+      // No debería pasar; cerrar tablero para no dejar la partida trabada.
+      setState(() {
+        _modoAnotar = false;
+        _mostrarTablero = false;
+      });
     }
-    return mejor;
   }
 
   Future<void> _tirar({bool animar = true}) async {
