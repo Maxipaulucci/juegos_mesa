@@ -221,8 +221,12 @@ void main() {
     expect(puedeAnotarTemprano(j, escalera), isFalse);
 
     final poker = [4, 4, 4, 4, 1];
-    // Póker no abre anotar temprano: aún se puede buscar generala.
+    // Póker solo abre anotar temprano si es servido (1.ª tirada).
     expect(puedeAnotarTemprano(j, poker), isFalse);
+    expect(puedeAnotarTemprano(j, poker, servida: true), isTrue);
+    j.casillas[CategoriaGenerala.poker] = ptsPokerServida;
+    expect(puedeAnotarTemprano(j, poker, servida: true), isFalse);
+    j.casillas.remove(CategoriaGenerala.poker);
 
     final generala = [6, 6, 6, 6, 6];
     expect(puedeAnotarTemprano(j, generala), isTrue);

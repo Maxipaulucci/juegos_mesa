@@ -211,13 +211,15 @@ int puntosCategoria(
 
 /// Especiales que, si salen y la casilla sigue libre, permiten anotar antes
 /// de agotar las 3 tiradas (Escalera, FULL, GENERALA / DOBLE).
-/// El póker no: con 4 iguales conviene seguir tirando por la generala.
+/// El póker solo si es servido (1.ª tirada); si seguís tirando por la generala,
+/// el botón desaparece.
 /// Si sale generala pero ambas casillas de generala ya están llenas, se permite
 /// anotar temprano en el número de esa cara (p. ej. cinco 6 → sumar en 6).
 bool puedeAnotarTemprano(
   JugadorGenerala jugador,
-  List<int> dados,
-) {
+  List<int> dados, {
+  bool servida = false,
+}) {
   if (dados.length != dadosGenerala) return false;
 
   if (esEscalera(dados) &&
@@ -226,6 +228,12 @@ bool puedeAnotarTemprano(
   }
   if (esFull(dados) &&
       puedeElegirCategoria(jugador, CategoriaGenerala.full)) {
+    return true;
+  }
+  // Póker servido: anotar temprano (45 pts). En 2.ª/3.ª tirada no.
+  if (servida &&
+      esPoker(dados) &&
+      puedeElegirCategoria(jugador, CategoriaGenerala.poker)) {
     return true;
   }
   if (esGenerala(dados)) {

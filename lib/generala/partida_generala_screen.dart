@@ -342,11 +342,15 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   }
 
   /// Escalera / FULL / Generala armados y casilla libre → anotar antes.
+  /// Póker solo si es servido (1.ª tirada); si tirás de nuevo, desaparece.
   /// Si ambas generalas ya están llenas y salen 5 iguales, también (número).
-  /// El póker no: conviene seguir tirando por la generala.
   bool get _puedeAnotarTemprano {
     if (!_t.hayDados || !_t.puedeAnotar || !_t.puedeTirar) return false;
-    return puedeAnotarTemprano(_j, _t.dados);
+    return puedeAnotarTemprano(
+      _j,
+      _t.dados,
+      servida: _t.tiradasHechas == 1,
+    );
   }
 
   /// Hay tiradas y al menos un dado sin guardar (si ya tiró una vez).
