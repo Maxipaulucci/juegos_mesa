@@ -386,11 +386,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _abrirMenu() {
-    if (_partida.ganador != null || _mostrarVictoria) return;
     setState(() {
       _mostrarMenu = true;
       _confirmarRendicion = false;
       _mostrarListaJugadores = false;
+      _mostrarAjustes = false;
     });
   }
 
@@ -778,7 +778,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                             children: [
                               _Header(
                                 dados: _partida.modo.dados,
-                                onMenu: terminada ? () {} : _abrirMenu,
+                                onMenu: _abrirMenu,
                                 onSettings: () {
                                   setState(() {
                                     _mostrarAjustes = true;
@@ -1026,40 +1026,6 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
               ),
             ),
           ),
-          if (_mostrarMenu && !terminada)
-            Positioned.fill(
-              child: _PartidaMenuOverlay(
-                jugador: widget.contraPc
-                    ? _partida.jugadores
-                        .firstWhere(
-                          (p) => p.nombre != nombreJugadorPc,
-                          orElse: () => j,
-                        )
-                        .nombre
-                    : j.nombre,
-                esContraPc: widget.contraPc,
-                confirmarRendicion: _confirmarRendicion && !widget.contraPc,
-                onCerrar: _cerrarMenu,
-                onReglas: () {
-                  _cerrarMenu();
-                  _mostrarReglas();
-                },
-                onRendirse: widget.contraPc
-                    ? _salirGuardandoResumeYVolverAlMenu
-                    : () => setState(() => _confirmarRendicion = true),
-                onConfirmarRendicion: _rendirse,
-                onCancelarRendicion: () =>
-                    setState(() => _confirmarRendicion = false),
-              ),
-            ),
-          if (_mostrarAjustes)
-            Positioned.fill(
-              child: AjustesOverlay(
-                ajustes: _ajustes,
-                onChanged: (a) => setState(() => _ajustes = a),
-                onCerrar: () => setState(() => _mostrarAjustes = false),
-              ),
-            ),
           if (_mostrarListaJugadores)
             Positioned.fill(
               child: _ListaJugadoresOverlay(
@@ -1093,6 +1059,46 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                 animaciones: _ajustes.animaciones,
                 onVolverAJugar: _volverAJugar,
                 onVolver: () => Navigator.of(context).pop(),
+              ),
+            ),
+          // Menú / ajustes encima de la victoria para poder usarlos con el ojo.
+          if (_mostrarMenu)
+            Positioned.fill(
+              child: _PartidaMenuOverlay(
+                jugador: terminada
+                    ? (_partida.ganador ?? j.nombre)
+                    : (widget.contraPc
+                        ? _partida.jugadores
+                            .firstWhere(
+                              (p) => p.nombre != nombreJugadorPc,
+                              orElse: () => j,
+                            )
+                            .nombre
+                        : j.nombre),
+                esContraPc: widget.contraPc,
+                partidaTerminada: terminada,
+                confirmarRendicion: _confirmarRendicion && !widget.contraPc,
+                onCerrar: _cerrarMenu,
+                onReglas: () {
+                  _cerrarMenu();
+                  _mostrarReglas();
+                },
+                onRendirse: terminada
+                    ? () => Navigator.of(context).pop()
+                    : (widget.contraPc
+                        ? _salirGuardandoResumeYVolverAlMenu
+                        : () => setState(() => _confirmarRendicion = true)),
+                onConfirmarRendicion: _rendirse,
+                onCancelarRendicion: () =>
+                    setState(() => _confirmarRendicion = false),
+              ),
+            ),
+          if (_mostrarAjustes)
+            Positioned.fill(
+              child: AjustesOverlay(
+                ajustes: _ajustes,
+                onChanged: (a) => setState(() => _ajustes = a),
+                onCerrar: () => setState(() => _mostrarAjustes = false),
               ),
             ),
         ],
@@ -1439,6 +1445,7 @@ class _PartidaMenuOverlay extends StatelessWidget {
   const _PartidaMenuOverlay({
     required this.jugador,
     required this.esContraPc,
+    required this.partidaTerminada,
     required this.confirmarRendicion,
     required this.onCerrar,
     required this.onReglas,
@@ -1449,6 +1456,7 @@ class _PartidaMenuOverlay extends StatelessWidget {
 
   final String jugador;
   final bool esContraPc;
+  final bool partidaTerminada;
   final bool confirmarRendicion;
   final VoidCallback onCerrar;
   final VoidCallback onReglas;
@@ -1532,7 +1540,7 @@ class _PartidaMenuOverlay extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Turno actual',
+                          partidaTerminada ? 'Partida terminada' : 'Turno actual',
                           style: TextStyle(
                             color:
                                 AppColors.textoSuave.withValues(alpha: 0.95),
@@ -1548,7 +1556,7 @@ class _PartidaMenuOverlay extends StatelessWidget {
                           onPressed: onReglas,
                         ),
                         const SizedBox(height: 10),
-                        if (esContraPc)
+                        if (partidaTerminada || esContraPc)
                           _ArcadeButton(
                             label: 'SALIR',
                             icon: Icons.logout_rounded,

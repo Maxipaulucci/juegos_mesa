@@ -130,66 +130,76 @@ class _VictoriaGeneralaOverlayState extends State<VictoriaGeneralaOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: _cartelVisible
-          ? Colors.black.withValues(alpha: 0.72)
-          : Colors.transparent,
-      child: Stack(
-        children: [
-          if (widget.animaciones) ...[
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _confeti,
-                builder: (_, __) => CustomPaint(
-                  painter: ConfetiPainter(tiempo: _confeti.value),
-                ),
-              ),
-            ),
-            const Positioned.fill(
-              child: IgnorePointer(child: FuegosArtificialesCapa()),
-            ),
-          ],
-          if (_cartelVisible)
-            SafeArea(
-              child: Center(
-                child: FadeTransition(
-                  opacity: _opacidad,
-                  child: ScaleTransition(
-                    scale: _escala,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: _construirContenido(),
+    return Stack(
+      children: [
+        // Con el cartel oculto (ojo), los toques pasan al menú/ajustes de fondo.
+        IgnorePointer(
+          ignoring: !_cartelVisible && !_mostrarTablero,
+          child: Material(
+            color: _cartelVisible
+                ? Colors.black.withValues(alpha: 0.72)
+                : Colors.transparent,
+            child: Stack(
+              children: [
+                if (widget.animaciones) ...[
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _confeti,
+                        builder: (_, __) => CustomPaint(
+                          painter: ConfetiPainter(tiempo: _confeti.value),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: BotonOjoVictoria(
-                  cartelVisible: _cartelVisible,
-                  onTap: () => setState(
-                    () => _cartelVisible = !_cartelVisible,
+                  const Positioned.fill(
+                    child: IgnorePointer(child: FuegosArtificialesCapa()),
                   ),
+                ],
+                if (_cartelVisible)
+                  SafeArea(
+                    child: Center(
+                      child: FadeTransition(
+                        opacity: _opacidad,
+                        child: ScaleTransition(
+                          scale: _escala,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: Padding(
+                              padding: const EdgeInsets.all(18),
+                              child: _construirContenido(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_mostrarTablero)
+                  Positioned.fill(
+                    child: TableroGeneralaOverlay(
+                      partida: widget.partida,
+                      onCerrar: () => setState(() => _mostrarTablero = false),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: BotonOjoVictoria(
+                cartelVisible: _cartelVisible,
+                onTap: () => setState(
+                  () => _cartelVisible = !_cartelVisible,
                 ),
               ),
             ),
           ),
-          if (_mostrarTablero)
-            Positioned.fill(
-              child: TableroGeneralaOverlay(
-                partida: widget.partida,
-                onCerrar: () => setState(() => _mostrarTablero = false),
-              ),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

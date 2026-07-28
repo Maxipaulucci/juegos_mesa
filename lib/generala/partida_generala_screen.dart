@@ -421,8 +421,8 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   }
 
   void _abrirMenu() {
-    if (_partida.ganador != null || _modoAnotar) return;
-    if (_partida.jugadorActual.rendido) return;
+    if (_modoAnotar) return;
+    if (_partida.ganador == null && _partida.jugadorActual.rendido) return;
     setState(() {
       _mostrarMenu = true;
       _confirmarRendicion = false;
@@ -608,9 +608,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _Header(
-                                onMenu: terminada || _modoAnotar
-                                    ? () {}
-                                    : _abrirMenu,
+                                onMenu: _modoAnotar ? () {} : _abrirMenu,
                                 onSettings: _abrirAjustes,
                               ),
                               const SizedBox(height: 8),
@@ -805,15 +803,18 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
           if (_mostrarMenu)
             Positioned.fill(
               child: _MenuOverlay(
-                jugador: _j.nombre,
+                jugador: terminada
+                    ? (_partida.ganador ?? _j.nombre)
+                    : _j.nombre,
                 esContraPc: widget.contraPc,
+                partidaTerminada: terminada,
                 confirmarRendicion: _confirmarRendicion && !widget.contraPc,
                 onCerrar: () => setState(() {
                   _mostrarMenu = false;
                   _confirmarRendicion = false;
                 }),
                 onReglas: _abrirReglas,
-                onSalirORendirse: widget.contraPc
+                onSalirORendirse: widget.contraPc || terminada
                     ? () => Navigator.of(context).pop()
                     : () => setState(() => _confirmarRendicion = true),
                 onConfirmarRendicion: _rendirse,
@@ -1381,6 +1382,7 @@ class _MenuOverlay extends StatelessWidget {
   const _MenuOverlay({
     required this.jugador,
     required this.esContraPc,
+    required this.partidaTerminada,
     required this.confirmarRendicion,
     required this.onCerrar,
     required this.onReglas,
@@ -1391,6 +1393,7 @@ class _MenuOverlay extends StatelessWidget {
 
   final String jugador;
   final bool esContraPc;
+  final bool partidaTerminada;
   final bool confirmarRendicion;
   final VoidCallback onCerrar;
   final VoidCallback onReglas;
@@ -1474,7 +1477,7 @@ class _MenuOverlay extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Turno actual',
+                          partidaTerminada ? 'Partida terminada' : 'Turno actual',
                           style: TextStyle(
                             color:
                                 AppColors.textoSuave.withValues(alpha: 0.95),
@@ -1490,7 +1493,7 @@ class _MenuOverlay extends StatelessWidget {
                           onPressed: onReglas,
                         ),
                         const SizedBox(height: 10),
-                        if (esContraPc)
+                        if (partidaTerminada || esContraPc)
                           _ArcadeButton(
                             label: 'SALIR',
                             icon: Icons.logout_rounded,

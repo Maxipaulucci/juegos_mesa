@@ -140,61 +140,71 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: _cartelVisible
-          ? Colors.black.withValues(alpha: 0.72)
-          : Colors.transparent,
-      child: Stack(
-        children: [
-          // Confeti / fuegos siguen aunque el cartel se oculte.
-          if (widget.animaciones) ...[
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _confeti,
-                builder: (_, __) => CustomPaint(
-                  painter: _ConfetiPainter(tiempo: _confeti.value),
-                ),
-              ),
-            ),
-            const Positioned.fill(
-              child: IgnorePointer(child: _FuegosArtificialesCapa()),
-            ),
-          ],
-          if (_cartelVisible)
-            SafeArea(
-              child: Center(
-                child: FadeTransition(
-                  opacity: _opacidad,
-                  child: ScaleTransition(
-                    scale: _escala,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: _construirContenido(),
+    return Stack(
+      children: [
+        // Con el cartel oculto (ojo), los toques pasan al menú/ajustes de fondo.
+        IgnorePointer(
+          ignoring: !_cartelVisible,
+          child: Material(
+            color: _cartelVisible
+                ? Colors.black.withValues(alpha: 0.72)
+                : Colors.transparent,
+            child: Stack(
+              children: [
+                // Confeti / fuegos siguen aunque el cartel se oculte.
+                if (widget.animaciones) ...[
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _confeti,
+                        builder: (_, __) => CustomPaint(
+                          painter: _ConfetiPainter(tiempo: _confeti.value),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          // Fijo arriba-centro (sobre el título DIEZ MIL).
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: _BotonOjoVictoria(
-                  cartelVisible: _cartelVisible,
-                  onTap: () => setState(
-                    () => _cartelVisible = !_cartelVisible,
+                  const Positioned.fill(
+                    child: IgnorePointer(child: _FuegosArtificialesCapa()),
                   ),
+                ],
+                if (_cartelVisible)
+                  SafeArea(
+                    child: Center(
+                      child: FadeTransition(
+                        opacity: _opacidad,
+                        child: ScaleTransition(
+                          scale: _escala,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: Padding(
+                              padding: const EdgeInsets.all(18),
+                              child: _construirContenido(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        // Fijo arriba-centro (sobre el título DIEZ MIL).
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: _BotonOjoVictoria(
+                cartelVisible: _cartelVisible,
+                onTap: () => setState(
+                  () => _cartelVisible = !_cartelVisible,
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
