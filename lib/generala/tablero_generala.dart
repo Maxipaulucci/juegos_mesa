@@ -18,6 +18,7 @@ class TableroGeneralaOverlay extends StatelessWidget {
     this.modoAnotar = false,
     this.dadosActuales,
     this.onElegirCategoria,
+    this.categoriaResaltada,
     this.onCerrar,
     this.permitirCerrar = true,
   });
@@ -27,6 +28,8 @@ class TableroGeneralaOverlay extends StatelessWidget {
   final bool modoAnotar;
   final List<int>? dadosActuales;
   final ValueChanged<CategoriaGenerala>? onElegirCategoria;
+  /// Casilla que la PC va a elegir (muestra flecha).
+  final CategoriaGenerala? categoriaResaltada;
   final VoidCallback? onCerrar;
   /// Si false (anotar obligatorio tras 3 tiradas), no hay cruz ni tap afuera.
   final bool permitirCerrar;
@@ -141,6 +144,7 @@ class TableroGeneralaOverlay extends StatelessWidget {
                                 modoAnotar: modoAnotar,
                                 dadosActuales: dadosActuales,
                                 onElegirCategoria: onElegirCategoria,
+                                categoriaResaltada: categoriaResaltada,
                                 catWidth: catW,
                                 colWidth: colW,
                               );
@@ -187,6 +191,7 @@ class _TableroTabla extends StatelessWidget {
     required this.modoAnotar,
     this.dadosActuales,
     this.onElegirCategoria,
+    this.categoriaResaltada,
     this.catWidth = 132,
     this.colWidth = 96,
   });
@@ -195,6 +200,7 @@ class _TableroTabla extends StatelessWidget {
   final bool modoAnotar;
   final List<int>? dadosActuales;
   final ValueChanged<CategoriaGenerala>? onElegirCategoria;
+  final CategoriaGenerala? categoriaResaltada;
   final double catWidth;
   final double colWidth;
 
@@ -298,6 +304,8 @@ class _TableroTabla extends StatelessWidget {
                       dadosActuales: dadosActuales,
                       servida: partida.turno.tiradasHechas == 1,
                       onElegir: onElegirCategoria,
+                      resaltada: categoriaResaltada == cat &&
+                          i == partida.indiceTurno,
                     ),
                   ),
               ],
@@ -363,6 +371,7 @@ class _Casilla extends StatelessWidget {
     this.dadosActuales,
     this.servida = false,
     this.onElegir,
+    this.resaltada = false,
   });
 
   final JugadorGenerala jugador;
@@ -373,6 +382,7 @@ class _Casilla extends StatelessWidget {
   final List<int>? dadosActuales;
   final bool servida;
   final ValueChanged<CategoriaGenerala>? onElegir;
+  final bool resaltada;
 
   @override
   Widget build(BuildContext context) {
@@ -395,9 +405,8 @@ class _Casilla extends StatelessWidget {
       );
     }
 
-    final elegible = modoAnotar &&
+    final puedeMostrarPreview = modoAnotar &&
         esTurnoActual &&
-        onElegir != null &&
         dadosActuales != null &&
         dadosActuales!.length == dadosGenerala &&
         puedeElegirCategoria(
@@ -407,7 +416,7 @@ class _Casilla extends StatelessWidget {
           servida: servida,
         );
 
-    if (!elegible) {
+    if (!puedeMostrarPreview) {
       return Text(
         '—',
         textAlign: TextAlign.center,
@@ -426,6 +435,61 @@ class _Casilla extends StatelessWidget {
       servida: servida,
     );
 
+    final contenido = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (resaltada) ...[
+          Icon(
+            Icons.arrow_forward_rounded,
+            size: 16,
+            color: AppColors.acento,
+            shadows: [
+              Shadow(
+                color: AppColors.acento.withValues(alpha: 0.9),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          const SizedBox(width: 2),
+        ],
+        Text(
+          preview > 0 ? '$preview' : '0',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: resaltada
+                ? AppColors.acento
+                : (preview > 0 ? AppColors.mint : AppColors.textoSuave),
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+          ),
+        ),
+      ],
+    );
+
+    final caja = Ink(
+      width: resaltada ? 56 : 44,
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: resaltada
+              ? AppColors.acento
+              : color.withValues(alpha: 0.85),
+          width: resaltada ? 2 : 1,
+        ),
+        color: resaltada
+            ? AppColors.acento.withValues(alpha: 0.22)
+            : color.withValues(alpha: 0.12),
+        boxShadow: resaltada ? neonGlow(AppColors.acento, blur: 10) : null,
+      ),
+      child: contenido,
+    );
+
+    if (onElegir == null) {
+      return caja;
+    }
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -441,24 +505,7 @@ class _Casilla extends StatelessWidget {
           onElegir!.call(categoria);
         },
         borderRadius: BorderRadius.circular(8),
-        child: Ink(
-          width: 44,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.85)),
-            color: color.withValues(alpha: 0.12),
-          ),
-          child: Text(
-            preview > 0 ? '$preview' : '0',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: preview > 0 ? AppColors.mint : AppColors.textoSuave,
-              fontWeight: FontWeight.w900,
-              fontSize: 15,
-            ),
-          ),
-        ),
+        child: caja,
       ),
     );
   }

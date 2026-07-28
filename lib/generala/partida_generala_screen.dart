@@ -52,6 +52,8 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   bool _animandoTirada = false;
   /// Pausa tras la 3.ª tirada para ver los dados antes del tablero.
   bool _pausandoResultado = false;
+  /// Casilla que la PC va a anotar (flecha en el tablero).
+  CategoriaGenerala? _categoriaPcResaltada;
   List<int>? _dadosAnimados;
   List<int>? _dadosForzados;
   int _pcToken = 0;
@@ -199,6 +201,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     _subtituloVictoria = null;
     _animandoTirada = false;
     _pausandoResultado = false;
+    _categoriaPcResaltada = null;
     _dadosAnimados = null;
     _dadosForzados = null;
   }
@@ -240,22 +243,29 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     if (!mounted || !_turnoDeLaPc) return;
     // _tirar ya abrió el tablero tras la pausa de 2 s.
     if (!_modoAnotar) _abrirAnotar();
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted || !_turnoDeLaPc) return;
+
     final cat = elegirCategoriaPc(
       _j,
       _t.dados,
       servida: _t.tiradasHechas == 1,
     );
-    if (cat != null) {
-      _anotar(cat);
-    } else {
+    if (!mounted || !_turnoDeLaPc) return;
+
+    if (cat == null) {
       // No debería pasar; cerrar tablero para no dejar la partida trabada.
       setState(() {
         _modoAnotar = false;
         _mostrarTablero = false;
+        _categoriaPcResaltada = null;
       });
+      return;
     }
+
+    // Muestra la flecha sobre la casilla elegida y deja ver el tablero.
+    setState(() => _categoriaPcResaltada = cat);
+    await Future<void>.delayed(const Duration(milliseconds: 1700));
+    if (!mounted || !_turnoDeLaPc) return;
+    _anotar(cat);
   }
 
   Future<void> _tirar({bool animar = true}) async {
@@ -375,6 +385,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     setState(() {
       _modoAnotar = false;
       _mostrarTablero = false;
+      _categoriaPcResaltada = null;
       if (_partida.ganador != null) {
         _mostrarVictoria = true;
       }
@@ -455,6 +466,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       _confirmarRendicion = false;
       _modoAnotar = false;
       _mostrarTablero = false;
+      _categoriaPcResaltada = null;
       _animandoTirada = false;
       _dadosAnimados = null;
 
@@ -840,13 +852,17 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                 partida: _partida,
                 modoAnotar: _modoAnotar,
                 dadosActuales: _t.hayDados ? _t.dados : null,
-                onElegirCategoria: _modoAnotar ? _anotar : null,
+                // Durante el turno de la PC no se toca: solo se ve la flecha.
+                onElegirCategoria:
+                    _modoAnotar && !_turnoDeLaPc ? _anotar : null,
+                categoriaResaltada: _categoriaPcResaltada,
                 // Tras 3 tiradas hay que anotar: no se puede cerrar.
                 // Si anotás temprano (aún quedan tiradas), sí.
                 permitirCerrar: !_modoAnotar || _t.puedeTirar,
                 onCerrar: () => setState(() {
                   _mostrarTablero = false;
                   _modoAnotar = false;
+                  _categoriaPcResaltada = null;
                 }),
               ),
             ),
