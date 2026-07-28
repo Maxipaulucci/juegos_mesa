@@ -106,7 +106,6 @@ class _VictoriaGeneralaOverlayState extends State<VictoriaGeneralaOverlay>
         onSeleccionar: (j) => setState(() => _jugadorDetalle = j),
         onVerTablero: () => setState(() => _mostrarTablero = true),
         onCerrar: () => setState(() => _mostrarStats = false),
-        onVolver: widget.onVolver,
       );
     }
 
@@ -330,7 +329,6 @@ class _StatsRankingPanel extends StatelessWidget {
     required this.onSeleccionar,
     required this.onVerTablero,
     required this.onCerrar,
-    required this.onVolver,
   });
 
   final PartidaGenerala partida;
@@ -338,7 +336,6 @@ class _StatsRankingPanel extends StatelessWidget {
   final ValueChanged<JugadorGenerala> onSeleccionar;
   final VoidCallback onVerTablero;
   final VoidCallback onCerrar;
-  final VoidCallback onVolver;
 
   @override
   Widget build(BuildContext context) {
@@ -417,13 +414,6 @@ class _StatsRankingPanel extends StatelessWidget {
             icon: Icons.grid_view_rounded,
             color: AppColors.violeta,
             onPressed: onVerTablero,
-          ),
-          const SizedBox(height: 10),
-          GlowButtonVictoria(
-            label: 'VOLVER AL MENÚ',
-            icon: Icons.home_rounded,
-            color: AppColors.violeta,
-            onPressed: onVolver,
           ),
         ],
       ),
