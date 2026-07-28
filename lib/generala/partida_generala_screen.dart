@@ -1,6 +1,7 @@
 ﻿import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/diezMil/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/diezMil/dado_widget.dart';
@@ -355,7 +356,14 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   void _anotar(CategoriaGenerala cat) {
     if (!_modoAnotar) return;
     // Casilla ya usada (u otra restricción): no anotar de nuevo.
-    if (!puedeElegirCategoria(_j, cat)) return;
+    if (!puedeElegirCategoria(
+      _j,
+      cat,
+      dados: _t.dados,
+      servida: _t.tiradasHechas == 1,
+    )) {
+      return;
+    }
     anotarCategoria(_partida, cat);
     setState(() {
       _modoAnotar = false;
@@ -420,47 +428,113 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
         ? _t.guardados.where((g) => !g).length
         : dadosGenerala;
     if (cantidad <= 0) return;
-    final ctrl = TextEditingController();
-    final ok = await showDialog<bool>(
+
+    final ctrl = TextEditingController(
+      text: _dadosForzados?.join('') ?? '',
+    );
+    String? error;
+
+    final valores = await showDialog<List<int>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Modo Dios',
-          style: TextStyle(color: AppColors.acento),
-        ),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: AppColors.texto),
-          decoration: InputDecoration(
-            labelText: '$cantidad valores (ej: 1,2,3…)',
-            labelStyle: const TextStyle(color: AppColors.textoSuave),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            '🎯 Forzar próxima tirada',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Escribí de 1 a $cantidad números del 1 al 6, sin espacios.\n'
+                'Los que falten salen al azar.\n'
+                'Ej: ${'1' * cantidad.clamp(1, 5)}',
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                maxLength: cantidad,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[1-6]')),
+                  LengthLimitingTextInputFormatter(cantidad),
+                ],
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  letterSpacing: 4,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: InputDecoration(
+                  hintText: List.filled(cantidad, '•').join(),
+                  counterText: '',
+                  errorText: error,
+                ),
+                onChanged: (_) {
+                  if (error != null) {
+                    setDialogState(() => error = null);
+                  }
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final texto = ctrl.text.trim();
+                  if (texto.isEmpty ||
+                      texto.length > cantidad ||
+                      texto.split('').any((c) {
+                        final n = int.tryParse(c);
+                        return n == null || n < 1 || n > 6;
+                      })) {
+                    setDialogState(() {
+                      error =
+                          'Ingresá entre 1 y $cantidad números entre 1 y 6.';
+                    });
+                    return;
+                  }
+                  final nums = texto.split('').map(int.parse).toList();
+                  Navigator.of(context).pop(nums);
+                },
+                child: const Text('Aplicar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+              if (_dadosForzados != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(<int>[]),
+                  child: const Text(
+                    'Quitar',
+                    style: TextStyle(color: AppColors.peligro),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('OK'),
-          ),
-        ],
       ),
     );
-    if (ok != true || !mounted) return;
-    final parts = ctrl.text.split(RegExp(r'[,;\s]+')).where((s) => s.isNotEmpty);
-    final vals = <int>[];
-    for (final p in parts) {
-      final n = int.tryParse(p);
-      if (n == null || n < 1 || n > 6) continue;
-      vals.add(n);
-      if (vals.length >= cantidad) break;
-    }
-    if (vals.isEmpty) return;
-    setState(() => _dadosForzados = vals);
+
+    if (valores == null || !mounted) return;
+    setState(() {
+      _dadosForzados = valores.isEmpty ? null : valores;
+    });
   }
 
   @override
@@ -536,15 +610,52 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   if (widget.modoDios && !_turnoDeLaPc)
                                     Positioned(
                                       right: 0,
-                                      child: IconButton(
-                                        onPressed: _animandoTirada
-                                            ? null
-                                            : _pedirDadosForzados,
-                                        icon: Icon(
-                                          Icons.bug_report,
-                                          color: _dadosForzados != null
-                                              ? AppColors.mint
-                                              : AppColors.textoSuave,
+                                      child: Tooltip(
+                                        message: _dadosForzados == null
+                                            ? 'Forzar próxima tirada'
+                                            : 'Próxima: ${_dadosForzados!.join(' ')}'
+                                                ' + azar',
+                                        child: Material(
+                                          color: AppColors.carta,
+                                          shape: const CircleBorder(),
+                                          child: InkWell(
+                                            customBorder: const CircleBorder(),
+                                            onTap: terminada ||
+                                                    _animandoTirada ||
+                                                    _pausandoResultado
+                                                ? null
+                                                : _pedirDadosForzados,
+                                            child: Container(
+                                              width: 40,
+                                              height: 40,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: _dadosForzados != null
+                                                      ? AppColors.mint
+                                                      : AppColors.textoSuave
+                                                          .withValues(
+                                                              alpha: 0.5),
+                                                  width: _dadosForzados != null
+                                                      ? 2
+                                                      : 1,
+                                                ),
+                                                boxShadow:
+                                                    _dadosForzados != null
+                                                        ? neonGlow(
+                                                            AppColors.mint,
+                                                            blur: 10)
+                                                        : null,
+                                              ),
+                                              child: Icon(
+                                                Icons.bug_report,
+                                                size: 20,
+                                                color: _dadosForzados != null
+                                                    ? AppColors.mint
+                                                    : AppColors.textoSuave,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -1445,143 +1556,167 @@ class _VictoriaGeneralaOverlayState extends State<_VictoriaGeneralaOverlay> {
     );
     final esGanador = jugador.nombre == widget.ganador;
     final historial = jugador.historial;
+    final maxH = MediaQuery.sizeOf(context).height * 0.82;
 
-    return Container(
-      width: 360,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.82,
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        color: AppColors.carta,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color, width: 1.6),
-        boxShadow: neonGlow(color, blur: 18),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => setState(() => _jugadorDetalle = null),
-                tooltip: 'Volver',
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: AppColors.textoSuave,
-                ),
-              ),
-              Expanded(
-                child: Column(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 400, maxHeight: maxH),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.carta,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: color, width: 1.6),
+            boxShadow: neonGlow(color, blur: 18),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      jugador.nombre.toUpperCase(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                        letterSpacing: 0.8,
+                    IconButton(
+                      onPressed: () =>
+                          setState(() => _jugadorDetalle = null),
+                      tooltip: 'Volver',
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: AppColors.textoSuave,
                       ),
                     ),
-                    if (esGanador)
-                      const Text(
-                        'GANADOR',
-                        style: TextStyle(
-                          color: AppColors.mint,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          letterSpacing: 1,
-                        ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            jugador.nombre.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          if (esGanador)
+                            const Text(
+                              'GANADOR',
+                              style: TextStyle(
+                                color: AppColors.mint,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                        ],
                       ),
+                    ),
+                    const SizedBox(width: 48),
                   ],
                 ),
-              ),
-              const SizedBox(width: 48),
-            ],
-          ),
-          Text(
-            '${jugador.total} PTS · ${historial.length} turnos',
-            style: const TextStyle(
-              color: AppColors.textoSuave,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
+                Text(
+                  '${jugador.total} PTS · ${historial.length} turnos',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.textoSuave,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: historial.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Sin turnos registrados',
+                            style: TextStyle(color: AppColors.textoSuave),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(right: 6, bottom: 4),
+                          itemCount: historial.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, i) {
+                            final r = historial[i];
+                            final dadosTxt = r.dadosFinales.join(' · ');
+                            final accion = r.puntos > 0
+                                ? 'Anotó ${r.categoria.etiqueta} → ${r.puntos} pts'
+                                : 'Tachó ${r.categoria.etiqueta} → 0 pts';
+                            return DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: color.withValues(alpha: 0.45),
+                                ),
+                                color: color.withValues(alpha: 0.08),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  10,
+                                  12,
+                                  10,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'TURNO ${r.numero}',
+                                      style: TextStyle(
+                                        color: color,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Tiradas usadas: ${r.tiradasUsadas}/$maxTiradasGenerala',
+                                      style: const TextStyle(
+                                        color: AppColors.textoSuave,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Dados finales: $dadosTxt',
+                                      softWrap: true,
+                                      style: const TextStyle(
+                                        color: AppColors.texto,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      accion,
+                                      softWrap: true,
+                                      style: TextStyle(
+                                        color: r.puntos > 0
+                                            ? AppColors.mint
+                                            : AppColors.peligro,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: historial.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Sin turnos registrados',
-                      style: TextStyle(color: AppColors.textoSuave),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: historial.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, i) {
-                      final r = historial[i];
-                      final dadosTxt = r.dadosFinales.join(' · ');
-                      final accion = r.puntos > 0
-                          ? 'Anotó ${r.categoria.etiqueta} → ${r.puntos} pts'
-                          : 'Tachó ${r.categoria.etiqueta} → 0 pts';
-                      return Container(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: color.withValues(alpha: 0.45),
-                          ),
-                          color: color.withValues(alpha: 0.08),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'TURNO ${r.numero}',
-                              style: TextStyle(
-                                color: color,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 13,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tiradas usadas: ${r.tiradasUsadas}/$maxTiradasGenerala',
-                              style: const TextStyle(
-                                color: AppColors.textoSuave,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Dados finales: $dadosTxt',
-                              style: const TextStyle(
-                                color: AppColors.texto,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              accion,
-                              style: TextStyle(
-                                color: r.puntos > 0
-                                    ? AppColors.mint
-                                    : AppColors.peligro,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }

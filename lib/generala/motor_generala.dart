@@ -244,11 +244,29 @@ bool casillaOcupada(JugadorGenerala jugador, CategoriaGenerala categoria) =>
 /// Si la casilla se puede elegir para anotar (vacía).
 /// Generala doble se puede tachar con 0 aunque no haya generala previa;
 /// los 100 pts solo aplican si ya tenía generala (ver [puntosCategoria]).
+/// Generala no se puede tachar (0) hasta que Generala Doble esté anotada;
+/// si salió genera de verdad (50), sí se puede anotar.
 bool puedeElegirCategoria(
   JugadorGenerala jugador,
-  CategoriaGenerala categoria,
-) {
-  return !casillaOcupada(jugador, categoria);
+  CategoriaGenerala categoria, {
+  List<int>? dados,
+  bool servida = false,
+}) {
+  if (casillaOcupada(jugador, categoria)) return false;
+
+  if (categoria == CategoriaGenerala.generala &&
+      !casillaOcupada(jugador, CategoriaGenerala.generalaDoble) &&
+      dados != null &&
+      dados.length == dadosGenerala) {
+    final pts = puntosCategoria(
+      categoria,
+      dados,
+      yaTieneGenerala: jugador.generalaAnotada,
+      servida: servida,
+    );
+    if (pts <= 0) return false;
+  }
+  return true;
 }
 
 /// Orden al tachar con 0: doble → generala → números (1…6) → especiales.
@@ -274,7 +292,7 @@ CategoriaGenerala? elegirCategoriaPc(
 }) {
   final disponibles = [
     for (final c in CategoriaGenerala.values)
-      if (puedeElegirCategoria(jugador, c)) c,
+      if (puedeElegirCategoria(jugador, c, dados: dados, servida: servida)) c,
   ];
   if (disponibles.isEmpty) return null;
 
@@ -564,7 +582,12 @@ void anotarCategoria(
   if (!t.puedeAnotar) {
     throw StateError('Todavía no hay tirada para anotar');
   }
-  if (!puedeElegirCategoria(j, categoria)) {
+  if (!puedeElegirCategoria(
+    j,
+    categoria,
+    dados: t.dados,
+    servida: t.tiradasHechas == 1,
+  )) {
     throw StateError('No se puede anotar en ${categoria.etiqueta}');
   }
 

@@ -34,6 +34,15 @@ class TableroGeneralaOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cerrar = onCerrar ?? () => Navigator.of(context).maybePop();
+    final size = MediaQuery.sizeOf(context);
+    final n = partida.jugadores.length;
+    // Con 3–4 jugadores achicamos columnas para que entren en pantalla.
+    final catW = n >= 4 ? 112.0 : (n == 3 ? 120.0 : 132.0);
+    final colW = n >= 4 ? 78.0 : (n == 3 ? 88.0 : 96.0);
+    final anchoNecesario = catW + colW * n + 56;
+    final maxW = anchoNecesario.clamp(300.0, size.width - 12);
+    final maxH = (size.height - 20).clamp(360.0, 720.0);
+
     return Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
@@ -44,12 +53,15 @@ class TableroGeneralaOverlay extends StatelessWidget {
             child: GestureDetector(
               onTap: () {},
               child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: 520, maxHeight: 700),
+                constraints: BoxConstraints(
+                  maxWidth: maxW,
+                  maxHeight: maxH,
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(10),
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
@@ -122,16 +134,38 @@ class TableroGeneralaOverlay extends StatelessWidget {
                         ],
                         const SizedBox(height: 8),
                         Flexible(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SingleChildScrollView(
-                              child: _TableroTabla(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final tabla = _TableroTabla(
                                 partida: partida,
                                 modoAnotar: modoAnotar,
                                 dadosActuales: dadosActuales,
                                 onElegirCategoria: onElegirCategoria,
-                              ),
-                            ),
+                                catWidth: catW,
+                                colWidth: colW,
+                              );
+                              final tablaAncho = catW + colW * n;
+                              final necesitaScrollH =
+                                  tablaAncho > constraints.maxWidth;
+                              Widget body = SingleChildScrollView(
+                                child: tabla,
+                              );
+                              if (necesitaScrollH) {
+                                body = SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: SizedBox(
+                                    width: tablaAncho,
+                                    child: body,
+                                  ),
+                                );
+                              } else {
+                                body = SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: body,
+                                );
+                              }
+                              return body;
+                            },
                           ),
                         ),
                       ],
@@ -153,15 +187,17 @@ class _TableroTabla extends StatelessWidget {
     required this.modoAnotar,
     this.dadosActuales,
     this.onElegirCategoria,
+    this.catWidth = 132,
+    this.colWidth = 96,
   });
 
   final PartidaGenerala partida;
   final bool modoAnotar;
   final List<int>? dadosActuales;
   final ValueChanged<CategoriaGenerala>? onElegirCategoria;
+  final double catWidth;
+  final double colWidth;
 
-  static const _catWidth = 132.0;
-  static const _colWidth = 96.0;
   static const _rowHeight = 42.0;
   static const _headerHeight = 48.0;
 
@@ -185,9 +221,9 @@ class _TableroTabla extends StatelessWidget {
           verticalInside: BorderSide(color: border, width: 1),
         ),
         columnWidths: {
-          0: const FixedColumnWidth(_catWidth),
+          0: FixedColumnWidth(catWidth),
           for (var i = 0; i < jugadores.length; i++)
-            i + 1: const FixedColumnWidth(_colWidth),
+            i + 1: FixedColumnWidth(colWidth),
         },
         children: [
           TableRow(
@@ -362,9 +398,14 @@ class _Casilla extends StatelessWidget {
     final elegible = modoAnotar &&
         esTurnoActual &&
         onElegir != null &&
-        puedeElegirCategoria(jugador, categoria) &&
         dadosActuales != null &&
-        dadosActuales!.length == dadosGenerala;
+        dadosActuales!.length == dadosGenerala &&
+        puedeElegirCategoria(
+          jugador,
+          categoria,
+          dados: dadosActuales,
+          servida: servida,
+        );
 
     if (!elegible) {
       return Text(
@@ -389,7 +430,14 @@ class _Casilla extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          if (!puedeElegirCategoria(jugador, categoria)) return;
+          if (!puedeElegirCategoria(
+            jugador,
+            categoria,
+            dados: dadosActuales,
+            servida: servida,
+          )) {
+            return;
+          }
           onElegir!.call(categoria);
         },
         borderRadius: BorderRadius.circular(8),

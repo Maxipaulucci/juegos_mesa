@@ -46,10 +46,36 @@ void main() {
           yaTieneGenerala: true),
       ptsGeneralaDoble,
     );
-    // Se puede tachar la casilla aunque no haya generala previa.
     final j = JugadorGenerala('A');
     expect(
       puedeElegirCategoria(j, CategoriaGenerala.generalaDoble),
+      isTrue,
+    );
+  });
+
+  test('generala no se tacha hasta anotar generala doble', () {
+    final j = JugadorGenerala('A');
+    final basura = [1, 2, 3, 4, 6];
+    expect(
+      puedeElegirCategoria(j, CategoriaGenerala.generala,
+          dados: basura, servida: false),
+      isFalse,
+    );
+    expect(
+      puedeElegirCategoria(j, CategoriaGenerala.generalaDoble,
+          dados: basura, servida: false),
+      isTrue,
+    );
+    // Sí se puede anotar generala si salió de verdad.
+    expect(
+      puedeElegirCategoria(j, CategoriaGenerala.generala,
+          dados: [5, 5, 5, 5, 5], servida: false),
+      isTrue,
+    );
+    j.casillas[CategoriaGenerala.generalaDoble] = 0;
+    expect(
+      puedeElegirCategoria(j, CategoriaGenerala.generala,
+          dados: basura, servida: false),
       isTrue,
     );
   });

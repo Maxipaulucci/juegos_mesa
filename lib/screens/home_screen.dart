@@ -90,6 +90,20 @@ class HomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         const _JuegoTile(
+                          titulo: 'Culo sucio',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.peligro,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
+                          titulo: 'La papa',
+                          subtitulo: 'Próximamente',
+                          accent: AppColors.mint,
+                          enabled: false,
+                        ),
+                        const SizedBox(height: 12),
+                        const _JuegoTile(
                           titulo: 'Escoba del 15',
                           subtitulo: 'Próximamente',
                           accent: AppColors.azul,
