@@ -297,11 +297,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     final forzados = _dadosForzados;
     _dadosForzados = null;
     tirarDadosGenerala(_t, dadosForzados: forzados, rng: _rng);
-    if (_turnoDeLaPc) {
-      elegirGuardadosPc(_j, _t);
-    } else {
-      autoSeleccionarDadosUtiles(_t);
-    }
+    autoSeleccionarDadosUtiles(_j, _t);
 
     setState(() {
       _animandoTirada = false;
@@ -644,10 +640,8 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
           if (_mostrarVictoria && _partida.ganador != null)
             Positioned.fill(
               child: _VictoriaGeneralaOverlay(
+                partida: _partida,
                 ganador: _partida.ganador!,
-                total: _partida.jugadores
-                    .firstWhere((j) => j.nombre == _partida.ganador)
-                    .total,
                 subtitulo: _subtituloVictoria,
                 onVolverAJugar: _volverAJugar,
                 onSalir: () => Navigator.of(context).pop(),
@@ -1169,94 +1163,425 @@ class _OutlinedActionButton extends StatelessWidget {
   }
 }
 
-class _VictoriaGeneralaOverlay extends StatelessWidget {
+class _VictoriaGeneralaOverlay extends StatefulWidget {
   const _VictoriaGeneralaOverlay({
+    required this.partida,
     required this.ganador,
-    required this.total,
     required this.onVolverAJugar,
     required this.onSalir,
     this.subtitulo,
   });
 
+  final PartidaGenerala partida;
   final String ganador;
-  final int total;
   final String? subtitulo;
   final VoidCallback onVolverAJugar;
   final VoidCallback onSalir;
 
   @override
+  State<_VictoriaGeneralaOverlay> createState() =>
+      _VictoriaGeneralaOverlayState();
+}
+
+class _VictoriaGeneralaOverlayState extends State<_VictoriaGeneralaOverlay> {
+  bool _mostrarStats = false;
+  bool _mostrarTablero = false;
+  JugadorGenerala? _jugadorDetalle;
+
+  @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.black.withValues(alpha: 0.75),
-      child: Center(
-        child: Container(
-          width: 320,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppColors.carta,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.acento, width: 1.6),
-            boxShadow: neonGlow(AppColors.acento, blur: 20),
+      child: Stack(
+        children: [
+          Center(
+            child: _jugadorDetalle != null
+                ? _buildDetalleJugador(_jugadorDetalle!)
+                : _mostrarStats
+                    ? _buildStats()
+                    : _buildWinner(),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          if (_mostrarTablero)
+            Positioned.fill(
+              child: TableroGeneralaOverlay(
+                partida: widget.partida,
+                onCerrar: () => setState(() => _mostrarTablero = false),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWinner() {
+    final total = widget.partida.jugadores
+        .firstWhere((j) => j.nombre == widget.ganador)
+        .total;
+    return Container(
+      width: 320,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.carta,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.acento, width: 1.6),
+        boxShadow: neonGlow(AppColors.acento, blur: 20),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '¡GANÓ!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.acento,
+              fontWeight: FontWeight.w900,
+              fontSize: 22,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            widget.ganador.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.texto,
+              fontWeight: FontWeight.w900,
+              fontSize: 26,
+            ),
+          ),
+          if (widget.subtitulo != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              widget.subtitulo!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textoSuave,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            '$total PTS',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.mint,
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () => setState(() => _mostrarStats = true),
+            icon: const Icon(Icons.bar_chart_rounded),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.azul,
+              foregroundColor: Colors.white,
+            ),
+            label: const Text('Estadísticas'),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton(
+            onPressed: widget.onVolverAJugar,
+            child: const Text('Volver a jugar'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: widget.onSalir,
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStats() {
+    final ranking = [...widget.partida.jugadores]
+      ..sort((a, b) => b.total.compareTo(a.total));
+
+    return Container(
+      width: 340,
+      constraints: const BoxConstraints(maxHeight: 520),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        color: AppColors.carta,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.azul, width: 1.6),
+        boxShadow: neonGlow(AppColors.azul, blur: 18),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              const Text(
-                '¡GANÓ!',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.acento,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22,
-                  letterSpacing: 1.2,
+              IconButton(
+                onPressed: () => setState(() => _mostrarStats = false),
+                tooltip: 'Volver',
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: AppColors.textoSuave,
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                ganador.toUpperCase(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.texto,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 26,
-                ),
-              ),
-              if (subtitulo != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  subtitulo!,
+              const Expanded(
+                child: Text(
+                  'ESTADÍSTICAS',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.textoSuave,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                  style: TextStyle(
+                    color: AppColors.azul,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                    letterSpacing: 1,
                   ),
                 ),
-              ],
-              const SizedBox(height: 6),
-              Text(
-                '$total PTS',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.mint,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: onVolverAJugar,
-                child: const Text('Volver a jugar'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: onSalir,
-                child: const Text('Salir'),
-              ),
+              const SizedBox(width: 48),
             ],
           ),
-        ),
+          const SizedBox(height: 8),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: ranking.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, i) {
+                final j = ranking[i];
+                final esGanador = j.nombre == widget.ganador;
+                final color = colorJugadorTablero(
+                  widget.partida.jugadores.indexOf(j),
+                );
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => setState(() => _jugadorDetalle = j),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Ink(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: esGanador
+                              ? AppColors.acento
+                              : color.withValues(alpha: 0.55),
+                          width: esGanador ? 1.8 : 1.2,
+                        ),
+                        color: color.withValues(alpha: 0.1),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${i + 1}°',
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              j.nombre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: esGanador
+                                    ? AppColors.acento
+                                    : AppColors.texto,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${j.total} PTS',
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: color.withValues(alpha: 0.8),
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(
+            onPressed: () => setState(() => _mostrarTablero = true),
+            icon: const Icon(Icons.grid_view_rounded),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.violeta,
+              foregroundColor: Colors.white,
+            ),
+            label: const Text('Ver tablero'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: widget.onSalir,
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetalleJugador(JugadorGenerala jugador) {
+    final color = colorJugadorTablero(
+      widget.partida.jugadores.indexOf(jugador),
+    );
+    final esGanador = jugador.nombre == widget.ganador;
+    final historial = jugador.historial;
+
+    return Container(
+      width: 360,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: AppColors.carta,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color, width: 1.6),
+        boxShadow: neonGlow(color, blur: 18),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _jugadorDetalle = null),
+                tooltip: 'Volver',
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: AppColors.textoSuave,
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      jugador.nombre.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    if (esGanador)
+                      const Text(
+                        'GANADOR',
+                        style: TextStyle(
+                          color: AppColors.mint,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          Text(
+            '${jugador.total} PTS · ${historial.length} turnos',
+            style: const TextStyle(
+              color: AppColors.textoSuave,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: historial.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Sin turnos registrados',
+                      style: TextStyle(color: AppColors.textoSuave),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: historial.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final r = historial[i];
+                      final dadosTxt = r.dadosFinales.join(' · ');
+                      final accion = r.puntos > 0
+                          ? 'Anotó ${r.categoria.etiqueta} → ${r.puntos} pts'
+                          : 'Tachó ${r.categoria.etiqueta} → 0 pts';
+                      return Container(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: color.withValues(alpha: 0.45),
+                          ),
+                          color: color.withValues(alpha: 0.08),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TURNO ${r.numero}',
+                              style: TextStyle(
+                                color: color,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Tiradas usadas: ${r.tiradasUsadas}/$maxTiradasGenerala',
+                              style: const TextStyle(
+                                color: AppColors.textoSuave,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Dados finales: $dadosTxt',
+                              style: const TextStyle(
+                                color: AppColors.texto,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              accion,
+                              style: TextStyle(
+                                color: r.puntos > 0
+                                    ? AppColors.mint
+                                    : AppColors.peligro,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

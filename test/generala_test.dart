@@ -114,6 +114,10 @@ void main() {
     expect(p.turno.debeAnotar, isTrue);
     anotarCategoria(p, CategoriaGenerala.uno);
     expect(p.jugadores[0].casillas[CategoriaGenerala.uno], 2);
+    expect(p.jugadores[0].historial, hasLength(1));
+    expect(p.jugadores[0].historial.first.tiradasUsadas, 3);
+    expect(p.jugadores[0].historial.first.categoria, CategoriaGenerala.uno);
+    expect(p.jugadores[0].historial.first.puntos, 2);
     expect(p.indiceTurno, 1);
   });
 
@@ -204,39 +208,57 @@ void main() {
   });
 
   test('auto-selecciona iguales y suma los que matchean lo guardado', () {
+    final j = JugadorGenerala('A');
     final t = EstadoTurnoGenerala();
     tirarDadosGenerala(t, dadosForzados: [1, 1, 1, 4, 5]);
-    autoSeleccionarDadosUtiles(t);
+    autoSeleccionarDadosUtiles(j, t);
     expect(t.guardados.where((g) => g).length, 3);
     expect(t.dados.take(3).toList(), [1, 1, 1]);
 
     // Segunda tirada: salen dos 1 → también dorados.
     tirarDadosGenerala(t, dadosForzados: [1, 1]);
-    autoSeleccionarDadosUtiles(t);
+    autoSeleccionarDadosUtiles(j, t);
     expect(t.guardados.every((g) => g), isTrue);
     expect(t.dados, [1, 1, 1, 1, 1]);
   });
 
   test('auto-selecciona full y escalera completos', () {
+    final j = JugadorGenerala('A');
     final t = EstadoTurnoGenerala();
     tirarDadosGenerala(t, dadosForzados: [2, 2, 2, 5, 5]);
-    autoSeleccionarDadosUtiles(t);
+    autoSeleccionarDadosUtiles(j, t);
     expect(t.guardados.every((g) => g), isTrue);
 
     final t2 = EstadoTurnoGenerala();
     tirarDadosGenerala(t2, dadosForzados: [1, 2, 3, 4, 5]);
-    autoSeleccionarDadosUtiles(t2);
+    autoSeleccionarDadosUtiles(j, t2);
     expect(t2.guardados.every((g) => g), isTrue);
   });
 
   test('auto-selecciona los dos pares', () {
+    final j = JugadorGenerala('A');
     final t = EstadoTurnoGenerala();
     tirarDadosGenerala(t, dadosForzados: [5, 5, 4, 2, 4]);
-    autoSeleccionarDadosUtiles(t);
+    autoSeleccionarDadosUtiles(j, t);
     expect(t.guardados.where((g) => g).length, 4);
     expect(t.dados.take(4).toSet(), {5, 4});
     expect(t.dados.last, 2);
     expect(t.guardados.last, isFalse);
+  });
+
+  test('no auto-selecciona pares de números ya anotados si full está lleno', () {
+    final j = JugadorGenerala('A');
+    j.casillas[CategoriaGenerala.tres] = 9;
+    j.casillas[CategoriaGenerala.seis] = 12;
+    j.casillas[CategoriaGenerala.full] = ptsFull;
+    j.casillas[CategoriaGenerala.generala] = ptsGenerala;
+    // Quedan libres: 1, escalera, poker, doble…
+    final t = EstadoTurnoGenerala();
+    tirarDadosGenerala(t, dadosForzados: [6, 3, 6, 3, 4]);
+    autoSeleccionarDadosUtiles(j, t);
+    // No marca los dos pares; arma hacia escalera (3, 4, 6).
+    expect(t.guardados.where((g) => g).length, 3);
+    expect(t.dados.take(3).toSet(), {3, 4, 6});
   });
 
   test('PC suelta un par si full/poker llenos y busca generala', () {
@@ -246,7 +268,8 @@ void main() {
     }
     j.casillas[CategoriaGenerala.full] = ptsFull;
     j.casillas[CategoriaGenerala.poker] = ptsPoker;
-    // Generala libre; escalera también pero prioriza generala → un solo par.
+    j.casillas[CategoriaGenerala.escalera] = 0;
+    // Solo generala libre → un solo par.
     final t = EstadoTurnoGenerala();
     tirarDadosGenerala(t, dadosForzados: [3, 3, 4, 4, 2]);
     elegirGuardadosPc(j, t);

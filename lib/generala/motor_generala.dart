@@ -52,6 +52,8 @@ class JugadorGenerala {
   final Map<CategoriaGenerala, int?> casillas = {
     for (final c in CategoriaGenerala.values) c: null,
   };
+  /// Historial de turnos anotados (para estadísticas).
+  final List<RegistroTurnoGenerala> historial = [];
 
   bool get generalaAnotada {
     final v = casillas[CategoriaGenerala.generala];
@@ -63,6 +65,23 @@ class JugadorGenerala {
 
   int get total =>
       casillas.values.fold(0, (acc, v) => acc + (v ?? 0));
+}
+
+/// Un turno completo: cuántas tiradas usó y qué anotó.
+class RegistroTurnoGenerala {
+  RegistroTurnoGenerala({
+    required this.numero,
+    required this.tiradasUsadas,
+    required this.dadosFinales,
+    required this.categoria,
+    required this.puntos,
+  });
+
+  final int numero;
+  final int tiradasUsadas;
+  final List<int> dadosFinales;
+  final CategoriaGenerala categoria;
+  final int puntos;
 }
 
 class EstadoTurnoGenerala {
@@ -287,30 +306,10 @@ void toggleDadoGuardado(EstadoTurnoGenerala t, int index) {
   t.guardados[index] = !t.guardados[index];
 }
 
-/// Tras una tirada, pinta de dorado los dados que sirven:
-/// - Escalera / FULL / Generala: los 5.
-/// - Toda cara que aparezca 2 o más veces (incluye dos pares).
-/// - Si no hay pares, no toca la selección manual (p. ej. armando escalera).
-void autoSeleccionarDadosUtiles(EstadoTurnoGenerala t) {
-  if (!t.hayDados) return;
-
-  if (esEscalera(t.dados) || esFull(t.dados) || esGenerala(t.dados)) {
-    t.guardados = List.filled(dadosGenerala, true);
-    return;
-  }
-
-  final counts = contarCaras(t.dados);
-  final carasUtiles = {
-    for (final e in counts.entries)
-      if (e.value >= 2) e.key,
-  };
-
-  if (carasUtiles.isEmpty) return;
-
-  for (var i = 0; i < dadosGenerala; i++) {
-    t.guardados[i] = carasUtiles.contains(t.dados[i]);
-  }
-  compactarDadosGuardados(t);
+/// Tras una tirada, pinta de dorado los dados que sirven según el tablero
+/// del jugador (casillas libres). Misma lógica para humano y PC.
+void autoSeleccionarDadosUtiles(JugadorGenerala j, EstadoTurnoGenerala t) {
+  elegirGuardadosPc(j, t);
 }
 
 void _marcarCaras(EstadoTurnoGenerala t, Set<int> caras) {
@@ -422,13 +421,21 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
     }
   }
 
-  // Generala o póker: un solo par/grupo (no se queda con dos pares inútiles).
+  // Generala o póker: un grupo útil (trío+, o par de un número aún libre).
+  // No se queda con pares de números ya tachados si hay otra estrategia (p. ej. escalera).
   if (buscaGenerala || buscaPoker) {
-    if (pares.isNotEmpty) {
+    final paresUtiles = pares
+        .where((c) => (counts[c] ?? 0) >= 3 || numerosLibres.contains(c))
+        .toList(growable: false);
+    if (paresUtiles.isNotEmpty) {
+      _marcarSoloCara(t, paresUtiles.first);
+      return;
+    }
+    if (!buscaEscalera && pares.isNotEmpty) {
       _marcarSoloCara(t, pares.first);
       return;
     }
-    if (buscaGenerala) {
+    if (buscaGenerala && !buscaEscalera && pares.isEmpty) {
       final cara = t.dados.reduce((a, b) => a > b ? a : b);
       _marcarSoloCara(t, cara);
       return;
@@ -446,6 +453,12 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
   // Escalera libre.
   if (buscaEscalera) {
     _marcarParaEscalera(t);
+    return;
+  }
+
+  // Si solo queda buscar generala/póker y había pares “débiles”, ahora sí.
+  if ((buscaGenerala || buscaPoker) && pares.isNotEmpty) {
+    _marcarSoloCara(t, pares.first);
     return;
   }
 
@@ -560,6 +573,15 @@ void anotarCategoria(
     t.dados,
     yaTieneGenerala: j.generalaAnotada,
     servida: t.tiradasHechas == 1,
+  );
+  j.historial.add(
+    RegistroTurnoGenerala(
+      numero: j.historial.length + 1,
+      tiradasUsadas: t.tiradasHechas,
+      dadosFinales: List<int>.of(t.dados),
+      categoria: categoria,
+      puntos: pts,
+    ),
   );
   j.casillas[categoria] = pts;
 
