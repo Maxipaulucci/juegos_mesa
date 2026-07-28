@@ -230,6 +230,9 @@ void main() {
     // Ya tiene generala: ahora sirve para doble.
     expect(puedeAnotarTemprano(j, generala), isTrue);
     j.casillas[CategoriaGenerala.generalaDoble] = ptsGeneralaDoble;
+    // Ambas generalas llenas: aún se puede sumar en el número (6).
+    expect(puedeAnotarTemprano(j, generala), isTrue);
+    j.casillas[CategoriaGenerala.seis] = 30;
     expect(puedeAnotarTemprano(j, generala), isFalse);
   });
 

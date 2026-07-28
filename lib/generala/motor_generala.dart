@@ -212,6 +212,8 @@ int puntosCategoria(
 /// Especiales que, si salen y la casilla sigue libre, permiten anotar antes
 /// de agotar las 3 tiradas (Escalera, FULL, GENERALA / DOBLE).
 /// El póker no: con 4 iguales conviene seguir tirando por la generala.
+/// Si sale generala pero ambas casillas de generala ya están llenas, se permite
+/// anotar temprano en el número de esa cara (p. ej. cinco 6 → sumar en 6).
 bool puedeAnotarTemprano(
   JugadorGenerala jugador,
   List<int> dados,
@@ -231,6 +233,14 @@ bool puedeAnotarTemprano(
       return true;
     }
     if (puedeElegirCategoria(jugador, CategoriaGenerala.generalaDoble)) {
+      return true;
+    }
+    // Ambas generalas ocupadas: anotar el número de esa cara si sigue libre.
+    final cara = dados.first;
+    final catNumero = CategoriaGenerala.values.firstWhere(
+      (c) => c.esNumero && c.cara == cara,
+    );
+    if (puedeElegirCategoria(jugador, catNumero)) {
       return true;
     }
   }
