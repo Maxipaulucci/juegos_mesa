@@ -76,6 +76,19 @@ class HomeScreen extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 12),
+                        _JuegoTile(
+                          titulo: 'Generala',
+                          subtitulo: 'Dados · tabla de anotación',
+                          accent: AppColors.violeta,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const MenuGeneralaScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
                         const _JuegoTile(
                           titulo: 'Escoba del 15',
                           subtitulo: 'Próximamente',
@@ -124,19 +137,6 @@ class HomeScreen extends StatelessWidget {
                           accent: AppColors.peligro,
                           enabled: false,
                         ),
-                        const SizedBox(height: 12),
-                        _JuegoTile(
-                          titulo: 'Generala',
-                          subtitulo: 'Dados · tabla de anotación',
-                          accent: AppColors.violeta,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const MenuGeneralaScreen(),
-                              ),
-                            );
-                          },
-                        ),
                       ],
                     ),
                   ),
@@ -174,63 +174,57 @@ class _JuegoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: enabled ? neonGlow(accent, blur: 12) : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(18),
-          splashColor: accent.withValues(alpha: 0.25),
-          highlightColor: accent.withValues(alpha: 0.12),
-          child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            decoration: BoxDecoration(
-              color: AppColors.carta.withValues(alpha: enabled ? 0.95 : 0.45),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: enabled ? accent : accent.withValues(alpha: 0.25),
-                width: enabled ? 1.6 : 1,
+        splashColor: accent.withValues(alpha: 0.25),
+        highlightColor: accent.withValues(alpha: 0.12),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: AppColors.carta.withValues(alpha: enabled ? 0.95 : 0.45),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: enabled ? accent : accent.withValues(alpha: 0.25),
+              width: enabled ? 1.6 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: TextStyle(
+                        color:
+                            enabled ? AppColors.texto : AppColors.textoSuave,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitulo,
+                      style: TextStyle(
+                        color: enabled ? accent : AppColors.textoSuave,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        titulo,
-                        style: TextStyle(
-                          color:
-                              enabled ? AppColors.texto : AppColors.textoSuave,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitulo,
-                        style: TextStyle(
-                          color: enabled ? accent : AppColors.textoSuave,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  enabled ? Icons.chevron_right : Icons.lock_outline,
-                  color: enabled ? accent : AppColors.textoSuave,
-                ),
-              ],
-            ),
+              Icon(
+                enabled ? Icons.chevron_right : Icons.lock_outline,
+                color: enabled ? accent : AppColors.textoSuave,
+              ),
+            ],
           ),
         ),
       ),

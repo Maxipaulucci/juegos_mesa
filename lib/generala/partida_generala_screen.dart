@@ -47,6 +47,8 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   bool _modoAnotar = false;
   bool _confirmarRendicion = false;
   bool _animandoTirada = false;
+  /// Pausa tras la 3.ª tirada para ver los dados antes del tablero.
+  bool _pausandoResultado = false;
   List<int>? _dadosAnimados;
   List<int>? _dadosForzados;
   int _pcToken = 0;
@@ -193,6 +195,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     _confirmarRendicion = false;
     _subtituloVictoria = null;
     _animandoTirada = false;
+    _pausandoResultado = false;
     _dadosAnimados = null;
     _dadosForzados = null;
   }
@@ -222,38 +225,22 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   Future<void> _ejecutarJugadaPc() async {
     if (!_turnoDeLaPc || _mostrarVictoria || _modoAnotar) return;
 
-    // Tirar hasta 3 veces con una heurística simple de guardado.
-    while (_t.puedeTirar && mounted && _turnoDeLaPc) {
+    // Tirar hasta 3 veces; la auto-selección corre dentro de _tirar.
+    while (_puedeTirarAhora && mounted && _turnoDeLaPc) {
       await _tirar(animar: true);
       if (!mounted || !_turnoDeLaPc) return;
       if (_t.debeAnotar) break;
-      _elegirGuardadosPc();
+      // Todos guardados → no tiene sentido seguir tirando.
+      if (!_puedeTirarAhora) break;
       await Future<void>.delayed(const Duration(milliseconds: 450));
     }
     if (!mounted || !_turnoDeLaPc) return;
-    _abrirAnotar();
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    // _tirar ya abrió el tablero tras la pausa de 2 s.
+    if (!_modoAnotar) _abrirAnotar();
+    await Future<void>.delayed(const Duration(milliseconds: 700));
     if (!mounted || !_turnoDeLaPc) return;
     final cat = _mejorCategoriaPc();
     if (cat != null) _anotar(cat);
-  }
-
-  void _elegirGuardadosPc() {
-    if (!_t.hayDados) return;
-    final counts = contarCaras(_t.dados);
-    var mejorCara = 1;
-    var mejorN = 0;
-    counts.forEach((cara, n) {
-      if (n > mejorN || (n == mejorN && cara > mejorCara)) {
-        mejorN = n;
-        mejorCara = cara;
-      }
-    });
-    for (var i = 0; i < dadosGenerala; i++) {
-      _t.guardados[i] = _t.dados[i] == mejorCara;
-    }
-    compactarDadosGuardados(_t);
-    setState(() {});
   }
 
   CategoriaGenerala? _mejorCategoriaPc() {
@@ -266,6 +253,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
         cat,
         _t.dados,
         yaTieneGenerala: j.generalaAnotada,
+        servida: _t.tiradasHechas == 1,
       );
       // Prefiere puntos positivos; si todo es 0, tacha el número más bajo vacío.
       final score = pts > 0 ? pts + 1000 : (cat.esNumero ? -cat.index : -100);
@@ -278,8 +266,10 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   }
 
   Future<void> _tirar({bool animar = true}) async {
-    if (_animandoTirada || _partida.ganador != null) return;
-    if (!_t.puedeTirar) return;
+    if (_animandoTirada || _pausandoResultado || _partida.ganador != null) {
+      return;
+    }
+    if (!_puedeTirarAhora) return;
     if (_modoAnotar) return;
 
     // Alinea los guardados a la izquierda antes de animar/tirar.
@@ -317,6 +307,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     final forzados = _dadosForzados;
     _dadosForzados = null;
     tirarDadosGenerala(_t, dadosForzados: forzados, rng: _rng);
+    autoSeleccionarDadosUtiles(_t);
 
     setState(() {
       _animandoTirada = false;
@@ -324,12 +315,21 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     });
 
     if (_t.debeAnotar) {
+      setState(() => _pausandoResultado = true);
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      setState(() => _pausandoResultado = false);
       _abrirAnotar();
     }
   }
 
   void _toggleDado(int index) {
-    if (_animandoTirada || _turnoDeLaPc || _modoAnotar) return;
+    if (_animandoTirada ||
+        _pausandoResultado ||
+        _turnoDeLaPc ||
+        _modoAnotar) {
+      return;
+    }
     if (!_t.hayDados || !_t.puedeTirar) return;
     setState(() {
       toggleDadoGuardado(_t, index);
@@ -348,8 +348,24 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     });
   }
 
+  /// Escalera / FULL / Generala armados y casilla libre → anotar antes.
+  /// El póker no: conviene seguir tirando por la generala.
+  bool get _puedeAnotarTemprano {
+    if (!_t.hayDados || !_t.puedeAnotar || !_t.puedeTirar) return false;
+    return puedeAnotarTemprano(_j, _t.dados);
+  }
+
+  /// Hay tiradas y al menos un dado sin guardar (si ya tiró una vez).
+  bool get _puedeTirarAhora {
+    if (!_t.puedeTirar) return false;
+    if (!_t.hayDados) return true;
+    return _t.guardados.any((g) => !g);
+  }
+
   void _anotar(CategoriaGenerala cat) {
     if (!_modoAnotar) return;
+    // Casilla ya usada (u otra restricción): no anotar de nuevo.
+    if (!puedeElegirCategoria(_j, cat)) return;
     anotarCategoria(_partida, cat);
     setState(() {
       _modoAnotar = false;
@@ -560,17 +576,6 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   ),
                                 ),
                               const SizedBox(height: 8),
-                              _VerTableroButton(
-                                onPressed: () {
-                                  if (_modoAnotar) return;
-                                  setState(() {
-                                    _mostrarTablero = true;
-                                    _mostrarMenu = false;
-                                    _mostrarAjustes = false;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 8),
                               if (!terminada && !_turnoDeLaPc && !_modoAnotar) ...[
                                 _ArcadeButton(
                                   label: _t.puedeTirar
@@ -578,19 +583,35 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                       : 'SIN TIRADAS',
                                   icon: Icons.casino,
                                   tono: _BotonTono.dorado,
-                                  onPressed: _t.puedeTirar && !_animandoTirada
+                                  onPressed: _puedeTirarAhora &&
+                                          !_animandoTirada &&
+                                          !_pausandoResultado
                                       ? () => _tirar()
                                       : null,
                                 ),
                                 const SizedBox(height: 6),
                                 _ArcadeButton(
-                                  label: 'ANOTAR EN EL TABLERO',
-                                  icon: Icons.edit_note_rounded,
+                                  label: 'VER TABLERO',
+                                  icon: Icons.grid_view_rounded,
                                   tono: _BotonTono.violeta,
-                                  onPressed: _t.puedeAnotar && !_animandoTirada
-                                      ? _abrirAnotar
-                                      : null,
+                                  onPressed: () {
+                                    setState(() {
+                                      _mostrarTablero = true;
+                                      _mostrarMenu = false;
+                                      _mostrarAjustes = false;
+                                    });
+                                  },
                                 ),
+                                if (_puedeAnotarTemprano &&
+                                    !_animandoTirada &&
+                                    !_pausandoResultado) ...[
+                                  const SizedBox(height: 6),
+                                  _OutlinedActionButton(
+                                    label: 'Anotar en el tablero',
+                                    icon: Icons.edit_note_rounded,
+                                    onPressed: _abrirAnotar,
+                                  ),
+                                ],
                               ] else if (!terminada && _turnoDeLaPc)
                                 const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 12),
@@ -602,6 +623,19 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
+                                )
+                              else if (!_modoAnotar)
+                                _ArcadeButton(
+                                  label: 'VER TABLERO',
+                                  icon: Icons.grid_view_rounded,
+                                  tono: _BotonTono.violeta,
+                                  onPressed: () {
+                                    setState(() {
+                                      _mostrarTablero = true;
+                                      _mostrarMenu = false;
+                                      _mostrarAjustes = false;
+                                    });
+                                  },
                                 ),
                             ],
                           ),
@@ -658,6 +692,9 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                 modoAnotar: _modoAnotar,
                 dadosActuales: _t.hayDados ? _t.dados : null,
                 onElegirCategoria: _modoAnotar ? _anotar : null,
+                // Tras 3 tiradas hay que anotar: no se puede cerrar.
+                // Si anotás temprano (aún quedan tiradas), sí.
+                permitirCerrar: !_modoAnotar || _t.puedeTirar,
                 onCerrar: () => setState(() {
                   _mostrarTablero = false;
                   _modoAnotar = false;
@@ -1089,9 +1126,15 @@ class _DadosZona extends StatelessWidget {
   }
 }
 
-class _VerTableroButton extends StatelessWidget {
-  const _VerTableroButton({required this.onPressed});
+class _OutlinedActionButton extends StatelessWidget {
+  const _OutlinedActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
 
+  final String label;
+  final IconData icon;
   final VoidCallback onPressed;
 
   @override
@@ -1110,16 +1153,15 @@ class _VerTableroButton extends StatelessWidget {
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.violeta.withValues(alpha: 0.6)),
-            boxShadow: neonGlow(AppColors.violeta, blur: 10),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.grid_view_rounded, color: AppColors.acento),
-              SizedBox(width: 10),
+              Icon(icon, color: AppColors.acento),
+              const SizedBox(width: 10),
               Text(
-                'Ver tablero',
-                style: TextStyle(
+                label,
+                style: const TextStyle(
                   color: AppColors.texto,
                   fontSize: 16,
                   fontWeight: FontWeight.w900,

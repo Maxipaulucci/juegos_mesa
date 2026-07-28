@@ -588,22 +588,24 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
                           onPressed: () => _abrirVsPc(Modo.cinco),
                           child: const Text('Jugar vs PC'),
                         ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: _elegirDificultad,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _dificultad.color,
-                          foregroundColor: const Color(0xFF1A0A00),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(
-                          'Dificultad · ${_dificultad.etiqueta}',
-                          style: const TextStyle(
-                            color: Color(0xFF1A0A00),
-                            fontWeight: FontWeight.w800,
+                      if (widget.esDiezMil) ...[
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: _elegirDificultad,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _dificultad.color,
+                            foregroundColor: const Color(0xFF1A0A00),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(
+                            'Dificultad · ${_dificultad.etiqueta}',
+                            style: const TextStyle(
+                              color: Color(0xFF1A0A00),
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

@@ -10,6 +10,7 @@ enum CategoriaGenerala {
   cuatro('4'),
   cinco('5'),
   seis('6'),
+  escalera('ESCALERA'),
   full('FULL'),
   poker('POKER'),
   generala('GENERALA'),
@@ -33,8 +34,12 @@ enum CategoriaGenerala {
 const int dadosGenerala = 5;
 const int maxTiradasGenerala = 3;
 
+const int ptsEscalera = 20;
+const int ptsEscaleraServida = 25;
 const int ptsFull = 30;
+const int ptsFullServida = 35;
 const int ptsPoker = 40;
+const int ptsPokerServida = 45;
 const int ptsGenerala = 50;
 const int ptsGeneralaDoble = 100;
 
@@ -118,9 +123,10 @@ bool esFull(List<int> dados) {
   return vals.length == 2 && vals[0] == 2 && vals[1] == 3;
 }
 
+/// Poker: exactamente 4 dados iguales (la Generala de 5 no cuenta acá).
 bool esPoker(List<int> dados) {
   if (dados.length != dadosGenerala) return false;
-  return contarCaras(dados).values.any((n) => n >= 4);
+  return contarCaras(dados).values.any((n) => n == 4);
 }
 
 bool esGenerala(List<int> dados) {
@@ -128,12 +134,32 @@ bool esGenerala(List<int> dados) {
   return contarCaras(dados).values.any((n) => n == 5);
 }
 
+/// Escalera: 1-2-3-4-5 o 2-3-4-5-6 (en cualquier orden).
+bool esEscalera(List<int> dados) {
+  if (dados.length != dadosGenerala) return false;
+  final set = dados.toSet();
+  if (set.length != 5) return false;
+  final sorted = set.toList()..sort();
+  return (sorted[0] == 1 &&
+          sorted[1] == 2 &&
+          sorted[2] == 3 &&
+          sorted[3] == 4 &&
+          sorted[4] == 5) ||
+      (sorted[0] == 2 &&
+          sorted[1] == 3 &&
+          sorted[2] == 4 &&
+          sorted[3] == 5 &&
+          sorted[4] == 6);
+}
+
 /// Puntos que darían [dados] si se anotan en [categoria].
+/// [servida] = true si salió en la 1.ª tirada del turno.
 /// Para especiales sin combo válido → 0 (tachado).
 int puntosCategoria(
   CategoriaGenerala categoria,
   List<int> dados, {
   required bool yaTieneGenerala,
+  bool servida = false,
 }) {
   if (dados.length != dadosGenerala) return 0;
   final counts = contarCaras(dados);
@@ -147,10 +173,15 @@ int puntosCategoria(
     case CategoriaGenerala.seis:
       final cara = categoria.cara!;
       return cara * (counts[cara] ?? 0);
+    case CategoriaGenerala.escalera:
+      if (!esEscalera(dados)) return 0;
+      return servida ? ptsEscaleraServida : ptsEscalera;
     case CategoriaGenerala.full:
-      return esFull(dados) ? ptsFull : 0;
+      if (!esFull(dados)) return 0;
+      return servida ? ptsFullServida : ptsFull;
     case CategoriaGenerala.poker:
-      return esPoker(dados) ? ptsPoker : 0;
+      if (!esPoker(dados)) return 0;
+      return servida ? ptsPokerServida : ptsPoker;
     case CategoriaGenerala.generala:
       return esGenerala(dados) ? ptsGenerala : 0;
     case CategoriaGenerala.generalaDoble:
@@ -159,12 +190,44 @@ int puntosCategoria(
   }
 }
 
+/// Especiales que, si salen y la casilla sigue libre, permiten anotar antes
+/// de agotar las 3 tiradas (Escalera, FULL, GENERALA / DOBLE).
+/// El póker no: con 4 iguales conviene seguir tirando por la generala.
+bool puedeAnotarTemprano(
+  JugadorGenerala jugador,
+  List<int> dados,
+) {
+  if (dados.length != dadosGenerala) return false;
+
+  if (esEscalera(dados) &&
+      puedeElegirCategoria(jugador, CategoriaGenerala.escalera)) {
+    return true;
+  }
+  if (esFull(dados) &&
+      puedeElegirCategoria(jugador, CategoriaGenerala.full)) {
+    return true;
+  }
+  if (esGenerala(dados)) {
+    if (puedeElegirCategoria(jugador, CategoriaGenerala.generala)) {
+      return true;
+    }
+    if (puedeElegirCategoria(jugador, CategoriaGenerala.generalaDoble)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// True si esa casilla del jugador ya tiene un valor anotado (incluye 0/tachado).
+bool casillaOcupada(JugadorGenerala jugador, CategoriaGenerala categoria) =>
+    jugador.casillas[categoria] != null;
+
 /// Si la casilla se puede elegir para anotar (vacía y, en doble, con generala previa).
 bool puedeElegirCategoria(
   JugadorGenerala jugador,
   CategoriaGenerala categoria,
 ) {
-  if (jugador.casillas[categoria] != null) return false;
+  if (casillaOcupada(jugador, categoria)) return false;
   if (categoria == CategoriaGenerala.generalaDoble &&
       !jugador.generalaAnotada) {
     return false;
@@ -176,6 +239,32 @@ void toggleDadoGuardado(EstadoTurnoGenerala t, int index) {
   if (!t.hayDados || t.debeAnotar) return;
   if (t.tiradasHechas == 0) return;
   t.guardados[index] = !t.guardados[index];
+}
+
+/// Tras una tirada, pinta de dorado los dados que sirven:
+/// - Escalera / FULL / Generala: los 5.
+/// - Toda cara que aparezca 2 o más veces (incluye dos pares).
+/// - Si no hay pares, no toca la selección manual (p. ej. armando escalera).
+void autoSeleccionarDadosUtiles(EstadoTurnoGenerala t) {
+  if (!t.hayDados) return;
+
+  if (esEscalera(t.dados) || esFull(t.dados) || esGenerala(t.dados)) {
+    t.guardados = List.filled(dadosGenerala, true);
+    return;
+  }
+
+  final counts = contarCaras(t.dados);
+  final carasUtiles = {
+    for (final e in counts.entries)
+      if (e.value >= 2) e.key,
+  };
+
+  if (carasUtiles.isEmpty) return;
+
+  for (var i = 0; i < dadosGenerala; i++) {
+    t.guardados[i] = carasUtiles.contains(t.dados[i]);
+  }
+  compactarDadosGuardados(t);
 }
 
 /// Agrupa a la izquierda los dados guardados (amarillos) y a la derecha el resto.
@@ -267,6 +356,7 @@ void anotarCategoria(
     categoria,
     t.dados,
     yaTieneGenerala: j.generalaAnotada,
+    servida: t.tiradasHechas == 1,
   );
   j.casillas[categoria] = pts;
 

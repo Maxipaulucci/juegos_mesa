@@ -19,6 +19,7 @@ class TableroGeneralaOverlay extends StatelessWidget {
     this.dadosActuales,
     this.onElegirCategoria,
     this.onCerrar,
+    this.permitirCerrar = true,
   });
 
   final PartidaGenerala partida;
@@ -27,6 +28,8 @@ class TableroGeneralaOverlay extends StatelessWidget {
   final List<int>? dadosActuales;
   final ValueChanged<CategoriaGenerala>? onElegirCategoria;
   final VoidCallback? onCerrar;
+  /// Si false (anotar obligatorio tras 3 tiradas), no hay cruz ni tap afuera.
+  final bool permitirCerrar;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +38,7 @@ class TableroGeneralaOverlay extends StatelessWidget {
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: cerrar,
+        onTap: permitirCerrar ? cerrar : null,
         child: SafeArea(
           child: Center(
             child: GestureDetector(
@@ -95,14 +98,15 @@ class TableroGeneralaOverlay extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            IconButton(
-                              onPressed: cerrar,
-                              tooltip: 'Cerrar',
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: AppColors.textoSuave,
+                            if (permitirCerrar)
+                              IconButton(
+                                onPressed: cerrar,
+                                tooltip: 'Cerrar',
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: AppColors.textoSuave,
+                                ),
                               ),
-                            ),
                           ],
                         ),
                         if (modoAnotar) ...[
@@ -256,6 +260,7 @@ class _TableroTabla extends StatelessWidget {
                       esTurnoActual: i == partida.indiceTurno,
                       modoAnotar: modoAnotar,
                       dadosActuales: dadosActuales,
+                      servida: partida.turno.tiradasHechas == 1,
                       onElegir: onElegirCategoria,
                     ),
                   ),
@@ -320,6 +325,7 @@ class _Casilla extends StatelessWidget {
     required this.esTurnoActual,
     required this.modoAnotar,
     this.dadosActuales,
+    this.servida = false,
     this.onElegir,
   });
 
@@ -329,6 +335,7 @@ class _Casilla extends StatelessWidget {
   final bool esTurnoActual;
   final bool modoAnotar;
   final List<int>? dadosActuales;
+  final bool servida;
   final ValueChanged<CategoriaGenerala>? onElegir;
 
   @override
@@ -336,9 +343,10 @@ class _Casilla extends StatelessWidget {
     final valor = jugador.casillas[categoria];
     final color = colorJugadorTablero(indexJugador);
 
-    if (valor != null) {
+    // Ya anotada: solo se muestra el valor, nunca se puede volver a tocar.
+    if (casillaOcupada(jugador, categoria) || valor != null) {
       return Text(
-        '$valor',
+        '${valor ?? 0}',
         textAlign: TextAlign.center,
         style: TextStyle(
           color: color,
@@ -353,6 +361,7 @@ class _Casilla extends StatelessWidget {
 
     final elegible = modoAnotar &&
         esTurnoActual &&
+        onElegir != null &&
         puedeElegirCategoria(jugador, categoria) &&
         dadosActuales != null &&
         dadosActuales!.length == dadosGenerala;
@@ -373,15 +382,20 @@ class _Casilla extends StatelessWidget {
       categoria,
       dadosActuales!,
       yaTieneGenerala: jugador.generalaAnotada,
+      servida: servida,
     );
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => onElegir?.call(categoria),
+        onTap: () {
+          if (!puedeElegirCategoria(jugador, categoria)) return;
+          onElegir!.call(categoria);
+        },
         borderRadius: BorderRadius.circular(8),
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          width: 44,
+          padding: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: color.withValues(alpha: 0.85)),
@@ -408,6 +422,7 @@ class _CategoriaLabel extends StatelessWidget {
   final String texto;
 
   bool get _esEspecial =>
+      texto == 'ESCALERA' ||
       texto == 'FULL' ||
       texto == 'POKER' ||
       texto == 'GENERALA' ||
@@ -446,6 +461,7 @@ class _CategoriaLabel extends StatelessWidget {
     }
 
     final color = switch (texto) {
+      'ESCALERA' => AppColors.acentoSuave,
       'FULL' => AppColors.mint,
       'POKER' => AppColors.azul,
       'GENERALA' => AppColors.acento,
