@@ -501,7 +501,8 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
   t.guardados = List.filled(dadosGenerala, false);
 }
 
-/// Agrupa a la izquierda los dados guardados (amarillos) y a la derecha el resto.
+/// Agrupa a la izquierda los dados guardados (amarillos), ordenados de menor
+/// a mayor, y a la derecha el resto.
 void compactarDadosGuardados(EstadoTurnoGenerala t) {
   if (!t.hayDados) return;
   final kept = <int>[];
@@ -513,6 +514,7 @@ void compactarDadosGuardados(EstadoTurnoGenerala t) {
       free.add(t.dados[i]);
     }
   }
+  kept.sort();
   t.dados = [...kept, ...free];
   t.guardados = [
     ...List.filled(kept.length, true),

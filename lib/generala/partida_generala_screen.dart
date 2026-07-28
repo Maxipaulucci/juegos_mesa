@@ -8,6 +8,8 @@ import 'package:app_juegos_mesa/diezMil/dado_widget.dart';
 import 'package:app_juegos_mesa/diezMil/ia_diez_mil.dart';
 import 'package:app_juegos_mesa/generala/motor_generala.dart';
 import 'package:app_juegos_mesa/generala/tablero_generala.dart';
+import 'package:app_juegos_mesa/generala/textos.dart';
+import 'package:app_juegos_mesa/generala/victoria_generala_overlay.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class PartidaGeneralaScreen extends StatefulWidget {
@@ -375,6 +377,46 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     if (_partida.ganador == null && _turnoDeLaPc) {
       _programarJugadaPc(demoraMs: 800);
     }
+  }
+
+  void _abrirReglas() {
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+    });
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.carta,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'REGLAS · GENERALA',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.acento,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                reglasGenerala(),
+                style: const TextStyle(color: AppColors.texto, height: 1.45),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _abrirMenu() {
@@ -750,12 +792,13 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
           ),
           if (_mostrarVictoria && _partida.ganador != null)
             Positioned.fill(
-              child: _VictoriaGeneralaOverlay(
+              child: VictoriaGeneralaOverlay(
                 partida: _partida,
                 ganador: _partida.ganador!,
                 subtitulo: _subtituloVictoria,
+                animaciones: _ajustes.animaciones,
                 onVolverAJugar: _volverAJugar,
-                onSalir: () => Navigator.of(context).pop(),
+                onVolver: () => Navigator.of(context).pop(),
               ),
             ),
           if (_mostrarMenu)
@@ -768,6 +811,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                   _mostrarMenu = false;
                   _confirmarRendicion = false;
                 }),
+                onReglas: _abrirReglas,
                 onSalirORendirse: widget.contraPc
                     ? () => Navigator.of(context).pop()
                     : () => setState(() => _confirmarRendicion = true),
@@ -958,6 +1002,67 @@ class _PlayerCard extends StatelessWidget {
 
   Color get accent => colorJugadorTablero(index);
 
+  static IconData iconoDe(int index) => switch (index % 4) {
+        0 => Icons.face,
+        1 => Icons.face_6,
+        2 => Icons.face_retouching_natural,
+        _ => Icons.emoji_emotions,
+      };
+
+  Widget _avatar({double size = 48}) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                accent,
+                accent.withValues(alpha: 0.25),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.45),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(3),
+          child: Container(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.fondoSuave,
+            ),
+            child: Icon(
+              iconoDe(index),
+              color: accent,
+              size: size * 0.55,
+            ),
+          ),
+        ),
+        if (activo && !jugador.rendido)
+          const Positioned(
+            top: -12,
+            child: Icon(
+              Icons.workspace_premium,
+              color: AppColors.acento,
+              size: 22,
+              shadows: [
+                Shadow(color: AppColors.acento, blurRadius: 12),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _nombre() {
     return Material(
       color: Colors.transparent,
@@ -1031,10 +1136,7 @@ class _PlayerCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: accent.withValues(alpha: 0.25),
-            child: Icon(Icons.person, color: accent),
-          ),
+          _avatar(),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1274,460 +1376,13 @@ class _OutlinedActionButton extends StatelessWidget {
   }
 }
 
-class _VictoriaGeneralaOverlay extends StatefulWidget {
-  const _VictoriaGeneralaOverlay({
-    required this.partida,
-    required this.ganador,
-    required this.onVolverAJugar,
-    required this.onSalir,
-    this.subtitulo,
-  });
-
-  final PartidaGenerala partida;
-  final String ganador;
-  final String? subtitulo;
-  final VoidCallback onVolverAJugar;
-  final VoidCallback onSalir;
-
-  @override
-  State<_VictoriaGeneralaOverlay> createState() =>
-      _VictoriaGeneralaOverlayState();
-}
-
-class _VictoriaGeneralaOverlayState extends State<_VictoriaGeneralaOverlay> {
-  bool _mostrarStats = false;
-  bool _mostrarTablero = false;
-  JugadorGenerala? _jugadorDetalle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.75),
-      child: Stack(
-        children: [
-          Center(
-            child: _jugadorDetalle != null
-                ? _buildDetalleJugador(_jugadorDetalle!)
-                : _mostrarStats
-                    ? _buildStats()
-                    : _buildWinner(),
-          ),
-          if (_mostrarTablero)
-            Positioned.fill(
-              child: TableroGeneralaOverlay(
-                partida: widget.partida,
-                onCerrar: () => setState(() => _mostrarTablero = false),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWinner() {
-    final total = widget.partida.jugadores
-        .firstWhere((j) => j.nombre == widget.ganador)
-        .total;
-    return Container(
-      width: 320,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.carta,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.acento, width: 1.6),
-        boxShadow: neonGlow(AppColors.acento, blur: 20),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '¡GANÓ!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.acento,
-              fontWeight: FontWeight.w900,
-              fontSize: 22,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            widget.ganador.toUpperCase(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.texto,
-              fontWeight: FontWeight.w900,
-              fontSize: 26,
-            ),
-          ),
-          if (widget.subtitulo != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              widget.subtitulo!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textoSuave,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
-          ],
-          const SizedBox(height: 6),
-          Text(
-            '$total PTS',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.mint,
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () => setState(() => _mostrarStats = true),
-            icon: const Icon(Icons.bar_chart_rounded),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.azul,
-              foregroundColor: Colors.white,
-            ),
-            label: const Text('Estadísticas'),
-          ),
-          const SizedBox(height: 10),
-          ElevatedButton(
-            onPressed: widget.onVolverAJugar,
-            child: const Text('Volver a jugar'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton(
-            onPressed: widget.onSalir,
-            child: const Text('Salir'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStats() {
-    final ranking = [...widget.partida.jugadores]
-      ..sort((a, b) => b.total.compareTo(a.total));
-
-    return Container(
-      width: 340,
-      constraints: const BoxConstraints(maxHeight: 520),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        color: AppColors.carta,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.azul, width: 1.6),
-        boxShadow: neonGlow(AppColors.azul, blur: 18),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => setState(() => _mostrarStats = false),
-                tooltip: 'Volver',
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: AppColors.textoSuave,
-                ),
-              ),
-              const Expanded(
-                child: Text(
-                  'ESTADÍSTICAS',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.azul,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 48),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: ranking.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, i) {
-                final j = ranking[i];
-                final esGanador = j.nombre == widget.ganador;
-                final color = colorJugadorTablero(
-                  widget.partida.jugadores.indexOf(j),
-                );
-                return Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => setState(() => _jugadorDetalle = j),
-                    borderRadius: BorderRadius.circular(14),
-                    child: Ink(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: esGanador
-                              ? AppColors.acento
-                              : color.withValues(alpha: 0.55),
-                          width: esGanador ? 1.8 : 1.2,
-                        ),
-                        color: color.withValues(alpha: 0.1),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            '${i + 1}°',
-                            style: TextStyle(
-                              color: color,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              j.nombre,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: esGanador
-                                    ? AppColors.acento
-                                    : AppColors.texto,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            '${j.total} PTS',
-                            style: TextStyle(
-                              color: color,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: color.withValues(alpha: 0.8),
-                            size: 22,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 14),
-          ElevatedButton.icon(
-            onPressed: () => setState(() => _mostrarTablero = true),
-            icon: const Icon(Icons.grid_view_rounded),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.violeta,
-              foregroundColor: Colors.white,
-            ),
-            label: const Text('Ver tablero'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: widget.onSalir,
-            child: const Text('Salir'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetalleJugador(JugadorGenerala jugador) {
-    final color = colorJugadorTablero(
-      widget.partida.jugadores.indexOf(jugador),
-    );
-    final esGanador = jugador.nombre == widget.ganador;
-    final historial = jugador.historial;
-    final maxH = MediaQuery.sizeOf(context).height * 0.82;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 400, maxHeight: maxH),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.carta,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: color, width: 1.6),
-            boxShadow: neonGlow(color, blur: 18),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () =>
-                          setState(() => _jugadorDetalle = null),
-                      tooltip: 'Volver',
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: AppColors.textoSuave,
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Text(
-                            jugador.nombre.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: color,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 18,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                          if (esGanador)
-                            const Text(
-                              'GANADOR',
-                              style: TextStyle(
-                                color: AppColors.mint,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-                Text(
-                  '${jugador.total} PTS · ${historial.length} turnos',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.textoSuave,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: historial.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Sin turnos registrados',
-                            style: TextStyle(color: AppColors.textoSuave),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.only(right: 6, bottom: 4),
-                          itemCount: historial.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (context, i) {
-                            final r = historial[i];
-                            final dadosTxt = r.dadosFinales.join(' · ');
-                            final accion = r.puntos > 0
-                                ? 'Anotó ${r.categoria.etiqueta} → ${r.puntos} pts'
-                                : 'Tachó ${r.categoria.etiqueta} → 0 pts';
-                            return DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: color.withValues(alpha: 0.45),
-                                ),
-                                color: color.withValues(alpha: 0.08),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  10,
-                                  12,
-                                  10,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'TURNO ${r.numero}',
-                                      style: TextStyle(
-                                        color: color,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 13,
-                                        letterSpacing: 0.6,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Tiradas usadas: ${r.tiradasUsadas}/$maxTiradasGenerala',
-                                      style: const TextStyle(
-                                        color: AppColors.textoSuave,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Dados finales: $dadosTxt',
-                                      softWrap: true,
-                                      style: const TextStyle(
-                                        color: AppColors.texto,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      accion,
-                                      softWrap: true,
-                                      style: TextStyle(
-                                        color: r.puntos > 0
-                                            ? AppColors.mint
-                                            : AppColors.peligro,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MenuOverlay extends StatelessWidget {
   const _MenuOverlay({
     required this.jugador,
     required this.esContraPc,
     required this.confirmarRendicion,
     required this.onCerrar,
+    required this.onReglas,
     required this.onSalirORendirse,
     required this.onConfirmarRendicion,
     required this.onCancelarRendicion,
@@ -1737,6 +1392,7 @@ class _MenuOverlay extends StatelessWidget {
   final bool esContraPc;
   final bool confirmarRendicion;
   final VoidCallback onCerrar;
+  final VoidCallback onReglas;
   final VoidCallback onSalirORendirse;
   final VoidCallback onConfirmarRendicion;
   final VoidCallback onCancelarRendicion;
@@ -1775,7 +1431,6 @@ class _MenuOverlay extends StatelessWidget {
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(
                           children: [
@@ -1819,33 +1474,34 @@ class _MenuOverlay extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text(
                           'Turno actual',
-                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: AppColors.textoSuave.withValues(alpha: 0.95),
+                            color:
+                                AppColors.textoSuave.withValues(alpha: 0.95),
                             fontWeight: FontWeight.w700,
                             fontSize: 13,
                           ),
                         ),
                         const SizedBox(height: 22),
+                        _ArcadeButton(
+                          label: 'REGLAS',
+                          icon: Icons.menu_book_rounded,
+                          tono: _BotonTono.azul,
+                          onPressed: onReglas,
+                        ),
+                        const SizedBox(height: 10),
                         if (esContraPc)
-                          ElevatedButton(
+                          _ArcadeButton(
+                            label: 'SALIR',
+                            icon: Icons.logout_rounded,
+                            tono: _BotonTono.rojo,
                             onPressed: onSalirORendirse,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.peligro,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(52),
-                            ),
-                            child: const Text('SALIR'),
                           )
                         else if (!confirmarRendicion)
-                          ElevatedButton(
+                          _ArcadeButton(
+                            label: 'RENDIRSE',
+                            icon: Icons.flag_rounded,
+                            tono: _BotonTono.rojo,
                             onPressed: onSalirORendirse,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.peligro,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(52),
-                            ),
-                            child: const Text('RENDIRSE'),
                           )
                         else ...[
                           const Text(
@@ -1858,22 +1514,18 @@ class _MenuOverlay extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          ElevatedButton(
+                          _ArcadeButton(
+                            label: 'CONFIRMAR RENDICIÓN',
+                            icon: Icons.check_circle_outline,
+                            tono: _BotonTono.rojo,
                             onPressed: onConfirmarRendicion,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.peligro,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(52),
-                            ),
-                            child: const Text('CONFIRMAR RENDICIÓN'),
                           ),
                           const SizedBox(height: 10),
-                          OutlinedButton(
+                          _ArcadeButton(
+                            label: 'CANCELAR',
+                            icon: Icons.close,
+                            tono: _BotonTono.violeta,
                             onPressed: onCancelarRendicion,
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(52),
-                            ),
-                            child: const Text('CANCELAR'),
                           ),
                         ],
                       ],
@@ -1889,7 +1541,7 @@ class _MenuOverlay extends StatelessWidget {
   }
 }
 
-enum _BotonTono { dorado, violeta }
+enum _BotonTono { dorado, violeta, azul, rojo }
 
 class _ArcadeButton extends StatelessWidget {
   const _ArcadeButton({
@@ -1907,13 +1559,44 @@ class _ArcadeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
-    final colors = tono == _BotonTono.dorado
-        ? const [Color(0xFFFFF3B0), Color(0xFFFFD54F), Color(0xFFFF9800)]
-        : const [Color(0xFFCE93D8), Color(0xFFAB47BC), Color(0xFF6A1B9A)];
-    final fg =
-        tono == _BotonTono.dorado ? const Color(0xFF4A1B6D) : Colors.white;
-    final glow =
-        tono == _BotonTono.dorado ? AppColors.acento : AppColors.rosa;
+    late final List<Color> colors;
+    late final Color glow;
+    late final Color fg;
+
+    switch (tono) {
+      case _BotonTono.dorado:
+        colors = const [
+          Color(0xFFFFF3B0),
+          Color(0xFFFFD54F),
+          Color(0xFFFF9800),
+        ];
+        glow = AppColors.acento;
+        fg = const Color(0xFF4A1B6D);
+      case _BotonTono.violeta:
+        colors = const [
+          Color(0xFFCE93D8),
+          Color(0xFFAB47BC),
+          Color(0xFF6A1B9A),
+        ];
+        glow = AppColors.rosa;
+        fg = Colors.white;
+      case _BotonTono.azul:
+        colors = const [
+          Color(0xFF81D4FA),
+          Color(0xFF29B6F6),
+          Color(0xFF0277BD),
+        ];
+        glow = AppColors.azul;
+        fg = Colors.white;
+      case _BotonTono.rojo:
+        colors = const [
+          Color(0xFFFF8A80),
+          Color(0xFFFF5252),
+          Color(0xFFC62828),
+        ];
+        glow = AppColors.peligro;
+        fg = Colors.white;
+    }
 
     return Opacity(
       opacity: enabled ? 1 : 0.4,
