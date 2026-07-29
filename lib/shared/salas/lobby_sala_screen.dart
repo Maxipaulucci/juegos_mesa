@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,15 +10,15 @@ import 'package:app_juegos_mesa/theme/app_theme.dart';
 class LobbySalaScreen extends StatefulWidget {
   const LobbySalaScreen({
     super.key,
-    required this.sala,
+    required this.salaInicial,
     required this.miId,
     required this.onIniciarPartida,
     this.mostrarSelectorDados = true,
   });
 
-  final Sala sala;
+  final Sala salaInicial;
   final String miId;
-  final void Function(BuildContext context, List<String> nombres, int dados)
+  final void Function(BuildContext context, InicioPartidaOnline inicio)
       onIniciarPartida;
   final bool mostrarSelectorDados;
 
@@ -25,41 +27,121 @@ class LobbySalaScreen extends StatefulWidget {
 }
 
 class _LobbySalaScreenState extends State<LobbySalaScreen> {
-  bool _mostrarCodigo = false;
-  int _dados = 5;
+  late Sala _sala;
+  bool _mostrarCodigo = true;
+  late int _dados;
+  bool _iniciando = false;
+  bool _partidaLanzada = false;
+  StreamSubscription<Sala>? _sub;
 
-  bool get _soyAnfitrion => widget.miId == widget.sala.anfitrionId;
+  bool get _soyAnfitrion => widget.miId == _sala.anfitrionId;
 
-  void _expulsar(JugadorSala j) {
+  @override
+  void initState() {
+    super.initState();
+    _sala = widget.salaInicial;
+    _dados = _sala.dados;
+    _sub = SalaService.instance.watch(_sala.codigo).listen(_onSalaUpdate);
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _onSalaUpdate(Sala sala) {
+    if (!mounted || _partidaLanzada) return;
+
+    final sigoAdentro = sala.jugadores.any((j) => j.id == widget.miId);
+    if (!sigoAdentro) {
+      _sub?.cancel();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Te expulsaron de la sala.')),
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+
     setState(() {
-      SalaService.instance.expulsar(widget.sala, j.id);
+      _sala = sala;
+      if (!_soyAnfitrion) _dados = sala.dados;
     });
+    if (sala.iniciada) {
+      _lanzarPartida(sala);
+    }
+  }
+
+  void _lanzarPartida(Sala sala) {
+    if (_partidaLanzada || !mounted) return;
+    _partidaLanzada = true;
+    _sub?.cancel();
+    final yo = sala.jugadores.where((j) => j.id == widget.miId);
+    final miNombre = yo.isNotEmpty ? yo.first.nombre : sala.jugadores.first.nombre;
+    widget.onIniciarPartida(
+      context,
+      InicioPartidaOnline(
+        nombres: sala.jugadores.map((j) => j.nombre).toList(),
+        dados: sala.dados,
+        salaCodigo: sala.codigo,
+        miNombre: miNombre,
+      ),
+    );
+  }
+
+  Future<void> _expulsar(JugadorSala j) async {
+    try {
+      final sala = await SalaService.instance.expulsar(
+        codigo: _sala.codigo,
+        anfitrionId: widget.miId,
+        jugadorId: j.id,
+      );
+      if (!mounted) return;
+      setState(() => _sala = sala);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Bad state: ', ''))),
+      );
+    }
   }
 
   void _copiarCodigo() {
-    Clipboard.setData(ClipboardData(text: widget.sala.codigo));
+    Clipboard.setData(ClipboardData(text: _sala.codigo));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Código copiado')),
     );
   }
 
-  void _iniciar() {
-    if (widget.sala.jugadores.length < 2) {
+  Future<void> _iniciar() async {
+    if (_sala.jugadores.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Hacen falta al menos 2 jugadores')),
       );
       return;
     }
-    final nombres = widget.sala.jugadores.map((j) => j.nombre).toList();
-    final dados = widget.mostrarSelectorDados ? _dados : 5;
-    widget.onIniciarPartida(context, nombres, dados);
+    setState(() => _iniciando = true);
+    try {
+      final sala = await SalaService.instance.iniciar(
+        codigo: _sala.codigo,
+        anfitrionId: widget.miId,
+        dados: widget.mostrarSelectorDados ? _dados : 5,
+      );
+      if (!mounted) return;
+      _lanzarPartida(sala);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _iniciando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Bad state: ', ''))),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final codigoVisible = _mostrarCodigo
-        ? widget.sala.codigo
-        : '*' * widget.sala.codigo.length;
+    final codigoVisible =
+        _mostrarCodigo ? _sala.codigo : '*' * _sala.codigo.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sala')),
@@ -115,12 +197,14 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                   ButtonSegment(value: 6, label: Text('6 dados')),
                 ],
                 selected: {_dados},
-                onSelectionChanged: (s) => setState(() => _dados = s.first),
+                onSelectionChanged: _iniciando
+                    ? null
+                    : (s) => setState(() => _dados = s.first),
               ),
             ],
             const SizedBox(height: 24),
             Text(
-              'Jugadores (${widget.sala.jugadores.length})',
+              'Jugadores (${_sala.jugadores.length})',
               style: const TextStyle(
                 color: AppColors.texto,
                 fontWeight: FontWeight.w700,
@@ -130,11 +214,11 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
             const SizedBox(height: 8),
             Expanded(
               child: ListView.separated(
-                itemCount: widget.sala.jugadores.length,
+                itemCount: _sala.jugadores.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, i) {
-                  final j = widget.sala.jugadores[i];
-                  final esHost = j.id == widget.sala.anfitrionId;
+                  final j = _sala.jugadores[i];
+                  final esHost = j.id == _sala.anfitrionId;
                   return Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -172,13 +256,18 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
             ),
             if (_soyAnfitrion)
               ElevatedButton(
-                onPressed: _iniciar,
-                child: const Text('Iniciar partida'),
+                onPressed: _iniciando ? null : _iniciar,
+                child: _iniciando
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Iniciar partida'),
               )
             else
               const Text(
-                'Nota: las salas todavía son locales (mismo dispositivo). '
-                'El online llega cuando conectemos Firebase/Supabase.',
+                'Cuando el anfitrión inicie, la partida arranca sola acá.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textoSuave, fontSize: 12),
               ),

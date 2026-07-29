@@ -1,83 +1,197 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/sala.dart';
 
-/// Servicio local de salas.
-/// Hoy vive en memoria; después se reemplaza por Firebase/Supabase
-/// sin cambiar las pantallas.
+/// URL base del API de salas.
+///
+/// En Netlify (mismo origen) queda vacío.
+/// En `flutter run` local apunta al sitio publicado para compartir salas.
+const String kSalaApiBase = String.fromEnvironment(
+  'SALA_API_BASE',
+  defaultValue: 'https://juegosdemesaargentos.netlify.app',
+);
+
+/// Salas online vía Netlify Functions + Blobs.
 class SalaService {
   SalaService._();
   static final instance = SalaService._();
 
-  final Map<String, Sala> _salas = {};
   final _rng = Random();
+
+  Uri _uri([Map<String, String>? query]) {
+    final base = kIsWeb && !kDebugMode ? '' : kSalaApiBase;
+    return Uri.parse('$base/api/sala').replace(queryParameters: query);
+  }
 
   String generarCodigo({int largo = 6}) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     return List.generate(largo, (_) => chars[_rng.nextInt(chars.length)]).join();
   }
 
-  Sala crear({
+  Future<Map<String, dynamic>> _post(Map<String, dynamic> body) async {
+    final res = await http
+        .post(
+          _uri(),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 15));
+    final decoded = _decode(res.body);
+    if (res.statusCode >= 400) {
+      throw StateError(decoded['error']?.toString() ?? 'Error de red (${res.statusCode}).');
+    }
+    return decoded;
+  }
+
+  Map<String, dynamic> _decode(String body) {
+    if (body.isEmpty) return {};
+    final v = jsonDecode(body);
+    if (v is Map<String, dynamic>) return v;
+    if (v is Map) return Map<String, dynamic>.from(v);
+    return {};
+  }
+
+  Sala _parseSala(Map<String, dynamic> raw) {
+    final jugadoresRaw = raw['jugadores'];
+    final jugadores = <JugadorSala>[];
+    if (jugadoresRaw is List) {
+      for (final j in jugadoresRaw) {
+        if (j is! Map) continue;
+        final m = Map<String, dynamic>.from(j);
+        jugadores.add(
+          JugadorSala(
+            id: m['id']?.toString() ?? '',
+            nombre: m['nombre']?.toString() ?? '',
+            rol: m['rol']?.toString() == 'anfitrion'
+                ? RolJugadorSala.anfitrion
+                : RolJugadorSala.invitado,
+          ),
+        );
+      }
+    }
+    return Sala(
+      codigo: raw['codigo']?.toString() ?? '',
+      juegoId: raw['juegoId']?.toString() ?? '',
+      anfitrionId: raw['anfitrionId']?.toString() ?? '',
+      jugadores: jugadores,
+      estado: raw['estado']?.toString() ?? 'lobby',
+      dados: (raw['dados'] is int) ? raw['dados'] as int : 5,
+      gameState: raw['gameState'] is Map
+          ? Map<String, dynamic>.from(raw['gameState'] as Map)
+          : null,
+    );
+  }
+
+  Future<({Sala sala, String miId})> crear({
     required String juegoId,
     required String nombreAnfitrion,
     String? codigoPreferido,
-  }) {
-    var codigo = (codigoPreferido ?? '').trim().toUpperCase();
-    if (codigo.isEmpty) {
-      do {
-        codigo = generarCodigo();
-      } while (_salas.containsKey(codigo));
-    } else if (_salas.containsKey(codigo)) {
-      throw StateError('Ese código ya está en uso. Probá otro.');
-    }
-
-    final anfitrionId = 'local-host';
-    final sala = Sala(
-      codigo: codigo,
-      juegoId: juegoId,
-      anfitrionId: anfitrionId,
-      jugadores: [
-        JugadorSala(
-          id: anfitrionId,
-          nombre: nombreAnfitrion.trim(),
-          rol: RolJugadorSala.anfitrion,
-        ),
-      ],
-    );
-    _salas[codigo] = sala;
-    return sala;
+  }) async {
+    final data = await _post({
+      'action': 'crear',
+      'juegoId': juegoId,
+      'nombre': nombreAnfitrion.trim(),
+      if (codigoPreferido != null && codigoPreferido.trim().isNotEmpty)
+        'codigo': codigoPreferido.trim().toUpperCase(),
+    });
+    final salaMap = Map<String, dynamic>.from(data['sala'] as Map);
+    return (sala: _parseSala(salaMap), miId: data['miId'] as String);
   }
 
-  Sala unirse({
+  Future<({Sala sala, String miId})> unirse({
     required String codigo,
     required String nombre,
-  }) {
-    final key = codigo.trim().toUpperCase();
-    final sala = _salas[key];
-    if (sala == null) {
-      throw StateError('No existe una sala con ese código.');
-    }
-    if (sala.jugadores.any((j) => j.nombre.toLowerCase() == nombre.trim().toLowerCase())) {
-      throw StateError('Ese nombre ya está en la sala.');
-    }
-
-    final invitado = JugadorSala(
-      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-      nombre: nombre.trim(),
-      rol: RolJugadorSala.invitado,
-    );
-    sala.jugadores.add(invitado);
-    return sala;
+    required String juegoId,
+  }) async {
+    final data = await _post({
+      'action': 'unirse',
+      'codigo': codigo.trim().toUpperCase(),
+      'nombre': nombre.trim(),
+      'juegoId': juegoId,
+    });
+    final salaMap = Map<String, dynamic>.from(data['sala'] as Map);
+    return (sala: _parseSala(salaMap), miId: data['miId'] as String);
   }
 
-  void expulsar(Sala sala, String jugadorId) {
-    if (jugadorId == sala.anfitrionId) return;
-    sala.jugadores.removeWhere((j) => j.id == jugadorId);
+  Future<Sala> obtener(String codigo) async {
+    final res = await http
+        .get(_uri({'codigo': codigo.trim().toUpperCase()}))
+        .timeout(const Duration(seconds: 15));
+    final decoded = _decode(res.body);
+    if (res.statusCode >= 400) {
+      throw StateError(decoded['error']?.toString() ?? 'No se pudo cargar la sala.');
+    }
+    return _parseSala(Map<String, dynamic>.from(decoded['sala'] as Map));
   }
 
-  Sala? obtener(String codigo) => _salas[codigo.trim().toUpperCase()];
+  Future<Sala> expulsar({
+    required String codigo,
+    required String anfitrionId,
+    required String jugadorId,
+  }) async {
+    final data = await _post({
+      'action': 'expulsar',
+      'codigo': codigo,
+      'anfitrionId': anfitrionId,
+      'jugadorId': jugadorId,
+    });
+    return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
+  }
 
-  void cerrar(String codigo) {
-    _salas.remove(codigo.trim().toUpperCase());
+  Future<Sala> iniciar({
+    required String codigo,
+    required String anfitrionId,
+    required int dados,
+  }) async {
+    final data = await _post({
+      'action': 'iniciar',
+      'codigo': codigo,
+      'anfitrionId': anfitrionId,
+      'dados': dados,
+    });
+    return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
+  }
+
+  Future<Sala> actualizarJuego({
+    required String codigo,
+    required Map<String, dynamic> gameState,
+  }) async {
+    final data = await _post({
+      'action': 'actualizarJuego',
+      'codigo': codigo,
+      'gameState': gameState,
+    });
+    return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
+  }
+
+  Future<void> cerrar({
+    required String codigo,
+    required String anfitrionId,
+  }) async {
+    await _post({
+      'action': 'cerrar',
+      'codigo': codigo,
+      'anfitrionId': anfitrionId,
+    });
+  }
+
+  /// Polling cada [intervalo] mientras la sala exista.
+  Stream<Sala> watch(
+    String codigo, {
+    Duration intervalo = const Duration(milliseconds: 1200),
+  }) async* {
+    while (true) {
+      try {
+        yield await obtener(codigo);
+      } catch (_) {
+        // Red momentánea: reintenta.
+      }
+      await Future<void>.delayed(intervalo);
+    }
   }
 }

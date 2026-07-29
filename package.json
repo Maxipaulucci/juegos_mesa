@@ -1,0 +1,27 @@
+{
+  "name": "juegos_mesa",
+  "version": "1.0.0",
+  "description": "App Flutter con salas por código. Primer juego: **Diez Mil** (motor portado desde `DIEZ MIL/motor.py`).",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Maxipaulucci/juegos_mesa.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Maxipaulucci/juegos_mesa/issues"
+  },
+  "homepage": "https://github.com/Maxipaulucci/juegos_mesa#readme",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.10"
+  }
+}

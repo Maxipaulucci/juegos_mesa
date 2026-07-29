@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -13,7 +15,7 @@ class UnirseSalaScreen extends StatefulWidget {
   });
 
   final String juegoId;
-  final void Function(BuildContext context, List<String> nombres, int dados)
+  final void Function(BuildContext context, InicioPartidaOnline inicio)
       onIniciarPartida;
   final bool mostrarSelectorDados;
 
@@ -25,6 +27,7 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
   final _nombreCtrl = TextEditingController();
   final _codigoCtrl = TextEditingController();
   String? _error;
+  bool _cargando = false;
 
   @override
   void dispose() {
@@ -33,7 +36,7 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
     super.dispose();
   }
 
-  void _unirse() {
+  Future<void> _unirse() async {
     final nombre = _nombreCtrl.text.trim();
     final codigo = _codigoCtrl.text.trim();
     if (nombre.isEmpty) {
@@ -44,27 +47,43 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
       setState(() => _error = 'Ingresá el código de la sala.');
       return;
     }
+    if (codigo.length != 6) {
+      setState(() => _error = 'El código debe tener exactamente 6 caracteres.');
+      return;
+    }
+    if (!RegExp(r'^[a-zA-Z0-9]{6}$').hasMatch(codigo)) {
+      setState(() => _error = 'El código solo puede tener letras y números.');
+      return;
+    }
+
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
 
     try {
-      final sala = SalaService.instance.unirse(codigo: codigo, nombre: nombre);
-      if (sala.juegoId != widget.juegoId) {
-        setState(() => _error = 'Esa sala es de otro juego.');
-        return;
-      }
-      final yo = sala.jugadores.last;
+      final result = await SalaService.instance.unirse(
+        codigo: codigo,
+        nombre: nombre,
+        juegoId: widget.juegoId,
+      );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => LobbySalaScreen(
-            sala: sala,
-            miId: yo.id,
+            salaInicial: result.sala,
+            miId: result.miId,
             onIniciarPartida: widget.onIniciarPartida,
             mostrarSelectorDados: widget.mostrarSelectorDados,
           ),
         ),
       );
     } catch (e) {
-      setState(() => _error = e.toString().replaceFirst('Bad state: ', ''));
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString().replaceFirst('Bad state: ', '');
+        _cargando = false;
+      });
     }
   }
 
@@ -84,6 +103,7 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _nombreCtrl,
+              enabled: !_cargando,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(hintText: 'Ej: Sofía'),
             ),
@@ -95,8 +115,16 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
             const SizedBox(height: 8),
             TextField(
               controller: _codigoCtrl,
+              enabled: !_cargando,
+              maxLength: 6,
               textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(hintText: 'Ej: AB12CD'),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+              ],
+              decoration: const InputDecoration(
+                hintText: 'Exactamente 6 letras o números',
+                counterText: '',
+              ),
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
@@ -104,8 +132,14 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
             ],
             const Spacer(),
             ElevatedButton(
-              onPressed: _unirse,
-              child: const Text('Unirse'),
+              onPressed: _cargando ? null : _unirse,
+              child: _cargando
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Unirse'),
             ),
           ],
         ),

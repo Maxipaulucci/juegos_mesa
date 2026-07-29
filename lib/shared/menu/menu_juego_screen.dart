@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc_ui.dart';
@@ -62,8 +63,7 @@ class MenuJuegoScreen extends StatefulWidget {
 
   final void Function(
     BuildContext context,
-    List<String> nombres,
-    int dados,
+    InicioPartidaOnline inicio,
   ) onIniciarDesdeSala;
 
   @override

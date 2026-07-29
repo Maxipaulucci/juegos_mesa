@@ -52,12 +52,14 @@ class MenuDiezMilScreen extends StatelessWidget {
           ),
         );
       },
-      onIniciarDesdeSala: (ctx, nombres, dados) {
+      onIniciarDesdeSala: (ctx, inicio) {
         Navigator.of(ctx).pushReplacement(
           MaterialPageRoute<void>(
             builder: (_) => PartidaDiezMilScreen(
-              nombres: nombres,
-              modo: _modoDeDados(dados),
+              nombres: inicio.nombres,
+              modo: _modoDeDados(inicio.dados),
+              salaCodigo: inicio.salaCodigo,
+              miNombre: inicio.miNombre,
             ),
           ),
         );

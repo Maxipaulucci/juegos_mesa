@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../theme/app_theme.dart';
+import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'diez_mil_online_codec.dart';
 import 'estadisticas.dart';
 import 'ia_diez_mil.dart';
 import 'motor.dart';
@@ -30,6 +34,8 @@ class PartidaDiezMilScreen extends StatefulWidget {
     this.modoDios = false,
     this.ajustesIniciales = const AjustesEstado(),
     this.resume,
+    this.salaCodigo,
+    this.miNombre,
   });
 
   final List<String> nombres;
@@ -45,6 +51,11 @@ class PartidaDiezMilScreen extends StatefulWidget {
   final AjustesEstado ajustesIniciales;
   /// Si no es `null`, la pantalla arranca restaurando el estado en memoria.
   final PartidaDiezMilResume? resume;
+  /// Código de sala online. Si es no nulo (junto con [miNombre]), la
+  /// partida se sincroniza con el rival vía [SalaService].
+  final String? salaCodigo;
+  /// Nombre del jugador local en la sala online.
+  final String? miNombre;
 
   @override
   State<PartidaDiezMilScreen> createState() => _PartidaDiezMilScreenState();
@@ -79,12 +90,27 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   List<int>? _dadosAnimados;
   final _rngTirada = math.Random();
 
+  StreamSubscription<Sala>? _onlineSub;
+  int _onlineVersion = 0;
+  bool _publicandoOnline = false;
+
   static const int _maxNombre = 15;
 
   bool get _turnoDeLaPc =>
       widget.contraPc &&
       _partida.ganador == null &&
       _partida.jugadorActual.nombre == nombreJugadorPc;
+
+  bool get _esOnline => widget.salaCodigo != null && widget.miNombre != null;
+
+  bool get _esMiTurno =>
+      !_esOnline ||
+      (_partida.ganador == null &&
+          _partida.jugadorActual.nombre == widget.miNombre);
+
+  /// Le toca al rival online: hay que bloquear controles y avisar.
+  bool get _esperandoRivalOnline =>
+      _esOnline && !_esMiTurno && _partida.ganador == null;
 
   /// Con 3+ activos: una sola tarjeta (turno actual) + botón "Jugadores".
   /// Si en una partida de 3/4 quedan 2 activos, se usa el layout de 2 jugadores.
@@ -97,6 +123,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   bool _puedeRenombrar(int index) {
+    if (_esOnline) return false;
     if (_partida.ganador != null) return false;
     if (_partida.jugadores[index].rendido) return false;
     final nombre = _partida.jugadores[index].nombre;
@@ -136,12 +163,90 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         if (!mounted) return;
         if (_turnoDeLaPc) _programarJugadaPc();
       });
+      if (_esOnline) _iniciarSincronizacionOnline();
       return;
     }
 
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales;
     _iniciarPartidaNueva();
+    if (_esOnline) _iniciarSincronizacionOnline();
+  }
+
+  @override
+  void dispose() {
+    _onlineSub?.cancel();
+    super.dispose();
+  }
+
+  void _iniciarSincronizacionOnline() {
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+    if (_onlineVersion < 1) _onlineVersion = 1;
+    unawaited(() async {
+      try {
+        final sala = await SalaService.instance.obtener(codigo);
+        if (mounted) _onSalaOnlineActualizada(sala);
+      } catch (_) {}
+    }());
+    _onlineSub = SalaService.instance
+        .watch(codigo, intervalo: const Duration(milliseconds: 1200))
+        .listen(_onSalaOnlineActualizada);
+  }
+
+  /// Aplica el estado remoto si es más nuevo que el nuestro. Preferimos
+  /// siempre el estado del servidor por sobre el estado local inicial.
+  void _onSalaOnlineActualizada(Sala sala) {
+    if (!mounted) return;
+    final gameState = sala.gameState;
+    if (gameState == null) return;
+    final version = (gameState['version'] as num?)?.toInt() ?? 0;
+    if (version <= _onlineVersion || _publicandoOnline) return;
+
+    final resultado = applyDiezMilGameState(_partida, gameState);
+    setState(() {
+      _onlineVersion = version;
+      _mostrarVictoria = resultado.mostrarVictoria;
+      _subtituloVictoria = resultado.subtituloVictoria;
+      _mensaje = resultado.mensaje;
+      _ultimaTirada = resultado.ultimaTirada;
+      _ultimoResumen = resultado.ultimoResumen;
+      _animandoTirada = false;
+      _dadosAnimados = null;
+    });
+  }
+
+  /// Publica nuestro estado tras una acción propia (tirar/plantarse/pasar
+  /// turno/rendirse). Se llama solo desde lugares donde el actor local hizo
+  /// el cambio; no depende de a quién le toque después.
+  Future<void> _publicarEstadoOnline() async {
+    if (!_esOnline) return;
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+
+    _onlineVersion++;
+    final gameState = encodeDiezMilGameState(
+      partida: _partida,
+      version: _onlineVersion,
+      mostrarVictoria: _mostrarVictoria,
+      subtituloVictoria: _subtituloVictoria,
+      mensaje: _mensaje,
+      ultimaTirada: _ultimaTirada,
+      ultimoResumen: _ultimoResumen,
+    );
+
+    _publicandoOnline = true;
+    try {
+      await SalaService.instance.actualizarJuego(
+        codigo: codigo,
+        gameState: gameState,
+      );
+    } catch (_) {
+      // Red momentánea: el rival puede quedar un paso atrás hasta la
+      // próxima acción local o su propio watch reintentando.
+    } finally {
+      _publicandoOnline = false;
+    }
   }
 
   void _iniciarPartidaNueva() {
@@ -208,6 +313,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       _ultimoResumen = null;
       _mensaje = null;
     });
+    _publicarEstadoOnline();
     _programarJugadaPc();
   }
 
@@ -363,6 +469,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         return;
       }
       setState(() => _mostrarVictoria = true);
+      _publicarEstadoOnline();
     });
   }
 
@@ -447,6 +554,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         pasarTurno(_partida);
       }
     });
+    _publicarEstadoOnline();
 
     if (_partida.ganador != null) {
       _lanzarVictoria();
@@ -571,7 +679,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         _esperandoCambioDeTurno ||
         _partida.jugadorActual.rendido ||
         _standBy ||
-        _animandoTirada) {
+        _animandoTirada ||
+        !_esMiTurno) {
       return;
     }
 
@@ -651,6 +760,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         _mensaje = null;
       }
     });
+    _publicarEstadoOnline();
 
     if (_partida.ganador != null) {
       _lanzarVictoria(
@@ -685,7 +795,8 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         _esperandoCambioDeTurno ||
         _animandoTirada ||
         _partida.jugadorActual.rendido ||
-        _standBy) {
+        _standBy ||
+        !_esMiTurno) {
       return;
     }
     final nombre = _partida.jugadorActual.nombre;
@@ -715,7 +826,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
           _mensaje = null;
       }
     });
-
+    _publicarEstadoOnline();
 
     if (_partida.ganador != null) {
       _lanzarVictoria();
@@ -906,7 +1017,9 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                           shape: const CircleBorder(),
                                           child: InkWell(
                                             customBorder: const CircleBorder(),
-                                            onTap: terminada || _turnoDeLaPc
+                                            onTap: terminada ||
+                                                    _turnoDeLaPc ||
+                                                    _esperandoRivalOnline
                                                 ? null
                                                 : _configurarDadosForzados,
                                             child: Container(
@@ -968,20 +1081,22 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                       ),
                                     ),
                                   )
-                                else if (_turnoDeLaPc)
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 8),
-                                    child: Text(
-                                      'Turno de la PC…',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: AppColors.textoSuave,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  )
-                                else ...[
+                else if (_turnoDeLaPc || _esperandoRivalOnline)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      _turnoDeLaPc
+                          ? 'Turno de la PC…'
+                          : 'Turno de ${_partida.jugadorActual.nombre}…',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textoSuave,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  )
+                else ...[
                                   _ArcadeButton(
                                     label: 'TIRAR DADOS',
                                     icon: Icons.casino,

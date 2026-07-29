@@ -1,8 +1,12 @@
-﻿import 'dart:math' as math;
+﻿import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:app_juegos_mesa/generala/generala_online_codec.dart';
+import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
@@ -25,6 +29,8 @@ class PartidaGeneralaScreen extends StatefulWidget {
     this.modoDios = false,
     this.ajustesIniciales = const AjustesEstado(),
     this.resume,
+    this.salaCodigo,
+    this.miNombre,
   });
 
   final List<String> nombres;
@@ -35,6 +41,11 @@ class PartidaGeneralaScreen extends StatefulWidget {
   final bool modoDios;
   final AjustesEstado ajustesIniciales;
   final PartidaGeneralaResume? resume;
+  /// Código de sala online. Si es no nulo (junto con [miNombre]), la
+  /// partida se sincroniza con el rival vía [SalaService].
+  final String? salaCodigo;
+  /// Nombre del jugador local en la sala online.
+  final String? miNombre;
 
   @override
   State<PartidaGeneralaScreen> createState() => _PartidaGeneralaScreenState();
@@ -62,10 +73,25 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   String? _subtituloVictoria;
   final _rng = math.Random();
 
+  StreamSubscription<Sala>? _onlineSub;
+  int _onlineVersion = 0;
+  bool _publicandoOnline = false;
+
   bool get _turnoDeLaPc =>
       widget.contraPc &&
       _partida.ganador == null &&
       _partida.jugadorActual.nombre == nombreJugadorPc;
+
+  bool get _esOnline => widget.salaCodigo != null && widget.miNombre != null;
+
+  bool get _esMiTurno =>
+      !_esOnline ||
+      (_partida.ganador == null &&
+          _partida.jugadorActual.nombre == widget.miNombre);
+
+  /// Le toca al rival online: hay que bloquear controles y avisar.
+  bool get _esperandoRivalOnline =>
+      _esOnline && !_esMiTurno && _partida.ganador == null;
 
   JugadorGenerala get _j => _partida.jugadorActual;
   EstadoTurnoGenerala get _t => _partida.turno;
@@ -73,6 +99,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   static const int _maxNombre = 15;
 
   bool _puedeRenombrar(int index) {
+    if (_esOnline) return false;
     if (_partida.ganador != null) return false;
     if (_partida.jugadores[index].rendido) return false;
     final nombre = _partida.jugadores[index].nombre;
@@ -203,6 +230,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
         if (!mounted) return;
         if (_turnoDeLaPc) _programarJugadaPc();
       });
+      if (_esOnline) _iniciarSincronizacionOnline();
       return;
     }
 
@@ -213,6 +241,84 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       if (!mounted) return;
       if (_turnoDeLaPc) _programarJugadaPc();
     });
+    if (_esOnline) _iniciarSincronizacionOnline();
+  }
+
+  @override
+  void dispose() {
+    _onlineSub?.cancel();
+    super.dispose();
+  }
+
+  void _iniciarSincronizacionOnline() {
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+    // El servidor ya tiene version 1 al iniciar la sala.
+    if (_onlineVersion < 1) _onlineVersion = 1;
+    // Pull inmediato para no publicar con versión vieja.
+    unawaited(() async {
+      try {
+        final sala = await SalaService.instance.obtener(codigo);
+        if (mounted) _onSalaOnlineActualizada(sala);
+      } catch (_) {}
+    }());
+    _onlineSub = SalaService.instance
+        .watch(codigo, intervalo: const Duration(milliseconds: 1200))
+        .listen(_onSalaOnlineActualizada);
+  }
+
+  /// Aplica el estado remoto si es más nuevo que el nuestro. Preferimos
+  /// siempre el estado del servidor por sobre el estado local inicial.
+  void _onSalaOnlineActualizada(Sala sala) {
+    if (!mounted) return;
+    final gameState = sala.gameState;
+    if (gameState == null) return;
+    final version = (gameState['version'] as num?)?.toInt() ?? 0;
+    if (version <= _onlineVersion || _publicandoOnline) return;
+
+    final resultado = applyGeneralaGameState(_partida, gameState);
+    setState(() {
+      _onlineVersion = version;
+      _modoAnotar = resultado.modoAnotar;
+      _mostrarTablero = resultado.modoAnotar;
+      _mostrarVictoria = resultado.mostrarVictoria;
+      _subtituloVictoria = resultado.subtituloVictoria;
+      _animandoTirada = false;
+      _dadosAnimados = null;
+      _pausandoResultado = false;
+      _categoriaPcResaltada = null;
+    });
+  }
+
+  /// Publica nuestro estado tras una acción propia (tirar/toggle/anotar/
+  /// rendirse). Se llama solo desde lugares donde el actor local hizo el
+  /// cambio; no depende de a quién le toque después.
+  Future<void> _publicarEstadoOnline() async {
+    if (!_esOnline) return;
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+
+    _onlineVersion++;
+    final gameState = encodeGeneralaGameState(
+      partida: _partida,
+      version: _onlineVersion,
+      modoAnotar: _modoAnotar,
+      mostrarVictoria: _mostrarVictoria,
+      subtituloVictoria: _subtituloVictoria,
+    );
+
+    _publicandoOnline = true;
+    try {
+      await SalaService.instance.actualizarJuego(
+        codigo: codigo,
+        gameState: gameState,
+      );
+    } catch (_) {
+      // Red momentánea: el rival puede quedar un paso atrás hasta la
+      // próxima acción local o su propio watch reintentando.
+    } finally {
+      _publicandoOnline = false;
+    }
   }
 
   void _iniciarPartidaNueva() {
@@ -332,6 +438,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     }
     if (!_puedeTirarAhora) return;
     if (_modoAnotar) return;
+    if (!_esMiTurno) return;
 
     // Alinea los guardados a la izquierda antes de animar/tirar.
     if (_t.hayDados) {
@@ -386,12 +493,14 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       setState(() => _pausandoResultado = false);
       _abrirAnotar();
     }
+    _publicarEstadoOnline();
   }
 
   void _toggleDado(int index) {
     if (_animandoTirada ||
         _pausandoResultado ||
         _turnoDeLaPc ||
+        _esperandoRivalOnline ||
         _modoAnotar) {
       return;
     }
@@ -401,16 +510,19 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       // Al elegir/guardar, los amarillos se van a la izquierda.
       compactarDadosGuardados(_t);
     });
+    _publicarEstadoOnline();
   }
 
   void _abrirAnotar() {
     if (!_t.puedeAnotar) return;
+    if (!_esMiTurno) return;
     setState(() {
       _modoAnotar = true;
       _mostrarTablero = true;
       _mostrarMenu = false;
       _mostrarAjustes = false;
     });
+    _publicarEstadoOnline();
   }
 
   /// Escalera / FULL / Generala armados y casilla libre → anotar antes.
@@ -434,6 +546,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
 
   void _anotar(CategoriaGenerala cat) {
     if (!_modoAnotar) return;
+    if (!_esMiTurno) return;
     // Casilla ya usada (u otra restricción): no anotar de nuevo.
     if (!puedeElegirCategoria(
       _j,
@@ -452,6 +565,9 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
         _mostrarVictoria = true;
       }
     });
+    // Aunque el turno ya haya pasado al rival, fuimos nosotros quienes
+    // anotamos: publicamos el nuevo estado.
+    _publicarEstadoOnline();
     if (_partida.ganador == null && _turnoDeLaPc) {
       _programarJugadaPc(demoraMs: 800);
     }
@@ -542,6 +658,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
         pasarTurnoGenerala(_partida);
       }
     });
+    _publicarEstadoOnline();
   }
 
   Future<void> _pedirDadosForzados() async {
@@ -726,7 +843,9 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                       onTapDado: _toggleDado,
                                     ),
                                   ),
-                                  if (widget.modoDios && !_turnoDeLaPc)
+                                  if (widget.modoDios &&
+                                      !_turnoDeLaPc &&
+                                      _esMiTurno)
                                     Positioned(
                                       right: 0,
                                       child: Tooltip(
@@ -783,7 +902,8 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                               if (_t.hayDados &&
                                   _t.puedeTirar &&
                                   !_modoAnotar &&
-                                  !_turnoDeLaPc)
+                                  !_turnoDeLaPc &&
+                                  !_esperandoRivalOnline)
                                 const Padding(
                                   padding: EdgeInsets.only(top: 4),
                                   child: Text(
@@ -796,7 +916,10 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   ),
                                 ),
                               const SizedBox(height: 8),
-                              if (!terminada && !_turnoDeLaPc && !_modoAnotar) ...[
+                              if (!terminada &&
+                                  !_turnoDeLaPc &&
+                                  !_esperandoRivalOnline &&
+                                  !_modoAnotar) ...[
                                 _ArcadeButton(
                                   label: _t.puedeTirar
                                       ? 'TIRAR DADOS · ${_t.tiradasHechas}/$maxTiradasGenerala'
@@ -832,13 +955,17 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                     onPressed: _abrirAnotar,
                                   ),
                                 ],
-                              ] else if (!terminada && _turnoDeLaPc)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 12),
+                              ] else if (!terminada &&
+                                  (_turnoDeLaPc || _esperandoRivalOnline))
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
                                   child: Text(
-                                    'Turno de la PC…',
+                                    _turnoDeLaPc
+                                        ? 'Turno de la PC…'
+                                        : 'Turno de ${_j.nombre}…',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: AppColors.textoSuave,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -922,18 +1049,27 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                 partida: _partida,
                 modoAnotar: _modoAnotar,
                 dadosActuales: _t.hayDados ? _t.dados : null,
-                // Durante el turno de la PC no se toca: solo se ve la flecha.
-                onElegirCategoria:
-                    _modoAnotar && !_turnoDeLaPc ? _anotar : null,
+                // Durante el turno de la PC (o del rival online) no se
+                // toca: solo se ve la flecha / se espera.
+                onElegirCategoria: _modoAnotar &&
+                        !_turnoDeLaPc &&
+                        !_esperandoRivalOnline
+                    ? _anotar
+                    : null,
                 categoriaResaltada: _categoriaPcResaltada,
                 // Tras 3 tiradas hay que anotar: no se puede cerrar.
                 // Si anotás temprano (aún quedan tiradas), sí.
                 permitirCerrar: !_modoAnotar || _t.puedeTirar,
-                onCerrar: () => setState(() {
-                  _mostrarTablero = false;
-                  _modoAnotar = false;
-                  _categoriaPcResaltada = null;
-                }),
+                onCerrar: () {
+                  setState(() {
+                    _mostrarTablero = false;
+                    if (_esMiTurno) {
+                      _modoAnotar = false;
+                      _categoriaPcResaltada = null;
+                    }
+                  });
+                  if (_esMiTurno) _publicarEstadoOnline();
+                },
               ),
             ),
         ],

@@ -43,10 +43,14 @@ class MenuGeneralaScreen extends StatelessWidget {
           ),
         );
       },
-      onIniciarDesdeSala: (ctx, nombres, dados) {
+      onIniciarDesdeSala: (ctx, inicio) {
         Navigator.of(ctx).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => PartidaGeneralaScreen(nombres: nombres),
+            builder: (_) => PartidaGeneralaScreen(
+              nombres: inicio.nombres,
+              salaCodigo: inicio.salaCodigo,
+              miNombre: inicio.miNombre,
+            ),
           ),
         );
       },
