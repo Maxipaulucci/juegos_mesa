@@ -666,10 +666,23 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       return;
     }
 
-    final rendido = _partida.jugadorActual;
-    if (rendido.rendido) return;
+    // En modo online el jugador local que se rinde no es necesariamente
+    // el jugadorActual (puede no ser su turno). Buscamos al jugador local.
+    final JugadorGenerala rendido;
+    if (_esOnline) {
+      final miNombre = widget.miNombre!;
+      final encontrado = _partida.jugadores
+          .where((j) => j.nombre == miNombre && !j.rendido)
+          .firstOrNull;
+      if (encontrado == null) return;
+      rendido = encontrado;
+    } else {
+      final j = _partida.jugadorActual;
+      if (j.rendido) return;
+      rendido = j;
+    }
 
-    final eraSuTurno = true;
+    final eraSuTurnoActivo = _partida.jugadorActual == rendido;
     final partidaLarga = _partida.jugadores.length >= 3;
 
     _pcToken++;
@@ -689,11 +702,18 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
         _partida.ganador = activos.first.nombre;
         _subtituloVictoria = 'Has ganado por abandono';
         _mostrarVictoria = true;
-      } else if (eraSuTurno) {
+      } else if (eraSuTurnoActivo) {
         pasarTurnoGenerala(_partida);
       }
     });
     _publicarEstadoOnline();
+
+    // En online con más de 2 jugadores, el jugador que se rinde vuelve al
+    // menú. Si quedó un solo activo, la pantalla de victoria se muestra
+    // primero y el tap de "volver" navegará normalmente.
+    if (_esOnline && _partida.ganador == null && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _pedirDadosForzados() async {

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
+import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class CrearSalaScreen extends StatefulWidget {
@@ -24,10 +25,19 @@ class CrearSalaScreen extends StatefulWidget {
 }
 
 class _CrearSalaScreenState extends State<CrearSalaScreen> {
-  final _nombreCtrl = TextEditingController();
-  final _codigoCtrl = TextEditingController();
+  late final TextEditingController _nombreCtrl;
+  late final TextEditingController _codigoCtrl;
   String? _error;
   bool _cargando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombreCtrl = TextEditingController(text: SalaFormStore.nombre);
+    _codigoCtrl = TextEditingController(text: SalaFormStore.codigo);
+    _nombreCtrl.addListener(() => SalaFormStore.nombre = _nombreCtrl.text);
+    _codigoCtrl.addListener(() => SalaFormStore.codigo = _codigoCtrl.text);
+  }
 
   @override
   void dispose() {
@@ -39,15 +49,9 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
   static final _codigoPermitido = RegExp(r'^[a-zA-Z0-9]{6}$');
 
   String? _validarCodigo(String codigo) {
-    if (codigo.isEmpty) {
-      return 'El código debe tener 6 caracteres.';
-    }
-    if (codigo.length != 6) {
-      return 'El código debe tener exactamente 6 caracteres.';
-    }
-    if (!_codigoPermitido.hasMatch(codigo)) {
-      return 'El código solo puede tener letras y números.';
-    }
+    if (codigo.isEmpty) return 'El código debe tener 6 caracteres.';
+    if (codigo.length != 6) return 'El código debe tener exactamente 6 caracteres.';
+    if (!_codigoPermitido.hasMatch(codigo)) return 'El código solo puede tener letras y números.';
     return null;
   }
 

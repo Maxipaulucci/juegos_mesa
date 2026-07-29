@@ -11,7 +11,7 @@ Color colorJugadorTablero(int index) => switch (index % 4) {
     };
 
 /// Overlay con el tablero de anotación estilo arcade.
-class TableroGeneralaOverlay extends StatelessWidget {
+class TableroGeneralaOverlay extends StatefulWidget {
   const TableroGeneralaOverlay({
     super.key,
     required this.partida,
@@ -35,149 +35,243 @@ class TableroGeneralaOverlay extends StatelessWidget {
   final bool permitirCerrar;
 
   @override
+  State<TableroGeneralaOverlay> createState() =>
+      _TableroGeneralaOverlayState();
+}
+
+class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
+  /// true mientras el jugador mantiene apretado el botón ojo.
+  bool _verDados = false;
+
+  @override
   Widget build(BuildContext context) {
-    final cerrar = onCerrar ?? () => Navigator.of(context).maybePop();
+    final cerrar =
+        widget.onCerrar ?? () => Navigator.of(context).maybePop();
     final size = MediaQuery.sizeOf(context);
-    final n = partida.jugadores.length;
-    // Con 3–4 jugadores achicamos columnas para que entren en pantalla.
-    final catW = n >= 4 ? 112.0 : (n == 3 ? 120.0 : 132.0);
-    final colW = n >= 4 ? 78.0 : (n == 3 ? 88.0 : 96.0);
-    final anchoNecesario = catW + colW * n + 56;
-    final maxW = anchoNecesario.clamp(300.0, size.width - 12);
+    final n = widget.partida.jugadores.length;
+    // Calculamos el ancho mínimo real que necesita la tabla y lo usamos como
+    // maxW, sin recortarlo, para que con 4 jugadores todo entre sin scroll.
+    const padding = 20.0 + 20.0; // Padding(10) × 2 + fromLTRB(10,10,10,12)×2
+    final catW = n >= 4 ? 90.0 : (n == 3 ? 100.0 : 132.0);
+    final colW = n >= 4 ? 66.0 : (n == 3 ? 80.0 : 96.0);
+    final anchoTabla = catW + colW * n;
+    final anchoNecesario = anchoTabla + padding + 24; // bordes e inner padding
+    final maxW = anchoNecesario.clamp(300.0, size.width - 8);
     final maxH = (size.height - 20).clamp(360.0, 720.0);
 
+    // El overlay usa un Stack para mantener el botón ojo SIEMPRE en el árbol
+    // de widgets (mismo elemento, mismo Listener), evitando que el rebuild al
+    // activar _verDados cancele el gesto de presión.
     return Material(
-      color: Colors.black.withValues(alpha: 0.72),
+      color: _verDados
+          ? Colors.transparent
+          : Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: permitirCerrar ? cerrar : null,
+        onTap: (!_verDados && widget.permitirCerrar) ? cerrar : null,
         child: SafeArea(
-          child: Center(
-            child: GestureDetector(
-              onTap: () {},
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: maxW,
-                  maxHeight: maxH,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF2A1450),
-                          AppColors.carta,
-                          Color(0xFF140828),
-                        ],
+          child: Stack(
+            children: [
+              // Tablero central, invisible mientras se miran los dados.
+              if (!_verDados)
+                Center(
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: maxW,
+                        maxHeight: maxH,
                       ),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: AppColors.violeta.withValues(alpha: 0.85),
-                        width: 1.6,
-                      ),
-                      boxShadow: [
-                        ...neonGlow(AppColors.violeta, blur: 22),
-                        ...neonGlow(AppColors.rosa, blur: 12),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.grid_on_rounded,
-                              color: AppColors.acento,
-                              size: 22,
-                              shadows: [
-                                Shadow(
-                                  color: AppColors.acento,
-                                  blurRadius: 12,
-                                ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Container(
+                          width: double.infinity,
+                          padding:
+                              const EdgeInsets.fromLTRB(10, 10, 10, 12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF2A1450),
+                                AppColors.carta,
+                                Color(0xFF140828),
                               ],
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                modoAnotar ? 'ELEGÍ QUÉ ANOTAR' : 'TABLERO',
-                                style: const TextStyle(
-                                  color: AppColors.acento,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 17,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color:
+                                  AppColors.violeta.withValues(alpha: 0.85),
+                              width: 1.6,
                             ),
-                            if (permitirCerrar)
-                              IconButton(
-                                onPressed: cerrar,
-                                tooltip: 'Cerrar',
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: AppColors.textoSuave,
-                                ),
-                              ),
-                          ],
-                        ),
-                        if (modoAnotar) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Turno de ${partida.jugadorActual.nombre}',
-                            style: const TextStyle(
-                              color: AppColors.textoSuave,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                            boxShadow: [
+                              ...neonGlow(AppColors.violeta, blur: 22),
+                              ...neonGlow(AppColors.rosa, blur: 12),
+                            ],
                           ),
-                        ],
-                        const SizedBox(height: 8),
-                        Flexible(
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final tabla = _TableroTabla(
-                                partida: partida,
-                                modoAnotar: modoAnotar,
-                                dadosActuales: dadosActuales,
-                                onElegirCategoria: onElegirCategoria,
-                                categoriaResaltada: categoriaResaltada,
-                                catWidth: catW,
-                                colWidth: colW,
-                              );
-                              final tablaAncho = catW + colW * n;
-                              final necesitaScrollH =
-                                  tablaAncho > constraints.maxWidth;
-                              Widget body = SingleChildScrollView(
-                                child: tabla,
-                              );
-                              if (necesitaScrollH) {
-                                body = SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: SizedBox(
-                                    width: tablaAncho,
-                                    child: body,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.grid_on_rounded,
+                                    color: AppColors.acento,
+                                    size: 22,
+                                    shadows: [
+                                      Shadow(
+                                        color: AppColors.acento,
+                                        blurRadius: 12,
+                                      ),
+                                    ],
                                   ),
-                                );
-                              } else {
-                                body = SizedBox(
-                                  width: constraints.maxWidth,
-                                  child: body,
-                                );
-                              }
-                              return body;
-                            },
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      widget.modoAnotar
+                                          ? 'ELEGÍ QUÉ ANOTAR'
+                                          : 'TABLERO',
+                                      style: const TextStyle(
+                                        color: AppColors.acento,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 17,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                  // Placeholder del mismo ancho que el botón ojo
+                                  // para que el close quede al extremo derecho.
+                                  if (widget.dadosActuales != null)
+                                    const SizedBox(width: 42),
+                                  if (widget.permitirCerrar)
+                                    IconButton(
+                                      onPressed: cerrar,
+                                      tooltip: 'Cerrar',
+                                      icon: const Icon(
+                                        Icons.close_rounded,
+                                        color: AppColors.textoSuave,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              if (widget.modoAnotar) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Turno de ${widget.partida.jugadorActual.nombre}',
+                                  style: const TextStyle(
+                                    color: AppColors.textoSuave,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                              Flexible(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final tabla = _TableroTabla(
+                                      partida: widget.partida,
+                                      modoAnotar: widget.modoAnotar,
+                                      dadosActuales: widget.dadosActuales,
+                                      onElegirCategoria:
+                                          widget.onElegirCategoria,
+                                      categoriaResaltada:
+                                          widget.categoriaResaltada,
+                                      catWidth: catW,
+                                      colWidth: colW,
+                                    );
+                                    final tablaAncho = catW + colW * n;
+                                    final necesitaScrollH =
+                                        tablaAncho > constraints.maxWidth;
+                                    Widget cuerpo = tabla;
+                                    if (necesitaScrollH) {
+                                      cuerpo = SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: SizedBox(
+                                          width: tablaAncho,
+                                          child: tabla,
+                                        ),
+                                      );
+                                    } else {
+                                      cuerpo = SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: tabla,
+                                      );
+                                    }
+                                    return SingleChildScrollView(
+                                        child: cuerpo);
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+
+              // Botón ojo: siempre en el árbol para que el Listener no se
+              // descarte al cambiar _verDados y pierda el onPointerUp.
+              if (widget.dadosActuales != null)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: _BotonOjoDados(
+                    viendo: _verDados,
+                    onPressStart: () => setState(() => _verDados = true),
+                    onPressEnd: () => setState(() => _verDados = false),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Botón que se mantiene presionado para ocultar el tablero y ver los dados.
+/// Usa [Listener] (eventos de puntero de bajo nivel) para que el rebuild
+/// al activar _verDados no cancele el gesto, a diferencia de GestureDetector.
+class _BotonOjoDados extends StatelessWidget {
+  const _BotonOjoDados({
+    required this.viendo,
+    required this.onPressStart,
+    required this.onPressEnd,
+  });
+
+  final bool viendo;
+  final VoidCallback onPressStart;
+  final VoidCallback onPressEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Mantené para ver los dados',
+      child: Listener(
+        onPointerDown: (_) => onPressStart(),
+        onPointerUp: (_) => onPressEnd(),
+        onPointerCancel: (_) => onPressEnd(),
+        child: Container(
+          width: 38,
+          height: 38,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: viendo
+                ? AppColors.azul.withValues(alpha: 0.35)
+                : AppColors.carta,
+            border: Border.all(
+              color: viendo ? AppColors.azul : AppColors.cartaBorde,
+              width: 1.5,
             ),
+            boxShadow: viendo ? neonGlow(AppColors.azul, blur: 10) : null,
+          ),
+          child: Icon(
+            viendo ? Icons.visibility : Icons.visibility_outlined,
+            size: 18,
+            color: viendo ? AppColors.azul : AppColors.textoSuave,
           ),
         ),
       ),
@@ -270,8 +364,7 @@ class _TableroTabla extends StatelessWidget {
                       letterSpacing: 0.4,
                       shadows: [
                         Shadow(
-                          color:
-                              colorJugadorTablero(i).withValues(alpha: 0.7),
+                          color: colorJugadorTablero(i).withValues(alpha: 0.7),
                           blurRadius: 8,
                         ),
                       ],

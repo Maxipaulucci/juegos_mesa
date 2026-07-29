@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
+import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class UnirseSalaScreen extends StatefulWidget {
@@ -24,10 +25,19 @@ class UnirseSalaScreen extends StatefulWidget {
 }
 
 class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
-  final _nombreCtrl = TextEditingController();
-  final _codigoCtrl = TextEditingController();
+  late final TextEditingController _nombreCtrl;
+  late final TextEditingController _codigoCtrl;
   String? _error;
   bool _cargando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombreCtrl = TextEditingController(text: SalaFormStore.nombre);
+    _codigoCtrl = TextEditingController(text: SalaFormStore.codigo);
+    _nombreCtrl.addListener(() => SalaFormStore.nombre = _nombreCtrl.text);
+    _codigoCtrl.addListener(() => SalaFormStore.codigo = _codigoCtrl.text);
+  }
 
   @override
   void dispose() {

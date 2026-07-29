@@ -57,7 +57,11 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     if (!sigoAdentro) {
       _sub?.cancel();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Te expulsaron de la sala.')),
+        SnackBar(
+          content: Text(
+            'Te han expulsado de la partida con el código ${sala.codigo}.',
+          ),
+        ),
       );
       Navigator.of(context).pop();
       return;
