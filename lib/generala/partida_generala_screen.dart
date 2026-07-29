@@ -292,8 +292,15 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       await Future<void>.delayed(const Duration(milliseconds: 450));
     }
     if (!mounted || !_turnoDeLaPc) return;
-    // _tirar ya abrió el tablero tras la pausa de 2 s.
-    if (!_modoAnotar) _abrirAnotar();
+    // Si la PC anota sin haber llegado a la 3.ª tirada, también
+    // deja ver los dados un momento antes del tablero.
+    if (!_modoAnotar) {
+      setState(() => _pausandoResultado = true);
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (!mounted || !_turnoDeLaPc) return;
+      setState(() => _pausandoResultado = false);
+      _abrirAnotar();
+    }
 
     final cat = elegirCategoriaPc(
       _j,
@@ -370,7 +377,11 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
 
     if (_t.debeAnotar) {
       setState(() => _pausandoResultado = true);
-      await Future<void>.delayed(const Duration(seconds: 2));
+      // PC: 1 s extra para mirar los dados antes del tablero.
+      final pausa = _turnoDeLaPc
+          ? const Duration(seconds: 3)
+          : const Duration(seconds: 2);
+      await Future<void>.delayed(pausa);
       if (!mounted) return;
       setState(() => _pausandoResultado = false);
       _abrirAnotar();

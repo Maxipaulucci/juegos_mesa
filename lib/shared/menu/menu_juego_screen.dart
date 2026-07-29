@@ -151,7 +151,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                   borderRadius: BorderRadius.circular(21),
                   border: Border.all(
                     color: n == _cantidadJugadores
-                        ? Colors.black
+                        ? AppColors.texto
                         : Colors.transparent,
                     width: 3,
                   ),
@@ -159,8 +159,8 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(dialogContext).pop(n),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.acento,
-                    foregroundColor: const Color(0xFF1A0A00),
+                    backgroundColor: const Color(0xFF6B6578),
+                    foregroundColor: AppColors.texto,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     elevation: 0,
                     shadowColor: Colors.transparent,
@@ -168,7 +168,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                   child: Text(
                     '$n jugadores',
                     style: const TextStyle(
-                      color: Color(0xFF1A0A00),
+                      color: AppColors.texto,
                       fontWeight: FontWeight.w900,
                       fontSize: 16,
                       letterSpacing: 0.6,
@@ -470,7 +470,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        '¿Cómo querés jugar?',
+                        'Multijugador online',
                         style:
                             Theme.of(context).textTheme.titleLarge?.copyWith(
                                   color: AppColors.texto,
@@ -520,7 +520,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       const Divider(color: AppColors.fondoSuave),
                       const SizedBox(height: 12),
                       FilaOpcionToggle(
-                        etiqueta: 'Probar sin sala (mismo celular)',
+                        etiqueta: 'Multijugador local',
                         opcion: 'Decidir orden',
                         activo: _decidirOrden,
                         onChanged: (v) => setState(() => _decidirOrden = v),
@@ -546,6 +546,14 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: _elegirCantidadJugadores,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.texto,
+                                backgroundColor: const Color(0xFF6B6578),
+                                side: const BorderSide(
+                                  color: Color(0xFF8A8498),
+                                  width: 1.5,
+                                ),
+                              ),
                               child: Text(
                                 'Jugadores · $_cantidadJugadores',
                               ),

@@ -1,8 +1,8 @@
-# example netlify.toml
+# Flutter no está en el build de Netlify: compilá local con
+# `flutter build web` y después `netlify deploy --prod --dir=build/web`.
 [build]
-  command = "flutter build web"
-  functions = "netlify/functions"
   publish = "build/web"
+  command = "# no build command"
 
   ## Uncomment to use this redirect for Single Page Applications like create-react-app.
   ## Not needed for static site generators.

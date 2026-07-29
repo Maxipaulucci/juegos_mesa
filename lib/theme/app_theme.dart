@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Estilo arcade / neon del mockup Diez Mil.
 class AppColors {
@@ -20,6 +21,14 @@ class AppColors {
 }
 
 ThemeData buildAppTheme() {
+  // Nunito: misma tipografía en Windows, web y demás (no depende de Segoe UI).
+  final textTheme = GoogleFonts.nunitoTextTheme(
+    ThemeData(brightness: Brightness.dark).textTheme,
+  ).apply(
+    bodyColor: AppColors.texto,
+    displayColor: AppColors.texto,
+  );
+
   final base = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
@@ -28,27 +37,31 @@ ThemeData buildAppTheme() {
       brightness: Brightness.dark,
       surface: AppColors.fondo,
     ),
+    textTheme: textTheme,
   );
 
   return base.copyWith(
     scaffoldBackgroundColor: AppColors.fondo,
-    textTheme: base.textTheme.apply(
-      bodyColor: AppColors.texto,
-      displayColor: AppColors.texto,
-      fontFamily: 'Segoe UI',
-    ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
       foregroundColor: AppColors.texto,
+      titleTextStyle: GoogleFonts.nunito(
+        color: AppColors.texto,
+        fontSize: 20,
+        fontWeight: FontWeight.w800,
+      ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.acento,
         foregroundColor: const Color(0xFF1A0A00),
         minimumSize: const Size.fromHeight(54),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        textStyle: GoogleFonts.nunito(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
@@ -58,14 +71,17 @@ ThemeData buildAppTheme() {
         side: const BorderSide(color: AppColors.violeta, width: 1.5),
         backgroundColor: AppColors.carta,
         minimumSize: const Size.fromHeight(54),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: GoogleFonts.nunito(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.carta,
-      labelStyle: const TextStyle(color: AppColors.textoSuave),
+      labelStyle: GoogleFonts.nunito(color: AppColors.textoSuave),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
