@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/generala/partida_generala_screen.dart';
 import 'package:app_juegos_mesa/generala/standby_store.dart';
+import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Generala: arma el [MenuJuegoScreen] y navega a la partida.
 class MenuGeneralaScreen extends StatelessWidget {
@@ -16,13 +18,14 @@ class MenuGeneralaScreen extends StatelessWidget {
       modosDados: const [5],
       mostrarDificultad: false,
       onPartidaRapida: (ctx, estado, dados) async {
-        await Navigator.of(ctx).push(
-          MaterialPageRoute<void>(
-            builder: (_) => PartidaGeneralaScreen(
-              nombres: estado.nombres,
-              partidaRapida: true,
-              ajustesIniciales: estado.ajustes,
-            ),
+        await navegarConCarga<void>(
+          ctx,
+          mensaje: 'Iniciando partida',
+          acento: AppColors.violeta,
+          builder: (_) => PartidaGeneralaScreen(
+            nombres: estado.nombres,
+            partidaRapida: true,
+            ajustesIniciales: estado.ajustes,
           ),
         );
       },
@@ -30,27 +33,30 @@ class MenuGeneralaScreen extends StatelessWidget {
         final resume =
             GeneralaStandByStore.consumirSiCoincide(estado.dificultad);
         final nombres = resume?.nombres ?? const ['Jugador 1', 'PC'];
-        Navigator.of(ctx).push(
-          MaterialPageRoute<void>(
-            builder: (_) => PartidaGeneralaScreen(
-              nombres: nombres,
-              contraPc: true,
-              dificultadPc: resume?.dificultadPc ?? estado.dificultad,
-              modoDios: resume?.modoDios ?? estado.modoDios,
-              ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
-              resume: resume,
-            ),
+        navegarConCarga<void>(
+          ctx,
+          mensaje: 'Iniciando partida',
+          acento: AppColors.violeta,
+          builder: (_) => PartidaGeneralaScreen(
+            nombres: nombres,
+            contraPc: true,
+            dificultadPc: resume?.dificultadPc ?? estado.dificultad,
+            modoDios: resume?.modoDios ?? estado.modoDios,
+            ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
+            resume: resume,
           ),
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {
-        Navigator.of(ctx).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => PartidaGeneralaScreen(
-              nombres: inicio.nombres,
-              salaCodigo: inicio.salaCodigo,
-              miNombre: inicio.miNombre,
-            ),
+        navegarConCarga<void>(
+          ctx,
+          replace: true,
+          mensaje: 'Iniciando partida',
+          acento: AppColors.violeta,
+          builder: (_) => PartidaGeneralaScreen(
+            nombres: inicio.nombres,
+            salaCodigo: inicio.salaCodigo,
+            miNombre: inicio.miNombre,
           ),
         );
       },

@@ -2,10 +2,37 @@ import 'package:flutter/material.dart';
 
 import '../diezMil/menu_diez_mil_screen.dart';
 import '../generala/menu_generala_screen.dart';
+import '../shared/carga/pantalla_carga.dart';
 import '../theme/app_theme.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _navegando = false;
+
+  Future<void> _abrirJuego({
+    required Widget menu,
+    required Color acento,
+    required String mensaje,
+  }) async {
+    if (_navegando) return;
+    setState(() => _navegando = true);
+    try {
+      await navegarConCarga<void>(
+        context,
+        builder: (_) => menu,
+        mensaje: mensaje,
+        acento: acento,
+      );
+    } finally {
+      if (mounted) setState(() => _navegando = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,26 +94,26 @@ class HomeScreen extends StatelessWidget {
                           titulo: 'Diez Mil',
                           subtitulo: 'Dados · 5 o 6',
                           accent: AppColors.acento,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const MenuDiezMilScreen(),
-                              ),
-                            );
-                          },
+                          onTap: _navegando
+                              ? null
+                              : () => _abrirJuego(
+                                    menu: const MenuDiezMilScreen(),
+                                    acento: AppColors.acento,
+                                    mensaje: 'Diez Mil',
+                                  ),
                         ),
                         const SizedBox(height: 12),
                         _JuegoTile(
                           titulo: 'Generala',
                           subtitulo: 'Dados · tabla de anotación',
                           accent: AppColors.violeta,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const MenuGeneralaScreen(),
-                              ),
-                            );
-                          },
+                          onTap: _navegando
+                              ? null
+                              : () => _abrirJuego(
+                                    menu: const MenuGeneralaScreen(),
+                                    acento: AppColors.violeta,
+                                    mensaje: 'Generala',
+                                  ),
                         ),
                         const SizedBox(height: 12),
                         const _JuegoTile(
@@ -188,12 +215,13 @@ class _JuegoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activo = enabled && onTap != null;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: enabled ? onTap : null,
+        onTap: activo ? onTap : null,
         borderRadius: BorderRadius.circular(18),
         splashColor: accent.withValues(alpha: 0.25),
         highlightColor: accent.withValues(alpha: 0.12),

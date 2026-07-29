@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/diezMil/motor.dart';
 import 'package:app_juegos_mesa/diezMil/partida_diez_mil_screen.dart';
 import 'package:app_juegos_mesa/diezMil/standby_store.dart';
+import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Diez Mil: arma el [MenuJuegoScreen] y navega a la partida.
 class MenuDiezMilScreen extends StatelessWidget {
@@ -22,14 +24,15 @@ class MenuDiezMilScreen extends StatelessWidget {
       modosDados: const [5, 6],
       mostrarDificultad: true,
       onPartidaRapida: (ctx, estado, dados) async {
-        await Navigator.of(ctx).push(
-          MaterialPageRoute<void>(
-            builder: (_) => PartidaDiezMilScreen(
-              nombres: estado.nombres,
-              modo: _modoDeDados(dados),
-              partidaRapida: true,
-              ajustesIniciales: estado.ajustes,
-            ),
+        await navegarConCarga<void>(
+          ctx,
+          mensaje: 'Iniciando partida',
+          acento: AppColors.acento,
+          builder: (_) => PartidaDiezMilScreen(
+            nombres: estado.nombres,
+            modo: _modoDeDados(dados),
+            partidaRapida: true,
+            ajustesIniciales: estado.ajustes,
           ),
         );
       },
@@ -38,29 +41,32 @@ class MenuDiezMilScreen extends StatelessWidget {
         final resume =
             DiezMilStandByStore.consumirSiCoincide(modo, estado.dificultad);
         final nombres = resume?.nombres ?? const ['Jugador 1', 'PC'];
-        Navigator.of(ctx).push(
-          MaterialPageRoute<void>(
-            builder: (_) => PartidaDiezMilScreen(
-              nombres: nombres,
-              modo: modo,
-              contraPc: true,
-              dificultadPc: resume?.dificultadPc ?? estado.dificultad,
-              modoDios: resume?.modoDios ?? estado.modoDios,
-              ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
-              resume: resume,
-            ),
+        navegarConCarga<void>(
+          ctx,
+          mensaje: 'Iniciando partida',
+          acento: AppColors.acento,
+          builder: (_) => PartidaDiezMilScreen(
+            nombres: nombres,
+            modo: modo,
+            contraPc: true,
+            dificultadPc: resume?.dificultadPc ?? estado.dificultad,
+            modoDios: resume?.modoDios ?? estado.modoDios,
+            ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
+            resume: resume,
           ),
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {
-        Navigator.of(ctx).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => PartidaDiezMilScreen(
-              nombres: inicio.nombres,
-              modo: _modoDeDados(inicio.dados),
-              salaCodigo: inicio.salaCodigo,
-              miNombre: inicio.miNombre,
-            ),
+        navegarConCarga<void>(
+          ctx,
+          replace: true,
+          mensaje: 'Iniciando partida',
+          acento: AppColors.acento,
+          builder: (_) => PartidaDiezMilScreen(
+            nombres: inicio.nombres,
+            modo: _modoDeDados(inicio.dados),
+            salaCodigo: inicio.salaCodigo,
+            miNombre: inicio.miNombre,
           ),
         );
       },
