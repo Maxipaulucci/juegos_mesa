@@ -482,7 +482,13 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       _dadosAnimados = null;
     });
 
-    if (_t.debeAnotar) {
+    if (_t.debeAnotar ||
+        (!_turnoDeLaPc &&
+            debeForzarAnotarTemprano(
+              _j,
+              _t.dados,
+              servida: _t.tiradasHechas == 1,
+            ))) {
       setState(() => _pausandoResultado = true);
       // PC: 1 s extra para mirar los dados antes del tablero.
       final pausa = _turnoDeLaPc
@@ -526,11 +532,23 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   }
 
   /// Escalera / FULL / Generala armados y casilla libre → anotar antes.
-  /// Póker solo si es servido (1.ª tirada); si tirás de nuevo, desaparece.
-  /// Si ambas generalas ya están llenas y salen 5 iguales, también (número).
+  /// Póker: servido (1.ª), o en cualquier tirada si ambas generalas están llenas.
+  /// Si ambas generalas llenas y salen 5 iguales → anotar el número.
   bool get _puedeAnotarTemprano {
-    if (!_t.hayDados || !_t.puedeAnotar || !_t.puedeTirar) return false;
+    if (!_t.hayDados || !_t.puedeAnotar) return false;
+    // En la 3.ª tirada el flujo fuerza el tablero; el botón temprano no hace falta.
+    if (!_t.puedeTirar) return false;
     return puedeAnotarTemprano(
+      _j,
+      _t.dados,
+      servida: _t.tiradasHechas == 1,
+    );
+  }
+
+  /// Seguir tirando empeoraría (p. ej. póker con generalas llenas).
+  bool get _debeForzarAnotarTemprano {
+    if (!_puedeAnotarTemprano) return false;
+    return debeForzarAnotarTemprano(
       _j,
       _t.dados,
       servida: _t.tiradasHechas == 1,
@@ -539,9 +557,23 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
 
   /// Hay tiradas y al menos un dado sin guardar (si ya tiró una vez).
   bool get _puedeTirarAhora {
+    if (_debeForzarAnotarTemprano) return false;
     if (!_t.puedeTirar) return false;
     if (!_t.hayDados) return true;
     return _t.guardados.any((g) => !g);
+  }
+
+  void _abrirTablero({bool forzarAnotar = false}) {
+    final anotar = forzarAnotar || _puedeAnotarTemprano;
+    if (anotar && _t.puedeAnotar && _esMiTurno) {
+      _abrirAnotar();
+      return;
+    }
+    setState(() {
+      _mostrarTablero = true;
+      _mostrarMenu = false;
+      _mostrarAjustes = false;
+    });
   }
 
   void _anotar(CategoriaGenerala cat) {
@@ -920,9 +952,22 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   !_turnoDeLaPc &&
                                   !_esperandoRivalOnline &&
                                   !_modoAnotar) ...[
+                                if (_puedeAnotarTemprano &&
+                                    !_animandoTirada &&
+                                    !_pausandoResultado) ...[
+                                  _ArcadeButton(
+                                    label: 'ANOTAR EN EL TABLERO',
+                                    icon: Icons.edit_note_rounded,
+                                    tono: _BotonTono.azul,
+                                    onPressed: _abrirAnotar,
+                                  ),
+                                  const SizedBox(height: 6),
+                                ],
                                 _ArcadeButton(
                                   label: _t.puedeTirar
-                                      ? 'TIRAR DADOS · ${_t.tiradasHechas}/$maxTiradasGenerala'
+                                      ? (_debeForzarAnotarTemprano
+                                          ? 'NO CONVIENE TIRAR'
+                                          : 'TIRAR DADOS · ${_t.tiradasHechas}/$maxTiradasGenerala')
                                       : 'SIN TIRADAS',
                                   icon: Icons.casino,
                                   tono: _BotonTono.dorado,
@@ -937,24 +982,11 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   label: 'VER TABLERO',
                                   icon: Icons.grid_view_rounded,
                                   tono: _BotonTono.violeta,
-                                  onPressed: () {
-                                    setState(() {
-                                      _mostrarTablero = true;
-                                      _mostrarMenu = false;
-                                      _mostrarAjustes = false;
-                                    });
-                                  },
+                                  onPressed: !_animandoTirada &&
+                                          !_pausandoResultado
+                                      ? () => _abrirTablero()
+                                      : null,
                                 ),
-                                if (_puedeAnotarTemprano &&
-                                    !_animandoTirada &&
-                                    !_pausandoResultado) ...[
-                                  const SizedBox(height: 6),
-                                  _OutlinedActionButton(
-                                    label: 'Anotar en el tablero',
-                                    icon: Icons.edit_note_rounded,
-                                    onPressed: _abrirAnotar,
-                                  ),
-                                ],
                               ] else if (!terminada &&
                                   (_turnoDeLaPc || _esperandoRivalOnline))
                                 Padding(
@@ -976,13 +1008,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   label: 'VER TABLERO',
                                   icon: Icons.grid_view_rounded,
                                   tono: _BotonTono.violeta,
-                                  onPressed: () {
-                                    setState(() {
-                                      _mostrarTablero = true;
-                                      _mostrarMenu = false;
-                                      _mostrarAjustes = false;
-                                    });
-                                  },
+                                  onPressed: () => _abrirTablero(),
                                 ),
                             ],
                           ),
@@ -1530,55 +1556,6 @@ class _DadosZona extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _OutlinedActionButton extends StatelessWidget {
-  const _OutlinedActionButton({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.carta, Color(0xFF190B33)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.violeta.withValues(alpha: 0.6)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: AppColors.acento),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: AppColors.texto,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

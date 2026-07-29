@@ -211,8 +211,8 @@ int puntosCategoria(
 
 /// Especiales que, si salen y la casilla sigue libre, permiten anotar antes
 /// de agotar las 3 tiradas (Escalera, FULL, GENERALA / DOBLE).
-/// El póker solo si es servido (1.ª tirada); si seguís tirando por la generala,
-/// el botón desaparece.
+/// El póker: en 1.ª tirada (servido, 45 pts), o en cualquier tirada si ya no
+/// se puede buscar generala (ambas casillas de generala ocupadas).
 /// Si sale generala pero ambas casillas de generala ya están llenas, se permite
 /// anotar temprano en el número de esa cara (p. ej. cinco 6 → sumar en 6).
 bool puedeAnotarTemprano(
@@ -230,10 +230,15 @@ bool puedeAnotarTemprano(
       puedeElegirCategoria(jugador, CategoriaGenerala.full)) {
     return true;
   }
-  // Póker servido: anotar temprano (45 pts). En 2.ª/3.ª tirada no.
-  if (servida &&
-      esPoker(dados) &&
-      puedeElegirCategoria(jugador, CategoriaGenerala.poker)) {
+
+  final buscaGenerala =
+      puedeElegirCategoria(jugador, CategoriaGenerala.generala) ||
+          puedeElegirCategoria(jugador, CategoriaGenerala.generalaDoble);
+
+  // Póker servido, o póker cuando ya no hay dónde anotar una generala.
+  if (esPoker(dados) &&
+      puedeElegirCategoria(jugador, CategoriaGenerala.poker) &&
+      (servida || !buscaGenerala)) {
     return true;
   }
   if (esGenerala(dados)) {
@@ -252,6 +257,23 @@ bool puedeAnotarTemprano(
       return true;
     }
   }
+  return false;
+}
+
+/// True si seguir tirando no mejora el turno (hay que anotar ya).
+bool debeForzarAnotarTemprano(
+  JugadorGenerala jugador,
+  List<int> dados, {
+  bool servida = false,
+}) {
+  if (!puedeAnotarTemprano(jugador, dados, servida: servida)) return false;
+  final buscaGenerala =
+      puedeElegirCategoria(jugador, CategoriaGenerala.generala) ||
+          puedeElegirCategoria(jugador, CategoriaGenerala.generalaDoble);
+  // Generala ya armada: no hay nada que mejorar tirando de nuevo.
+  if (esGenerala(dados)) return true;
+  // Póker sin casilla de generala libre: tirar otra vez solo puede romperlo.
+  if (esPoker(dados) && !buscaGenerala) return true;
   return false;
 }
 
@@ -424,9 +446,13 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
   };
 
   // Manos ya armadas que todavía se pueden anotar.
-  if (esGenerala(t.dados) && buscaGenerala) {
-    _marcarTodos(t);
-    return;
+  if (esGenerala(t.dados)) {
+    // Aunque ambas generalas estén llenas, marcar todo para anotar el número.
+    if (buscaGenerala ||
+        puedeAnotarTemprano(j, t.dados, servida: t.tiradasHechas == 1)) {
+      _marcarTodos(t);
+      return;
+    }
   }
   if (esEscalera(t.dados) && buscaEscalera) {
     // Escalera completa: seleccionar todo y ordenar de menor a mayor.
@@ -437,7 +463,14 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
     _marcarTodos(t);
     return;
   }
-  if (esPoker(t.dados) && (buscaPoker || buscaGenerala)) {
+  if (esPoker(t.dados) && buscaPoker) {
+    final counts = contarCaras(t.dados);
+    final cara = counts.entries.firstWhere((e) => e.value >= 4).key;
+    _marcarSoloCara(t, cara);
+    return;
+  }
+  // Póker con casilla ocupada pero generala libre: guardar el cuarteto.
+  if (esPoker(t.dados) && buscaGenerala) {
     final counts = contarCaras(t.dados);
     final cara = counts.entries.firstWhere((e) => e.value >= 4).key;
     _marcarSoloCara(t, cara);
