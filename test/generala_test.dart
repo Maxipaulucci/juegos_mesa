@@ -121,6 +121,24 @@ void main() {
     );
   });
 
+  test('PC anota el número con más puntos (9 en 3 antes que 2 en 2)', () {
+    final j = JugadorGenerala('PC');
+    // Especiales llenos: solo quedan números.
+    j.casillas[CategoriaGenerala.escalera] = 0;
+    j.casillas[CategoriaGenerala.full] = 0;
+    j.casillas[CategoriaGenerala.poker] = 0;
+    j.casillas[CategoriaGenerala.generala] = 0;
+    j.casillas[CategoriaGenerala.generalaDoble] = 0;
+    expect(
+      elegirCategoriaPc(j, [3, 3, 3, 2, 5], servida: false),
+      CategoriaGenerala.tres,
+    );
+    expect(
+      elegirCategoriaPc(j, [2, 2, 4, 4, 4], servida: false),
+      CategoriaGenerala.cuatro,
+    );
+  });
+
   test('turno: 3 tiradas y anotar pasa al siguiente', () {
     final p = nuevaPartidaGenerala(['A', 'B']);
     iniciarTurnoGenerala(p);

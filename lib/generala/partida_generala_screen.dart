@@ -579,6 +579,9 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   void _anotar(CategoriaGenerala cat) {
     if (!_modoAnotar) return;
     if (!_esMiTurno) return;
+    // En vs PC el humano no debe poder tocar casillas en el turno de la PC.
+    if (_turnoDeLaPc && cat != _categoriaPcResaltada) return;
+    if (_turnoDeLaPc && _categoriaPcResaltada == null) return;
     // Casilla ya usada (u otra restricción): no anotar de nuevo.
     if (!puedeElegirCategoria(
       _j,

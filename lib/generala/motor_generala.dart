@@ -325,6 +325,8 @@ const List<CategoriaGenerala> ordenTacharPc = [
 ];
 
 /// Elige qué anotar la PC: máxima puntuación positiva; si no, tacha según [ordenTacharPc].
+/// Entre empates de puntaje, prefiere la cara más alta (p. ej. 6×1 antes que 2×3)
+/// y los especiales antes que los números.
 CategoriaGenerala? elegirCategoriaPc(
   JugadorGenerala jugador,
   List<int> dados, {
@@ -345,7 +347,10 @@ CategoriaGenerala? elegirCategoriaPc(
       yaTieneGenerala: jugador.generalaAnotada,
       servida: servida,
     );
-    if (pts > mejorPts) {
+    if (pts <= 0) continue;
+    if (mejorPositiva == null ||
+        pts > mejorPts ||
+        (pts == mejorPts && _pcPrefiereCategoria(cat, mejorPositiva))) {
       mejorPts = pts;
       mejorPositiva = cat;
     }
@@ -356,6 +361,13 @@ CategoriaGenerala? elegirCategoriaPc(
     if (disponibles.contains(cat)) return cat;
   }
   return disponibles.first;
+}
+
+/// Desempate: especial > número; si ambos son número, cara más alta.
+bool _pcPrefiereCategoria(CategoriaGenerala a, CategoriaGenerala b) {
+  if (a.esNumero != b.esNumero) return !a.esNumero; // especial gana
+  if (a.esNumero && b.esNumero) return (a.cara ?? 0) > (b.cara ?? 0);
+  return a.index > b.index;
 }
 
 void toggleDadoGuardado(EstadoTurnoGenerala t, int index) {
@@ -417,15 +429,21 @@ void _marcarParaEscalera(EstadoTurnoGenerala t) {
   compactarDadosGuardados(t);
 }
 
-/// Caras con ≥2, orden: más cantidad, luego cara más alta.
+/// Caras con ≥2, orden: más cantidad, luego más puntos de número (cara×cant),
+/// luego cara más alta.
 List<int> _carasConParOrdenadas(Map<int, int> counts) {
   final caras = [
     for (final e in counts.entries)
       if (e.value >= 2) e.key,
   ];
   caras.sort((a, b) {
-    final cmp = counts[b]!.compareTo(counts[a]!);
-    return cmp != 0 ? cmp : b.compareTo(a);
+    final byCount = counts[b]!.compareTo(counts[a]!);
+    if (byCount != 0) return byCount;
+    final ptsA = a * counts[a]!;
+    final ptsB = b * counts[b]!;
+    final byPts = ptsB.compareTo(ptsA);
+    if (byPts != 0) return byPts;
+    return b.compareTo(a);
   });
   return caras;
 }
@@ -493,11 +511,21 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
   }
 
   // Generala o póker: un grupo útil (trío+, o par de un número aún libre).
-  // No se queda con pares de números ya tachados si hay otra estrategia (p. ej. escalera).
+  // Prioriza tríos; si hay empate, el de más puntos en casilla de número.
   if (buscaGenerala || buscaPoker) {
     final paresUtiles = pares
         .where((c) => (counts[c] ?? 0) >= 3 || numerosLibres.contains(c))
-        .toList(growable: false);
+        .toList(growable: true);
+    paresUtiles.sort((a, b) {
+      final ta = (counts[a] ?? 0) >= 3 ? 1 : 0;
+      final tb = (counts[b] ?? 0) >= 3 ? 1 : 0;
+      if (ta != tb) return tb.compareTo(ta);
+      final ptsA = a * (counts[a] ?? 0);
+      final ptsB = b * (counts[b] ?? 0);
+      final byPts = ptsB.compareTo(ptsA);
+      if (byPts != 0) return byPts;
+      return b.compareTo(a);
+    });
     if (paresUtiles.isNotEmpty) {
       _marcarSoloCara(t, paresUtiles.first);
       return;
@@ -513,11 +541,13 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
     }
   }
 
-  // Pares cuyos números todavía están libres en el tablero.
+  // Mejor par de número libre (más puntos cara×cantidad), no todos a la vez:
+  // así no se queda con un 2 débil si también tiene un trío de 3.
   final paresDeNumeroLibre =
       pares.where(numerosLibres.contains).toList(growable: false);
   if (paresDeNumeroLibre.isNotEmpty) {
-    _marcarCaras(t, paresDeNumeroLibre.toSet());
+    // Ya vienen ordenados por cantidad/puntos en [pares].
+    _marcarSoloCara(t, paresDeNumeroLibre.first);
     return;
   }
 
