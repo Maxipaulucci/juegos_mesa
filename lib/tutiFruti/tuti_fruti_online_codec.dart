@@ -28,6 +28,7 @@ Map<String, dynamic> encodeTutiGameState(PartidaTuti p) {
         e.key: e.value.map((v) => v).toList(),
     },
     'totales': Map<String, int>.from(p.totales),
+    'historial': [for (final h in p.historial) h.toJson()],
     'mostrarVictoria': p.fase == FaseTuti.fin,
   };
 }
@@ -80,6 +81,18 @@ PartidaTuti decodeTutiGameState(Map<String, dynamic> raw) {
     }
   }
 
+  final historial = <RondaTutiHistorial>[];
+  final histRaw = raw['historial'];
+  if (histRaw is List) {
+    for (final item in histRaw) {
+      if (item is Map) {
+        historial.add(
+          RondaTutiHistorial.fromJson(Map<String, dynamic>.from(item)),
+        );
+      }
+    }
+  }
+
   for (final n in nombres) {
     respuestas.putIfAbsent(n, () => List.filled(categorias.length, ''));
     listos.putIfAbsent(n, () => false);
@@ -113,6 +126,7 @@ PartidaTuti decodeTutiGameState(Map<String, dynamic> raw) {
     categoriaRevision: (raw['categoriaRevision'] as num?)?.toInt() ?? 0,
     puntajes: puntajes,
     totales: totales,
+    historial: historial,
     version: (raw['version'] as num?)?.toInt() ?? 1,
   );
 }
@@ -138,6 +152,9 @@ void applyTutiGameState(PartidaTuti destino, Map<String, dynamic> raw) {
   destino.categoriaRevision = nuevo.categoriaRevision;
   destino.puntajes = nuevo.puntajes;
   destino.totales = nuevo.totales;
+  destino.historial
+    ..clear()
+    ..addAll(nuevo.historial);
   destino.version = nuevo.version;
   if (nuevo.categorias.isNotEmpty) {
     destino.categorias

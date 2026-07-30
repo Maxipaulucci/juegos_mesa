@@ -57,6 +57,76 @@ extension FaseTutiX on FaseTuti {
   }
 }
 
+/// Snapshot de una ronda terminada (para el tablero final).
+class RondaTutiHistorial {
+  RondaTutiHistorial({
+    required this.ronda,
+    required this.letra,
+    required this.respuestas,
+    required this.puntajes,
+    required this.puntosRonda,
+  });
+
+  final int ronda;
+  final String letra;
+  /// nombre → texto por categoría
+  final Map<String, List<String>> respuestas;
+  /// nombre → puntos por categoría
+  final Map<String, List<int>> puntajes;
+  /// nombre → suma de la ronda
+  final Map<String, int> puntosRonda;
+
+  Map<String, dynamic> toJson() => {
+        'ronda': ronda,
+        'letra': letra,
+        'respuestas': {
+          for (final e in respuestas.entries)
+            e.key: List<String>.from(e.value),
+        },
+        'puntajes': {
+          for (final e in puntajes.entries) e.key: List<int>.from(e.value),
+        },
+        'puntosRonda': Map<String, int>.from(puntosRonda),
+      };
+
+  static RondaTutiHistorial fromJson(Map<String, dynamic> raw) {
+    Map<String, List<String>> respuestas = {};
+    final respRaw = raw['respuestas'];
+    if (respRaw is Map) {
+      for (final e in respRaw.entries) {
+        final list = e.value;
+        respuestas[e.key.toString()] = list is List
+            ? list.map((x) => x?.toString() ?? '').toList()
+            : <String>[];
+      }
+    }
+    Map<String, List<int>> puntajes = {};
+    final punRaw = raw['puntajes'];
+    if (punRaw is Map) {
+      for (final e in punRaw.entries) {
+        final list = e.value;
+        puntajes[e.key.toString()] = list is List
+            ? list.map((x) => (x as num?)?.toInt() ?? 0).toList()
+            : <int>[];
+      }
+    }
+    Map<String, int> puntosRonda = {};
+    final prRaw = raw['puntosRonda'];
+    if (prRaw is Map) {
+      for (final e in prRaw.entries) {
+        puntosRonda[e.key.toString()] = (e.value as num?)?.toInt() ?? 0;
+      }
+    }
+    return RondaTutiHistorial(
+      ronda: (raw['ronda'] as num?)?.toInt() ?? 0,
+      letra: raw['letra']?.toString() ?? '?',
+      respuestas: respuestas,
+      puntajes: puntajes,
+      puntosRonda: puntosRonda,
+    );
+  }
+}
+
 class PartidaTuti {
   PartidaTuti({
     required this.nombres,
@@ -78,8 +148,10 @@ class PartidaTuti {
     List<String>? letrasUsadas,
     Map<String, List<int?>>? puntajes,
     Map<String, int>? totales,
+    List<RondaTutiHistorial>? historial,
     this.version = 1,
   })  : letrasUsadas = letrasUsadas ?? [],
+        historial = historial ?? [],
         respuestas = respuestas ??
             {
               for (final n in nombres)
@@ -116,6 +188,8 @@ class PartidaTuti {
   List<String> letrasUsadas;
   Map<String, List<int?>> puntajes;
   Map<String, int> totales;
+  /// Rondas ya cerradas (respuestas + puntajes).
+  List<RondaTutiHistorial> historial;
   int version;
 
   /// Abecedario sin las letras ya jugadas.
@@ -358,6 +432,40 @@ List<String> pendientesVotoTuti(PartidaTuti p, [int? catIndex]) {
   return out;
 }
 
+/// Guarda la ronda actual en el historial (idempotente por número de ronda).
+void guardarRondaEnHistorialTuti(PartidaTuti p) {
+  if (p.historial.any((h) => h.ronda == p.ronda)) return;
+  final nCats = p.categorias.length;
+  final respuestas = <String, List<String>>{
+    for (final n in p.nombres)
+      n: List<String>.from(
+        p.respuestas[n] ?? List.filled(nCats, ''),
+      ),
+  };
+  final puntajes = <String, List<int>>{
+    for (final n in p.nombres)
+      n: [
+        for (var i = 0; i < nCats; i++)
+          (p.puntajes[n] != null && i < p.puntajes[n]!.length)
+              ? (p.puntajes[n]![i] ?? 0)
+              : 0,
+      ],
+  };
+  final puntosRonda = <String, int>{
+    for (final n in p.nombres)
+      n: puntajes[n]!.fold<int>(0, (a, b) => a + b),
+  };
+  p.historial.add(
+    RondaTutiHistorial(
+      ronda: p.ronda,
+      letra: (p.letra ?? '?').toUpperCase(),
+      respuestas: respuestas,
+      puntajes: puntajes,
+      puntosRonda: puntosRonda,
+    ),
+  );
+}
+
 /// Continuar revisión (anfitrión): siguiente categoría o nueva ronda.
 void continuarRevisionTuti(PartidaTuti p) {
   if (p.fase != FaseTuti.revision) return;
@@ -367,7 +475,8 @@ void continuarRevisionTuti(PartidaTuti p) {
     p.categoriaRevision++;
     return;
   }
-  // Fin de la ronda de categorías.
+  // Fin de la ronda de categorías: archivar antes de seguir.
+  guardarRondaEnHistorialTuti(p);
   if (p.ronda >= p.maxRondas) {
     acabarPartidaTuti(p);
     return;
@@ -381,6 +490,9 @@ void continuarRevisionTuti(PartidaTuti p) {
   p.bastaInicioMs = null;
   p.bastaPor = null;
   p.listos = {for (final n in p.nombres) n: false};
+  p.puntajes = {
+    for (final n in p.nombres) n: List<int?>.filled(p.categorias.length, null),
+  };
   p.fase = FaseTuti.countdownRuleta;
   p.faseInicioMs = now;
 }
@@ -391,6 +503,10 @@ bool esUltimaCategoriaRevisionTuti(PartidaTuti p) =>
 bool quedanRondasTuti(PartidaTuti p) => p.ronda < p.maxRondas;
 
 void acabarPartidaTuti(PartidaTuti p) {
+  // Si cierran en revisión con la ronda votada, archivar.
+  if (p.fase == FaseTuti.revision && todosVotaronCategoriaTuti(p)) {
+    guardarRondaEnHistorialTuti(p);
+  }
   p.fase = FaseTuti.fin;
   p.faseInicioMs = DateTime.now().millisecondsSinceEpoch;
 }

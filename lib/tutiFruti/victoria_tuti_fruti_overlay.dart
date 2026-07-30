@@ -32,7 +32,8 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
   late final Animation<double> _escala;
   late final Animation<double> _opacidad;
 
-  bool _mostrarRanking = false;
+  bool _mostrarSelectorTablero = false;
+  String? _jugadorTablero;
   bool _cartelVisible = true;
 
   List<MapEntry<String, int>> get _ranking => rankingTuti(widget.partida);
@@ -92,11 +93,22 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
   }
 
   Widget _construirContenido() {
-    if (_mostrarRanking) {
-      return _RankingPanel(
-        ranking: _ranking,
+    if (_jugadorTablero != null) {
+      return _TableroJugadorPanel(
+        partida: widget.partida,
+        nombre: _jugadorTablero!,
+        esGanador: _ganadores.contains(_jugadorTablero),
+        onCerrar: () => setState(() => _jugadorTablero = null),
+      );
+    }
+
+    if (_mostrarSelectorTablero) {
+      return _SelectorJugadoresPanel(
+        nombres: widget.partida.nombres,
         ganadores: _ganadores.toSet(),
-        onCerrar: () => setState(() => _mostrarRanking = false),
+        totales: widget.partida.totales,
+        onSeleccionar: (n) => setState(() => _jugadorTablero = n),
+        onCerrar: () => setState(() => _mostrarSelectorTablero = false),
       );
     }
 
@@ -113,7 +125,10 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
       subtitulo: _empate
           ? '$pts PTS · ¡Quedaron a la par!'
           : '$pts PTS · ¡Más puntos y se lleva la partida!',
-      onRanking: () => setState(() => _mostrarRanking = true),
+      onVerTablero: () => setState(() {
+        _mostrarSelectorTablero = true;
+        _jugadorTablero = null;
+      }),
       onVolver: widget.onVolver,
     );
   }
@@ -192,7 +207,7 @@ class _WinnerCardTuti extends StatelessWidget {
     required this.nombres,
     required this.pulso,
     required this.subtitulo,
-    required this.onRanking,
+    required this.onVerTablero,
     required this.onVolver,
     this.animaciones = true,
   });
@@ -201,7 +216,7 @@ class _WinnerCardTuti extends StatelessWidget {
   final String nombres;
   final AnimationController pulso;
   final String subtitulo;
-  final VoidCallback onRanking;
+  final VoidCallback onVerTablero;
   final VoidCallback onVolver;
   final bool animaciones;
 
@@ -281,10 +296,10 @@ class _WinnerCardTuti extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             GlowButtonVictoria(
-              label: 'RANKING',
-              icon: Icons.emoji_events_rounded,
+              label: 'VER TABLERO',
+              icon: Icons.grid_view_rounded,
               color: AppColors.azul,
-              onPressed: onRanking,
+              onPressed: onVerTablero,
             ),
             const SizedBox(height: 10),
             GlowButtonVictoria(
@@ -307,15 +322,19 @@ class _WinnerCardTuti extends StatelessWidget {
   }
 }
 
-class _RankingPanel extends StatelessWidget {
-  const _RankingPanel({
-    required this.ranking,
+class _SelectorJugadoresPanel extends StatelessWidget {
+  const _SelectorJugadoresPanel({
+    required this.nombres,
     required this.ganadores,
+    required this.totales,
+    required this.onSeleccionar,
     required this.onCerrar,
   });
 
-  final List<MapEntry<String, int>> ranking;
+  final List<String> nombres;
   final Set<String> ganadores;
+  final Map<String, int> totales;
+  final ValueChanged<String> onSeleccionar;
   final VoidCallback onCerrar;
 
   @override
@@ -348,7 +367,7 @@ class _RankingPanel extends StatelessWidget {
               ),
               const Expanded(
                 child: Text(
-                  'RANKING',
+                  'VER TABLERO',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
@@ -361,72 +380,258 @@ class _RankingPanel extends StatelessWidget {
               const SizedBox(width: 48),
             ],
           ),
-          const SizedBox(height: 8),
+          const Text(
+            'Elegí un jugador',
+            style: TextStyle(
+              color: AppColors.textoSuave,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
           Flexible(
             child: ListView.separated(
               shrinkWrap: true,
-              itemCount: ranking.length,
+              itemCount: nombres.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, i) {
-                final e = ranking[i];
-                final esGanador = ganadores.contains(e.key);
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.carta.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: esGanador
-                          ? AppColors.acento
-                          : AppColors.cartaBorde,
-                      width: esGanador ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        '#${i + 1}',
-                        style: TextStyle(
-                          color: esGanador ? AppColors.acento : AppColors.rosa,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          e.key,
-                          style: const TextStyle(
-                            color: AppColors.texto,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      if (esGanador)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 8),
-                          child: Text('🏆', style: TextStyle(fontSize: 18)),
-                        ),
-                      Text(
-                        '${e.value}',
-                        style: const TextStyle(
-                          color: AppColors.acento,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 20,
-                        ),
-                      ),
-                    ],
-                  ),
+                final n = nombres[i];
+                final esGanador = ganadores.contains(n);
+                final pts = totales[n] ?? 0;
+                return GlowButtonVictoria(
+                  label: '${n.toUpperCase()}  ·  $pts PTS',
+                  icon: esGanador ? Icons.emoji_events : Icons.person,
+                  color: esGanador ? AppColors.acento : AppColors.azul,
+                  onPressed: () => onSeleccionar(n),
                 );
               },
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TableroJugadorPanel extends StatelessWidget {
+  const _TableroJugadorPanel({
+    required this.partida,
+    required this.nombre,
+    required this.esGanador,
+    required this.onCerrar,
+  });
+
+  final PartidaTuti partida;
+  final String nombre;
+  final bool esGanador;
+  final VoidCallback onCerrar;
+
+  @override
+  Widget build(BuildContext context) {
+    final historial = [...partida.historial]
+      ..sort((a, b) => a.ronda.compareTo(b.ronda));
+    final total = partida.totales[nombre] ?? 0;
+
+    return Container(
+      width: double.infinity,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF2A1450), Color(0xFF12081F)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.acento, width: 2),
+        boxShadow: neonGlow(AppColors.acento, blur: 18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: onCerrar,
+                tooltip: 'Volver',
+                icon: const Icon(Icons.arrow_back, color: AppColors.texto),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      nombre.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.acento,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    if (esGanador)
+                      const Text(
+                        'GANADOR',
+                        style: TextStyle(
+                          color: AppColors.mint,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          Text(
+            'TOTAL: $total PTS',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.textoSuave,
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: historial.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Sin rondas registradas',
+                      style: TextStyle(color: AppColors.textoSuave),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.only(right: 4, bottom: 4),
+                    itemCount: historial.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) {
+                      final r = historial[i];
+                      final respuestas =
+                          r.respuestas[nombre] ?? const <String>[];
+                      final puntajes = r.puntajes[nombre] ?? const <int>[];
+                      final ptsRonda = r.puntosRonda[nombre] ?? 0;
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AppColors.azul.withValues(alpha: 0.55),
+                          ),
+                          color: AppColors.carta.withValues(alpha: 0.35),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'RONDA ${r.ronda} · Letra ${r.letra}',
+                                      style: const TextStyle(
+                                        color: AppColors.rosa,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 14,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '+$ptsRonda',
+                                    style: const TextStyle(
+                                      color: AppColors.mint,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              for (var c = 0;
+                                  c < partida.categorias.length;
+                                  c++) ...[
+                                if (c > 0) const SizedBox(height: 8),
+                                _FilaCategoriaTablero(
+                                  categoria: partida.categorias[c],
+                                  respuesta: c < respuestas.length
+                                      ? respuestas[c]
+                                      : '',
+                                  puntos: c < puntajes.length
+                                      ? puntajes[c]
+                                      : 0,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilaCategoriaTablero extends StatelessWidget {
+  const _FilaCategoriaTablero({
+    required this.categoria,
+    required this.respuesta,
+    required this.puntos,
+  });
+
+  final String categoria;
+  final String respuesta;
+  final int puntos;
+
+  @override
+  Widget build(BuildContext context) {
+    final vacia = respuesta.trim().isEmpty;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                categoria,
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                vacia ? '(vacío)' : respuesta,
+                style: TextStyle(
+                  color: vacia ? AppColors.textoSuave : AppColors.texto,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  fontStyle: vacia ? FontStyle.italic : FontStyle.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '$puntos',
+          style: TextStyle(
+            color: puntos > 0 ? AppColors.acento : AppColors.peligro,
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
+      ],
     );
   }
 }
