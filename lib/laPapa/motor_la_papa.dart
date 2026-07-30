@@ -302,7 +302,7 @@ bool cercaDeNumeroPapa(
   int numero,
   Offset pos,
   Size boardSize, {
-  double factorRadio = 0.42,
+  double factorRadio = 0.32,
 }) {
   final idx = p.indiceDeNumero(numero);
   if (idx == null) return false;

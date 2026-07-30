@@ -377,7 +377,7 @@ class _HojaPapaPainter extends CustomPainter {
       if (destacado) {
         canvas.drawCircle(
           c,
-          math.min(cellW, cellH) * 0.38,
+          math.min(cellW, cellH) * 0.26,
           Paint()
             ..color = (n == de ? AppColors.mint : AppColors.peligro)
                 .withValues(alpha: 0.22)
@@ -392,7 +392,7 @@ class _HojaPapaPainter extends CustomPainter {
                 ? (n == de ? const Color(0xFF0A7A4A) : AppColors.peligro)
                 : const Color(0xFF1A0A33),
             fontWeight: FontWeight.w900,
-            fontSize: math.min(cellW, cellH) * (destacado ? 0.42 : 0.36),
+            fontSize: math.min(cellW, cellH) * (destacado ? 0.28 : 0.24),
           ),
         ),
         textDirection: TextDirection.ltr,
