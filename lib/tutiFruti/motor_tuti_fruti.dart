@@ -35,6 +35,26 @@ extension FaseTutiX on FaseTuti {
       this == FaseTuti.countdownRuleta ||
       this == FaseTuti.countdownEscritura ||
       this == FaseTuti.countdownRevision;
+
+  /// Orden de avance de la partida (para descartar syncs viejos).
+  int get orden {
+    switch (this) {
+      case FaseTuti.countdownRuleta:
+        return 0;
+      case FaseTuti.ruleta:
+        return 1;
+      case FaseTuti.countdownEscritura:
+        return 2;
+      case FaseTuti.escritura:
+        return 3;
+      case FaseTuti.countdownRevision:
+        return 4;
+      case FaseTuti.revision:
+        return 5;
+      case FaseTuti.fin:
+        return 6;
+    }
+  }
 }
 
 class PartidaTuti {
@@ -44,6 +64,7 @@ class PartidaTuti {
     this.fase = FaseTuti.countdownRuleta,
     this.indiceSpinner = 0,
     this.ronda = 1,
+    this.maxRondas = 5,
     this.letra,
     this.ruletaInicioMs,
     this.ruletaVelocidad = 8.0,
@@ -77,6 +98,8 @@ class PartidaTuti {
   FaseTuti fase;
   int indiceSpinner;
   int ronda;
+  /// Cantidad de rondas definidas por el anfitrión (1..abecedario).
+  int maxRondas;
   String? letra;
   int? ruletaInicioMs;
   double ruletaVelocidad;
@@ -190,15 +213,18 @@ String? validarCategoriasTuti(List<String> raw) {
 PartidaTuti nuevaPartidaTuti({
   required List<String> nombres,
   required List<String> categorias,
+  int maxRondas = 5,
 }) {
   final cats = categorias.map((c) => c.trim()).where((c) => c.isNotEmpty).toList();
   final now = DateTime.now().millisecondsSinceEpoch;
+  final maxR = maxRondas.clamp(1, abecedarioTuti.length);
   return PartidaTuti(
     nombres: List<String>.from(nombres),
     categorias: List<String>.from(cats),
     fase: FaseTuti.countdownRuleta,
     indiceSpinner: 0,
     ronda: 1,
+    maxRondas: maxR,
     faseInicioMs: now,
     version: 1,
   );
@@ -341,6 +367,11 @@ void continuarRevisionTuti(PartidaTuti p) {
     p.categoriaRevision++;
     return;
   }
+  // Fin de la ronda de categorías.
+  if (p.ronda >= p.maxRondas) {
+    acabarPartidaTuti(p);
+    return;
+  }
   // Nueva ronda: siguiente spinner.
   p.indiceSpinner = (p.indiceSpinner + 1) % p.nombres.length;
   p.ronda++;
@@ -353,6 +384,11 @@ void continuarRevisionTuti(PartidaTuti p) {
   p.fase = FaseTuti.countdownRuleta;
   p.faseInicioMs = now;
 }
+
+bool esUltimaCategoriaRevisionTuti(PartidaTuti p) =>
+    p.categoriaRevision >= p.categorias.length - 1;
+
+bool quedanRondasTuti(PartidaTuti p) => p.ronda < p.maxRondas;
 
 void acabarPartidaTuti(PartidaTuti p) {
   p.fase = FaseTuti.fin;

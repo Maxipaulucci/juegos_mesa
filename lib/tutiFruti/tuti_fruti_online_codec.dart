@@ -9,6 +9,7 @@ Map<String, dynamic> encodeTutiGameState(PartidaTuti p) {
     'fase': p.fase.id,
     'indiceSpinner': p.indiceSpinner,
     'ronda': p.ronda,
+    'maxRondas': p.maxRondas,
     'letra': p.letra,
     'letrasUsadas': List<String>.from(p.letrasUsadas),
     'ruletaInicioMs': p.ruletaInicioMs,
@@ -95,6 +96,7 @@ PartidaTuti decodeTutiGameState(Map<String, dynamic> raw) {
     fase: FaseTutiX.fromId(raw['fase']?.toString()),
     indiceSpinner: (raw['indiceSpinner'] as num?)?.toInt() ?? 0,
     ronda: (raw['ronda'] as num?)?.toInt() ?? 1,
+    maxRondas: (raw['maxRondas'] as num?)?.toInt() ?? 5,
     letra: raw['letra']?.toString(),
     letrasUsadas: (raw['letrasUsadas'] as List?)
             ?.map((e) => e.toString().toUpperCase())
@@ -120,6 +122,7 @@ void applyTutiGameState(PartidaTuti destino, Map<String, dynamic> raw) {
   destino.fase = nuevo.fase;
   destino.indiceSpinner = nuevo.indiceSpinner;
   destino.ronda = nuevo.ronda;
+  destino.maxRondas = nuevo.maxRondas;
   destino.letra = nuevo.letra;
   destino.letrasUsadas
     ..clear()

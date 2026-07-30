@@ -84,6 +84,11 @@ class SalaService {
       gameState: raw['gameState'] is Map
           ? Map<String, dynamic>.from(raw['gameState'] as Map)
           : null,
+      lobbyCategorias: (raw['lobbyCategorias'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      lobbyMaxRondas: (raw['lobbyMaxRondas'] as num?)?.toInt(),
     );
   }
 
@@ -143,11 +148,28 @@ class SalaService {
     return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
   }
 
+  Future<Sala> actualizarLobby({
+    required String codigo,
+    required String anfitrionId,
+    required List<String> categorias,
+    required int maxRondas,
+  }) async {
+    final data = await _post({
+      'action': 'actualizarLobby',
+      'codigo': codigo,
+      'anfitrionId': anfitrionId,
+      'categorias': categorias,
+      'maxRondas': maxRondas,
+    });
+    return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
+  }
+
   Future<Sala> iniciar({
     required String codigo,
     required String anfitrionId,
     required int dados,
     List<String>? categorias,
+    int? maxRondas,
   }) async {
     final data = await _post({
       'action': 'iniciar',
@@ -155,11 +177,13 @@ class SalaService {
       'anfitrionId': anfitrionId,
       'dados': dados,
       if (categorias != null) 'categorias': categorias,
+      if (maxRondas != null) 'maxRondas': maxRondas,
     });
     return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
   }
 
-  Future<Sala> actualizarJuego({
+  /// Publica estado. Devuelve si el servidor lo aceptó (`ignored: false`).
+  Future<({Sala sala, bool ignored})> actualizarJuego({
     required String codigo,
     required Map<String, dynamic> gameState,
   }) async {
@@ -168,7 +192,11 @@ class SalaService {
       'codigo': codigo,
       'gameState': gameState,
     });
-    return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
+    final ignored = data['ignored'] == true;
+    return (
+      sala: _parseSala(Map<String, dynamic>.from(data['sala'] as Map)),
+      ignored: ignored,
+    );
   }
 
   Future<void> cerrar({

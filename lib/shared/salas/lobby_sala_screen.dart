@@ -37,8 +37,13 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   bool _partidaLanzada = false;
   StreamSubscription<Sala>? _sub;
   final List<TextEditingController> _catCtrls = [];
+  int _maxRondas = 5;
+  Timer? _lobbySyncDebounce;
+  bool _publicandoLobby = false;
 
   bool get _soyAnfitrion => widget.miId == _sala.anfitrionId;
+
+  static const int _maxRondasAbecedario = 26; // A–Z
 
   bool get _puedeAgregarCategoria {
     if (_catCtrls.isEmpty || _catCtrls.length >= 6) return false;
@@ -46,7 +51,36 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   }
 
   void _onCatChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    _programarSyncLobby();
+  }
+
+  void _programarSyncLobby() {
+    if (!_soyAnfitrion || !widget.editarCategorias) return;
+    _lobbySyncDebounce?.cancel();
+    _lobbySyncDebounce = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_publicarLobbyConfig());
+    });
+  }
+
+  Future<void> _publicarLobbyConfig() async {
+    if (!_soyAnfitrion || !widget.editarCategorias || _publicandoLobby) return;
+    _publicandoLobby = true;
+    try {
+      final cats = _catCtrls.map((c) => c.text.trim()).toList();
+      final sala = await SalaService.instance.actualizarLobby(
+        codigo: _sala.codigo,
+        anfitrionId: widget.miId,
+        categorias: cats,
+        maxRondas: _maxRondas,
+      );
+      if (mounted) setState(() => _sala = sala);
+    } catch (_) {
+      // Red momentánea: el próximo cambio reintenta.
+    } finally {
+      _publicandoLobby = false;
+    }
   }
 
   TextEditingController _nuevaCatCtrl([String texto = '']) {
@@ -61,11 +95,17 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     _sala = widget.salaInicial;
     _dados = _sala.dados;
     if (widget.editarCategorias) {
-      _catCtrls.addAll([
-        _nuevaCatCtrl('Nombre'),
-        _nuevaCatCtrl('Animal'),
-        _nuevaCatCtrl('Color'),
-      ]);
+      if (_soyAnfitrion) {
+        final iniciales = _sala.lobbyCategorias.isNotEmpty
+            ? _sala.lobbyCategorias
+            : const ['Nombre', 'Animal', 'Color'];
+        _catCtrls.addAll([for (final t in iniciales) _nuevaCatCtrl(t)]);
+        _maxRondas = (_sala.lobbyMaxRondas ?? 5).clamp(1, _maxRondasAbecedario);
+        // Publicar config inicial para que los invitados la vean.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(_publicarLobbyConfig());
+        });
+      }
     }
     _sub = SalaService.instance.watch(_sala.codigo).listen(_onSalaUpdate);
   }
@@ -73,6 +113,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _lobbySyncDebounce?.cancel();
     for (final c in _catCtrls) {
       c.removeListener(_onCatChanged);
       c.dispose();
@@ -156,6 +197,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     }
 
     List<String>? categorias;
+    int? maxRondas;
     if (widget.editarCategorias) {
       categorias = _catCtrls
           .map((c) => c.text.trim())
@@ -183,6 +225,17 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
           return;
         }
       }
+      if (_maxRondas < 1 || _maxRondas > _maxRondasAbecedario) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Rondas: entre 1 y $_maxRondasAbecedario.',
+            ),
+          ),
+        );
+        return;
+      }
+      maxRondas = _maxRondas;
     }
 
     setState(() => _iniciando = true);
@@ -192,6 +245,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
         anfitrionId: widget.miId,
         dados: widget.mostrarSelectorDados ? _dados : 5,
         categorias: categorias,
+        maxRondas: maxRondas,
       );
       if (!mounted) return;
       _lanzarPartida(sala);
@@ -273,7 +327,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
               Text(
                 _soyAnfitrion
                     ? 'Categorías (3–6, máx. 25 caracteres)'
-                    : 'El anfitrión elige las categorías',
+                    : 'Categorías',
                 style: const TextStyle(
                   color: AppColors.textoSuave,
                   fontWeight: FontWeight.w700,
@@ -303,11 +357,14 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                           tooltip: 'Quitar',
                           onPressed: _iniciando
                               ? null
-                              : () => setState(() {
+                              : () {
+                                  setState(() {
                                     final c = _catCtrls.removeAt(i);
                                     c.removeListener(_onCatChanged);
                                     c.dispose();
-                                  }),
+                                  });
+                                  _programarSyncLobby();
+                                },
                           icon: const Icon(
                             Icons.remove_circle_outline,
                             color: AppColors.peligro,
@@ -328,11 +385,99 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                     label: const Text('Agregar categoría'),
                   ),
                 ],
-              ] else
-                const Text(
-                  'Cuando el anfitrión inicie, verás las categorías en la partida.',
-                  style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+                const SizedBox(height: 16),
+                Text(
+                  'Rondas (máx. $_maxRondasAbecedario)',
+                  style: const TextStyle(
+                    color: AppColors.textoSuave,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: _iniciando || _maxRondas <= 1
+                          ? null
+                          : () {
+                              setState(() => _maxRondas--);
+                              _programarSyncLobby();
+                            },
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: AppColors.texto,
+                    ),
+                    Expanded(
+                      child: Text(
+                        '$_maxRondas',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.acento,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 28,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _iniciando ||
+                              _maxRondas >= _maxRondasAbecedario
+                          ? null
+                          : () {
+                              setState(() => _maxRondas++);
+                              _programarSyncLobby();
+                            },
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: AppColors.texto,
+                    ),
+                  ],
+                ),
+              ] else ...[
+                if (_sala.lobbyCategorias.isEmpty)
+                  const Text(
+                    'Esperando que el anfitrión defina las categorías…',
+                    style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+                  )
+                else
+                  for (var i = 0; i < _sala.lobbyCategorias.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.carta,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _sala.lobbyCategorias[i],
+                        style: const TextStyle(
+                          color: AppColors.texto,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                const SizedBox(height: 16),
+                const Text(
+                  'Rondas',
+                  style: TextStyle(
+                    color: AppColors.textoSuave,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${_sala.lobbyMaxRondas ?? '—'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.acento,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 28,
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 24),
             Text(

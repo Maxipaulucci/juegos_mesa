@@ -22,6 +22,8 @@ class Sala {
     this.estado = 'lobby',
     this.dados = 5,
     this.gameState,
+    this.lobbyCategorias = const [],
+    this.lobbyMaxRondas,
   }) : jugadores = jugadores ?? [];
 
   final String codigo;
@@ -33,6 +35,10 @@ class Sala {
   final int dados;
   /// Estado sincronizado de la partida (JSON).
   final Map<String, dynamic>? gameState;
+  /// Tutti Frutti: categorías que el anfitrión está armando (lobby).
+  final List<String> lobbyCategorias;
+  /// Tutti Frutti: rondas elegidas en lobby.
+  final int? lobbyMaxRondas;
 
   bool get soyAnfitrion =>
       jugadores.any((j) => j.id == anfitrionId && j.rol == RolJugadorSala.anfitrion);

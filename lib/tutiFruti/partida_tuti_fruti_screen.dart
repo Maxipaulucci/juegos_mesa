@@ -7,6 +7,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/tutiFruti/motor_tuti_fruti.dart';
 import 'package:app_juegos_mesa/tutiFruti/tuti_fruti_online_codec.dart';
+import 'package:app_juegos_mesa/tutiFruti/victoria_tuti_fruti_overlay.dart';
 
 class PartidaTutiFrutiScreen extends StatefulWidget {
   const PartidaTutiFrutiScreen({
@@ -35,6 +36,10 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
   bool _soyAnfitrion = false;
   /// Momento local en que ESTE cliente vio el aviso de basta (solo rivales).
   int? _bastaLocalInicioMs;
+  /// Cola de publicaciones para no pisar PARAR con aceleraciones.
+  Future<void> _colaPublicacion = Future<void>.value();
+  bool _parandoRuleta = false;
+  DateTime? _ultimoAcelerarPub;
 
   bool get _esMiSpinner =>
       _partida.nombreSpinner == widget.miNombre;
@@ -147,15 +152,34 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     final gameState = sala.gameState;
     if (gameState == null) return;
     final version = (gameState['version'] as num?)?.toInt() ?? 0;
-    if (version <= _onlineVersion || _publicandoOnline) return;
+    if (version <= _onlineVersion) return;
+    // Mientras publicamos no pisamos; la cola reintentará si hace falta.
+    if (_publicandoOnline) return;
+
+    final remoteFase = FaseTutiX.fromId(gameState['fase']?.toString());
+    // No volver atrás: p.ej. ruleta vieja no pisa un PARAR ya aplicado.
+    if (remoteFase.orden < _partida.fase.orden &&
+        version <= _onlineVersion + 1) {
+      // Versión apenas mayor pero fase anterior = sync obsoleto (acelerar).
+      if (_partida.fase.orden >= FaseTuti.countdownEscritura.orden &&
+          remoteFase.orden <= FaseTuti.ruleta.orden) {
+        // Republicar nuestro estado avanzado para corregir el servidor.
+        unawaited(_publicarEstadoOnline(forzar: true));
+        return;
+      }
+    }
+    if (remoteFase.orden < _partida.fase.orden &&
+        _partida.fase.orden >= FaseTuti.countdownEscritura.orden) {
+      unawaited(_publicarEstadoOnline(forzar: true));
+      return;
+    }
 
     final remoteBasta = gameState['bastaTodos'] == true;
-    final remoteFase = gameState['fase']?.toString();
     final estabaEscribiendo = _partida.fase == FaseTuti.escritura;
     final deboFusionar = remoteBasta &&
         estabaEscribiendo &&
         !_partida.bastaTodos &&
-        remoteFase == 'escritura';
+        remoteFase == FaseTuti.escritura;
 
     if (deboFusionar) {
       _fusionarMisRespuestasTrasBasta();
@@ -178,7 +202,6 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
       applyTutiGameState(_partida, gameState);
       _onlineVersion = version;
 
-      // Contador local: arranca cuando el rival VE el basta, no con el reloj del que lo dijo.
       if (_partida.fase == FaseTuti.escritura &&
           _partida.bastaTodos &&
           _partida.bastaPor != widget.miNombre) {
@@ -252,20 +275,57 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     }
   }
 
-  Future<void> _publicarEstadoOnline() async {
-    _onlineVersion++;
-    _partida.version = _onlineVersion;
-    final gameState = encodeTutiGameState(_partida);
-    _publicandoOnline = true;
-    try {
-      await SalaService.instance.actualizarJuego(
-        codigo: widget.salaCodigo,
-        gameState: gameState,
-      );
-    } catch (_) {
-    } finally {
-      _publicandoOnline = false;
-    }
+  Future<void> _publicarEstadoOnline({bool forzar = false}) {
+    final trabajo = () async {
+      if (!mounted) return;
+      for (var intento = 0; intento < 4; intento++) {
+        _onlineVersion++;
+        _partida.version = _onlineVersion;
+        final gameState = encodeTutiGameState(_partida);
+        _publicandoOnline = true;
+        try {
+          final res = await SalaService.instance.actualizarJuego(
+            codigo: widget.salaCodigo,
+            gameState: gameState,
+          );
+          if (!res.ignored) {
+            final v =
+                (res.sala.gameState?['version'] as num?)?.toInt() ??
+                    _onlineVersion;
+            _onlineVersion = v;
+            _partida.version = v;
+            return;
+          }
+          // Ignorado: el servidor tiene una versión >= la nuestra.
+          final remoteV = res.sala.gameVersion;
+          if (remoteV > _onlineVersion) {
+            _onlineVersion = remoteV;
+          }
+          // Si el remoto está atrasado en fase, insistimos con versión más alta.
+          final remoteFase = FaseTutiX.fromId(
+            res.sala.gameState?['fase']?.toString(),
+          );
+          if (forzar ||
+              remoteFase.orden < _partida.fase.orden ||
+              intento < 3) {
+            await Future<void>.delayed(
+              Duration(milliseconds: 80 * (intento + 1)),
+            );
+            continue;
+          }
+          return;
+        } catch (_) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 120 * (intento + 1)),
+          );
+        } finally {
+          _publicandoOnline = false;
+        }
+      }
+    };
+
+    _colaPublicacion = _colaPublicacion.then((_) => trabajo());
+    return _colaPublicacion;
   }
 
   void _mutar(void Function() fn) {
@@ -273,13 +333,30 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     unawaited(_publicarEstadoOnline());
   }
 
+  Future<void> _pararRuleta() async {
+    if (_parandoRuleta) return;
+    if (_partida.fase != FaseTuti.ruleta) return;
+    setState(() {
+      _parandoRuleta = true;
+      pararRuletaTuti(_partida);
+    });
+    await _publicarEstadoOnline(forzar: true);
+    if (mounted) setState(() => _parandoRuleta = false);
+  }
+
   void _talvezAvanzarContador() {
-    if (!_soyAnfitrion) return;
     if (!_partida.fase.esContador) return;
     if (!_partida.contadorTerminado()) return;
+    if (_publicandoOnline || _parandoRuleta) return;
+    // Evita que muchos clientes avancen a la vez: solo anfitrión o parador.
+    final soyParador =
+        _partida.nombreParador == widget.miNombre;
+    if (!_soyAnfitrion &&
+        !(_partida.fase == FaseTuti.countdownEscritura && soyParador)) {
+      return;
+    }
     _mutar(() {
       avanzarContadorTuti(_partida);
-      // Nueva ronda de escritura: campos vacíos.
       if (_partida.fase == FaseTuti.escritura) {
         _bastaLocalInicioMs = null;
         _rebuildRespCtrls();
@@ -338,6 +415,13 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
               ],
             ),
           ),
+          if (_partida.fase == FaseTuti.fin)
+            Positioned.fill(
+              child: VictoriaTutiFrutiOverlay(
+                partida: _partida,
+                onVolver: () => Navigator.of(context).pop(),
+              ),
+            ),
         ],
       ),
     );
@@ -354,7 +438,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
           ),
           Expanded(
             child: Text(
-              'Tutti Frutti · Ronda ${_partida.ronda}'
+              'Tutti Frutti · Ronda ${_partida.ronda}/${_partida.maxRondas}'
               '${_partida.letra != null ? ' · ${_partida.letra}' : ''}',
               textAlign: TextAlign.center,
               style: const TextStyle(
@@ -391,15 +475,38 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     final n = _partida.segundosRestantesContador();
     final label = switch (_partida.fase) {
       FaseTuti.countdownRuleta => 'Preparando ruleta…',
-      FaseTuti.countdownEscritura =>
-        'Letra: ${_partida.letra ?? '—'} · ¡A escribir!',
+      FaseTuti.countdownEscritura => '¡A escribir!',
       FaseTuti.countdownRevision => 'Revisando respuestas…',
       _ => 'Cargando…',
     };
+    final letraGrande = _partida.fase == FaseTuti.countdownEscritura &&
+        (_partida.letra != null && _partida.letra!.isNotEmpty);
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (letraGrande) ...[
+            const Text(
+              'Letra',
+              style: TextStyle(
+                color: AppColors.textoSuave,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _partida.letra!,
+              style: TextStyle(
+                color: AppColors.acento,
+                fontWeight: FontWeight.w900,
+                fontSize: 96,
+                shadows: neonGlow(AppColors.acento, blur: 24),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             label,
             textAlign: TextAlign.center,
@@ -409,13 +516,13 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
               fontSize: 16,
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
           Text(
             '${n == 0 ? 1 : n}',
             style: TextStyle(
               color: AppColors.rosa,
               fontWeight: FontWeight.w900,
-              fontSize: 96,
+              fontSize: 72,
               shadows: neonGlow(AppColors.rosa, blur: 24),
             ),
           ),
@@ -428,8 +535,18 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     final letra = _partida.letraActualRuleta();
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _esMiSpinner
-          ? () => _mutar(() => acelerarRuletaTuti(_partida))
+      onTap: _esMiSpinner && !_parandoRuleta
+          ? () {
+              setState(() => acelerarRuletaTuti(_partida));
+              final ahora = DateTime.now();
+              final ultimo = _ultimoAcelerarPub;
+              if (ultimo == null ||
+                  ahora.difference(ultimo) >
+                      const Duration(milliseconds: 350)) {
+                _ultimoAcelerarPub = ahora;
+                unawaited(_publicarEstadoOnline());
+              }
+            }
           : null,
       child: Center(
         child: Padding(
@@ -462,13 +579,22 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
               const SizedBox(height: 28),
               if (_esMiParador)
                 ElevatedButton(
-                  onPressed: () => _mutar(() => pararRuletaTuti(_partida)),
+                  onPressed: _parandoRuleta ? null : () => _pararRuleta(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.peligro,
                     foregroundColor: Colors.white,
                     minimumSize: const Size(220, 56),
                   ),
-                  child: const Text('PARAR'),
+                  child: _parandoRuleta
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('PARAR'),
                 )
               else if (!_esMiSpinner)
                 Text(
@@ -680,20 +806,50 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            ElevatedButton(
-              onPressed: todosVotaronCategoriaTuti(_partida)
-                  ? () => _mutar(() => continuarRevisionTuti(_partida))
-                  : null,
-              child: Text(
-                catIdx + 1 < _partida.categorias.length
-                    ? 'Continuar'
-                    : 'Siguiente ronda',
-              ),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () => _mutar(() => acabarPartidaTuti(_partida)),
-              child: const Text('Se acabó la partida'),
+            Builder(
+              builder: (_) {
+                final ultimaCat = esUltimaCategoriaRevisionTuti(_partida);
+                final quedan = quedanRondasTuti(_partida);
+                final puedenContinuar =
+                    todosVotaronCategoriaTuti(_partida);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!ultimaCat)
+                      ElevatedButton(
+                        onPressed: puedenContinuar
+                            ? () => _mutar(
+                                  () => continuarRevisionTuti(_partida),
+                                )
+                            : null,
+                        child: const Text('Continuar'),
+                      )
+                    else ...[
+                      if (quedan)
+                        ElevatedButton(
+                          onPressed: puedenContinuar
+                              ? () => _mutar(
+                                    () => continuarRevisionTuti(_partida),
+                                  )
+                              : null,
+                          child: const Text('Siguiente ronda'),
+                        ),
+                      if (quedan) const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: puedenContinuar
+                            ? () =>
+                                _mutar(() => acabarPartidaTuti(_partida))
+                            : null,
+                        child: Text(
+                          quedan
+                              ? 'Se acabó la partida'
+                              : 'Ver ranking',
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ] else ...[
             Padding(

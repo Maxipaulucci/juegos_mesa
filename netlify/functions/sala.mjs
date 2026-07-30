@@ -96,6 +96,9 @@ export default async (req) => {
         estado: 'lobby',
         dados: 5,
         creadaEn: Date.now(),
+        lobbyCategorias:
+          juegoId === 'tutiFruti' ? ['Nombre', 'Animal', 'Color'] : [],
+        lobbyMaxRondas: juegoId === 'tutiFruti' ? 5 : null,
       }
       await store.setJSON(codigo, sala)
       return json(200, { sala, miId: anfitrionId })
@@ -188,6 +191,14 @@ export default async (req) => {
           }
         }
         const now = Date.now()
+        let maxRondas = Number(body.maxRondas)
+        if (!Number.isFinite(maxRondas)) maxRondas = 5
+        maxRondas = Math.floor(maxRondas)
+        if (maxRondas < 1 || maxRondas > 26) {
+          return json(400, {
+            error: 'Tutti Frutti: rondas entre 1 y 26 (abecedario).',
+          })
+        }
         const respuestas = {}
         const listos = {}
         const puntajes = {}
@@ -206,13 +217,17 @@ export default async (req) => {
           fase: 'countdownRuleta',
           indiceSpinner: 0,
           ronda: 1,
+          maxRondas,
           letra: null,
+          letrasUsadas: [],
           ruletaInicioMs: null,
           ruletaVelocidad: 8,
           faseInicioMs: now,
           respuestas,
           listos,
           bastaTodos: false,
+          bastaInicioMs: null,
+          bastaPor: null,
           categoriaRevision: 0,
           puntajes,
           totales,
@@ -266,6 +281,34 @@ export default async (req) => {
           ultimoResumen: null,
         }
       }
+      await store.setJSON(codigo, sala)
+      return json(200, { sala })
+    }
+
+    if (action === 'actualizarLobby') {
+      const codigo = (body.codigo || '').trim().toUpperCase()
+      const anfitrionId = body.anfitrionId
+      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
+      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      if (sala.anfitrionId !== anfitrionId) {
+        return json(403, { error: 'Solo el anfitrión puede editar la sala.' })
+      }
+      if (sala.estado !== 'lobby') {
+        return json(409, { error: 'La partida ya empezó.' })
+      }
+      const rawCats = Array.isArray(body.categorias) ? body.categorias : []
+      const cats = rawCats
+        .map((c) => String(c || '').trim())
+        .filter((c) => c.length > 0)
+        .slice(0, 6)
+        .map((c) => (c.length > 25 ? c.slice(0, 25) : c))
+      let maxRondas = Number(body.maxRondas)
+      if (!Number.isFinite(maxRondas)) maxRondas = 5
+      maxRondas = Math.floor(maxRondas)
+      if (maxRondas < 1) maxRondas = 1
+      if (maxRondas > 26) maxRondas = 26
+      sala.lobbyCategorias = cats
+      sala.lobbyMaxRondas = maxRondas
       await store.setJSON(codigo, sala)
       return json(200, { sala })
     }
