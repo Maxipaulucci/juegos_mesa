@@ -38,16 +38,20 @@ class MenuJuegoScreen extends StatefulWidget {
     required this.onVsPc,
     required this.onIniciarDesdeSala,
     this.mostrarDificultad = false,
+    /// Si true, la sección "vs PC" se muestra como "Jugar solo" (sin Modo Dios).
+    this.jugarSoloEnLugarDePc = false,
   });
 
   static const juegoIdDiezMil = 'diezMil';
   static const juegoIdGenerala = 'generala';
+  static const juegoIdLaPapa = 'laPapa';
 
   final String titulo;
   final String juegoId;
   /// Cantidades de dados ofrecidas (ej. `[5, 6]` o `[5]`).
   final List<int> modosDados;
   final bool mostrarDificultad;
+  final bool jugarSoloEnLugarDePc;
 
   final Future<void> Function(
     BuildContext context,
@@ -579,47 +583,68 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       const SizedBox(height: 16),
                       const Divider(color: AppColors.fondoSuave),
                       const SizedBox(height: 12),
-                      FilaOpcionToggle(
-                        etiqueta: 'Jugar vs PC',
-                        opcion: 'Modo Dios',
-                        activo: _modoDios,
-                        onChanged: (v) => setState(() => _modoDios = v),
-                        onInfo: _explicarModoDios,
-                      ),
-                      const SizedBox(height: 10),
-                      for (var i = 0; i < widget.modosDados.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 8),
+                      if (widget.jugarSoloEnLugarDePc) ...[
+                        const Text(
+                          'Jugar solo',
+                          style: TextStyle(
+                            color: AppColors.texto,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         OutlinedButton(
                           onPressed: () => widget.onVsPc(
                             context,
-                            _estado(),
-                            widget.modosDados[i],
+                            _estado(nombres: const ['Jugador']),
+                            widget.modosDados.first,
                           ),
-                          child: Text(
-                            _etiquetaDados(
+                          child: const Text('Jugar solo'),
+                        ),
+                      ] else ...[
+                        FilaOpcionToggle(
+                          etiqueta: 'Jugar vs PC',
+                          opcion: 'Modo Dios',
+                          activo: _modoDios,
+                          onChanged: (v) => setState(() => _modoDios = v),
+                          onInfo: _explicarModoDios,
+                        ),
+                        const SizedBox(height: 10),
+                        for (var i = 0; i < widget.modosDados.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () => widget.onVsPc(
+                              context,
+                              _estado(),
                               widget.modosDados[i],
-                              prefijo: 'Jugar vs PC',
+                            ),
+                            child: Text(
+                              _etiquetaDados(
+                                widget.modosDados[i],
+                                prefijo: 'Jugar vs PC',
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                      if (widget.mostrarDificultad) ...[
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: _elegirDificultad,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _dificultad.color,
-                            foregroundColor: const Color(0xFF1A0A00),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          child: Text(
-                            'Dificultad · ${_dificultad.etiqueta}',
-                            style: const TextStyle(
-                              color: Color(0xFF1A0A00),
-                              fontWeight: FontWeight.w800,
+                        ],
+                        if (widget.mostrarDificultad) ...[
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: _elegirDificultad,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _dificultad.color,
+                              foregroundColor: const Color(0xFF1A0A00),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              'Dificultad · ${_dificultad.etiqueta}',
+                              style: const TextStyle(
+                                color: Color(0xFF1A0A00),
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ],
                   ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../diezMil/menu_diez_mil_screen.dart';
 import '../generala/menu_generala_screen.dart';
+import '../laPapa/menu_la_papa_screen.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
@@ -137,11 +138,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           enabled: false,
                         ),
                         const SizedBox(height: 12),
-                        const _JuegoTile(
+                        _JuegoTile(
                           titulo: 'La papa',
-                          subtitulo: 'Próximamente',
+                          subtitulo: 'Hoja · uní los números',
                           accent: AppColors.mint,
-                          enabled: false,
+                          onTap: _navegando
+                              ? null
+                              : () => _abrirJuego(
+                                    menu: const MenuLaPapaScreen(),
+                                    acento: AppColors.mint,
+                                    mensaje: 'La papa',
+                                  ),
                         ),
                         const SizedBox(height: 12),
                         const _JuegoTile(
