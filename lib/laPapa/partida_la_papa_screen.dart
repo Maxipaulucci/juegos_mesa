@@ -22,8 +22,12 @@ class PartidaLaPapaScreen extends StatefulWidget {
 class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   late PartidaPapa _partida;
   final List<Offset> _trazoActual = [];
+  final GlobalKey _hojaKey = GlobalKey();
   bool _dibujando = false;
   bool _inicioValido = false;
+  /// Ya se alejó del número de partida (evita cerrar el trazo al instante).
+  bool _salioDelInicio = false;
+  Size? _boardSize;
 
   @override
   void initState() {
@@ -37,69 +41,119 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _trazoActual.clear();
       _dibujando = false;
       _inicioValido = false;
+      _salioDelInicio = false;
     });
+  }
+
+  void _limpiarTrazo() {
+    _trazoActual.clear();
+    _dibujando = false;
+    _inicioValido = false;
+    _salioDelInicio = false;
+  }
+
+  bool _dentroHoja(Offset local, Size boardSize) {
+    return local.dx >= 0 &&
+        local.dy >= 0 &&
+        local.dx <= boardSize.width &&
+        local.dy <= boardSize.height;
+  }
+
+  Offset? _localEnHoja(Offset global) {
+    final box = _hojaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    return box.globalToLocal(global);
+  }
+
+  void _perder(String motivo) {
+    perderPapa(_partida, motivo: motivo);
+    _limpiarTrazo();
   }
 
   void _onPointerDown(Offset local, Size boardSize) {
     if (_partida.terminada) return;
+    if (!_dentroHoja(local, boardSize)) return;
     final de = _partida.siguienteConectar;
     if (!cercaDeNumeroPapa(_partida, de, local, boardSize)) {
       return;
     }
     setState(() {
+      _boardSize = boardSize;
       _dibujando = true;
       _inicioValido = true;
+      _salioDelInicio = false;
       _trazoActual
         ..clear()
         ..add(local);
     });
   }
 
-  void _onPointerMove(Offset local, Size boardSize) {
+  void _onPointerMoveGlobal(Offset global) {
     if (!_dibujando || !_inicioValido || _partida.terminada) return;
+    final boardSize = _boardSize;
+    if (boardSize == null) return;
+    final local = _localEnHoja(global);
+    if (local == null) return;
+
+    if (!_dentroHoja(local, boardSize)) {
+      setState(() {
+        _perder(
+          '${_partida.jugadorActual} se salió de la hoja. Fin de la partida.',
+        );
+      });
+      return;
+    }
+
     if (_trazoActual.isNotEmpty &&
         (_trazoActual.last - local).distance < 2.5) {
       return;
     }
+
+    final de = _partida.siguienteConectar;
+    final a = de + 1;
     final choca = trazoChocaAlAgregar(_partida, _trazoActual, local);
+
     setState(() {
       _trazoActual.add(local);
+
       if (choca) {
-        _dibujando = false;
-        _inicioValido = false;
-        perderPapa(
-          _partida,
-          motivo:
-              '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
+        _perder(
+          '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
         );
-        _trazoActual.clear();
+        return;
+      }
+
+      if (!_salioDelInicio &&
+          !cercaDeNumeroPapa(_partida, de, local, boardSize)) {
+        _salioDelInicio = true;
+      }
+
+      // Al tocar el número destino: se marca, se corta el trazo y pasa el turno.
+      if (_salioDelInicio &&
+          cercaDeNumeroPapa(_partida, a, local, boardSize) &&
+          _trazoActual.length >= 2) {
+        aceptarTrazoPapa(_partida, _trazoActual);
+        _limpiarTrazo();
       }
     });
   }
 
-  void _onPointerUp(Offset? local, Size boardSize) {
+  void _onPointerUpOrCancel() {
     if (!_dibujando || !_inicioValido) {
-      setState(() {
-        _dibujando = false;
-        _inicioValido = false;
-        _trazoActual.clear();
-      });
+      setState(_limpiarTrazo);
       return;
     }
-    if (_partida.terminada) return;
+    if (_partida.terminada) {
+      setState(_limpiarTrazo);
+      return;
+    }
 
-    final fin = local ?? (_trazoActual.isEmpty ? null : _trazoActual.last);
-    final a = _partida.siguienteConectar + 1;
-    final okFin =
-        fin != null && cercaDeNumeroPapa(_partida, a, fin, boardSize);
-
+    // Empezó un trazo y lo soltó sin llegar al número: pierde.
     setState(() {
-      if (okFin && _trazoActual.length >= 2) {
-        aceptarTrazoPapa(_partida, _trazoActual);
-      }
-      _trazoActual.clear();
-      _dibujando = false;
-      _inicioValido = false;
+      _perder(
+        '${_partida.jugadorActual} no terminó el trazo en el número. '
+        'Fin de la partida.',
+      );
     });
   }
 
@@ -110,188 +164,169 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -0.3),
-                radius: 1.1,
-                colors: [
-                  Color(0xFF1A3D32),
-                  AppColors.fondo,
-                  Color(0xFF05020C),
-                ],
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerMove: (e) => _onPointerMoveGlobal(e.position),
+        onPointerUp: (_) => _onPointerUpOrCancel(),
+        onPointerCancel: (_) => _onPointerUpOrCancel(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -0.3),
+                  radius: 1.1,
+                  colors: [
+                    Color(0xFF1A3D32),
+                    AppColors.fondo,
+                    Color(0xFF05020C),
+                  ],
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        icon: const Icon(Icons.arrow_back,
-                            color: AppColors.texto),
-                      ),
-                      Expanded(
-                        child: Text(
-                          widget.solo
-                              ? 'La papa · Solo'
-                              : 'La papa · ${_partida.jugadorActual}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.mint,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Nueva hoja',
-                        onPressed: _reiniciar,
-                        icon: const Icon(Icons.refresh_rounded,
-                            color: AppColors.textoSuave),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    _partida.terminada
-                        ? (_partida.mensajeFin ?? 'Fin')
-                        : (a == null
-                            ? '¡Completaste la hoja!'
-                            : 'Conectá $de → $a trazando el camino'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _partida.fase == FasePapa.perdido
-                          ? AppColors.peligro
-                          : (_partida.fase == FasePapa.ganado
-                              ? AppColors.mint
-                              : AppColors.textoSuave),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                        child: AspectRatio(
-                          aspectRatio: columnasPapa / filasPapa,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final boardSize = Size(
-                                constraints.maxWidth,
-                                constraints.maxHeight,
-                              );
-                              return DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: AppColors.mint,
-                                    width: 2,
-                                  ),
-                                  boxShadow: neonGlow(
-                                    AppColors.mint,
-                                    blur: 16,
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Listener(
-                                    onPointerDown: (e) {
-                                      final box = context.findRenderObject()
-                                          as RenderBox?;
-                                      if (box == null) return;
-                                      final local =
-                                          box.globalToLocal(e.position);
-                                      _onPointerDown(local, boardSize);
-                                    },
-                                    onPointerMove: (e) {
-                                      final box = context.findRenderObject()
-                                          as RenderBox?;
-                                      if (box == null) return;
-                                      final local =
-                                          box.globalToLocal(e.position);
-                                      if (local.dx < 0 ||
-                                          local.dy < 0 ||
-                                          local.dx > boardSize.width ||
-                                          local.dy > boardSize.height) {
-                                        return;
-                                      }
-                                      _onPointerMove(local, boardSize);
-                                    },
-                                    onPointerUp: (e) {
-                                      final box = context.findRenderObject()
-                                          as RenderBox?;
-                                      if (box == null) {
-                                        _onPointerUp(null, boardSize);
-                                        return;
-                                      }
-                                      final local =
-                                          box.globalToLocal(e.position);
-                                      _onPointerUp(local, boardSize);
-                                    },
-                                    onPointerCancel: (_) =>
-                                        _onPointerUp(null, boardSize),
-                                    child: CustomPaint(
-                                      size: boardSize,
-                                      painter: _HojaPapaPainter(
-                                        partida: _partida,
-                                        trazoActual: List.of(_trazoActual),
-                                        boardSize: boardSize,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (_partida.terminada)
+            SafeArea(
+              child: Column(
+                children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                    child: Column(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                    child: Row(
                       children: [
-                        ElevatedButton(
-                          onPressed: _reiniciar,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.mint,
-                            foregroundColor: const Color(0xFF062018),
-                          ),
-                          child: const Text('Otra partida'),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          icon: const Icon(Icons.arrow_back,
+                              color: AppColors.texto),
                         ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text(
-                            'Volver al menú',
-                            style: TextStyle(color: AppColors.textoSuave),
+                        Expanded(
+                          child: Text(
+                            widget.solo
+                                ? 'La papa · Solo'
+                                : 'La papa · ${_partida.jugadorActual}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.mint,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
                           ),
+                        ),
+                        IconButton(
+                          tooltip: 'Nueva hoja',
+                          onPressed: _reiniciar,
+                          icon: const Icon(Icons.refresh_rounded,
+                              color: AppColors.textoSuave),
                         ),
                       ],
                     ),
                   ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      _partida.terminada
+                          ? (_partida.mensajeFin ?? 'Fin')
+                          : (a == null
+                              ? '¡Completaste la hoja!'
+                              : 'Conectá $de → $a · soltá o salí de la hoja = perdés'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _partida.fase == FasePapa.perdido
+                            ? AppColors.peligro
+                            : (_partida.fase == FasePapa.ganado
+                                ? AppColors.mint
+                                : AppColors.textoSuave),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          child: AspectRatio(
+                            aspectRatio: columnasPapa / filasPapa,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final boardSize = Size(
+                                  constraints.maxWidth,
+                                  constraints.maxHeight,
+                                );
+                                return DecoratedBox(
+                                  key: _hojaKey,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: AppColors.mint,
+                                      width: 2,
+                                    ),
+                                    boxShadow: neonGlow(
+                                      AppColors.mint,
+                                      blur: 16,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Listener(
+                                      onPointerDown: (e) {
+                                        final box = _hojaKey.currentContext
+                                                ?.findRenderObject()
+                                            as RenderBox?;
+                                        if (box == null) return;
+                                        final local =
+                                            box.globalToLocal(e.position);
+                                        _onPointerDown(local, boardSize);
+                                      },
+                                      child: CustomPaint(
+                                        size: boardSize,
+                                        painter: _HojaPapaPainter(
+                                          partida: _partida,
+                                          trazoActual: List.of(_trazoActual),
+                                          boardSize: boardSize,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_partida.terminada)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                      child: Column(
+                        children: [
+                          ElevatedButton(
+                            onPressed: _reiniciar,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.mint,
+                              foregroundColor: const Color(0xFF062018),
+                            ),
+                            child: const Text('Otra partida'),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text(
+                              'Volver al menú',
+                              style: TextStyle(color: AppColors.textoSuave),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
