@@ -563,6 +563,14 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: _editarNombres,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.texto,
+                                backgroundColor: const Color(0xFF6B6578),
+                                side: const BorderSide(
+                                  color: Color(0xFF8A8498),
+                                  width: 1.5,
+                                ),
+                              ),
                               child: const Text('Nombres'),
                             ),
                           ),
