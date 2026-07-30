@@ -5,6 +5,8 @@ const int minCategoriasTuti = 3;
 const int maxCategoriasTuti = 6;
 const int maxCharsCategoriaTuti = 25;
 const Duration duracionContadorTuti = Duration(seconds: 3);
+/// Gracia tras BASTA: se puede seguir escribiendo hasta que termine.
+const Duration duracionBastaTuti = Duration(seconds: 2);
 
 /// Abecedario A–Z (sin Ñ).
 const String abecedarioTuti = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -49,11 +51,15 @@ class PartidaTuti {
     Map<String, List<String>>? respuestas,
     Map<String, bool>? listos,
     this.bastaTodos = false,
+    this.bastaInicioMs,
+    this.bastaPor,
     this.categoriaRevision = 0,
+    List<String>? letrasUsadas,
     Map<String, List<int?>>? puntajes,
     Map<String, int>? totales,
     this.version = 1,
-  })  : respuestas = respuestas ??
+  })  : letrasUsadas = letrasUsadas ?? [],
+        respuestas = respuestas ??
             {
               for (final n in nombres)
                 n: List.filled(categorias.length, ''),
@@ -78,10 +84,25 @@ class PartidaTuti {
   Map<String, List<String>> respuestas;
   Map<String, bool> listos;
   bool bastaTodos;
+  /// Momento en que alguien apretó BASTA (ms epoch).
+  int? bastaInicioMs;
+  /// Quién apretó BASTA.
+  String? bastaPor;
   int categoriaRevision;
+  /// Letras ya salidas (no vuelven a la ruleta).
+  List<String> letrasUsadas;
   Map<String, List<int?>> puntajes;
   Map<String, int> totales;
   int version;
+
+  /// Abecedario sin las letras ya jugadas.
+  List<String> get letrasDisponibles {
+    final usadas = letrasUsadas.map((l) => l.toUpperCase()).toSet();
+    return [
+      for (var i = 0; i < abecedarioTuti.length; i++)
+        if (!usadas.contains(abecedarioTuti[i])) abecedarioTuti[i],
+    ];
+  }
 
   int get indiceParador =>
       nombres.isEmpty ? 0 : (indiceSpinner + 1) % nombres.length;
@@ -95,18 +116,37 @@ class PartidaTuti {
   bool get todosListos =>
       nombres.every((n) => listos[n] == true);
 
-  bool get escrituraTerminada => bastaTodos;
+  /// Aviso de basta activo (animación de 2s en curso o pendiente de cierre).
+  bool get bastaEnCurso =>
+      fase == FaseTuti.escritura && bastaTodos && bastaInicioMs != null;
 
-  /// Letra actual de la ruleta según reloj compartido.
+  /// Margen extra para que el aviso llegue a los demás y cumplan sus 2s locales.
+  static const Duration margenCierreBasta = Duration(milliseconds: 2000);
+
+  /// Listo para cerrar escritura y pasar a revisión (reloj del que dijo basta).
+  bool listoParaCerrarBasta({int? ahoraMs}) {
+    if (!bastaTodos || bastaInicioMs == null) return false;
+    if (fase != FaseTuti.escritura) return false;
+    final ahora = ahoraMs ?? DateTime.now().millisecondsSinceEpoch;
+    final espera =
+        duracionBastaTuti.inMilliseconds + margenCierreBasta.inMilliseconds;
+    return ahora - bastaInicioMs! >= espera;
+  }
+
+  bool get escrituraTerminada =>
+      bastaTodos && listoParaCerrarBasta();
+
+  /// Letra actual de la ruleta según reloj compartido (solo letras libres).
   String letraActualRuleta({int? ahoraMs}) {
     if (letra != null && letra!.isNotEmpty) return letra!;
+    var pool = letrasDisponibles;
+    if (pool.isEmpty) pool = abecedarioTuti.split('');
     final inicio = ruletaInicioMs;
-    if (inicio == null) return abecedarioTuti[0];
+    if (inicio == null) return pool.first;
     final ahora = ahoraMs ?? DateTime.now().millisecondsSinceEpoch;
     final elapsedSec = ((ahora - inicio) / 1000.0).clamp(0.0, 1e9);
-    final idx =
-        (elapsedSec * ruletaVelocidad).floor() % abecedarioTuti.length;
-    return abecedarioTuti[idx];
+    final idx = (elapsedSec * ruletaVelocidad).floor() % pool.length;
+    return pool[idx];
   }
 
   int segundosRestantesContador({int? ahoraMs}) {
@@ -174,11 +214,17 @@ void avanzarContadorTuti(PartidaTuti p) {
       p.ruletaInicioMs = now;
       p.ruletaVelocidad = 8.0;
       p.faseInicioMs = now;
+      // Si se agotó el abecedario, reinicia el pool para no softlockear.
+      if (p.letrasDisponibles.isEmpty) {
+        p.letrasUsadas.clear();
+      }
       break;
     case FaseTuti.countdownEscritura:
       p.fase = FaseTuti.escritura;
       p.faseInicioMs = now;
       p.bastaTodos = false;
+      p.bastaInicioMs = null;
+      p.bastaPor = null;
       p.listos = {for (final n in p.nombres) n: false};
       p.respuestas = {
         for (final n in p.nombres)
@@ -203,24 +249,37 @@ void acelerarRuletaTuti(PartidaTuti p, {double delta = 4.0}) {
 void pararRuletaTuti(PartidaTuti p) {
   if (p.fase != FaseTuti.ruleta) return;
   final now = DateTime.now().millisecondsSinceEpoch;
-  p.letra = p.letraActualRuleta(ahoraMs: now);
+  final elegida = p.letraActualRuleta(ahoraMs: now);
+  p.letra = elegida;
+  final upper = elegida.toUpperCase();
+  if (!p.letrasUsadas.contains(upper)) {
+    p.letrasUsadas.add(upper);
+  }
   p.fase = FaseTuti.countdownEscritura;
   p.faseInicioMs = now;
 }
 
 void setRespuestaTuti(PartidaTuti p, String nombre, int catIndex, String texto) {
   if (p.fase != FaseTuti.escritura) return;
-  if (p.bastaTodos) return;
   final list = p.respuestas[nombre];
   if (list == null || catIndex < 0 || catIndex >= list.length) return;
   list[catIndex] = texto.length > 40 ? texto.substring(0, 40) : texto;
 }
 
-/// Un solo “Basta”: bloquea a todos y pasa a revisión.
-void bastaTuti(PartidaTuti p) {
+/// Anuncia BASTA: arranca gracia (los demás ven el aviso 2s desde que les llega).
+void bastaTuti(PartidaTuti p, String quien) {
   if (p.fase != FaseTuti.escritura) return;
   if (p.bastaTodos) return;
+  final now = DateTime.now().millisecondsSinceEpoch;
   p.bastaTodos = true;
+  p.bastaInicioMs = now;
+  p.bastaPor = quien;
+}
+
+/// Al terminar la gracia global: cierra escritura y va a countdown de revisión.
+void cerrarEscrituraTrasBastaTuti(PartidaTuti p) {
+  if (p.fase != FaseTuti.escritura) return;
+  if (!p.bastaTodos || !p.listoParaCerrarBasta()) return;
   for (final n in p.nombres) {
     p.listos[n] = true;
   }
@@ -288,6 +347,8 @@ void continuarRevisionTuti(PartidaTuti p) {
   p.letra = null;
   p.categoriaRevision = 0;
   p.bastaTodos = false;
+  p.bastaInicioMs = null;
+  p.bastaPor = null;
   p.listos = {for (final n in p.nombres) n: false};
   p.fase = FaseTuti.countdownRuleta;
   p.faseInicioMs = now;

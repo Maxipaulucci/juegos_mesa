@@ -10,6 +10,7 @@ Map<String, dynamic> encodeTutiGameState(PartidaTuti p) {
     'indiceSpinner': p.indiceSpinner,
     'ronda': p.ronda,
     'letra': p.letra,
+    'letrasUsadas': List<String>.from(p.letrasUsadas),
     'ruletaInicioMs': p.ruletaInicioMs,
     'ruletaVelocidad': p.ruletaVelocidad,
     'faseInicioMs': p.faseInicioMs,
@@ -18,6 +19,8 @@ Map<String, dynamic> encodeTutiGameState(PartidaTuti p) {
     },
     'listos': Map<String, bool>.from(p.listos),
     'bastaTodos': p.bastaTodos,
+    'bastaInicioMs': p.bastaInicioMs,
+    'bastaPor': p.bastaPor,
     'categoriaRevision': p.categoriaRevision,
     'puntajes': {
       for (final e in p.puntajes.entries)
@@ -76,7 +79,6 @@ PartidaTuti decodeTutiGameState(Map<String, dynamic> raw) {
     }
   }
 
-  // Completar claves faltantes.
   for (final n in nombres) {
     respuestas.putIfAbsent(n, () => List.filled(categorias.length, ''));
     listos.putIfAbsent(n, () => false);
@@ -94,12 +96,18 @@ PartidaTuti decodeTutiGameState(Map<String, dynamic> raw) {
     indiceSpinner: (raw['indiceSpinner'] as num?)?.toInt() ?? 0,
     ronda: (raw['ronda'] as num?)?.toInt() ?? 1,
     letra: raw['letra']?.toString(),
+    letrasUsadas: (raw['letrasUsadas'] as List?)
+            ?.map((e) => e.toString().toUpperCase())
+            .toList() ??
+        <String>[],
     ruletaInicioMs: (raw['ruletaInicioMs'] as num?)?.toInt(),
     ruletaVelocidad: (raw['ruletaVelocidad'] as num?)?.toDouble() ?? 8.0,
     faseInicioMs: (raw['faseInicioMs'] as num?)?.toInt(),
     respuestas: respuestas,
     listos: listos,
     bastaTodos: raw['bastaTodos'] == true,
+    bastaInicioMs: (raw['bastaInicioMs'] as num?)?.toInt(),
+    bastaPor: raw['bastaPor']?.toString(),
     categoriaRevision: (raw['categoriaRevision'] as num?)?.toInt() ?? 0,
     puntajes: puntajes,
     totales: totales,
@@ -113,17 +121,21 @@ void applyTutiGameState(PartidaTuti destino, Map<String, dynamic> raw) {
   destino.indiceSpinner = nuevo.indiceSpinner;
   destino.ronda = nuevo.ronda;
   destino.letra = nuevo.letra;
+  destino.letrasUsadas
+    ..clear()
+    ..addAll(nuevo.letrasUsadas);
   destino.ruletaInicioMs = nuevo.ruletaInicioMs;
   destino.ruletaVelocidad = nuevo.ruletaVelocidad;
   destino.faseInicioMs = nuevo.faseInicioMs;
   destino.respuestas = nuevo.respuestas;
   destino.listos = nuevo.listos;
   destino.bastaTodos = nuevo.bastaTodos;
+  destino.bastaInicioMs = nuevo.bastaInicioMs;
+  destino.bastaPor = nuevo.bastaPor;
   destino.categoriaRevision = nuevo.categoriaRevision;
   destino.puntajes = nuevo.puntajes;
   destino.totales = nuevo.totales;
   destino.version = nuevo.version;
-  // categorias/nombres no cambian mid-game; si llegan, respetarlos
   if (nuevo.categorias.isNotEmpty) {
     destino.categorias
       ..clear()

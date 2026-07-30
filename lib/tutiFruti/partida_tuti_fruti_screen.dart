@@ -33,11 +33,42 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
   Timer? _debounceRespuestas;
   final List<TextEditingController> _respCtrls = [];
   bool _soyAnfitrion = false;
+  /// Momento local en que ESTE cliente vio el aviso de basta (solo rivales).
+  int? _bastaLocalInicioMs;
 
   bool get _esMiSpinner =>
       _partida.nombreSpinner == widget.miNombre;
   bool get _esMiParador =>
       _partida.nombreParador == widget.miNombre;
+
+  bool get _yoDijeBasta =>
+      _partida.bastaTodos && _partida.bastaPor == widget.miNombre;
+
+  /// Aviso solo para quienes NO apretaron BASTA.
+  bool get _mostrarAvisoBasta =>
+      _partida.fase == FaseTuti.escritura &&
+      _partida.bastaTodos &&
+      !_yoDijeBasta &&
+      _bastaLocalInicioMs != null;
+
+  double get _progresoBastaLocal {
+    final inicio = _bastaLocalInicioMs;
+    if (inicio == null) return 1;
+    final elapsed =
+        DateTime.now().millisecondsSinceEpoch - inicio;
+    final t = 1.0 - (elapsed / duracionBastaTuti.inMilliseconds);
+    return t.clamp(0.0, 1.0);
+  }
+
+  bool get _escrituraBloqueadaLocal {
+    if (_partida.fase != FaseTuti.escritura) return true;
+    if (!_partida.bastaTodos) return false;
+    // Quien dijo basta: ya no escribe.
+    if (_yoDijeBasta) return true;
+    // Los demás: bloquean al terminar SU contador local de 2s.
+    if (_bastaLocalInicioMs == null) return false;
+    return _progresoBastaLocal <= 0;
+  }
 
   @override
   void initState() {
@@ -47,11 +78,14 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
       categorias: const ['…'],
     );
     _iniciarSincronizacionOnline();
-    _tick = Timer.periodic(const Duration(milliseconds: 80), (_) {
+    _tick = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!mounted) return;
       if (_partida.fase == FaseTuti.ruleta || _partida.fase.esContador) {
         setState(() {});
         _talvezAvanzarContador();
+      } else if (_partida.fase == FaseTuti.escritura && _partida.bastaTodos) {
+        setState(() {});
+        _talvezCerrarBasta();
       }
     });
   }
@@ -121,9 +155,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     final deboFusionar = remoteBasta &&
         estabaEscribiendo &&
         !_partida.bastaTodos &&
-        (remoteFase == 'countdownRevision' ||
-            remoteFase == 'escritura' ||
-            remoteFase == 'revision');
+        remoteFase == 'escritura';
 
     if (deboFusionar) {
       _fusionarMisRespuestasTrasBasta();
@@ -136,6 +168,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
       _soyAnfitrion = host?.nombre == widget.miNombre;
 
       final prevFase = _partida.fase;
+      final prevRonda = _partida.ronda;
       final misLocales = deboFusionar
           ? List<String>.from(
               _partida.respuestas[widget.miNombre] ?? const [],
@@ -144,6 +177,16 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
 
       applyTutiGameState(_partida, gameState);
       _onlineVersion = version;
+
+      // Contador local: arranca cuando el rival VE el basta, no con el reloj del que lo dijo.
+      if (_partida.fase == FaseTuti.escritura &&
+          _partida.bastaTodos &&
+          _partida.bastaPor != widget.miNombre) {
+        _bastaLocalInicioMs ??= DateTime.now().millisecondsSinceEpoch;
+      }
+      if (!_partida.bastaTodos || _partida.fase != FaseTuti.escritura) {
+        _bastaLocalInicioMs = null;
+      }
 
       if (misLocales != null && misLocales.isNotEmpty) {
         final dest = _partida.respuestas.putIfAbsent(
@@ -157,8 +200,13 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
         }
       }
 
-      if (_partida.fase == FaseTuti.escritura &&
-          (prevFase != FaseTuti.escritura ||
+      final entroAEscritura = _partida.fase == FaseTuti.escritura &&
+          prevFase != FaseTuti.escritura;
+      final nuevaRondaEscritura = _partida.fase == FaseTuti.escritura &&
+          prevRonda != _partida.ronda;
+      if (entroAEscritura ||
+          nuevaRondaEscritura ||
+          (_partida.fase == FaseTuti.escritura &&
               _respCtrls.length != _partida.categorias.length)) {
         _rebuildRespCtrls();
       }
@@ -174,10 +222,24 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
       c.dispose();
     }
     _respCtrls.clear();
+    final forzarVacios = _partida.fase == FaseTuti.escritura &&
+        !_partida.bastaTodos;
+    if (forzarVacios) {
+      final dest = _partida.respuestas.putIfAbsent(
+        widget.miNombre,
+        () => List.filled(_partida.categorias.length, ''),
+      );
+      for (var i = 0; i < dest.length; i++) {
+        dest[i] = '';
+      }
+    }
     final mias = _partida.respuestas[widget.miNombre] ??
         List.filled(_partida.categorias.length, '');
     for (var i = 0; i < _partida.categorias.length; i++) {
-      final ctrl = TextEditingController(text: i < mias.length ? mias[i] : '');
+      final texto = forzarVacios
+          ? ''
+          : (i < mias.length ? mias[i] : '');
+      final ctrl = TextEditingController(text: texto);
       final idx = i;
       ctrl.addListener(() {
         setRespuestaTuti(_partida, widget.miNombre, idx, ctrl.text);
@@ -215,7 +277,37 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     if (!_soyAnfitrion) return;
     if (!_partida.fase.esContador) return;
     if (!_partida.contadorTerminado()) return;
-    _mutar(() => avanzarContadorTuti(_partida));
+    _mutar(() {
+      avanzarContadorTuti(_partida);
+      // Nueva ronda de escritura: campos vacíos.
+      if (_partida.fase == FaseTuti.escritura) {
+        _bastaLocalInicioMs = null;
+        _rebuildRespCtrls();
+      }
+    });
+  }
+
+  void _talvezCerrarBasta() {
+    if (_partida.fase != FaseTuti.escritura) return;
+    if (!_partida.bastaTodos || !_partida.listoParaCerrarBasta()) return;
+    // Quien dijo basta o el anfitrión cierra la escritura.
+    final soyQuienDijo =
+        _partida.bastaPor != null && _partida.bastaPor == widget.miNombre;
+    if (!_soyAnfitrion && !soyQuienDijo) return;
+    _debounceRespuestas?.cancel();
+    _mutar(() {
+      _flushRespuestasLocales();
+      final mias = _partida.respuestas.putIfAbsent(
+        widget.miNombre,
+        () => List.filled(_partida.categorias.length, ''),
+      );
+      for (var i = 0; i < _respCtrls.length && i < mias.length; i++) {
+        final t = _respCtrls[i].text;
+        mias[i] = t.length > 40 ? t.substring(0, 40) : t;
+      }
+      cerrarEscrituraTrasBastaTuti(_partida);
+      _bastaLocalInicioMs = null;
+    });
   }
 
   @override
@@ -396,99 +488,125 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
         if (mounted) setState(_rebuildRespCtrls);
       });
     }
-    final bloqueado = _partida.bastaTodos;
+    final bloqueado = _escrituraBloqueadaLocal;
+    final bastaActivo = _mostrarAvisoBasta;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          Text(
-            'Letra: ${_partida.letra ?? '—'}',
-            style: const TextStyle(
-              color: AppColors.acento,
-              fontWeight: FontWeight.w900,
-              fontSize: 22,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.separated(
-              itemCount: _partida.categorias.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, i) {
-                return Row(
-                  children: [
-                    Container(
-                      width: 110,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF5A5568),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        _partida.categorias[i],
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: i < _respCtrls.length
-                            ? _respCtrls[i]
-                            : null,
-                        enabled: !bloqueado && i < _respCtrls.length,
-                        decoration: const InputDecoration(
-                          hintText: 'Escribí…',
-                          filled: true,
-                          fillColor: Color(0xFFF5F5F5),
-                          hintStyle: TextStyle(color: Colors.black45),
-                        ),
-                        style: const TextStyle(
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (!bloqueado)
-            ElevatedButton(
-              onPressed: () {
-                _debounceRespuestas?.cancel();
-                _mutar(() {
-                  _flushRespuestasLocales();
-                  bastaTuti(_partida);
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.peligro,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(54),
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              Text(
+                'Letra: ${_partida.letra ?? '—'}',
+                style: const TextStyle(
+                  color: AppColors.acento,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                ),
               ),
-              child: const Text('BASTA'),
-            )
-          else
-            const Text(
-              '¡Basta! Esperando revisión…',
-              style: TextStyle(color: AppColors.mint),
+              if (bastaActivo) const SizedBox(height: 88),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: _partida.categorias.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    return Row(
+                      children: [
+                        Container(
+                          width: 110,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF5A5568),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            _partida.categorias[i],
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: i < _respCtrls.length
+                                ? _respCtrls[i]
+                                : null,
+                            enabled: !bloqueado && i < _respCtrls.length,
+                            decoration: const InputDecoration(
+                              hintText: 'Escribí…',
+                              filled: true,
+                              fillColor: Color(0xFFF5F5F5),
+                              hintStyle: TextStyle(color: Colors.black45),
+                            ),
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (!bastaActivo && !bloqueado && !_partida.bastaTodos)
+                ElevatedButton(
+                  onPressed: () {
+                    _debounceRespuestas?.cancel();
+                    _mutar(() {
+                      _flushRespuestasLocales();
+                      bastaTuti(_partida, widget.miNombre);
+                      // Quien dice basta no ve el aviso ni el contador.
+                      _bastaLocalInicioMs = null;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.peligro,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(54),
+                  ),
+                  child: const Text('BASTA'),
+                )
+              else if (_yoDijeBasta && _partida.fase == FaseTuti.escritura)
+                const Text(
+                  'Dijiste BASTA. Esperando a los demás…',
+                  style: TextStyle(color: AppColors.mint),
+                )
+              else if (bloqueado)
+                const Text(
+                  '¡Tiempo! Esperando revisión…',
+                  style: TextStyle(color: AppColors.mint),
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+        if (bastaActivo)
+          Positioned(
+            top: 0,
+            left: 12,
+            right: 12,
+            child: Material(
+              color: Colors.transparent,
+              child: _AvisoBastaOverlay(
+                quien: _partida.bastaPor ?? 'Alguien',
+                progreso: _progresoBastaLocal,
+              ),
             ),
-          const SizedBox(height: 12),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -846,3 +964,125 @@ class _TarjetaRespuesta extends StatelessWidget {
     );
   }
 }
+
+/// Aviso de BASTA: mensaje + anillo que se vacía en 2s.
+class _AvisoBastaOverlay extends StatelessWidget {
+  const _AvisoBastaOverlay({
+    required this.quien,
+    required this.progreso,
+  });
+
+  final String quien;
+  final double progreso;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: AppColors.carta.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.peligro, width: 1.6),
+        boxShadow: [
+          ...neonGlow(AppColors.peligro, blur: 16),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '¡BASTA! · $quien',
+                  style: const TextStyle(
+                    color: AppColors.peligro,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Últimos segundos para escribir…',
+                  style: TextStyle(
+                    color: AppColors.textoSuave,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: CustomPaint(
+              painter: _AnilloBastaPainter(
+                progreso: progreso,
+                color: AppColors.peligro,
+              ),
+              child: Center(
+                child: Text(
+                  progreso <= 0
+                      ? '0'
+                      : '${(progreso * 2).ceil().clamp(1, 2)}',
+                  style: const TextStyle(
+                    color: AppColors.peligro,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnilloBastaPainter extends CustomPainter {
+  _AnilloBastaPainter({required this.progreso, required this.color});
+
+  final double progreso;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.shortestSide / 2) - 6;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final fondo = Paint()
+      ..color = color.withValues(alpha: 0.2)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, fondo);
+
+    final arco = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+
+    const start = -1.57079632679; // -pi/2
+    final sweep = 6.28318530718 * progreso.clamp(0.0, 1.0);
+    if (sweep > 0.001) {
+      canvas.drawArc(rect, start, sweep, false, arco);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnilloBastaPainter oldDelegate) =>
+      oldDelegate.progreso != progreso || oldDelegate.color != color;
+}
+
