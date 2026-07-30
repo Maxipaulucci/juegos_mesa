@@ -59,16 +59,67 @@ class PartidaPapa {
   }
 }
 
-/// Genera 30 números (1..30) en 50 casillas al azar.
+int filaPapa(int index) => index ~/ columnasPapa;
+int colPapa(int index) => index % columnasPapa;
+
+/// Consecutivos: no misma fila/columna y no vecinos (queda al menos 1 casilla).
+bool posicionesConsecutivasValidasPapa(int a, int b) {
+  final fa = filaPapa(a);
+  final fb = filaPapa(b);
+  final ca = colPapa(a);
+  final cb = colPapa(b);
+  if (fa == fb || ca == cb) return false;
+  final dr = (fa - fb).abs();
+  final dc = (ca - cb).abs();
+  // Vecinos en las 8 direcciones → no hay casilla blanca en el medio.
+  if (dr <= 1 && dc <= 1) return false;
+  return true;
+}
+
+List<int?>? _generarCasillasPapa(math.Random rng) {
+  final casillas = List<int?>.filled(totalCasillasPapa, null);
+  final libres = List<int>.generate(totalCasillasPapa, (i) => i);
+
+  bool colocar(int numero, int? prevIdx) {
+    if (numero > maxNumeroPapa) return true;
+    final orden = List<int>.of(libres)..shuffle(rng);
+    for (final i in orden) {
+      if (prevIdx != null && !posicionesConsecutivasValidasPapa(prevIdx, i)) {
+        continue;
+      }
+      casillas[i] = numero;
+      libres.remove(i);
+      if (colocar(numero + 1, i)) return true;
+      libres.add(i);
+      casillas[i] = null;
+    }
+    return false;
+  }
+
+  if (!colocar(1, null)) return null;
+  return casillas;
+}
+
+/// Genera 30 números (1..30) en 50 casillas al azar, con reglas de separación.
 PartidaPapa nuevaPartidaPapa({
   required List<String> nombres,
   int? semilla,
 }) {
   final rng = math.Random(semilla);
-  final indices = List<int>.generate(totalCasillasPapa, (i) => i)..shuffle(rng);
-  final casillas = List<int?>.filled(totalCasillasPapa, null);
-  for (var n = 1; n <= maxNumeroPapa; n++) {
-    casillas[indices[n - 1]] = n;
+  List<int?>? casillas;
+  for (var intento = 0; intento < 80; intento++) {
+    casillas = _generarCasillasPapa(rng);
+    if (casillas != null) break;
+  }
+  if (casillas == null) {
+    // Último recurso: reintentos extra (en la práctica casi no hace falta).
+    for (var intento = 0; intento < 200; intento++) {
+      casillas = _generarCasillasPapa(math.Random(rng.nextInt(1 << 30)));
+      if (casillas != null) break;
+    }
+  }
+  if (casillas == null) {
+    throw StateError('No se pudo armar una hoja válida de La papa.');
   }
   return PartidaPapa(
     nombres: List<String>.from(nombres),
