@@ -161,17 +161,89 @@ bool chocaConTrazosPapa(
   return false;
 }
 
-/// ¿El trazo actual (salvo el tramo recién agregado) se auto-cruza fuerte?
-/// No se usa para fin de partida; solo contra trazos previos.
-bool trazoChocaAlAgregar(
-  PartidaPapa p,
-  List<Offset> trazoActual,
-  Offset nuevo, {
-  double umbral = 7.0,
+double longitudPolylinePapa(List<Offset> pts) {
+  var L = 0.0;
+  for (var i = 1; i < pts.length; i++) {
+    L += (pts[i] - pts[i - 1]).distance;
+  }
+  return L;
+}
+
+bool _puntoCercaDeTrazos(Offset p, List<TrazoPapa> trazos, double umbral) {
+  for (final t in trazos) {
+    final pts = t.puntos;
+    for (var i = 1; i < pts.length; i++) {
+      if (_distPuntoSegmento(p, pts[i - 1], pts[i]) <= umbral) return true;
+    }
+  }
+  return false;
+}
+
+/// Longitud del trazo actual que queda “encima” de trazos previos.
+/// Ignora la zona del número de partida (donde nace el trazo anterior).
+double longitudSolapadaPapa(
+  List<TrazoPapa> trazos,
+  List<Offset> trazoActual, {
+  Offset? ignorarCercaDe,
+  double radioIgnorar = 28,
+  double umbral = 3.5,
 }) {
-  if (trazoActual.isEmpty) return false;
-  final prev = trazoActual.last;
-  return chocaConTrazosPapa(p.trazos, prev, nuevo, umbral: umbral);
+  if (trazoActual.length < 2 || trazos.isEmpty) return 0;
+  var solapada = 0.0;
+  for (var i = 1; i < trazoActual.length; i++) {
+    final a = trazoActual[i - 1];
+    final b = trazoActual[i];
+    final segLen = (b - a).distance;
+    if (segLen < 1e-6) continue;
+    final muestras = math.max(2, (segLen / 2.5).ceil());
+    var chocan = 0;
+    var validas = 0;
+    for (var s = 0; s <= muestras; s++) {
+      final t = s / muestras;
+      final p = Offset.lerp(a, b, t)!;
+      if (ignorarCercaDe != null &&
+          (p - ignorarCercaDe).distance <= radioIgnorar) {
+        continue;
+      }
+      validas++;
+      if (_puntoCercaDeTrazos(p, trazos, umbral)) chocan++;
+    }
+    if (validas == 0) continue;
+    solapada += segLen * (chocan / validas);
+  }
+  return solapada;
+}
+
+/// Pierde recién cuando ~10% del trazo actual está encima de otra línea.
+bool trazoPierdePorSolapePapa(
+  PartidaPapa p,
+  List<Offset> trazoActual, {
+  required Size boardSize,
+  double fraccionMin = 0.10,
+}) {
+  if (trazoActual.length < 3 || p.trazos.isEmpty) return false;
+  final total = longitudPolylinePapa(trazoActual);
+  final cell = math.min(
+    boardSize.width / columnasPapa,
+    boardSize.height / filasPapa,
+  );
+  // Trazo muy corto: todavía no se juzga.
+  if (total < cell * 0.8) return false;
+
+  final idxInicio = p.indiceDeNumero(p.siguienteConectar);
+  final centroInicio =
+      idxInicio != null ? centroCasillaPapa(idxInicio, boardSize) : null;
+
+  final solape = longitudSolapadaPapa(
+    p.trazos,
+    trazoActual,
+    ignorarCercaDe: centroInicio,
+    radioIgnorar: cell * 0.55,
+    umbral: math.max(2.8, cell * 0.08),
+  );
+
+  // Al menos 10% del trazo, y un mínimo absoluto para no disparar por un roce.
+  return solape >= total * fraccionMin && solape >= cell * 0.22;
 }
 
 bool cercaDeNumeroPapa(

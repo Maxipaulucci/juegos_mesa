@@ -111,7 +111,11 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
     final de = _partida.siguienteConectar;
     final a = de + 1;
-    final choca = trazoChocaAlAgregar(_partida, _trazoActual, local);
+    final choca = trazoPierdePorSolapePapa(
+      _partida,
+      [..._trazoActual, local],
+      boardSize: boardSize,
+    );
 
     setState(() {
       _trazoActual.add(local);
