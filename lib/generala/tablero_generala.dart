@@ -11,7 +11,8 @@ Color colorJugadorTablero(int index) => switch (index % 4) {
     };
 
 /// Overlay con el tablero de anotación estilo arcade.
-/// El tablero se escala al espacio disponible: sin scroll horizontal ni vertical.
+/// Tamaño compacto (tipo celular); en pantallas chicas se achica con
+/// [FittedBox] para entrar sin scroll ni filas estiradas.
 class TableroGeneralaOverlay extends StatefulWidget {
   const TableroGeneralaOverlay({
     super.key,
@@ -48,6 +49,9 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
   Widget build(BuildContext context) {
     final cerrar =
         widget.onCerrar ?? () => Navigator.of(context).maybePop();
+    // Tras la 3.ª tirada el tablero no se puede cerrar: el ojo deja ver dados.
+    final mostrarOjo = widget.dadosActuales != null &&
+        widget.partida.turno.tiradasHechas >= maxTiradasGenerala;
 
     return Material(
       color: _verDados
@@ -62,132 +66,125 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
               if (!_verDados)
                 LayoutBuilder(
                   builder: (context, outer) {
-                    // Márgenes mínimos: el panel ocupa casi toda la pantalla.
-                    final maxW = (outer.maxWidth - 8).clamp(280.0, outer.maxWidth);
-                    final maxH =
-                        (outer.maxHeight - 8).clamp(280.0, outer.maxHeight);
+                    // Tamaño "celular": no se estira en PC; FittedBox achica
+                    // si la ventana es más chica.
+                    const anchoIdeal = 400.0;
+                    const rowH = 34.0;
+                    const headerH = 38.0;
+                    final cuerpoFilas =
+                        CategoriaGenerala.values.length + 1; // + TOTAL
+                    final tableH =
+                        headerH + cuerpoFilas * rowH + (cuerpoFilas + 1);
+                    final n = widget.partida.jugadores.length;
+                    final catFlex = n >= 4 ? 1.2 : 1.45;
 
                     return Center(
-                      child: GestureDetector(
-                        onTap: () {},
-                        child: SizedBox(
-                          width: maxW,
-                          height: maxH,
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF2A1450),
-                                    AppColors.carta,
-                                    Color(0xFF140828),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: AppColors.violeta
-                                      .withValues(alpha: 0.85),
-                                  width: 1.6,
-                                ),
-                                boxShadow: [
-                                  ...neonGlow(AppColors.violeta, blur: 22),
-                                  ...neonGlow(AppColors.rosa, blur: 12),
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.grid_on_rounded,
-                                        color: AppColors.acento,
-                                        size: 20,
-                                        shadows: [
-                                          Shadow(
-                                            color: AppColors.acento,
-                                            blurRadius: 12,
-                                          ),
-                                        ],
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth:
+                              (outer.maxWidth - 16).clamp(0.0, 540.0),
+                          maxHeight: (outer.maxHeight - 12)
+                              .clamp(0.0, outer.maxHeight),
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: GestureDetector(
+                            onTap: () {},
+                            child: SizedBox(
+                              width: anchoIdeal,
+                              child: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    8,
+                                    6,
+                                    8,
+                                    8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Color(0xFF2A1450),
+                                        AppColors.carta,
+                                        Color(0xFF140828),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: AppColors.violeta
+                                          .withValues(alpha: 0.85),
+                                      width: 1.6,
+                                    ),
+                                    boxShadow: [
+                                      ...neonGlow(
+                                        AppColors.violeta,
+                                        blur: 22,
                                       ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          widget.modoAnotar
-                                              ? 'ELEGÍ QUÉ ANOTAR'
-                                              : 'TABLERO',
-                                          style: const TextStyle(
-                                            color: AppColors.acento,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 16,
-                                            letterSpacing: 1.1,
-                                          ),
-                                        ),
-                                      ),
-                                      if (widget.dadosActuales != null)
-                                        const SizedBox(width: 42),
-                                      if (widget.permitirCerrar)
-                                        IconButton(
-                                          onPressed: cerrar,
-                                          tooltip: 'Cerrar',
-                                          visualDensity:
-                                              VisualDensity.compact,
-                                          icon: const Icon(
-                                            Icons.close_rounded,
-                                            color: AppColors.textoSuave,
-                                          ),
-                                        ),
+                                      ...neonGlow(AppColors.rosa, blur: 12),
                                     ],
                                   ),
-                                  if (widget.modoAnotar) ...[
-                                    Text(
-                                      'Turno de ${widget.partida.jugadorActual.nombre}',
-                                      style: const TextStyle(
-                                        color: AppColors.textoSuave,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.grid_on_rounded,
+                                            color: AppColors.acento,
+                                            size: 20,
+                                            shadows: [
+                                              Shadow(
+                                                color: AppColors.acento,
+                                                blurRadius: 12,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              widget.modoAnotar
+                                                  ? 'ELEGÍ QUÉ ANOTAR'
+                                                  : 'TABLERO',
+                                              style: const TextStyle(
+                                                color: AppColors.acento,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 16,
+                                                letterSpacing: 1.1,
+                                              ),
+                                            ),
+                                          ),
+                                          if (mostrarOjo)
+                                            const SizedBox(width: 42),
+                                          if (widget.permitirCerrar)
+                                            IconButton(
+                                              onPressed: cerrar,
+                                              tooltip: 'Cerrar',
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                color: AppColors.textoSuave,
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 4),
-                                  Expanded(
-                                    child: LayoutBuilder(
-                                      builder: (context, constraints) {
-                                        final n = widget
-                                            .partida.jugadores.length;
-                                        // header + categorías + TOTAL
-                                        final cuerpoFilas =
-                                            CategoriaGenerala
-                                                    .values.length +
-                                                1;
-                                        // Restar bordes internos/externos de
-                                        // la tabla (~1px × filas) para que
-                                        // TOTAL no quede cortado.
-                                        final filasTotales =
-                                            cuerpoFilas + 1;
-                                        final altoDisp =
-                                            (constraints.maxHeight -
-                                                    filasTotales)
-                                                .clamp(
-                                          120.0,
-                                          constraints.maxHeight,
-                                        );
-                                        final headerH =
-                                            altoDisp / (cuerpoFilas + 1.2);
-                                        final bodyH =
-                                            (altoDisp - headerH) /
-                                                cuerpoFilas;
-                                        final escala =
-                                            (bodyH / 42).clamp(0.55, 1.0);
-                                        // Flex: categorías un poco más anchas.
-                                        final catFlex =
-                                            n >= 4 ? 1.2 : 1.45;
-
-                                        return _TableroTabla(
+                                      if (widget.modoAnotar) ...[
+                                        Text(
+                                          'Turno de ${widget.partida.jugadorActual.nombre}',
+                                          style: const TextStyle(
+                                            color: AppColors.textoSuave,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 4),
+                                      SizedBox(
+                                        height: tableH,
+                                        child: _TableroTabla(
                                           partida: widget.partida,
                                           modoAnotar: widget.modoAnotar,
                                           dadosActuales:
@@ -198,13 +195,13 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
                                               widget.categoriaResaltada,
                                           catFlex: catFlex,
                                           headerHeight: headerH,
-                                          rowHeight: bodyH,
-                                          escala: escala,
-                                        );
-                                      },
-                                    ),
+                                          rowHeight: rowH,
+                                          escala: 1.0,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -214,7 +211,7 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
                   },
                 ),
 
-              if (widget.dadosActuales != null)
+              if (mostrarOjo)
                 Positioned(
                   top: 8,
                   right: 8,
@@ -559,7 +556,7 @@ class _Casilla extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(width: 1),
+          const SizedBox(width: 2),
         ],
         Text(
           preview > 0 ? '$preview' : '0',
@@ -575,25 +572,30 @@ class _Casilla extends StatelessWidget {
       ],
     );
 
-    final caja = Ink(
-      padding: EdgeInsets.symmetric(
-        vertical: (3 * escala).clamp(1.0, 4.0),
-        horizontal: 2,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: resaltada
-              ? AppColors.acento
-              : color.withValues(alpha: 0.85),
-          width: resaltada ? 2 : 1,
+    // Mismo ancho para 1 o 2–3 dígitos; padding para que no queden pegados.
+    final cajaW = (resaltada ? 52.0 : 44.0) * escala.clamp(0.85, 1.1);
+    final caja = SizedBox(
+      width: cajaW,
+      child: Ink(
+        padding: EdgeInsets.symmetric(
+          vertical: (5 * escala).clamp(4.0, 7.0),
+          horizontal: (8 * escala).clamp(6.0, 10.0),
         ),
-        color: resaltada
-            ? AppColors.acento.withValues(alpha: 0.22)
-            : color.withValues(alpha: 0.12),
-        boxShadow: resaltada ? neonGlow(AppColors.acento, blur: 8) : null,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: resaltada
+                ? AppColors.acento
+                : color.withValues(alpha: 0.85),
+            width: resaltada ? 2 : 1,
+          ),
+          color: resaltada
+              ? AppColors.acento.withValues(alpha: 0.22)
+              : color.withValues(alpha: 0.12),
+          boxShadow: resaltada ? neonGlow(AppColors.acento, blur: 8) : null,
+        ),
+        child: Center(child: contenido),
       ),
-      child: contenido,
     );
 
     if (onElegir == null) {
@@ -614,7 +616,7 @@ class _Casilla extends StatelessWidget {
           }
           onElegir!.call(categoria);
         },
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         child: caja,
       ),
     );
