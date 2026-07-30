@@ -82,12 +82,52 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
         .listen(_onSalaOnlineActualizada);
   }
 
+  void _flushRespuestasLocales() {
+    for (var i = 0; i < _respCtrls.length && i < _partida.categorias.length; i++) {
+      setRespuestaTuti(
+        _partida,
+        widget.miNombre,
+        i,
+        _respCtrls[i].text,
+      );
+    }
+  }
+
+  /// Si llegó un Basta ajeno, mezclamos nuestras respuestas locales
+  /// (pueden no haberse subido aún por el debounce) y republicamos.
+  void _fusionarMisRespuestasTrasBasta() {
+    _flushRespuestasLocales();
+    // setRespuesta bloquea si bastaTodos; forzar escritura directa:
+    final mias = _partida.respuestas.putIfAbsent(
+      widget.miNombre,
+      () => List.filled(_partida.categorias.length, ''),
+    );
+    for (var i = 0; i < _respCtrls.length && i < mias.length; i++) {
+      final t = _respCtrls[i].text;
+      mias[i] = t.length > 40 ? t.substring(0, 40) : t;
+    }
+  }
+
   void _onSalaOnlineActualizada(Sala sala) {
     if (!mounted) return;
     final gameState = sala.gameState;
     if (gameState == null) return;
     final version = (gameState['version'] as num?)?.toInt() ?? 0;
     if (version <= _onlineVersion || _publicandoOnline) return;
+
+    final remoteBasta = gameState['bastaTodos'] == true;
+    final remoteFase = gameState['fase']?.toString();
+    final estabaEscribiendo = _partida.fase == FaseTuti.escritura;
+    final deboFusionar = remoteBasta &&
+        estabaEscribiendo &&
+        !_partida.bastaTodos &&
+        (remoteFase == 'countdownRevision' ||
+            remoteFase == 'escritura' ||
+            remoteFase == 'revision');
+
+    if (deboFusionar) {
+      _fusionarMisRespuestasTrasBasta();
+    }
 
     setState(() {
       final host = sala.jugadores
@@ -96,14 +136,37 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
       _soyAnfitrion = host?.nombre == widget.miNombre;
 
       final prevFase = _partida.fase;
+      final misLocales = deboFusionar
+          ? List<String>.from(
+              _partida.respuestas[widget.miNombre] ?? const [],
+            )
+          : null;
+
       applyTutiGameState(_partida, gameState);
       _onlineVersion = version;
+
+      if (misLocales != null && misLocales.isNotEmpty) {
+        final dest = _partida.respuestas.putIfAbsent(
+          widget.miNombre,
+          () => List.filled(_partida.categorias.length, ''),
+        );
+        for (var i = 0; i < misLocales.length && i < dest.length; i++) {
+          if (misLocales[i].trim().isNotEmpty) {
+            dest[i] = misLocales[i];
+          }
+        }
+      }
+
       if (_partida.fase == FaseTuti.escritura &&
           (prevFase != FaseTuti.escritura ||
               _respCtrls.length != _partida.categorias.length)) {
         _rebuildRespCtrls();
       }
     });
+
+    if (deboFusionar) {
+      unawaited(_publicarEstadoOnline());
+    }
   }
 
   void _rebuildRespCtrls() {
@@ -333,8 +396,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
         if (mounted) setState(_rebuildRespCtrls);
       });
     }
-    final bloqueado =
-        _partida.listos[widget.miNombre] == true || _partida.bastaTodos;
+    final bloqueado = _partida.bastaTodos;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -403,36 +465,26 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          if (!bloqueado) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () =>
-                        _mutar(() => bastaParaMiTuti(_partida, widget.miNombre)),
-                    child: const Text('Basta para mí'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () =>
-                        _mutar(() => bastaParaTodosTuti(_partida)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.peligro,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Basta para todos'),
-                  ),
-                ),
-              ],
-            ),
-          ] else
-            Text(
-              _partida.bastaTodos
-                  ? '¡Basta! Esperando revisión…'
-                  : 'Listo. Esperando a los demás…',
-              style: const TextStyle(color: AppColors.mint),
+          if (!bloqueado)
+            ElevatedButton(
+              onPressed: () {
+                _debounceRespuestas?.cancel();
+                _mutar(() {
+                  _flushRespuestasLocales();
+                  bastaTuti(_partida);
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.peligro,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(54),
+              ),
+              child: const Text('BASTA'),
+            )
+          else
+            const Text(
+              '¡Basta! Esperando revisión…',
+              style: TextStyle(color: AppColors.mint),
             ),
           const SizedBox(height: 12),
         ],
@@ -498,8 +550,22 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
             ),
           ),
           if (_soyAnfitrion) ...[
+            if (!todosVotaronCategoriaTuti(_partida)) ...[
+              Text(
+                'Falta que voten: ${pendientesVotoTuti(_partida).join(', ')}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             ElevatedButton(
-              onPressed: () => _mutar(() => continuarRevisionTuti(_partida)),
+              onPressed: todosVotaronCategoriaTuti(_partida)
+                  ? () => _mutar(() => continuarRevisionTuti(_partida))
+                  : null,
               child: Text(
                 catIdx + 1 < _partida.categorias.length
                     ? 'Continuar'
@@ -511,14 +577,29 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
               onPressed: () => _mutar(() => acabarPartidaTuti(_partida)),
               child: const Text('Se acabó la partida'),
             ),
-          ] else
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text(
-                'Esperando al anfitrión…',
-                style: TextStyle(color: AppColors.textoSuave),
+          ] else ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Builder(
+                builder: (_) {
+                  final mis =
+                      _partida.puntajes[widget.miNombre] ?? const <int?>[];
+                  final yaVote =
+                      catIdx < mis.length && mis[catIdx] != null;
+                  final texto = todosVotaronCategoriaTuti(_partida)
+                      ? 'Esperando al anfitrión…'
+                      : (yaVote
+                          ? 'Esperando que voten los demás…'
+                          : 'Elegí tu puntaje para continuar');
+                  return Text(
+                    texto,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.textoSuave),
+                  );
+                },
               ),
             ),
+          ],
           const SizedBox(height: 8),
         ],
       ),
@@ -650,20 +731,30 @@ class _TarjetaRespuesta extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            respuesta,
-            style: const TextStyle(
-              color: AppColors.textoSuave,
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              respuesta,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
             ),
           ),
           if (esMio && onElegirPuntos != null) ...[
             const SizedBox(height: 10),
-            const Text(
-              'Puntaje obtenido en este turno:',
+            Text(
+              puntos == null
+                  ? 'Tocá el círculo y elegí tu puntaje'
+                  : 'Puntaje obtenido en este turno:',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textoSuave,
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
@@ -722,14 +813,26 @@ class _TarjetaRespuesta extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.fondoSuave,
-                    border: Border.all(color: AppColors.rosa, width: 2),
-                    boxShadow: neonGlow(AppColors.rosa, blur: 10),
+                    color: puntos == null
+                        ? Colors.transparent
+                        : AppColors.fondoSuave,
+                    border: Border.all(
+                      color: puntos == null
+                          ? AppColors.textoSuave
+                          : AppColors.rosa,
+                      width: 2,
+                      strokeAlign: BorderSide.strokeAlignInside,
+                    ),
+                    boxShadow: puntos == null
+                        ? null
+                        : neonGlow(AppColors.rosa, blur: 10),
                   ),
                   child: Text(
-                    puntos == null ? '?' : '$puntos',
-                    style: const TextStyle(
-                      color: AppColors.texto,
+                    puntos == null ? '—' : '$puntos',
+                    style: TextStyle(
+                      color: puntos == null
+                          ? AppColors.textoSuave
+                          : AppColors.texto,
                       fontWeight: FontWeight.w900,
                       fontSize: 18,
                     ),

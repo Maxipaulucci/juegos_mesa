@@ -40,6 +40,21 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
 
   bool get _soyAnfitrion => widget.miId == _sala.anfitrionId;
 
+  bool get _puedeAgregarCategoria {
+    if (_catCtrls.isEmpty || _catCtrls.length >= 6) return false;
+    return _catCtrls.last.text.trim().isNotEmpty;
+  }
+
+  void _onCatChanged() {
+    if (mounted) setState(() {});
+  }
+
+  TextEditingController _nuevaCatCtrl([String texto = '']) {
+    final c = TextEditingController(text: texto);
+    c.addListener(_onCatChanged);
+    return c;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -47,9 +62,9 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     _dados = _sala.dados;
     if (widget.editarCategorias) {
       _catCtrls.addAll([
-        TextEditingController(text: 'Nombre'),
-        TextEditingController(text: 'Animal'),
-        TextEditingController(text: 'Color'),
+        _nuevaCatCtrl('Nombre'),
+        _nuevaCatCtrl('Animal'),
+        _nuevaCatCtrl('Color'),
       ]);
     }
     _sub = SalaService.instance.watch(_sala.codigo).listen(_onSalaUpdate);
@@ -59,6 +74,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   void dispose() {
     _sub?.cancel();
     for (final c in _catCtrls) {
+      c.removeListener(_onCatChanged);
       c.dispose();
     }
     super.dispose();
@@ -288,7 +304,9 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                           onPressed: _iniciando
                               ? null
                               : () => setState(() {
-                                    _catCtrls.removeAt(i).dispose();
+                                    final c = _catCtrls.removeAt(i);
+                                    c.removeListener(_onCatChanged);
+                                    c.dispose();
                                   }),
                           icon: const Icon(
                             Icons.remove_circle_outline,
@@ -301,10 +319,10 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                 if (_catCtrls.length < 6) ...[
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
-                    onPressed: _iniciando
+                    onPressed: (_iniciando || !_puedeAgregarCategoria)
                         ? null
                         : () => setState(() {
-                              _catCtrls.add(TextEditingController());
+                              _catCtrls.add(_nuevaCatCtrl());
                             }),
                     icon: const Icon(Icons.add),
                     label: const Text('Agregar categoría'),

@@ -95,7 +95,7 @@ class PartidaTuti {
   bool get todosListos =>
       nombres.every((n) => listos[n] == true);
 
-  bool get escrituraTerminada => bastaTodos || todosListos;
+  bool get escrituraTerminada => bastaTodos;
 
   /// Letra actual de la ruleta según reloj compartido.
   String letraActualRuleta({int? ahoraMs}) {
@@ -210,20 +210,16 @@ void pararRuletaTuti(PartidaTuti p) {
 
 void setRespuestaTuti(PartidaTuti p, String nombre, int catIndex, String texto) {
   if (p.fase != FaseTuti.escritura) return;
-  if (p.listos[nombre] == true || p.bastaTodos) return;
+  if (p.bastaTodos) return;
   final list = p.respuestas[nombre];
   if (list == null || catIndex < 0 || catIndex >= list.length) return;
   list[catIndex] = texto.length > 40 ? texto.substring(0, 40) : texto;
 }
 
-void bastaParaMiTuti(PartidaTuti p, String nombre) {
+/// Un solo “Basta”: bloquea a todos y pasa a revisión.
+void bastaTuti(PartidaTuti p) {
   if (p.fase != FaseTuti.escritura) return;
-  p.listos[nombre] = true;
-  if (p.escrituraTerminada) _irACountdownRevision(p);
-}
-
-void bastaParaTodosTuti(PartidaTuti p) {
-  if (p.fase != FaseTuti.escritura) return;
+  if (p.bastaTodos) return;
   p.bastaTodos = true;
   for (final n in p.nombres) {
     p.listos[n] = true;
@@ -254,9 +250,33 @@ void setPuntajePropioTuti(
   p.totales[nombre] = total - (prev ?? 0) + puntos;
 }
 
+/// True si todos eligieron un puntaje (incluido 0) en la categoría actual.
+bool todosVotaronCategoriaTuti(PartidaTuti p, [int? catIndex]) {
+  final idx = catIndex ?? p.categoriaRevision;
+  for (final n in p.nombres) {
+    final list = p.puntajes[n];
+    if (list == null || idx < 0 || idx >= list.length) return false;
+    if (list[idx] == null) return false;
+  }
+  return true;
+}
+
+List<String> pendientesVotoTuti(PartidaTuti p, [int? catIndex]) {
+  final idx = catIndex ?? p.categoriaRevision;
+  final out = <String>[];
+  for (final n in p.nombres) {
+    final list = p.puntajes[n];
+    if (list == null || idx >= list.length || list[idx] == null) {
+      out.add(n);
+    }
+  }
+  return out;
+}
+
 /// Continuar revisión (anfitrión): siguiente categoría o nueva ronda.
 void continuarRevisionTuti(PartidaTuti p) {
   if (p.fase != FaseTuti.revision) return;
+  if (!todosVotaronCategoriaTuti(p)) return;
   final now = DateTime.now().millisecondsSinceEpoch;
   if (p.categoriaRevision + 1 < p.categorias.length) {
     p.categoriaRevision++;
