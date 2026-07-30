@@ -141,7 +141,7 @@ class _VictoriaGeneralaOverlayState extends State<VictoriaGeneralaOverlay>
                 : Colors.transparent,
             child: Stack(
               children: [
-                if (widget.animaciones) ...[
+                if (widget.animaciones)
                   Positioned.fill(
                     child: IgnorePointer(
                       child: AnimatedBuilder(
@@ -152,10 +152,6 @@ class _VictoriaGeneralaOverlayState extends State<VictoriaGeneralaOverlay>
                       ),
                     ),
                   ),
-                  const Positioned.fill(
-                    child: IgnorePointer(child: FuegosArtificialesCapa()),
-                  ),
-                ],
                 if (_cartelVisible)
                   SafeArea(
                     child: Center(
@@ -173,6 +169,11 @@ class _VictoriaGeneralaOverlayState extends State<VictoriaGeneralaOverlay>
                         ),
                       ),
                     ),
+                  ),
+                // Fuegos por encima del cartel (siguen spawneando en los bordes).
+                if (widget.animaciones)
+                  const Positioned.fill(
+                    child: IgnorePointer(child: FuegosArtificialesCapa()),
                   ),
                 if (_mostrarTablero)
                   Positioned.fill(

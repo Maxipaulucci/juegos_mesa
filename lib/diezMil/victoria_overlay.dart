@@ -149,8 +149,8 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
                 : Colors.transparent,
             child: Stack(
               children: [
-                // Confeti / fuegos siguen aunque el cartel se oculte.
-                if (widget.animaciones) ...[
+                // Confeti detrás del cartel.
+                if (widget.animaciones)
                   Positioned.fill(
                     child: IgnorePointer(
                       child: AnimatedBuilder(
@@ -161,10 +161,6 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
                       ),
                     ),
                   ),
-                  const Positioned.fill(
-                    child: IgnorePointer(child: FuegosArtificialesCapa()),
-                  ),
-                ],
                 if (_cartelVisible)
                   SafeArea(
                     child: Center(
@@ -182,6 +178,11 @@ class _VictoriaOverlayState extends State<VictoriaOverlay>
                         ),
                       ),
                     ),
+                  ),
+                // Fuegos por encima del cartel (siguen spawneando en los bordes).
+                if (widget.animaciones)
+                  const Positioned.fill(
+                    child: IgnorePointer(child: FuegosArtificialesCapa()),
                   ),
               ],
             ),

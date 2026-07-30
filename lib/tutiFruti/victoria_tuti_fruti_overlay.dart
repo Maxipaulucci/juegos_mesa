@@ -145,7 +145,7 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
                 : Colors.transparent,
             child: Stack(
               children: [
-                if (widget.animaciones) ...[
+                if (widget.animaciones)
                   Positioned.fill(
                     child: IgnorePointer(
                       child: AnimatedBuilder(
@@ -156,10 +156,6 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
                       ),
                     ),
                   ),
-                  const Positioned.fill(
-                    child: IgnorePointer(child: FuegosArtificialesCapa()),
-                  ),
-                ],
                 if (_cartelVisible)
                   SafeArea(
                     child: Center(
@@ -177,6 +173,11 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
                         ),
                       ),
                     ),
+                  ),
+                // Fuegos por encima del cartel (siguen spawneando en los bordes).
+                if (widget.animaciones)
+                  const Positioned.fill(
+                    child: IgnorePointer(child: FuegosArtificialesCapa()),
                   ),
               ],
             ),
