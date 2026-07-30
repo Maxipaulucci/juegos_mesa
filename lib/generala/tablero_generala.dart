@@ -52,6 +52,7 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
     // Tras la 3.ª tirada el tablero no se puede cerrar: el ojo deja ver dados.
     final mostrarOjo = widget.dadosActuales != null &&
         widget.partida.turno.tiradasHechas >= maxTiradasGenerala;
+    final puedeCerrar = widget.permitirCerrar && !mostrarOjo;
 
     return Material(
       color: _verDados
@@ -59,7 +60,7 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
           : Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: (!_verDados && widget.permitirCerrar) ? cerrar : null,
+        onTap: (!_verDados && puedeCerrar) ? cerrar : null,
         child: SafeArea(
           child: Stack(
             children: [
@@ -158,7 +159,7 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
                                           ),
                                           if (mostrarOjo)
                                             const SizedBox(width: 42),
-                                          if (widget.permitirCerrar)
+                                          if (puedeCerrar)
                                             IconButton(
                                               onPressed: cerrar,
                                               tooltip: 'Cerrar',
