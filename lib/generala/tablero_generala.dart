@@ -541,14 +541,53 @@ class _Casilla extends StatelessWidget {
       servida: servida,
     );
 
-    final contenido = Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (resaltada) ...[
+    final textoPreview = preview > 0 ? '$preview' : '0';
+    // Idéntico a los cuadrados 1–6: mismo lado fijo, el texto se adapta adentro.
+    final lado = (24 * escala).clamp(18.0, 26.0);
+
+    Widget caja = Container(
+      width: lado,
+      height: lado,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: resaltada
+              ? AppColors.acento
+              : color.withValues(alpha: 0.9),
+          width: resaltada ? 1.5 : 1.2,
+        ),
+        color: resaltada
+            ? AppColors.acento.withValues(alpha: 0.22)
+            : color.withValues(alpha: 0.12),
+        boxShadow: resaltada ? neonGlow(AppColors.acento, blur: 8) : null,
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          textoPreview,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: resaltada
+                ? AppColors.acento
+                : (preview > 0 ? AppColors.mint : AppColors.textoSuave),
+            fontWeight: FontWeight.w900,
+            fontSize: (12 * escala).clamp(9.0, 13.0),
+            height: 1,
+          ),
+        ),
+      ),
+    );
+
+    if (resaltada) {
+      caja = Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Icon(
             Icons.arrow_forward_rounded,
-            size: (14 * escala).clamp(11.0, 16.0),
+            size: (12 * escala).clamp(10.0, 14.0),
             color: AppColors.acento,
             shadows: [
               Shadow(
@@ -558,68 +597,29 @@ class _Casilla extends StatelessWidget {
             ],
           ),
           const SizedBox(width: 2),
+          caja,
         ],
-        Text(
-          preview > 0 ? '$preview' : '0',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: resaltada
-                ? AppColors.acento
-                : (preview > 0 ? AppColors.mint : AppColors.textoSuave),
-            fontWeight: FontWeight.w900,
-            fontSize: (14 * escala).clamp(10.0, 15.0),
-          ),
-        ),
-      ],
-    );
-
-    // Mismo ancho para 1 o 2–3 dígitos; padding para que no queden pegados.
-    final cajaW = (resaltada ? 52.0 : 44.0) * escala.clamp(0.85, 1.1);
-    final caja = SizedBox(
-      width: cajaW,
-      child: Ink(
-        padding: EdgeInsets.symmetric(
-          vertical: (5 * escala).clamp(4.0, 7.0),
-          horizontal: (8 * escala).clamp(6.0, 10.0),
-        ),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: resaltada
-                ? AppColors.acento
-                : color.withValues(alpha: 0.85),
-            width: resaltada ? 2 : 1,
-          ),
-          color: resaltada
-              ? AppColors.acento.withValues(alpha: 0.22)
-              : color.withValues(alpha: 0.12),
-          boxShadow: resaltada ? neonGlow(AppColors.acento, blur: 8) : null,
-        ),
-        child: Center(child: contenido),
-      ),
-    );
+      );
+    }
 
     if (onElegir == null) {
       return caja;
     }
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          if (!puedeElegirCategoria(
-            jugador,
-            categoria,
-            dados: dadosActuales,
-            servida: servida,
-          )) {
-            return;
-          }
-          onElegir!.call(categoria);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: caja,
-      ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (!puedeElegirCategoria(
+          jugador,
+          categoria,
+          dados: dadosActuales,
+          servida: servida,
+        )) {
+          return;
+        }
+        onElegir!.call(categoria);
+      },
+      child: caja,
     );
   }
 }
