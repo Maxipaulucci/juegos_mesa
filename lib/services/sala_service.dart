@@ -147,12 +147,14 @@ class SalaService {
     required String codigo,
     required String anfitrionId,
     required int dados,
+    List<String>? categorias,
   }) async {
     final data = await _post({
       'action': 'iniciar',
       'codigo': codigo,
       'anfitrionId': anfitrionId,
       'dados': dados,
+      if (categorias != null) 'categorias': categorias,
     });
     return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
   }

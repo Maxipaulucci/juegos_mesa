@@ -13,12 +13,14 @@ class CrearSalaScreen extends StatefulWidget {
     required this.juegoId,
     required this.onIniciarPartida,
     this.mostrarSelectorDados = true,
+    this.editarCategorias = false,
   });
 
   final String juegoId;
   final void Function(BuildContext context, InicioPartidaOnline inicio)
       onIniciarPartida;
   final bool mostrarSelectorDados;
+  final bool editarCategorias;
 
   @override
   State<CrearSalaScreen> createState() => _CrearSalaScreenState();
@@ -88,6 +90,7 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
             miId: result.miId,
             onIniciarPartida: widget.onIniciarPartida,
             mostrarSelectorDados: widget.mostrarSelectorDados,
+            editarCategorias: widget.editarCategorias,
           ),
         ),
       );

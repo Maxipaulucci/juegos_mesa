@@ -172,7 +172,53 @@ export default async (req) => {
       sala.iniciadaEn = Date.now()
       // Estado inicial de partida para sync online (anfitrión empieza).
       const nombres = sala.jugadores.map((j) => j.nombre)
-      if (sala.juegoId === 'generala') {
+      if (sala.juegoId === 'tutiFruti') {
+        const rawCats = Array.isArray(body.categorias) ? body.categorias : []
+        const cats = rawCats
+          .map((c) => String(c || '').trim())
+          .filter((c) => c.length > 0)
+        if (cats.length < 3 || cats.length > 6) {
+          return json(400, { error: 'Tutti Frutti: entre 3 y 6 categorías.' })
+        }
+        for (const c of cats) {
+          if (c.length > 25) {
+            return json(400, {
+              error: 'Cada categoría puede tener hasta 25 caracteres.',
+            })
+          }
+        }
+        const now = Date.now()
+        const respuestas = {}
+        const listos = {}
+        const puntajes = {}
+        const totales = {}
+        for (const n of nombres) {
+          respuestas[n] = cats.map(() => '')
+          listos[n] = false
+          puntajes[n] = cats.map(() => null)
+          totales[n] = 0
+        }
+        sala.gameState = {
+          version: 1,
+          juego: 'tutiFruti',
+          categorias: cats,
+          nombres,
+          fase: 'countdownRuleta',
+          indiceSpinner: 0,
+          ronda: 1,
+          letra: null,
+          ruletaInicioMs: null,
+          ruletaVelocidad: 8,
+          faseInicioMs: now,
+          respuestas,
+          listos,
+          bastaTodos: false,
+          categoriaRevision: 0,
+          puntajes,
+          totales,
+          mostrarVictoria: false,
+        }
+      } else if (sala.juegoId === 'generala') {
         const cats = [
           '1', '2', '3', '4', '5', '6',
           'ESCALERA', 'FULL', 'POKER', 'GENERALA', 'GENERALA DOBLE',

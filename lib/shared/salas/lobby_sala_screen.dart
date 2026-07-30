@@ -14,6 +14,7 @@ class LobbySalaScreen extends StatefulWidget {
     required this.miId,
     required this.onIniciarPartida,
     this.mostrarSelectorDados = true,
+    this.editarCategorias = false,
   });
 
   final Sala salaInicial;
@@ -21,6 +22,8 @@ class LobbySalaScreen extends StatefulWidget {
   final void Function(BuildContext context, InicioPartidaOnline inicio)
       onIniciarPartida;
   final bool mostrarSelectorDados;
+  /// Tutti Frutti: anfitrión define 3–6 categorías antes de iniciar.
+  final bool editarCategorias;
 
   @override
   State<LobbySalaScreen> createState() => _LobbySalaScreenState();
@@ -33,6 +36,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   bool _iniciando = false;
   bool _partidaLanzada = false;
   StreamSubscription<Sala>? _sub;
+  final List<TextEditingController> _catCtrls = [];
 
   bool get _soyAnfitrion => widget.miId == _sala.anfitrionId;
 
@@ -41,12 +45,22 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     super.initState();
     _sala = widget.salaInicial;
     _dados = _sala.dados;
+    if (widget.editarCategorias) {
+      _catCtrls.addAll([
+        TextEditingController(text: 'Nombre'),
+        TextEditingController(text: 'Animal'),
+        TextEditingController(text: 'Color'),
+      ]);
+    }
     _sub = SalaService.instance.watch(_sala.codigo).listen(_onSalaUpdate);
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    for (final c in _catCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -124,12 +138,44 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
       );
       return;
     }
+
+    List<String>? categorias;
+    if (widget.editarCategorias) {
+      categorias = _catCtrls
+          .map((c) => c.text.trim())
+          .where((c) => c.isNotEmpty)
+          .toList();
+      if (categorias.length < 3) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mínimo 3 categorías.')),
+        );
+        return;
+      }
+      if (categorias.length > 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Máximo 6 categorías.')),
+        );
+        return;
+      }
+      for (final c in categorias) {
+        if (c.length > 25) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cada categoría: máx. 25 caracteres.'),
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     setState(() => _iniciando = true);
     try {
       final sala = await SalaService.instance.iniciar(
         codigo: _sala.codigo,
         anfitrionId: widget.miId,
         dados: widget.mostrarSelectorDados ? _dados : 5,
+        categorias: categorias,
       );
       if (!mounted) return;
       _lanzarPartida(sala);
@@ -205,6 +251,70 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                     ? null
                     : (s) => setState(() => _dados = s.first),
               ),
+            ],
+            if (widget.editarCategorias) ...[
+              const SizedBox(height: 20),
+              Text(
+                _soyAnfitrion
+                    ? 'Categorías (3–6, máx. 25 caracteres)'
+                    : 'El anfitrión elige las categorías',
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_soyAnfitrion) ...[
+                for (var i = 0; i < _catCtrls.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _catCtrls[i],
+                          maxLength: 25,
+                          enabled: !_iniciando,
+                          decoration: InputDecoration(
+                            labelText: 'Categoría ${i + 1}',
+                            counterText: '',
+                            filled: true,
+                            fillColor: AppColors.carta,
+                          ),
+                        ),
+                      ),
+                      if (_catCtrls.length > 3)
+                        IconButton(
+                          tooltip: 'Quitar',
+                          onPressed: _iniciando
+                              ? null
+                              : () => setState(() {
+                                    _catCtrls.removeAt(i).dispose();
+                                  }),
+                          icon: const Icon(
+                            Icons.remove_circle_outline,
+                            color: AppColors.peligro,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+                if (_catCtrls.length < 6) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _iniciando
+                        ? null
+                        : () => setState(() {
+                              _catCtrls.add(TextEditingController());
+                            }),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Agregar categoría'),
+                  ),
+                ],
+              ] else
+                const Text(
+                  'Cuando el anfitrión inicie, verás las categorías en la partida.',
+                  style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+                ),
             ],
             const SizedBox(height: 24),
             Text(

@@ -4,6 +4,7 @@ import '../diezMil/menu_diez_mil_screen.dart';
 import '../generala/menu_generala_screen.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../theme/app_theme.dart';
+import '../tutiFruti/menu_tuti_fruti_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -116,6 +117,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                         ),
                         const SizedBox(height: 12),
+                        _JuegoTile(
+                          titulo: 'Tutti Frutti',
+                          subtitulo: 'Letras · categorías online',
+                          accent: AppColors.rosa,
+                          onTap: _navegando
+                              ? null
+                              : () => _abrirJuego(
+                                    menu: const MenuTutiFrutiScreen(),
+                                    acento: AppColors.rosa,
+                                    mensaje: 'Tutti Frutti',
+                                  ),
+                        ),
+                        const SizedBox(height: 12),
                         const _JuegoTile(
                           titulo: 'Culo sucio',
                           subtitulo: 'Próximamente',
@@ -134,13 +148,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           titulo: 'Escoba del 15',
                           subtitulo: 'Próximamente',
                           accent: AppColors.azul,
-                          enabled: false,
-                        ),
-                        const SizedBox(height: 12),
-                        const _JuegoTile(
-                          titulo: 'Tutti Frutti',
-                          subtitulo: 'Próximamente',
-                          accent: AppColors.rosa,
                           enabled: false,
                         ),
                         const SizedBox(height: 12),
