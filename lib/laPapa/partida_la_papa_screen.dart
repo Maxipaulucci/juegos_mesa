@@ -132,10 +132,22 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _salioDelInicio = true;
       }
 
-      // Al tocar el número destino: se marca, se corta el trazo y pasa el turno.
+      // Al tocar el destino: solo vale si entrás por un lado libre del círculo.
       if (_salioDelInicio &&
           cercaDeNumeroPapa(_partida, a, local, boardSize) &&
           _trazoActual.length >= 2) {
+        if (llegadaPorLadoBloqueadoPapa(
+          _partida,
+          a,
+          _trazoActual,
+          boardSize,
+        )) {
+          _perder(
+            '${_partida.jugadorActual} entró al número por un lado bloqueado. '
+            'Fin de la partida.',
+          );
+          return;
+        }
         aceptarTrazoPapa(_partida, _trazoActual);
         _limpiarTrazo();
       }

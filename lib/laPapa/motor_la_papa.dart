@@ -313,6 +313,150 @@ bool cercaDeNumeroPapa(
   return (pos - c).distance <= radio;
 }
 
+double _anguloDiff(double a, double b) {
+  var d = (a - b) % (2 * math.pi);
+  if (d < 0) d += 2 * math.pi;
+  if (d > math.pi) d = 2 * math.pi - d;
+  return d;
+}
+
+/// Intersecciones del segmento [a,b] con la circunferencia (c,r).
+List<Offset> _interseccionesSegmentoCirculo(
+  Offset c,
+  double r,
+  Offset a,
+  Offset b,
+) {
+  final d = b - a;
+  final f = a - c;
+  final A = d.dx * d.dx + d.dy * d.dy;
+  if (A < 1e-10) return const [];
+  final B = 2 * (f.dx * d.dx + f.dy * d.dy);
+  final C = f.dx * f.dx + f.dy * f.dy - r * r;
+  var disc = B * B - 4 * A * C;
+  if (disc < 0) return const [];
+  disc = math.sqrt(disc);
+  final out = <Offset>[];
+  for (final sign in [-1.0, 1.0]) {
+    final t = (-B + sign * disc) / (2 * A);
+    if (t >= 0 && t <= 1) {
+      out.add(Offset(a.dx + d.dx * t, a.dy + d.dy * t));
+    }
+  }
+  return out;
+}
+
+/// Primer punto donde el trazo entra al círculo del número.
+Offset? puntoEntradaAlCirculoPapa(
+  List<Offset> trazo,
+  Offset centro,
+  double radio,
+) {
+  if (trazo.isEmpty) return null;
+  for (var i = 1; i < trazo.length; i++) {
+    final a = trazo[i - 1];
+    final b = trazo[i];
+    final da = (a - centro).distance;
+    final db = (b - centro).distance;
+    final crosses = _interseccionesSegmentoCirculo(centro, radio, a, b);
+    if (da >= radio && db <= radio && crosses.isNotEmpty) {
+      // Entrada: la intersección más cercana a b (hacia adentro).
+      crosses.sort(
+        (p, q) => (p - b).distanceSquared.compareTo((q - b).distanceSquared),
+      );
+      return crosses.first;
+    }
+    if (da > radio && db > radio && crosses.length == 2) {
+      // Corta el círculo: primera entrada según el sentido a→b.
+      crosses.sort(
+        (p, q) => (p - a).distanceSquared.compareTo((q - a).distanceSquared),
+      );
+      return crosses.first;
+    }
+  }
+  // Si el trazo ya nace dentro, no hay “entrada” clara.
+  if ((trazo.first - centro).distance <= radio) return trazo.first;
+  return null;
+}
+
+/// Ángulos (rad) donde trazos previos cruzan el borde del círculo.
+List<double> angulosBloqueadosEnNumeroPapa(
+  PartidaPapa p,
+  int numero,
+  Size boardSize, {
+  double factorRadio = 0.32,
+}) {
+  final idx = p.indiceDeNumero(numero);
+  if (idx == null || p.trazos.isEmpty) return const [];
+  final cellW = boardSize.width / columnasPapa;
+  final cellH = boardSize.height / filasPapa;
+  final radio = math.min(cellW, cellH) * factorRadio;
+  final c = centroCasillaPapa(idx, boardSize);
+  final angs = <double>[];
+
+  for (final t in p.trazos) {
+    final pts = t.puntos;
+    for (var i = 1; i < pts.length; i++) {
+      final a = pts[i - 1];
+      final b = pts[i];
+      for (final pto in _interseccionesSegmentoCirculo(c, radio, a, b)) {
+        angs.add(math.atan2(pto.dy - c.dy, pto.dx - c.dx));
+      }
+      // Si el segmento pasa adentro sin cortar el borde (casi centro):
+      final cerca = _distPuntoSegmento(c, a, b);
+      if (cerca < radio * 0.35) {
+        final ab = b - a;
+        if (ab.distance > 1e-6) {
+          final angLinea = math.atan2(ab.dy, ab.dx);
+          angs.add(angLinea);
+          angs.add(angLinea + math.pi);
+        }
+      }
+    }
+  }
+  return angs;
+}
+
+/// True si se entra al número por un arco ya ocupado por otra línea.
+bool llegadaPorLadoBloqueadoPapa(
+  PartidaPapa p,
+  int numero,
+  List<Offset> trazoActual,
+  Size boardSize, {
+  double factorRadio = 0.32,
+  /// Mitad del arco bloqueado alrededor de cada cruce (~70°).
+  double margenRad = 70 * math.pi / 180,
+}) {
+  final idx = p.indiceDeNumero(numero);
+  if (idx == null || trazoActual.length < 2) return false;
+  final cellW = boardSize.width / columnasPapa;
+  final cellH = boardSize.height / filasPapa;
+  final radio = math.min(cellW, cellH) * factorRadio;
+  final c = centroCasillaPapa(idx, boardSize);
+
+  final bloqueados = angulosBloqueadosEnNumeroPapa(
+    p,
+    numero,
+    boardSize,
+    factorRadio: factorRadio,
+  );
+  if (bloqueados.isEmpty) return false;
+
+  final entrada = puntoEntradaAlCirculoPapa(trazoActual, c, radio);
+  if (entrada == null) return false;
+  final angEntrada = math.atan2(entrada.dy - c.dy, entrada.dx - c.dx);
+
+  for (final ang in bloqueados) {
+    if (_anguloDiff(angEntrada, ang) <= margenRad) return true;
+  }
+
+  // Además: el punto de entrada no puede rozar la tinta previa.
+  final umbralTinta = math.max(3.5, radio * 0.45);
+  if (_puntoCercaDeTrazos(entrada, p.trazos, umbralTinta)) return true;
+
+  return false;
+}
+
 /// Acepta el trazo si une el par actual y no chocó.
 void aceptarTrazoPapa(PartidaPapa p, List<Offset> puntos) {
   if (p.terminada || puntos.length < 2) return;
