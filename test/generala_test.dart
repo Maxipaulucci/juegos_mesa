@@ -170,6 +170,10 @@ void main() {
     expect(esEscalera([5, 4, 1, 2, 3]), isTrue);
     expect(esEscalera([2, 3, 4, 5, 6]), isTrue);
     expect(esEscalera([1, 2, 3, 4, 6]), isFalse);
+    expect(esEscalera([4, 5, 6, 1, 2]), isFalse);
+    expect(esEscalera([4, 5, 6, 1, 2], circular: true), isTrue);
+    expect(esEscalera([5, 6, 1, 2, 3], circular: true), isTrue);
+    expect(esEscalera([3, 4, 5, 6, 1], circular: true), isTrue);
     expect(
       puntosCategoria(CategoriaGenerala.escalera, [1, 2, 3, 4, 5],
           yaTieneGenerala: false),
@@ -179,6 +183,15 @@ void main() {
       puntosCategoria(CategoriaGenerala.escalera, [2, 3, 4, 5, 6],
           yaTieneGenerala: false, servida: true),
       ptsEscaleraServida,
+    );
+    expect(
+      puntosCategoria(
+        CategoriaGenerala.escalera,
+        [4, 5, 6, 1, 2],
+        yaTieneGenerala: false,
+        escaleraCircular: true,
+      ),
+      ptsEscalera,
     );
   });
 

@@ -13,18 +13,34 @@ const int maxNumeroPapa = OpcionesPapa.maxNumeroPapaDefault;
 
 enum FasePapa { colocando, jugando, ganado, perdido }
 
+/// Grosor del lápiz al dibujar.
+enum GrosorTrazoPapa {
+  fino(1.8, 'Fino'),
+  normal(3.2, 'Normal'),
+  grueso(5.6, 'Grueso');
+
+  const GrosorTrazoPapa(this.ancho, this.etiqueta);
+  final double ancho;
+  final String etiqueta;
+
+  /// Radio efectivo para choques (~mitad del trazo).
+  double get radioChoque => math.max(1.2, ancho * 0.55);
+}
+
 class TrazoPapa {
   TrazoPapa({
     required this.puntos,
     required this.de,
     required this.a,
     required this.jugador,
+    this.grosor = GrosorTrazoPapa.normal,
   });
 
   final List<Offset> puntos;
   final int de;
   final int a;
   final String jugador;
+  final GrosorTrazoPapa grosor;
 }
 
 class PartidaPapa {
@@ -310,14 +326,13 @@ bool trazoChocaConPreviosPapa(
   PartidaPapa p,
   List<Offset> trazoActual, {
   required Size boardSize,
+  GrosorTrazoPapa grosorActual = GrosorTrazoPapa.normal,
 }) {
   if (trazoActual.length < 2 || p.trazos.isEmpty) return false;
   final cell = math.min(
     boardSize.width / columnasPapa,
     boardSize.height / filasPapa,
   );
-  // ~mitad del grosor visual del trazo (+ un poco): rozar la línea cuenta.
-  final umbral = math.max(3.0, cell * 0.05);
   final idxInicio = p.indiceDeNumero(p.siguienteConectar);
   final centroInicio =
       idxInicio != null ? centroCasillaPapa(idxInicio, boardSize) : null;
@@ -328,16 +343,18 @@ bool trazoChocaConPreviosPapa(
       centroInicio != null && (pt - centroInicio).distance <= radioIgnorar;
 
   // Segmentos previos a evaluar (sin la punta que llega al número de salida).
-  final segsPrev = <(Offset, Offset)>[];
+  final segsPrev = <(Offset, Offset, double)>[];
   for (final t in p.trazos) {
     final pts = t.puntos;
+    final umbral =
+        math.max(grosorActual.radioChoque, t.grosor.radioChoque);
     for (var j = 1; j < pts.length; j++) {
       final p1 = pts[j - 1];
       final p2 = pts[j];
       if (t.a == p.siguienteConectar && enZonaInicio(p1) && enZonaInicio(p2)) {
         continue;
       }
-      segsPrev.add((p1, p2));
+      segsPrev.add((p1, p2, umbral));
     }
   }
   if (segsPrev.isEmpty) return false;
@@ -348,16 +365,15 @@ bool trazoChocaConPreviosPapa(
     final segLen = (b - a).distance;
     if (segLen < 1e-6) continue;
 
-    for (final (p1, p2) in segsPrev) {
+    for (final (p1, p2, _) in segsPrev) {
       if (_cruzan(a, b, p1, p2)) return true;
     }
 
-    // Muestreo denso: detecta roce aunque el cruce no caiga en un extremo.
     final muestras = math.max(2, (segLen / 1.5).ceil());
     for (var s = 0; s <= muestras; s++) {
       final pt = Offset.lerp(a, b, s / muestras)!;
       if (enZonaInicio(pt)) continue;
-      for (final (p1, p2) in segsPrev) {
+      for (final (p1, p2, umbral) in segsPrev) {
         if (_distPuntoSegmento(pt, p1, p2) <= umbral) return true;
       }
     }
@@ -370,13 +386,14 @@ bool trazoChocaConPreviosPapa(
 bool trazoSeTocaASiMismoPapa(
   List<Offset> trazoActual, {
   required Size boardSize,
+  GrosorTrazoPapa grosor = GrosorTrazoPapa.normal,
 }) {
   if (trazoActual.length < 4) return false;
   final cell = math.min(
     boardSize.width / columnasPapa,
     boardSize.height / filasPapa,
   );
-  final umbral = math.max(3.0, cell * 0.05);
+  final umbral = math.max(grosor.radioChoque, cell * 0.035);
   final colaIgnorar = math.max(18.0, cell * 0.5);
 
   // Retrocede desde la punta: esa “cola” no se compara consigo misma.
@@ -502,12 +519,19 @@ bool llegadaPorLadoBloqueadoPapa(
   if (entrada == null) return false;
 
   // ~grosor del trazo: hay que tocar la tinta, no un arco enorme.
-  final umbralTinta = math.max(2.6, cell * 0.04);
+  var umbralTinta = math.max(2.6, cell * 0.04);
+  for (final t in p.trazos) {
+    umbralTinta = math.max(umbralTinta, t.grosor.radioChoque);
+  }
   return _puntoCercaDeTrazos(entrada, p.trazos, umbralTinta);
 }
 
 /// Acepta el trazo si une el par actual y no chocó.
-void aceptarTrazoPapa(PartidaPapa p, List<Offset> puntos) {
+void aceptarTrazoPapa(
+  PartidaPapa p,
+  List<Offset> puntos, {
+  GrosorTrazoPapa grosor = GrosorTrazoPapa.normal,
+}) {
   if (p.terminada || p.fase != FasePapa.jugando || puntos.length < 2) return;
   final de = p.siguienteConectar;
   final a = de + 1;
@@ -517,6 +541,7 @@ void aceptarTrazoPapa(PartidaPapa p, List<Offset> puntos) {
       de: de,
       a: a,
       jugador: p.jugadorActual,
+      grosor: grosor,
     ),
   );
   if (a >= p.maxNumero) {
@@ -573,6 +598,7 @@ void reescalarTrazosPapa(PartidaPapa p, Size desde, Size hacia) {
       de: t.de,
       a: t.a,
       jugador: t.jugador,
+      grosor: t.grosor,
     );
   }
 }

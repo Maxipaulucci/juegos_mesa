@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/generala/opciones_generala.dart';
 import 'package:app_juegos_mesa/generala/partida_generala_screen.dart';
 import 'package:app_juegos_mesa/generala/standby_store.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
@@ -16,13 +17,29 @@ class MenuGeneralaScreen extends StatefulWidget {
 }
 
 class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
+  OpcionesGenerala _opciones = const OpcionesGenerala();
+
   Future<void> _abrirCartelModificar() async {
-    await mostrarCartelModificarPartida(
+    var draft = _opciones;
+    final ok = await mostrarCartelModificarPartida(
       context: context,
       buildOpciones: (dialogContext, setDialogState) {
-        return const SizedBox.shrink();
+        return FilaToggleModificarPartida(
+          titulo: 'Escalera con 6→1',
+          activo: draft.escaleraCircular,
+          onChanged: (v) => setDialogState(
+            () => draft = draft.copyWith(escaleraCircular: v),
+          ),
+          info:
+              'Activado: la escalera puede “dar la vuelta”: después del 6 '
+              'sigue el 1 (por ejemplo 4-5-6-1-2 también vale).\n\n'
+              'Desactivado: solo valen 1-2-3-4-5 y 2-3-4-5-6.',
+        );
       },
     );
+    if (ok && mounted) {
+      setState(() => _opciones = draft);
+    }
   }
 
   @override
@@ -44,6 +61,7 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
             nombres: estado.nombres,
             partidaRapida: true,
             ajustesIniciales: estado.ajustes,
+            opciones: _opciones,
           ),
         );
       },
@@ -62,6 +80,7 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
             modoDios: resume?.modoDios ?? estado.modoDios,
             ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
             resume: resume,
+            opciones: _opciones,
           ),
         );
       },
@@ -75,6 +94,7 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
             nombres: inicio.nombres,
             salaCodigo: inicio.salaCodigo,
             miNombre: inicio.miNombre,
+            opciones: _opciones,
           ),
         );
       },

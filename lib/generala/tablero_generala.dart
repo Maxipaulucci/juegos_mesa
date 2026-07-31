@@ -406,6 +406,7 @@ class _TableroTabla extends StatelessWidget {
                       modoAnotar: modoAnotar,
                       dadosActuales: dadosActuales,
                       servida: partida.turno.tiradasHechas == 1,
+                      escaleraCircular: partida.escaleraCircular,
                       onElegir: onElegirCategoria,
                       resaltada: categoriaResaltada == cat &&
                           i == partida.indiceTurno,
@@ -474,6 +475,7 @@ class _Casilla extends StatelessWidget {
     required this.modoAnotar,
     this.dadosActuales,
     this.servida = false,
+    this.escaleraCircular = false,
     this.onElegir,
     this.resaltada = false,
     this.escala = 1.0,
@@ -486,6 +488,7 @@ class _Casilla extends StatelessWidget {
   final bool modoAnotar;
   final List<int>? dadosActuales;
   final bool servida;
+  final bool escaleraCircular;
   final ValueChanged<CategoriaGenerala>? onElegir;
   final bool resaltada;
   final double escala;
@@ -520,6 +523,7 @@ class _Casilla extends StatelessWidget {
           categoria,
           dados: dadosActuales,
           servida: servida,
+          escaleraCircular: escaleraCircular,
         );
 
     if (!puedeMostrarPreview) {
@@ -539,6 +543,7 @@ class _Casilla extends StatelessWidget {
       dadosActuales!,
       yaTieneGenerala: jugador.generalaAnotada,
       servida: servida,
+      escaleraCircular: escaleraCircular,
     );
 
     final textoPreview = preview > 0 ? '$preview' : '0';
@@ -614,6 +619,7 @@ class _Casilla extends StatelessWidget {
           categoria,
           dados: dadosActuales,
           servida: servida,
+          escaleraCircular: escaleraCircular,
         )) {
           return;
         }

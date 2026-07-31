@@ -103,10 +103,14 @@ class EstadoTurnoGenerala {
 }
 
 class PartidaGenerala {
-  PartidaGenerala({required this.jugadores})
-      : turno = EstadoTurnoGenerala();
+  PartidaGenerala({
+    required this.jugadores,
+    this.escaleraCircular = false,
+  }) : turno = EstadoTurnoGenerala();
 
   final List<JugadorGenerala> jugadores;
+  /// Escalera que conecta 6→1→2 (p. ej. 4-5-6-1-2).
+  final bool escaleraCircular;
   int indiceTurno = 0;
   EstadoTurnoGenerala turno;
   String? ganador;
@@ -117,10 +121,14 @@ class PartidaGenerala {
       jugadores.where((j) => !j.rendido).toList();
 }
 
-PartidaGenerala nuevaPartidaGenerala(List<String> nombres) {
+PartidaGenerala nuevaPartidaGenerala(
+  List<String> nombres, {
+  bool escaleraCircular = false,
+}) {
   assert(nombres.length >= 2);
   return PartidaGenerala(
     jugadores: [for (final n in nombres) JugadorGenerala(n)],
+    escaleraCircular: escaleraCircular,
   );
 }
 
@@ -153,22 +161,29 @@ bool esGenerala(List<int> dados) {
   return contarCaras(dados).values.any((n) => n == 5);
 }
 
+const _escalerasClasicas = <Set<int>>[
+  {1, 2, 3, 4, 5},
+  {2, 3, 4, 5, 6},
+];
+
+/// Con “vuelta”: después del 6 puede seguir el 1 (p. ej. 4-5-6-1-2).
+const _escalerasCirculares = <Set<int>>[
+  {1, 2, 3, 4, 5},
+  {2, 3, 4, 5, 6},
+  {3, 4, 5, 6, 1},
+  {4, 5, 6, 1, 2},
+  {5, 6, 1, 2, 3},
+  {6, 1, 2, 3, 4},
+];
+
 /// Escalera: 1-2-3-4-5 o 2-3-4-5-6 (en cualquier orden).
-bool esEscalera(List<int> dados) {
+/// Con [circular], también las que dan la vuelta (6→1), p. ej. 4-5-6-1-2.
+bool esEscalera(List<int> dados, {bool circular = false}) {
   if (dados.length != dadosGenerala) return false;
   final set = dados.toSet();
   if (set.length != 5) return false;
-  final sorted = set.toList()..sort();
-  return (sorted[0] == 1 &&
-          sorted[1] == 2 &&
-          sorted[2] == 3 &&
-          sorted[3] == 4 &&
-          sorted[4] == 5) ||
-      (sorted[0] == 2 &&
-          sorted[1] == 3 &&
-          sorted[2] == 4 &&
-          sorted[3] == 5 &&
-          sorted[4] == 6);
+  final targets = circular ? _escalerasCirculares : _escalerasClasicas;
+  return targets.any((t) => set.containsAll(t));
 }
 
 /// Puntos que darían [dados] si se anotan en [categoria].
@@ -179,6 +194,7 @@ int puntosCategoria(
   List<int> dados, {
   required bool yaTieneGenerala,
   bool servida = false,
+  bool escaleraCircular = false,
 }) {
   if (dados.length != dadosGenerala) return 0;
   final counts = contarCaras(dados);
@@ -193,7 +209,7 @@ int puntosCategoria(
       final cara = categoria.cara!;
       return cara * (counts[cara] ?? 0);
     case CategoriaGenerala.escalera:
-      if (!esEscalera(dados)) return 0;
+      if (!esEscalera(dados, circular: escaleraCircular)) return 0;
       return servida ? ptsEscaleraServida : ptsEscalera;
     case CategoriaGenerala.full:
       if (!esFull(dados)) return 0;
@@ -219,10 +235,11 @@ bool puedeAnotarTemprano(
   JugadorGenerala jugador,
   List<int> dados, {
   bool servida = false,
+  bool escaleraCircular = false,
 }) {
   if (dados.length != dadosGenerala) return false;
 
-  if (esEscalera(dados) &&
+  if (esEscalera(dados, circular: escaleraCircular) &&
       puedeElegirCategoria(jugador, CategoriaGenerala.escalera)) {
     return true;
   }
@@ -265,8 +282,16 @@ bool debeForzarAnotarTemprano(
   JugadorGenerala jugador,
   List<int> dados, {
   bool servida = false,
+  bool escaleraCircular = false,
 }) {
-  if (!puedeAnotarTemprano(jugador, dados, servida: servida)) return false;
+  if (!puedeAnotarTemprano(
+    jugador,
+    dados,
+    servida: servida,
+    escaleraCircular: escaleraCircular,
+  )) {
+    return false;
+  }
   final buscaGenerala =
       puedeElegirCategoria(jugador, CategoriaGenerala.generala) ||
           puedeElegirCategoria(jugador, CategoriaGenerala.generalaDoble);
@@ -291,6 +316,7 @@ bool puedeElegirCategoria(
   CategoriaGenerala categoria, {
   List<int>? dados,
   bool servida = false,
+  bool escaleraCircular = false,
 }) {
   if (casillaOcupada(jugador, categoria)) return false;
 
@@ -303,6 +329,7 @@ bool puedeElegirCategoria(
       dados,
       yaTieneGenerala: jugador.generalaAnotada,
       servida: servida,
+      escaleraCircular: escaleraCircular,
     );
     if (pts <= 0) return false;
   }
@@ -331,10 +358,18 @@ CategoriaGenerala? elegirCategoriaPc(
   JugadorGenerala jugador,
   List<int> dados, {
   required bool servida,
+  bool escaleraCircular = false,
 }) {
   final disponibles = [
     for (final c in CategoriaGenerala.values)
-      if (puedeElegirCategoria(jugador, c, dados: dados, servida: servida)) c,
+      if (puedeElegirCategoria(
+        jugador,
+        c,
+        dados: dados,
+        servida: servida,
+        escaleraCircular: escaleraCircular,
+      ))
+        c,
   ];
   if (disponibles.isEmpty) return null;
 
@@ -346,6 +381,7 @@ CategoriaGenerala? elegirCategoriaPc(
       dados,
       yaTieneGenerala: jugador.generalaAnotada,
       servida: servida,
+      escaleraCircular: escaleraCircular,
     );
     if (pts <= 0) continue;
     if (mejorPositiva == null ||
@@ -378,8 +414,12 @@ void toggleDadoGuardado(EstadoTurnoGenerala t, int index) {
 
 /// Tras una tirada, pinta de dorado los dados que sirven según el tablero
 /// del jugador (casillas libres). Misma lógica para humano y PC.
-void autoSeleccionarDadosUtiles(JugadorGenerala j, EstadoTurnoGenerala t) {
-  elegirGuardadosPc(j, t);
+void autoSeleccionarDadosUtiles(
+  JugadorGenerala j,
+  EstadoTurnoGenerala t, {
+  bool escaleraCircular = false,
+}) {
+  elegirGuardadosPc(j, t, escaleraCircular: escaleraCircular);
 }
 
 void _marcarCaras(EstadoTurnoGenerala t, Set<int> caras) {
@@ -397,12 +437,12 @@ void _marcarTodos(EstadoTurnoGenerala t, {bool descendente = false}) {
   compactarDadosGuardados(t, descendente: descendente);
 }
 
-/// Guarda dados útiles para escalera (una de cada cara hacia 12345 o 23456).
-void _marcarParaEscalera(EstadoTurnoGenerala t) {
-  final targets = [
-    {1, 2, 3, 4, 5},
-    {2, 3, 4, 5, 6},
-  ];
+/// Guarda dados útiles para escalera (una de cada cara hacia un target).
+void _marcarParaEscalera(
+  EstadoTurnoGenerala t, {
+  bool circular = false,
+}) {
+  final targets = circular ? _escalerasCirculares : _escalerasClasicas;
   var mejorKept = <int>[];
   for (final target in targets) {
     final pool = List<int>.of(t.dados);
@@ -449,7 +489,11 @@ List<int> _carasConParOrdenadas(Map<int, int> counts) {
 }
 
 /// La PC elige qué guardar mirando casillas aún libres del tablero.
-void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
+void elegirGuardadosPc(
+  JugadorGenerala j,
+  EstadoTurnoGenerala t, {
+  bool escaleraCircular = false,
+}) {
   if (!t.hayDados) return;
 
   final buscaGenerala = puedeElegirCategoria(j, CategoriaGenerala.generala) ||
@@ -467,12 +511,17 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
   if (esGenerala(t.dados)) {
     // Aunque ambas generalas estén llenas, marcar todo para anotar el número.
     if (buscaGenerala ||
-        puedeAnotarTemprano(j, t.dados, servida: t.tiradasHechas == 1)) {
+        puedeAnotarTemprano(
+          j,
+          t.dados,
+          servida: t.tiradasHechas == 1,
+          escaleraCircular: escaleraCircular,
+        )) {
       _marcarTodos(t);
       return;
     }
   }
-  if (esEscalera(t.dados) && buscaEscalera) {
+  if (esEscalera(t.dados, circular: escaleraCircular) && buscaEscalera) {
     // Escalera completa: seleccionar todo y ordenar de menor a mayor.
     _marcarTodos(t);
     return;
@@ -553,7 +602,7 @@ void elegirGuardadosPc(JugadorGenerala j, EstadoTurnoGenerala t) {
 
   // Escalera libre.
   if (buscaEscalera) {
-    _marcarParaEscalera(t);
+    _marcarParaEscalera(t, circular: escaleraCircular);
     return;
   }
 
@@ -679,6 +728,7 @@ void anotarCategoria(
     categoria,
     dados: t.dados,
     servida: t.tiradasHechas == 1,
+    escaleraCircular: partida.escaleraCircular,
   )) {
     throw StateError('No se puede anotar en ${categoria.etiqueta}');
   }
@@ -688,6 +738,7 @@ void anotarCategoria(
     t.dados,
     yaTieneGenerala: j.generalaAnotada,
     servida: t.tiradasHechas == 1,
+    escaleraCircular: partida.escaleraCircular,
   );
   j.historial.add(
     RegistroTurnoGenerala(

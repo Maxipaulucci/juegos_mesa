@@ -12,6 +12,7 @@ import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/generala/motor_generala.dart';
+import 'package:app_juegos_mesa/generala/opciones_generala.dart';
 import 'package:app_juegos_mesa/generala/standby_store.dart';
 import 'package:app_juegos_mesa/generala/tablero_generala.dart';
 import 'package:app_juegos_mesa/generala/textos.dart';
@@ -31,6 +32,7 @@ class PartidaGeneralaScreen extends StatefulWidget {
     this.resume,
     this.salaCodigo,
     this.miNombre,
+    this.opciones = const OpcionesGenerala(),
   });
 
   final List<String> nombres;
@@ -46,6 +48,7 @@ class PartidaGeneralaScreen extends StatefulWidget {
   final String? salaCodigo;
   /// Nombre del jugador local en la sala online.
   final String? miNombre;
+  final OpcionesGenerala opciones;
 
   @override
   State<PartidaGeneralaScreen> createState() => _PartidaGeneralaScreenState();
@@ -323,7 +326,10 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
 
   void _iniciarPartidaNueva() {
     _pcToken++;
-    _partida = nuevaPartidaGenerala(_nombres);
+    _partida = nuevaPartidaGenerala(
+      _nombres,
+      escaleraCircular: widget.opciones.escaleraCircular,
+    );
     iniciarTurnoGenerala(_partida);
     _mostrarVictoria = false;
     _mostrarMenu = false;
@@ -412,6 +418,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       _j,
       _t.dados,
       servida: _t.tiradasHechas == 1,
+      escaleraCircular: _partida.escaleraCircular,
     );
     if (!mounted || !_turnoDeLaPc) return;
 
@@ -475,7 +482,11 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     final forzados = _dadosForzados;
     _dadosForzados = null;
     tirarDadosGenerala(_t, dadosForzados: forzados, rng: _rng);
-    autoSeleccionarDadosUtiles(_j, _t);
+    autoSeleccionarDadosUtiles(
+      _j,
+      _t,
+      escaleraCircular: _partida.escaleraCircular,
+    );
 
     setState(() {
       _animandoTirada = false;
@@ -542,6 +553,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       _j,
       _t.dados,
       servida: _t.tiradasHechas == 1,
+      escaleraCircular: _partida.escaleraCircular,
     );
   }
 
@@ -552,6 +564,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       _j,
       _t.dados,
       servida: _t.tiradasHechas == 1,
+      escaleraCircular: _partida.escaleraCircular,
     );
   }
 

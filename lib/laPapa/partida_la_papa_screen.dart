@@ -24,6 +24,7 @@ class PartidaLaPapaScreen extends StatefulWidget {
 
 class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   late PartidaPapa _partida;
+  late List<String> _nombres;
   final List<Offset> _trazoActual = [];
   /// Trazo con el que se perdió (o el último fallo con vidas).
   final List<Offset> _trazoFallido = [];
@@ -33,12 +34,15 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   bool _salioDelInicio = false;
   Size? _boardSize;
   String? _avisoVida;
+  GrosorTrazoPapa _grosor = GrosorTrazoPapa.normal;
+  static const int _maxNombre = 15;
 
   @override
   void initState() {
     super.initState();
+    _nombres = List.of(widget.nombres);
     _partida = nuevaPartidaPapa(
-      nombres: widget.nombres,
+      nombres: _nombres,
       opciones: widget.opciones,
     );
   }
@@ -46,7 +50,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   void _reiniciar() {
     setState(() {
       _partida = nuevaPartidaPapa(
-        nombres: widget.nombres,
+        nombres: _nombres,
         opciones: widget.opciones,
       );
       _trazoActual.clear();
@@ -170,10 +174,12 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _partida,
       pts,
       boardSize: boardSize,
+      grosorActual: _grosor,
     );
     final chocaPropio = trazoSeTocaASiMismoPapa(
       pts,
       boardSize: boardSize,
+      grosor: _grosor,
     );
 
     setState(() {
@@ -209,7 +215,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           );
           return;
         }
-        aceptarTrazoPapa(_partida, _trazoActual);
+        aceptarTrazoPapa(_partida, _trazoActual, grosor: _grosor);
         _trazoFallido.clear();
         _limpiarTrazo();
       }
@@ -240,10 +246,176 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     });
   }
 
-  String get _titulo {
-    final base = widget.opciones.modoFantasma ? 'La papa · Fantasma' : 'La papa';
-    if (widget.solo) return '$base · Solo';
-    return '$base · ${_partida.jugadorActual}';
+  String get _prefijoTitulo {
+    if (widget.opciones.modoFantasma) return 'La papa · Fantasma';
+    if (widget.solo) return 'La papa · Solo';
+    return 'La papa';
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    final ocupado = _nombres.asMap().entries.any(
+          (e) => e.key != index && e.value == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarJugadorActual() async {
+    if (_dibujando) return;
+    final index = _partida.indiceTurno % _nombres.length;
+    final actual = _nombres[index];
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.mint, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle:
+                      const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final t = ctrl.text.trim();
+                    if (_validarNombre(t, index) case final e?) {
+                      setDialogState(() => error = e);
+                      return;
+                    }
+                    Navigator.of(context).pop(t);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.mint,
+                    foregroundColor: const Color(0xFF062018),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: const Text(
+                    'Guardar',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.peligro,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 4,
+                    shadowColor: Colors.black54,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+    setState(() {
+      _nombres[index] = nuevo;
+      _partida.nombres[index] = nuevo;
+    });
+  }
+
+  Widget _chipNombre() {
+    final nombre = _partida.jugadorActual;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _dibujando ? null : _renombrarJugadorActual,
+        borderRadius: BorderRadius.circular(10),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E061C),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.violeta.withValues(alpha: 0.7),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  nombre.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.edit_rounded,
+                size: 14,
+                color: AppColors.violeta.withValues(alpha: 0.95),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String get _mensajeEstado {
@@ -258,6 +430,69 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     final a = de < _partida.maxNumero ? de + 1 : null;
     if (a == null) return '¡Completaste la hoja!';
     return 'Conectá $de → $a · soltá o salí de la hoja = perdés';
+  }
+
+  Widget _selectorGrosor() {
+    return Row(
+      children: [
+        for (final g in GrosorTrazoPapa.values) ...[
+          if (g != GrosorTrazoPapa.values.first) const SizedBox(width: 8),
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _dibujando
+                    ? null
+                    : () => setState(() => _grosor = g),
+                borderRadius: BorderRadius.circular(12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _grosor == g
+                        ? AppColors.mint.withValues(alpha: 0.18)
+                        : const Color(0xFF1A0F2E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _grosor == g
+                          ? AppColors.mint
+                          : AppColors.textoSuave.withValues(alpha: 0.35),
+                      width: _grosor == g ? 1.8 : 1.2,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CustomPaint(
+                        size: const Size(48, 14),
+                        painter: _MuestraGrosorPainter(
+                          ancho: g.ancho,
+                          color: _grosor == g
+                              ? AppColors.mint
+                              : AppColors.textoSuave,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        g.etiqueta,
+                        style: TextStyle(
+                          color: _grosor == g
+                              ? AppColors.mint
+                              : AppColors.textoSuave,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -302,14 +537,22 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                               color: AppColors.texto),
                         ),
                         Expanded(
-                          child: Text(
-                            _titulo,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: AppColors.mint,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '$_prefijoTitulo · ',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.mint,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                              Flexible(child: _chipNombre()),
+                            ],
                           ),
                         ),
                         IconButton(
@@ -361,6 +604,12 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  if (_partida.fase == FasePapa.jugando &&
+                      !_partida.terminada)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: _selectorGrosor(),
+                    ),
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(
@@ -412,6 +661,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                           boardSize: boardSize,
                                           numeroActual: de,
                                           numeroSiguiente: a,
+                                          grosorActual: _grosor,
                                         ),
                                       ),
                                     ),
@@ -474,6 +724,7 @@ class _HojaPapaPainter extends CustomPainter {
     required this.boardSize,
     required this.numeroActual,
     required this.numeroSiguiente,
+    required this.grosorActual,
   });
 
   final PartidaPapa partida;
@@ -482,6 +733,7 @@ class _HojaPapaPainter extends CustomPainter {
   final Size boardSize;
   final int numeroActual;
   final int? numeroSiguiente;
+  final GrosorTrazoPapa grosorActual;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -544,15 +796,17 @@ class _HojaPapaPainter extends CustomPainter {
       tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
     }
 
-    final strokePaint = Paint()
-      ..color = const Color(0xFF1A0A33)
-      ..strokeWidth = 3.2
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
     for (final t in partida.trazos) {
-      _dibujarPolyline(canvas, t.puntos, strokePaint);
+      _dibujarPolyline(
+        canvas,
+        t.puntos,
+        Paint()
+          ..color = const Color(0xFF1A0A33)
+          ..strokeWidth = t.grosor.ancho
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke,
+      );
     }
 
     if (trazoFallido.length >= 2) {
@@ -561,7 +815,7 @@ class _HojaPapaPainter extends CustomPainter {
         trazoFallido,
         Paint()
           ..color = AppColors.peligro
-          ..strokeWidth = 3.6
+          ..strokeWidth = grosorActual.ancho + 0.3
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
           ..style = PaintingStyle.stroke,
@@ -569,7 +823,7 @@ class _HojaPapaPainter extends CustomPainter {
     } else if (trazoFallido.length == 1) {
       canvas.drawCircle(
         trazoFallido.first,
-        3.5,
+        math.max(2.5, grosorActual.ancho * 0.7),
         Paint()..color = AppColors.peligro,
       );
     }
@@ -580,7 +834,7 @@ class _HojaPapaPainter extends CustomPainter {
         trazoActual,
         Paint()
           ..color = AppColors.mint
-          ..strokeWidth = 3.4
+          ..strokeWidth = grosorActual.ancho + 0.2
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
           ..style = PaintingStyle.stroke,
@@ -588,7 +842,7 @@ class _HojaPapaPainter extends CustomPainter {
     } else if (trazoActual.length == 1) {
       canvas.drawCircle(
         trazoActual.first,
-        3,
+        math.max(2.0, grosorActual.ancho * 0.65),
         Paint()..color = AppColors.mint,
       );
     }
@@ -605,4 +859,29 @@ class _HojaPapaPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HojaPapaPainter oldDelegate) => true;
+}
+
+class _MuestraGrosorPainter extends CustomPainter {
+  _MuestraGrosorPainter({required this.ancho, required this.color});
+
+  final double ancho;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final y = size.height / 2;
+    canvas.drawLine(
+      Offset(2, y),
+      Offset(size.width - 2, y),
+      Paint()
+        ..color = color
+        ..strokeWidth = ancho
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MuestraGrosorPainter oldDelegate) =>
+      oldDelegate.ancho != ancho || oldDelegate.color != color;
 }
