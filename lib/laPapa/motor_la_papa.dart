@@ -54,6 +54,7 @@ class PartidaPapa {
     List<TrazoPapa>? trazos,
     this.fase = FasePapa.jugando,
     this.mensajeFin,
+    this.ganador,
     this.conVidas = false,
     this.modoFantasma = false,
     List<int>? vidas,
@@ -72,6 +73,8 @@ class PartidaPapa {
   final List<TrazoPapa> trazos;
   FasePapa fase;
   String? mensajeFin;
+  /// Nombre del ganador si [fase] es [FasePapa.ganado].
+  String? ganador;
   final bool conVidas;
   final bool modoFantasma;
   /// Vidas restantes por jugador (vacío si [conVidas] es false).
@@ -546,6 +549,7 @@ void aceptarTrazoPapa(
   );
   if (a >= p.maxNumero) {
     p.fase = FasePapa.ganado;
+    p.ganador = p.jugadorActual;
     p.mensajeFin = '${p.jugadorActual} conectó hasta ${p.maxNumero}. ¡Ganó!';
     return;
   }
@@ -557,10 +561,41 @@ void aceptarTrazoPapa(
 
 void perderPapa(PartidaPapa p, {String? motivo}) {
   if (p.terminada) return;
-  p.fase = FasePapa.perdido;
-  p.mensajeFin = motivo ??
-      '${p.jugadorActual} tocó una línea. Fin de la partida.';
+  final perdedor = p.jugadorActual;
+  final idx = p.nombres.isEmpty ? 0 : p.indiceTurno % p.nombres.length;
+  final otros = [
+    for (var i = 0; i < p.nombres.length; i++)
+      if (i != idx) p.nombres[i],
+  ];
+
+  if (otros.isNotEmpty) {
+    // Quien falla pierde: gana el rival (o el primero de los que quedan).
+    p.fase = FasePapa.ganado;
+    p.ganador = otros.first;
+    p.mensajeFin = motivo ??
+        (otros.length == 1
+            ? '$perdedor falló. ¡${otros.first} gana!'
+            : '$perdedor falló. Ganan: ${otros.join(', ')}');
+  } else {
+    p.fase = FasePapa.perdido;
+    p.ganador = null;
+    p.mensajeFin = motivo ?? '$perdedor tocó una línea. Fin de la partida.';
+  }
 }
+
+/// Números que un jugador unió con trazos exitosos (extremos de cada conexión).
+Set<int> numerosConectadosPorPapa(PartidaPapa p, String jugador) {
+  final out = <int>{};
+  for (final t in p.trazos) {
+    if (t.jugador != jugador) continue;
+    out.add(t.de);
+    out.add(t.a);
+  }
+  return out;
+}
+
+List<TrazoPapa> trazosDeJugadorPapa(PartidaPapa p, String jugador) =>
+    [for (final t in p.trazos) if (t.jugador == jugador) t];
 
 /// Registra un fallo. Si hay vidas y quedan, resta una y sigue el mismo turno.
 /// Devuelve true si la partida terminó.

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/textos.dart';
+import 'package:app_juegos_mesa/laPapa/victoria_la_papa_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -515,9 +516,11 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _trazoFallido.clear();
       if (otros.isEmpty) {
         _partida.fase = FasePapa.perdido;
+        _partida.ganador = null;
         _partida.mensajeFin = '$nombre se rindió.';
       } else {
         _partida.fase = FasePapa.ganado;
+        _partida.ganador = otros.first;
         _partida.mensajeFin = otros.length == 1
             ? '$nombre se rindió. ¡${otros.first} gana!'
             : '$nombre se rindió. Ganan: ${otros.join(', ')}';
@@ -787,38 +790,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(
-                    height: 96,
-                    child: _partida.terminada
-                        ? Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: _reiniciar,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.mint,
-                                      foregroundColor: const Color(0xFF062018),
-                                    ),
-                                    child: const Text('Otra partida'),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: _salirAlMenu,
-                                  child: const Text(
-                                    'Volver al menú',
-                                    style:
-                                        TextStyle(color: AppColors.textoSuave),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
+                  const SizedBox(height: 96),
                 ],
               ),
             ),
@@ -851,6 +823,17 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                 ajustes: _ajustes,
                 onChanged: (a) => setState(() => _ajustes = a),
                 onCerrar: () => setState(() => _mostrarAjustes = false),
+              ),
+            ),
+          if (_partida.terminada)
+            Positioned.fill(
+              child: VictoriaLaPapaOverlay(
+                partida: _partida,
+                ganador: _partida.ganador,
+                subtitulo: _partida.mensajeFin,
+                animaciones: _ajustes.animaciones,
+                onVolverAJugar: _reiniciar,
+                onVolver: _salirAlMenu,
               ),
             ),
         ],
