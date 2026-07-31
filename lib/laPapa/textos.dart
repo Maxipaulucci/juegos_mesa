@@ -1,0 +1,40 @@
+import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
+
+String reglasLaPapa({OpcionesPapa opciones = const OpcionesPapa()}) {
+  final n = opciones.cantidadNumerosClamped;
+  final colocacion = opciones.numerosAleatorios
+      ? 'Los números se colocan al azar al empezar la hoja.'
+      : 'Antes de jugar, los jugadores colocan los números por turnos '
+          '(el primero pone el 1, el siguiente el 2, y así).';
+
+  final extras = <String>[
+    if (opciones.conVidas)
+      '· Vidas: cada jugador empieza con ${OpcionesPapa.vidasIniciales} '
+          'vidas. Si fallás, perdés una vida y seguís tu turno. '
+          'Sin vidas, terminás la partida.',
+    if (opciones.modoFantasma)
+      '· Modo fantasma: solo ves las líneas dibujadas, el número actual '
+          'y el siguiente. El resto queda oculto.',
+  ];
+
+  return '''
+· La papa se juega en una hoja de 5×10 casillas con los números del 1 al $n.
+
+· $colocacion
+
+· En tu turno tenés que unir el número actual con el siguiente (1→2, 2→3, …) dibujando un trazo continuo con el dedo o el mouse.
+
+· El trazo tiene que empezar cerca del número de origen y terminar sobre el destino, sin soltar antes.
+
+· Perdés el intento (o la partida) si:
+   - soltás sin llegar al número siguiente;
+   - salís de la hoja;
+   - cruzás o tocás una línea ya dibujada (incluida la tuya, cerca de la punta).
+
+· Si completás la conexión, el turno pasa al siguiente jugador. Quien conecte hasta el $n gana la hoja.
+
+· Podés elegir el grosor del lápiz (fino / normal / grueso) antes de dibujar.
+${extras.isEmpty ? '' : '\n${extras.join('\n\n')}\n'}
+· Tocá tu nombre arriba para cambiarlo durante la partida.
+'''.trim();
+}

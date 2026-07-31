@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
+import 'package:app_juegos_mesa/laPapa/textos.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class PartidaLaPapaScreen extends StatefulWidget {
@@ -12,11 +14,13 @@ class PartidaLaPapaScreen extends StatefulWidget {
     required this.nombres,
     this.solo = false,
     this.opciones = const OpcionesPapa(),
+    this.ajustesIniciales = const AjustesEstado(),
   });
 
   final List<String> nombres;
   final bool solo;
   final OpcionesPapa opciones;
+  final AjustesEstado ajustesIniciales;
 
   @override
   State<PartidaLaPapaScreen> createState() => _PartidaLaPapaScreenState();
@@ -25,6 +29,7 @@ class PartidaLaPapaScreen extends StatefulWidget {
 class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   late PartidaPapa _partida;
   late List<String> _nombres;
+  late AjustesEstado _ajustes;
   final List<Offset> _trazoActual = [];
   /// Trazo con el que se perdió (o el último fallo con vidas).
   final List<Offset> _trazoFallido = [];
@@ -35,12 +40,16 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   Size? _boardSize;
   String? _avisoVida;
   GrosorTrazoPapa _grosor = GrosorTrazoPapa.normal;
+  bool _mostrarMenu = false;
+  bool _mostrarAjustes = false;
+  bool _confirmarRendicion = false;
   static const int _maxNombre = 15;
 
   @override
   void initState() {
     super.initState();
     _nombres = List.of(widget.nombres);
+    _ajustes = widget.ajustesIniciales;
     _partida = nuevaPartidaPapa(
       nombres: _nombres,
       opciones: widget.opciones,
@@ -59,6 +68,9 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _inicioValido = false;
       _salioDelInicio = false;
       _avisoVida = null;
+      _mostrarMenu = false;
+      _mostrarAjustes = false;
+      _confirmarRendicion = false;
     });
   }
 
@@ -122,6 +134,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _onPointerDown(Offset local, Size boardSize) {
+    if (_mostrarMenu || _mostrarAjustes) return;
     if (_partida.fase == FasePapa.colocando) {
       _onTapColocar(local, boardSize);
       return;
@@ -146,6 +159,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _onPointerMoveGlobal(Offset global) {
+    if (_mostrarMenu || _mostrarAjustes) return;
     if (_partida.fase != FasePapa.jugando) return;
     if (!_dibujando || !_inicioValido || _partida.terminada) return;
     final boardSize = _boardSize;
@@ -418,6 +432,99 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
   }
 
+  void _abrirMenu() {
+    if (_dibujando) return;
+    setState(() {
+      _mostrarMenu = true;
+      _confirmarRendicion = false;
+      _mostrarAjustes = false;
+    });
+  }
+
+  void _abrirAjustes() {
+    if (_dibujando) return;
+    setState(() {
+      _mostrarAjustes = true;
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+    });
+  }
+
+  void _abrirReglas() {
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+    });
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.carta,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'REGLAS · LA PAPA',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.mint,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                reglasLaPapa(opciones: widget.opciones),
+                style: const TextStyle(color: AppColors.texto, height: 1.45),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _salirAlMenu() {
+    Navigator.of(context).pop();
+  }
+
+  void _rendirse() {
+    if (_partida.terminada) return;
+    if (widget.solo) {
+      _salirAlMenu();
+      return;
+    }
+
+    final index = _partida.indiceTurno % _nombres.length;
+    final nombre = _nombres[index];
+    final otros = [
+      for (var i = 0; i < _nombres.length; i++)
+        if (i != index) _nombres[i],
+    ];
+
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+      _limpiarTrazo();
+      _trazoFallido.clear();
+      if (otros.isEmpty) {
+        _partida.fase = FasePapa.perdido;
+        _partida.mensajeFin = '$nombre se rindió.';
+      } else {
+        _partida.fase = FasePapa.ganado;
+        _partida.mensajeFin = otros.length == 1
+            ? '$nombre se rindió. ¡${otros.first} gana!'
+            : '$nombre se rindió. Ganan: ${otros.join(', ')}';
+      }
+    });
+  }
+
   String get _mensajeEstado {
     if (_partida.terminada) return _partida.mensajeFin ?? 'Fin';
     if (_avisoVida != null) return _avisoVida!;
@@ -503,38 +610,40 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
-      body: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerMove: (e) => _onPointerMoveGlobal(e.position),
-        onPointerUp: (_) => _onPointerUpOrCancel(),
-        onPointerCancel: (_) => _onPointerUpOrCancel(),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0, -0.3),
-                  radius: 1.1,
-                  colors: [
-                    Color(0xFF1A3D32),
-                    AppColors.fondo,
-                    Color(0xFF05020C),
-                  ],
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerMove: (e) => _onPointerMoveGlobal(e.position),
+            onPointerUp: (_) => _onPointerUpOrCancel(),
+            onPointerCancel: (_) => _onPointerUpOrCancel(),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(0, -0.3),
+                      radius: 1.1,
+                      colors: [
+                        Color(0xFF1A3D32),
+                        AppColors.fondo,
+                        Color(0xFF05020C),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            SafeArea(
-              child: Column(
-                children: [
+                SafeArea(
+                  child: Column(
+                    children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
                     child: Row(
                       children: [
-                        IconButton(
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: const Icon(Icons.arrow_back,
-                              color: AppColors.texto),
+                        _RoundIcon(
+                          icon: Icons.menu,
+                          onTap: _abrirMenu,
                         ),
                         Expanded(
                           child: Row(
@@ -560,6 +669,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                           onPressed: _reiniciar,
                           icon: const Icon(Icons.refresh_rounded,
                               color: AppColors.textoSuave),
+                        ),
+                        _RoundIcon(
+                          icon: Icons.settings,
+                          onTap: _abrirAjustes,
                         ),
                       ],
                     ),
@@ -694,7 +807,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                   ),
                                 ),
                                 TextButton(
-                                  onPressed: () => Navigator.of(context).pop(),
+                                  onPressed: _salirAlMenu,
                                   child: const Text(
                                     'Volver al menú',
                                     style:
@@ -710,6 +823,329 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
               ),
             ),
           ],
+            ),
+          ),
+          if (_mostrarMenu)
+            Positioned.fill(
+              child: _MenuOverlay(
+                jugador: _partida.jugadorActual,
+                esSolo: widget.solo,
+                partidaTerminada: _partida.terminada,
+                confirmarRendicion: _confirmarRendicion && !widget.solo,
+                onCerrar: () => setState(() {
+                  _mostrarMenu = false;
+                  _confirmarRendicion = false;
+                }),
+                onReglas: _abrirReglas,
+                onSalirORendirse: _partida.terminada || widget.solo
+                    ? _salirAlMenu
+                    : () => setState(() => _confirmarRendicion = true),
+                onConfirmarRendicion: _rendirse,
+                onCancelarRendicion: () =>
+                    setState(() => _confirmarRendicion = false),
+              ),
+            ),
+          if (_mostrarAjustes)
+            Positioned.fill(
+              child: AjustesOverlay(
+                ajustes: _ajustes,
+                onChanged: (a) => setState(() => _ajustes = a),
+                onCerrar: () => setState(() => _mostrarAjustes = false),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoundIcon extends StatelessWidget {
+  const _RoundIcon({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.carta,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(icon, color: AppColors.texto),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuOverlay extends StatelessWidget {
+  const _MenuOverlay({
+    required this.jugador,
+    required this.esSolo,
+    required this.partidaTerminada,
+    required this.confirmarRendicion,
+    required this.onCerrar,
+    required this.onReglas,
+    required this.onSalirORendirse,
+    required this.onConfirmarRendicion,
+    required this.onCancelarRendicion,
+  });
+
+  final String jugador;
+  final bool esSolo;
+  final bool partidaTerminada;
+  final bool confirmarRendicion;
+  final VoidCallback onCerrar;
+  final VoidCallback onReglas;
+  final VoidCallback onSalirORendirse;
+  final VoidCallback onConfirmarRendicion;
+  final VoidCallback onCancelarRendicion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onCerrar,
+        child: SafeArea(
+          child: Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 380),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF3B1D6E),
+                          Color(0xFF1A0A33),
+                          Color(0xFF2A1050),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppColors.acento, width: 2),
+                      boxShadow: neonGlow(AppColors.acento, blur: 18),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'MENÚ',
+                                style: TextStyle(
+                                  color: AppColors.acento,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: onCerrar,
+                              icon: const Icon(
+                                Icons.close,
+                                color: AppColors.texto,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          jugador.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.texto,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                            shadows: [
+                              Shadow(
+                                color: AppColors.acento.withValues(alpha: 0.7),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          partidaTerminada
+                              ? 'Partida terminada'
+                              : 'Turno actual',
+                          style: TextStyle(
+                            color:
+                                AppColors.textoSuave.withValues(alpha: 0.95),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        _ArcadeButton(
+                          label: 'REGLAS',
+                          icon: Icons.menu_book_rounded,
+                          tono: _BotonTono.azul,
+                          onPressed: onReglas,
+                        ),
+                        const SizedBox(height: 10),
+                        if (partidaTerminada || esSolo)
+                          _ArcadeButton(
+                            label: 'SALIR',
+                            icon: Icons.logout_rounded,
+                            tono: _BotonTono.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else if (!confirmarRendicion)
+                          _ArcadeButton(
+                            label: 'RENDIRSE',
+                            icon: Icons.flag_rounded,
+                            tono: _BotonTono.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else ...[
+                          const Text(
+                            '¿Confirmás tu derrota?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.peligro,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _ArcadeButton(
+                            label: 'CONFIRMAR RENDICIÓN',
+                            icon: Icons.check_circle_outline,
+                            tono: _BotonTono.rojo,
+                            onPressed: onConfirmarRendicion,
+                          ),
+                          const SizedBox(height: 10),
+                          _ArcadeButton(
+                            label: 'CANCELAR',
+                            icon: Icons.close,
+                            tono: _BotonTono.violeta,
+                            onPressed: onCancelarRendicion,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _BotonTono { violeta, azul, rojo }
+
+class _ArcadeButton extends StatelessWidget {
+  const _ArcadeButton({
+    required this.label,
+    required this.icon,
+    required this.tono,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final _BotonTono tono;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    late final List<Color> colors;
+    late final Color glow;
+    late final Color fg;
+
+    switch (tono) {
+      case _BotonTono.violeta:
+        colors = const [
+          Color(0xFFCE93D8),
+          Color(0xFFAB47BC),
+          Color(0xFF6A1B9A),
+        ];
+        glow = AppColors.rosa;
+        fg = Colors.white;
+      case _BotonTono.azul:
+        colors = const [
+          Color(0xFF81D4FA),
+          Color(0xFF29B6F6),
+          Color(0xFF0277BD),
+        ];
+        glow = AppColors.azul;
+        fg = Colors.white;
+      case _BotonTono.rojo:
+        colors = const [
+          Color(0xFFFF8A80),
+          Color(0xFFFF5252),
+          Color(0xFFC62828),
+        ];
+        glow = AppColors.peligro;
+        fg = Colors.white;
+    }
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.4,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: enabled ? neonGlow(glow, blur: 16) : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: Ink(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: colors,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white70, width: 1.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: fg),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: fg,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

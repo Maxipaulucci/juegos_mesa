@@ -21,6 +21,7 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
   Future<void> _abrirPartida({
     required BuildContext ctx,
     required List<String> nombres,
+    required MenuJuegoEstado estado,
     bool solo = false,
   }) {
     return navegarConCarga<void>(
@@ -33,6 +34,7 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
         nombres: nombres,
         solo: solo,
         opciones: _opciones,
+        ajustesIniciales: estado.ajustes,
       ),
     );
   }
@@ -107,7 +109,11 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
         onPressed: _abrirCartelModificar,
       ),
       onPartidaRapida: (ctx, estado, _) async {
-        await _abrirPartida(ctx: ctx, nombres: estado.nombres);
+        await _abrirPartida(
+          ctx: ctx,
+          nombres: estado.nombres,
+          estado: estado,
+        );
       },
       onVsPc: (ctx, estado, _) {
         _abrirPartida(
@@ -115,6 +121,7 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
           nombres: estado.nombres.isEmpty
               ? const ['Jugador']
               : estado.nombres,
+          estado: estado,
           solo: true,
         );
       },
