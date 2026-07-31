@@ -130,18 +130,26 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
     final de = _partida.siguienteConectar;
     final a = de + 1;
-    final choca = trazoChocaConPreviosPapa(
+    final pts = [..._trazoActual, local];
+    final chocaPrevios = trazoChocaConPreviosPapa(
       _partida,
-      [..._trazoActual, local],
+      pts,
+      boardSize: boardSize,
+    );
+    final chocaPropio = trazoSeTocaASiMismoPapa(
+      pts,
       boardSize: boardSize,
     );
 
     setState(() {
       _trazoActual.add(local);
 
-      if (choca) {
+      if (chocaPrevios || chocaPropio) {
         _perder(
-          '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
+          chocaPropio
+              ? '${_partida.jugadorActual} tocó su propia línea. '
+                  'Fin de la partida.'
+              : '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
         );
         return;
       }

@@ -149,4 +149,32 @@ void main() {
     reescalarTrazosPapa(p, desde, hacia);
     expect(p.trazos.first.puntos, const [Offset(20, 40), Offset(80, 160)]);
   });
+
+  test('tocar la propia línea cuenta como choque', () {
+    const board = Size(200, 400);
+    // Trazo en forma de bucle: la punta cruza el tramo inicial.
+    final bucle = <Offset>[
+      const Offset(40, 40),
+      const Offset(40, 120),
+      const Offset(40, 200),
+      const Offset(100, 200),
+      const Offset(100, 120),
+      const Offset(20, 120), // cruza el tramo vertical x=40
+    ];
+    expect(
+      trazoSeTocaASiMismoPapa(bucle, boardSize: board),
+      isTrue,
+    );
+
+    final recto = <Offset>[
+      const Offset(40, 40),
+      const Offset(40, 100),
+      const Offset(40, 160),
+      const Offset(40, 220),
+    ];
+    expect(
+      trazoSeTocaASiMismoPapa(recto, boardSize: board),
+      isFalse,
+    );
+  });
 }

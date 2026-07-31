@@ -290,6 +290,46 @@ bool trazoChocaConPreviosPapa(
   return false;
 }
 
+/// True si el trazo actual se cruza o se roza a sí mismo.
+/// Ignora un tramo reciente de la punta para no falsear en curvas normales.
+bool trazoSeTocaASiMismoPapa(
+  List<Offset> trazoActual, {
+  required Size boardSize,
+}) {
+  if (trazoActual.length < 4) return false;
+  final cell = math.min(
+    boardSize.width / columnasPapa,
+    boardSize.height / filasPapa,
+  );
+  final umbral = math.max(3.0, cell * 0.05);
+  final colaIgnorar = math.max(18.0, cell * 0.5);
+
+  // Retrocede desde la punta: esa “cola” no se compara consigo misma.
+  var acum = 0.0;
+  var inicioCola = trazoActual.length - 1;
+  for (var i = trazoActual.length - 1; i >= 1; i--) {
+    acum += (trazoActual[i] - trazoActual[i - 1]).distance;
+    inicioCola = i;
+    if (acum >= colaIgnorar) break;
+  }
+
+  // Segmentos viejos: terminan antes de la cola y no son adyacentes al último.
+  final jMax = math.min(inicioCola, trazoActual.length - 2);
+  if (jMax < 1) return false;
+
+  final a = trazoActual[trazoActual.length - 2];
+  final b = trazoActual[trazoActual.length - 1];
+
+  for (var j = 1; j < jMax; j++) {
+    final p1 = trazoActual[j - 1];
+    final p2 = trazoActual[j];
+    if (_cruzan(a, b, p1, p2)) return true;
+    if (_distPuntoSegmento(b, p1, p2) <= umbral) return true;
+    if (_segmentosCercanos(a, b, p1, p2, umbral)) return true;
+  }
+  return false;
+}
+
 bool cercaDeNumeroPapa(
   PartidaPapa p,
   int numero,
