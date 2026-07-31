@@ -601,17 +601,42 @@ class _HojaStatsPapaPainter extends CustomPainter {
       final n = partida.casillas[i];
       if (n == null || !numerosVisibles.contains(n)) continue;
       final c = centroCasillaPapa(i, size);
+      final fontSize = math.min(cellW, cellH) * 0.24;
       final tp = TextPainter(
         text: TextSpan(
           text: '$n',
           style: TextStyle(
-            color: const Color(0xFF1A0A33),
+            color: Colors.white,
             fontWeight: FontWeight.w900,
-            fontSize: math.min(cellW, cellH) * 0.26,
+            fontSize: fontSize,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
+
+      final padX = math.max(4.0, fontSize * 0.35);
+      final padY = math.max(2.5, fontSize * 0.2);
+      final chip = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: c,
+          width: tp.width + padX * 2,
+          height: tp.height + padY * 2,
+        ),
+        const Radius.circular(6),
+      );
+      canvas.drawRRect(
+        chip,
+        Paint()
+          ..color = const Color(0xFF0A0614)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawRRect(
+        chip,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.2)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
       tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
     }
   }

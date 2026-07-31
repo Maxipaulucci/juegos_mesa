@@ -280,7 +280,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   Future<void> _renombrarJugadorActual() async {
-    if (_dibujando) return;
+    if (_dibujando || _partida.terminada) return;
     final index = _partida.indiceTurno % _nombres.length;
     final actual = _nombres[index];
     final ctrl = TextEditingController(text: actual);
@@ -390,21 +390,27 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
   Widget _chipNombre() {
     final nombre = _partida.jugadorActual;
+    final puedeRenombrar = !_dibujando && !_partida.terminada;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: _dibujando ? null : _renombrarJugadorActual,
+        onTap: puedeRenombrar ? _renombrarJugadorActual : null,
         borderRadius: BorderRadius.circular(10),
         child: Ink(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0E061C),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AppColors.violeta.withValues(alpha: 0.7),
-              width: 1.2,
-            ),
+          padding: EdgeInsets.symmetric(
+            vertical: puedeRenombrar ? 4 : 2,
+            horizontal: puedeRenombrar ? 8 : 2,
           ),
+          decoration: puedeRenombrar
+              ? BoxDecoration(
+                  color: const Color(0xFF0E061C),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.violeta.withValues(alpha: 0.7),
+                    width: 1.2,
+                  ),
+                )
+              : null,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -412,20 +418,22 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                 child: Text(
                   nombre.toUpperCase(),
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.texto,
+                  style: TextStyle(
+                    color: puedeRenombrar ? AppColors.texto : AppColors.mint,
                     fontWeight: FontWeight.w900,
                     fontSize: 13,
                     letterSpacing: 0.5,
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              Icon(
-                Icons.edit_rounded,
-                size: 14,
-                color: AppColors.violeta.withValues(alpha: 0.95),
-              ),
+              if (puedeRenombrar) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.edit_rounded,
+                  size: 14,
+                  color: AppColors.violeta.withValues(alpha: 0.95),
+                ),
+              ],
             ],
           ),
         ),
@@ -542,7 +550,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     return 'Conectá $de → $a · soltá o salí de la hoja = perdés';
   }
 
-  Widget _selectorGrosor() {
+  Widget _selectorGrosor({ValueChanged<GrosorTrazoPapa>? onElegir}) {
     return Row(
       children: [
         for (final g in GrosorTrazoPapa.values) ...[
@@ -553,7 +561,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
               child: InkWell(
                 onTap: _dibujando
                     ? null
-                    : () => setState(() => _grosor = g),
+                    : () {
+                        setState(() => _grosor = g);
+                        onElegir?.call(g);
+                      },
                 borderRadius: BorderRadius.circular(12),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
@@ -602,6 +613,115 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Future<void> _abrirSelectorTrazos() async {
+    if (_dibujando || _partida.terminada) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.carta,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'TRAZOS',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.mint,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Elegí el grosor del lápiz',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textoSuave,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                StatefulBuilder(
+                  builder: (context, setSheetState) {
+                    return _selectorGrosor(
+                      onElegir: (_) {
+                        setSheetState(() {});
+                        Navigator.of(ctx).pop();
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _botonTrazos() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+      child: SizedBox(
+        width: double.infinity,
+        height: 44,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: neonGlow(AppColors.mint, blur: 10),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: _dibujando ? null : _abrirSelectorTrazos,
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.mint.withValues(alpha: 0.95),
+                      AppColors.mint.withValues(alpha: 0.65),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.brush_rounded, color: Color(0xFF062018)),
+                    SizedBox(width: 8),
+                    Text(
+                      'Trazos',
+                      style: TextStyle(
+                        color: Color(0xFF062018),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -719,19 +839,13 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  if (_partida.fase == FasePapa.jugando &&
-                      !_partida.terminada)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: _selectorGrosor(),
-                    ),
+                  const SizedBox(height: 4),
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
+                        constraints: const BoxConstraints(maxWidth: 560),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
                           child: AspectRatio(
                             aspectRatio: columnasPapa / filasPapa,
                             child: LayoutBuilder(
@@ -790,7 +904,16 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 96),
+                  SizedBox(
+                    height: 52,
+                    child: _partida.fase == FasePapa.jugando &&
+                            !_partida.terminada
+                        ? Align(
+                            alignment: Alignment.bottomCenter,
+                            child: _botonTrazos(),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),

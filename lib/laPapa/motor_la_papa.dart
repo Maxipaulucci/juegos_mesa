@@ -254,12 +254,26 @@ bool _segmentosCercanos(
   Offset b2,
   double umbral,
 ) {
+  if (_cruzan(a1, a2, b1, b2)) return true;
   if (_distPuntoSegmento(a1, b1, b2) <= umbral) return true;
   if (_distPuntoSegmento(a2, b1, b2) <= umbral) return true;
   if (_distPuntoSegmento(b1, a1, a2) <= umbral) return true;
   if (_distPuntoSegmento(b2, a1, a2) <= umbral) return true;
-  // Cruce clásico de segmentos.
-  return _cruzan(a1, a2, b1, b2);
+
+  // Muestreo denso: atrapa rozamientos en el medio (no solo extremos).
+  final lenA = (a2 - a1).distance;
+  final lenB = (b2 - b1).distance;
+  final nA = math.max(2, (lenA / 1.0).ceil());
+  for (var i = 1; i < nA; i++) {
+    final p = Offset.lerp(a1, a2, i / nA)!;
+    if (_distPuntoSegmento(p, b1, b2) <= umbral) return true;
+  }
+  final nB = math.max(2, (lenB / 1.0).ceil());
+  for (var i = 1; i < nB; i++) {
+    final p = Offset.lerp(b1, b2, i / nB)!;
+    if (_distPuntoSegmento(p, a1, a2) <= umbral) return true;
+  }
+  return false;
 }
 
 double _orient(Offset a, Offset b, Offset c) {
@@ -340,7 +354,7 @@ bool trazoChocaConPreviosPapa(
   final centroInicio =
       idxInicio != null ? centroCasillaPapa(idxInicio, boardSize) : null;
   // Zona chica: solo para salir del número, no para “atravesar” la hoja.
-  final radioIgnorar = cell * 0.2;
+  final radioIgnorar = cell * 0.14;
 
   bool enZonaInicio(Offset pt) =>
       centroInicio != null && (pt - centroInicio).distance <= radioIgnorar;
@@ -349,12 +363,18 @@ bool trazoChocaConPreviosPapa(
   final segsPrev = <(Offset, Offset, double)>[];
   for (final t in p.trazos) {
     final pts = t.puntos;
-    final umbral =
-        math.max(grosorActual.radioChoque, t.grosor.radioChoque);
+    // Suma de radios: si se tocan visualmente los trazos gruesos, cuenta.
+    final umbral = math.max(
+      2.0,
+      grosorActual.radioChoque + t.grosor.radioChoque,
+    );
     for (var j = 1; j < pts.length; j++) {
       final p1 = pts[j - 1];
       final p2 = pts[j];
-      if (t.a == p.siguienteConectar && enZonaInicio(p1) && enZonaInicio(p2)) {
+      // Solo la punta inmediata del trazo de llegada (ambos extremos cerca).
+      if (t.a == p.siguienteConectar &&
+          enZonaInicio(p1) &&
+          enZonaInicio(p2)) {
         continue;
       }
       segsPrev.add((p1, p2, umbral));
@@ -368,11 +388,21 @@ bool trazoChocaConPreviosPapa(
     final segLen = (b - a).distance;
     if (segLen < 1e-6) continue;
 
-    for (final (p1, p2, _) in segsPrev) {
-      if (_cruzan(a, b, p1, p2)) return true;
+    // Al despegar del número solo cuenta cruce geométrico (no el roce con la
+    // punta del trazo que llegó). Fuera de esa zona, cruce o roce = pierde.
+    final saliendo = enZonaInicio(a) || enZonaInicio(b);
+
+    for (final (p1, p2, umbral) in segsPrev) {
+      if (saliendo) {
+        if (_cruzan(a, b, p1, p2)) return true;
+      } else if (_segmentosCercanos(a, b, p1, p2, umbral)) {
+        return true;
+      }
     }
 
-    final muestras = math.max(2, (segLen / 1.5).ceil());
+    if (saliendo) continue;
+
+    final muestras = math.max(3, (segLen / 0.9).ceil());
     for (var s = 0; s <= muestras; s++) {
       final pt = Offset.lerp(a, b, s / muestras)!;
       if (enZonaInicio(pt)) continue;
@@ -396,8 +426,12 @@ bool trazoSeTocaASiMismoPapa(
     boardSize.width / columnasPapa,
     boardSize.height / filasPapa,
   );
-  final umbral = math.max(grosor.radioChoque, cell * 0.035);
-  final colaIgnorar = math.max(18.0, cell * 0.5);
+  final umbral = math.max(
+    2.0,
+    grosor.radioChoque * 2, // equivalente a chocarse con un trazo igual
+  );
+  // Un poco más de cola para curvas normales, sin dejar pasar un cruce claro.
+  final colaIgnorar = math.max(14.0, cell * 0.38);
 
   // Retrocede desde la punta: esa “cola” no se compara consigo misma.
   var acum = 0.0;

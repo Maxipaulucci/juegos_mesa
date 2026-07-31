@@ -180,4 +180,91 @@ void main() {
       isFalse,
     );
   });
+
+  test('cruzar cerca del destino también pierde', () {
+    const board = Size(200, 400);
+    final c7 = centroCasillaPapa(47, board); // abajo
+    final c8 = centroCasillaPapa(0, board); // arriba-izquierda
+
+    final casillas = List<int?>.filled(totalCasillasPapa, null);
+    casillas[47] = 7;
+    casillas[0] = 8;
+
+    // Línea horizontal que el trazo 7→8 debe cruzar cerca del 8.
+    final barrera = TrazoPapa(
+      puntos: [
+        Offset(c8.dx - 40, c8.dy + 35),
+        Offset(c8.dx + 40, c8.dy + 35),
+      ],
+      de: 1,
+      a: 2,
+      jugador: 'A',
+    );
+
+    final p = PartidaPapa(
+      nombres: const ['A', 'B'],
+      casillas: casillas,
+      maxNumero: maxNumeroPapa,
+      siguienteConectar: 7,
+      trazos: [barrera],
+    );
+
+    final trazoCruza = <Offset>[
+      c7,
+      Offset(c7.dx, (c7.dy + c8.dy) / 2),
+      Offset(c8.dx, c8.dy + 35), // sobre la barrera
+      c8,
+    ];
+    expect(
+      trazoChocaConPreviosPapa(p, trazoCruza, boardSize: board),
+      isTrue,
+    );
+  });
+
+  test('roce visual de trazos gruesos cuenta aunque los ejes no se crucen', () {
+    const board = Size(200, 400);
+    final c2 = centroCasillaPapa(2, board);
+
+    final casillas = List<int?>.filled(totalCasillasPapa, null);
+    casillas[47] = 1;
+    casillas[2] = 2;
+    casillas[40] = 3;
+
+    // Vertical en x = 100.
+    final previo = TrazoPapa(
+      puntos: const [
+        Offset(100, 50),
+        Offset(100, 350),
+      ],
+      de: 1,
+      a: 2,
+      jugador: 'A',
+      grosor: GrosorTrazoPapa.grueso,
+    );
+
+    final p = PartidaPapa(
+      nombres: const ['A', 'B'],
+      casillas: casillas,
+      maxNumero: maxNumeroPapa,
+      siguienteConectar: 2,
+      indiceTurno: 1,
+      trazos: [previo],
+    );
+
+    // Horizontal que pasa a ~3px del eje vertical: se tocan a ojo con grueso.
+    final roce = <Offset>[
+      c2,
+      const Offset(103.2, 80),
+      const Offset(160, 80),
+    ];
+    expect(
+      trazoChocaConPreviosPapa(
+        p,
+        roce,
+        boardSize: board,
+        grosorActual: GrosorTrazoPapa.grueso,
+      ),
+      isTrue,
+    );
+  });
 }
