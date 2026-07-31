@@ -181,7 +181,13 @@ bool _cruzan(Offset a1, Offset a2, Offset b1, Offset b2) {
     // Colineales: se solapan si proyectan.
     return _proyeccionSolapa(a1, a2, b1, b2);
   }
-  return (o1 > 0) != (o2 > 0) && (o3 > 0) != (o4 > 0);
+  // Cruce propio: signos estrictamente opuestos.
+  return (o1 > 0) != (o2 > 0) &&
+      o1 != 0 &&
+      o2 != 0 &&
+      (o3 > 0) != (o4 > 0) &&
+      o3 != 0 &&
+      o4 != 0;
 }
 
 bool _proyeccionSolapa(Offset a1, Offset a2, Offset b1, Offset b2) {
@@ -212,14 +218,6 @@ bool chocaConTrazosPapa(
   return false;
 }
 
-double longitudPolylinePapa(List<Offset> pts) {
-  var L = 0.0;
-  for (var i = 1; i < pts.length; i++) {
-    L += (pts[i] - pts[i - 1]).distance;
-  }
-  return L;
-}
-
 bool _puntoCercaDeTrazos(Offset p, List<TrazoPapa> trazos, double umbral) {
   for (final t in trazos) {
     final pts = t.puntos;
@@ -230,71 +228,66 @@ bool _puntoCercaDeTrazos(Offset p, List<TrazoPapa> trazos, double umbral) {
   return false;
 }
 
-/// Longitud del trazo actual que queda “encima” de trazos previos.
-/// Ignora la zona del número de partida (donde nace el trazo anterior).
-double longitudSolapadaPapa(
-  List<TrazoPapa> trazos,
+/// True si el trazo actual cruza o roza una línea previa.
+/// Pierde al toque inmediato; solo se ignora un entorno chico del número
+/// de salida (para poder despegar sin chocar con la punta del trazo anterior).
+bool trazoChocaConPreviosPapa(
+  PartidaPapa p,
   List<Offset> trazoActual, {
-  Offset? ignorarCercaDe,
-  double radioIgnorar = 28,
-  double umbral = 3.5,
+  required Size boardSize,
 }) {
-  if (trazoActual.length < 2 || trazos.isEmpty) return 0;
-  var solapada = 0.0;
+  if (trazoActual.length < 2 || p.trazos.isEmpty) return false;
+  final cell = math.min(
+    boardSize.width / columnasPapa,
+    boardSize.height / filasPapa,
+  );
+  // ~mitad del grosor visual del trazo (+ un poco): rozar la línea cuenta.
+  final umbral = math.max(3.0, cell * 0.05);
+  final idxInicio = p.indiceDeNumero(p.siguienteConectar);
+  final centroInicio =
+      idxInicio != null ? centroCasillaPapa(idxInicio, boardSize) : null;
+  // Zona chica: solo para salir del número, no para “atravesar” la hoja.
+  final radioIgnorar = cell * 0.2;
+
+  bool enZonaInicio(Offset pt) =>
+      centroInicio != null && (pt - centroInicio).distance <= radioIgnorar;
+
+  // Segmentos previos a evaluar (sin la punta que llega al número de salida).
+  final segsPrev = <(Offset, Offset)>[];
+  for (final t in p.trazos) {
+    final pts = t.puntos;
+    for (var j = 1; j < pts.length; j++) {
+      final p1 = pts[j - 1];
+      final p2 = pts[j];
+      if (t.a == p.siguienteConectar && enZonaInicio(p1) && enZonaInicio(p2)) {
+        continue;
+      }
+      segsPrev.add((p1, p2));
+    }
+  }
+  if (segsPrev.isEmpty) return false;
+
   for (var i = 1; i < trazoActual.length; i++) {
     final a = trazoActual[i - 1];
     final b = trazoActual[i];
     final segLen = (b - a).distance;
     if (segLen < 1e-6) continue;
-    final muestras = math.max(2, (segLen / 2.5).ceil());
-    var chocan = 0;
-    var validas = 0;
-    for (var s = 0; s <= muestras; s++) {
-      final t = s / muestras;
-      final p = Offset.lerp(a, b, t)!;
-      if (ignorarCercaDe != null &&
-          (p - ignorarCercaDe).distance <= radioIgnorar) {
-        continue;
-      }
-      validas++;
-      if (_puntoCercaDeTrazos(p, trazos, umbral)) chocan++;
+
+    for (final (p1, p2) in segsPrev) {
+      if (_cruzan(a, b, p1, p2)) return true;
     }
-    if (validas == 0) continue;
-    solapada += segLen * (chocan / validas);
+
+    // Muestreo denso: detecta roce aunque el cruce no caiga en un extremo.
+    final muestras = math.max(2, (segLen / 1.5).ceil());
+    for (var s = 0; s <= muestras; s++) {
+      final pt = Offset.lerp(a, b, s / muestras)!;
+      if (enZonaInicio(pt)) continue;
+      for (final (p1, p2) in segsPrev) {
+        if (_distPuntoSegmento(pt, p1, p2) <= umbral) return true;
+      }
+    }
   }
-  return solapada;
-}
-
-/// Pierde recién cuando ~10% del trazo actual está encima de otra línea.
-bool trazoPierdePorSolapePapa(
-  PartidaPapa p,
-  List<Offset> trazoActual, {
-  required Size boardSize,
-  double fraccionMin = 0.10,
-}) {
-  if (trazoActual.length < 3 || p.trazos.isEmpty) return false;
-  final total = longitudPolylinePapa(trazoActual);
-  final cell = math.min(
-    boardSize.width / columnasPapa,
-    boardSize.height / filasPapa,
-  );
-  // Trazo muy corto: todavía no se juzga.
-  if (total < cell * 0.8) return false;
-
-  final idxInicio = p.indiceDeNumero(p.siguienteConectar);
-  final centroInicio =
-      idxInicio != null ? centroCasillaPapa(idxInicio, boardSize) : null;
-
-  final solape = longitudSolapadaPapa(
-    p.trazos,
-    trazoActual,
-    ignorarCercaDe: centroInicio,
-    radioIgnorar: cell * 0.55,
-    umbral: math.max(2.8, cell * 0.08),
-  );
-
-  // Al menos 10% del trazo, y un mínimo absoluto para no disparar por un roce.
-  return solape >= total * fraccionMin && solape >= cell * 0.22;
+  return false;
 }
 
 bool cercaDeNumeroPapa(
