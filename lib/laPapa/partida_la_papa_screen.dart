@@ -22,6 +22,8 @@ class PartidaLaPapaScreen extends StatefulWidget {
 class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   late PartidaPapa _partida;
   final List<Offset> _trazoActual = [];
+  /// Trazo con el que se perdió (se muestra en rojo al terminar).
+  final List<Offset> _trazoFallido = [];
   final GlobalKey _hojaKey = GlobalKey();
   bool _dibujando = false;
   bool _inicioValido = false;
@@ -39,6 +41,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     setState(() {
       _partida = nuevaPartidaPapa(nombres: widget.nombres);
       _trazoActual.clear();
+      _trazoFallido.clear();
       _dibujando = false;
       _inicioValido = false;
       _salioDelInicio = false;
@@ -50,6 +53,19 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _dibujando = false;
     _inicioValido = false;
     _salioDelInicio = false;
+  }
+
+  /// Mantiene los trazos alineados si el tablero cambia de tamaño
+  /// (p. ej. al mostrar botones al terminar, o al redimensionar la ventana).
+  Size _sincronizarTamanoHoja(Size boardSize) {
+    final prev = _boardSize;
+    if (prev != null && prev != boardSize) {
+      reescalarTrazosPapa(_partida, prev, boardSize);
+      reescalarPuntosPapa(_trazoActual, prev, boardSize);
+      reescalarPuntosPapa(_trazoFallido, prev, boardSize);
+    }
+    _boardSize = boardSize;
+    return boardSize;
   }
 
   bool _dentroHoja(Offset local, Size boardSize) {
@@ -67,6 +83,9 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
   void _perder(String motivo) {
     perderPapa(_partida, motivo: motivo);
+    _trazoFallido
+      ..clear()
+      ..addAll(_trazoActual);
     _limpiarTrazo();
   }
 
@@ -160,7 +179,13 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       return;
     }
     if (_partida.terminada) {
-      setState(_limpiarTrazo);
+      // Ya perdió en el move: no borrar el trazo fallido.
+      setState(() {
+        _dibujando = false;
+        _inicioValido = false;
+        _salioDelInicio = false;
+        _trazoActual.clear();
+      });
       return;
     }
 
@@ -266,9 +291,11 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                             aspectRatio: columnasPapa / filasPapa,
                             child: LayoutBuilder(
                               builder: (context, constraints) {
-                                final boardSize = Size(
-                                  constraints.maxWidth,
-                                  constraints.maxHeight,
+                                final boardSize = _sincronizarTamanoHoja(
+                                  Size(
+                                    constraints.maxWidth,
+                                    constraints.maxHeight,
+                                  ),
                                 );
                                 return DecoratedBox(
                                   key: _hojaKey,
@@ -301,6 +328,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                         painter: _HojaPapaPainter(
                                           partida: _partida,
                                           trazoActual: List.of(_trazoActual),
+                                          trazoFallido: List.of(_trazoFallido),
                                           boardSize: boardSize,
                                         ),
                                       ),
@@ -314,30 +342,40 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                       ),
                     ),
                   ),
-                  if (_partida.terminada)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                      child: Column(
-                        children: [
-                          ElevatedButton(
-                            onPressed: _reiniciar,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.mint,
-                              foregroundColor: const Color(0xFF062018),
+                  // Reserva fija: si solo aparece al terminar, la hoja se
+                  // achica y los trazos en píxeles quedan desfasados.
+                  SizedBox(
+                    height: 96,
+                    child: _partida.terminada
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: _reiniciar,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.mint,
+                                      foregroundColor: const Color(0xFF062018),
+                                    ),
+                                    child: const Text('Otra partida'),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text(
+                                    'Volver al menú',
+                                    style:
+                                        TextStyle(color: AppColors.textoSuave),
+                                  ),
+                                ),
+                              ],
                             ),
-                            child: const Text('Otra partida'),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text(
-                              'Volver al menú',
-                              style: TextStyle(color: AppColors.textoSuave),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),
@@ -352,11 +390,13 @@ class _HojaPapaPainter extends CustomPainter {
   _HojaPapaPainter({
     required this.partida,
     required this.trazoActual,
+    required this.trazoFallido,
     required this.boardSize,
   });
 
   final PartidaPapa partida;
   final List<Offset> trazoActual;
+  final List<Offset> trazoFallido;
   final Size boardSize;
 
   @override
@@ -421,6 +461,25 @@ class _HojaPapaPainter extends CustomPainter {
 
     for (final t in partida.trazos) {
       _dibujarPolyline(canvas, t.puntos, strokePaint);
+    }
+
+    if (trazoFallido.length >= 2) {
+      _dibujarPolyline(
+        canvas,
+        trazoFallido,
+        Paint()
+          ..color = AppColors.peligro
+          ..strokeWidth = 3.6
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke,
+      );
+    } else if (trazoFallido.length == 1) {
+      canvas.drawCircle(
+        trazoFallido.first,
+        3.5,
+        Paint()..color = AppColors.peligro,
+      );
     }
 
     if (trazoActual.length >= 2) {

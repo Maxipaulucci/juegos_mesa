@@ -306,13 +306,6 @@ bool cercaDeNumeroPapa(
   return (pos - c).distance <= radio;
 }
 
-double _anguloDiff(double a, double b) {
-  var d = (a - b) % (2 * math.pi);
-  if (d < 0) d += 2 * math.pi;
-  if (d > math.pi) d = 2 * math.pi - d;
-  return d;
-}
-
 /// Intersecciones del segmento [a,b] con la circunferencia (c,r).
 List<Offset> _interseccionesSegmentoCirculo(
   Offset c,
@@ -372,82 +365,30 @@ Offset? puntoEntradaAlCirculoPapa(
   return null;
 }
 
-/// Ángulos (rad) donde trazos previos cruzan el borde del círculo.
-List<double> angulosBloqueadosEnNumeroPapa(
-  PartidaPapa p,
-  int numero,
-  Size boardSize, {
-  double factorRadio = 0.32,
-}) {
-  final idx = p.indiceDeNumero(numero);
-  if (idx == null || p.trazos.isEmpty) return const [];
-  final cellW = boardSize.width / columnasPapa;
-  final cellH = boardSize.height / filasPapa;
-  final radio = math.min(cellW, cellH) * factorRadio;
-  final c = centroCasillaPapa(idx, boardSize);
-  final angs = <double>[];
-
-  for (final t in p.trazos) {
-    final pts = t.puntos;
-    for (var i = 1; i < pts.length; i++) {
-      final a = pts[i - 1];
-      final b = pts[i];
-      for (final pto in _interseccionesSegmentoCirculo(c, radio, a, b)) {
-        angs.add(math.atan2(pto.dy - c.dy, pto.dx - c.dx));
-      }
-      // Si el segmento pasa adentro sin cortar el borde (casi centro):
-      final cerca = _distPuntoSegmento(c, a, b);
-      if (cerca < radio * 0.35) {
-        final ab = b - a;
-        if (ab.distance > 1e-6) {
-          final angLinea = math.atan2(ab.dy, ab.dx);
-          angs.add(angLinea);
-          angs.add(angLinea + math.pi);
-        }
-      }
-    }
-  }
-  return angs;
-}
-
-/// True si se entra al número por un arco ya ocupado por otra línea.
+/// True si el punto de entrada cae encima de tinta previa en el borde.
+/// Una línea que pasa por la casilla solo tapa donde realmente roza el
+/// círculo del número; el resto de lados siguen libres.
 bool llegadaPorLadoBloqueadoPapa(
   PartidaPapa p,
   int numero,
   List<Offset> trazoActual,
   Size boardSize, {
   double factorRadio = 0.32,
-  /// Mitad del arco bloqueado alrededor de cada cruce (~70°).
-  double margenRad = 70 * math.pi / 180,
 }) {
   final idx = p.indiceDeNumero(numero);
   if (idx == null || trazoActual.length < 2) return false;
   final cellW = boardSize.width / columnasPapa;
   final cellH = boardSize.height / filasPapa;
-  final radio = math.min(cellW, cellH) * factorRadio;
+  final cell = math.min(cellW, cellH);
+  final radio = cell * factorRadio;
   final c = centroCasillaPapa(idx, boardSize);
-
-  final bloqueados = angulosBloqueadosEnNumeroPapa(
-    p,
-    numero,
-    boardSize,
-    factorRadio: factorRadio,
-  );
-  if (bloqueados.isEmpty) return false;
 
   final entrada = puntoEntradaAlCirculoPapa(trazoActual, c, radio);
   if (entrada == null) return false;
-  final angEntrada = math.atan2(entrada.dy - c.dy, entrada.dx - c.dx);
 
-  for (final ang in bloqueados) {
-    if (_anguloDiff(angEntrada, ang) <= margenRad) return true;
-  }
-
-  // Además: el punto de entrada no puede rozar la tinta previa.
-  final umbralTinta = math.max(3.5, radio * 0.45);
-  if (_puntoCercaDeTrazos(entrada, p.trazos, umbralTinta)) return true;
-
-  return false;
+  // ~grosor del trazo: hay que tocar la tinta, no un arco enorme.
+  final umbralTinta = math.max(2.6, cell * 0.04);
+  return _puntoCercaDeTrazos(entrada, p.trazos, umbralTinta);
 }
 
 /// Acepta el trazo si une el par actual y no chocó.
@@ -479,4 +420,46 @@ void perderPapa(PartidaPapa p, {String? motivo}) {
   p.fase = FasePapa.perdido;
   p.mensajeFin = motivo ??
       '${p.jugadorActual} tocó una línea. Fin de la partida.';
+}
+
+/// Reescala trazos guardados en píxeles cuando cambia el tamaño de la hoja.
+void reescalarTrazosPapa(PartidaPapa p, Size desde, Size hacia) {
+  if (desde.width < 1e-6 ||
+      desde.height < 1e-6 ||
+      hacia.width < 1e-6 ||
+      hacia.height < 1e-6) {
+    return;
+  }
+  if (desde == hacia) return;
+  final sx = hacia.width / desde.width;
+  final sy = hacia.height / desde.height;
+  for (var i = 0; i < p.trazos.length; i++) {
+    final t = p.trazos[i];
+    p.trazos[i] = TrazoPapa(
+      puntos: [
+        for (final o in t.puntos) Offset(o.dx * sx, o.dy * sy),
+      ],
+      de: t.de,
+      a: t.a,
+      jugador: t.jugador,
+    );
+  }
+}
+
+List<Offset> reescalarPuntosPapa(List<Offset> pts, Size desde, Size hacia) {
+  if (pts.isEmpty ||
+      desde.width < 1e-6 ||
+      desde.height < 1e-6 ||
+      hacia.width < 1e-6 ||
+      hacia.height < 1e-6 ||
+      desde == hacia) {
+    return pts;
+  }
+  final sx = hacia.width / desde.width;
+  final sy = hacia.height / desde.height;
+  for (var i = 0; i < pts.length; i++) {
+    final o = pts[i];
+    pts[i] = Offset(o.dx * sx, o.dy * sy);
+  }
+  return pts;
 }
