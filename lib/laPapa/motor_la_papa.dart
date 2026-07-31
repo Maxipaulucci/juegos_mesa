@@ -1,14 +1,17 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
-/// Motor de La Papa: hoja 5×10 (50 casillas) con 30 números y trazos.
+import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
+
+/// Motor de La Papa: hoja 5×10 (50 casillas) con números y trazos.
 
 const int columnasPapa = 5;
 const int filasPapa = 10;
 const int totalCasillasPapa = columnasPapa * filasPapa; // 50
-const int maxNumeroPapa = 30;
+/// Valor por defecto (compat tests / menú).
+const int maxNumeroPapa = OpcionesPapa.maxNumeroPapaDefault;
 
-enum FasePapa { jugando, ganado, perdido }
+enum FasePapa { colocando, jugando, ganado, perdido }
 
 class TrazoPapa {
   TrazoPapa({
@@ -28,28 +31,46 @@ class PartidaPapa {
   PartidaPapa({
     required this.nombres,
     required this.casillas,
+    required this.maxNumero,
     this.indiceTurno = 0,
     this.siguienteConectar = 1,
+    this.siguienteAColocar = 1,
     List<TrazoPapa>? trazos,
     this.fase = FasePapa.jugando,
     this.mensajeFin,
-  }) : trazos = trazos ?? [];
+    this.conVidas = false,
+    this.modoFantasma = false,
+    List<int>? vidas,
+  })  : trazos = trazos ?? [],
+        vidas = vidas ?? [];
 
   final List<String> nombres;
-  /// Índice 0..49 → número 1..30 o null si vacío.
+  /// Índice 0..49 → número 1..maxNumero o null si vacío.
   final List<int?> casillas;
+  final int maxNumero;
   int indiceTurno;
   /// Hay que conectar [siguienteConectar] → [siguienteConectar+1].
   int siguienteConectar;
+  /// Durante colocación manual: próximo número a ubicar.
+  int siguienteAColocar;
   final List<TrazoPapa> trazos;
   FasePapa fase;
   String? mensajeFin;
+  final bool conVidas;
+  final bool modoFantasma;
+  /// Vidas restantes por jugador (vacío si [conVidas] es false).
+  final List<int> vidas;
 
   String get jugadorActual =>
       nombres.isEmpty ? '' : nombres[indiceTurno % nombres.length];
 
   bool get terminada =>
       fase == FasePapa.ganado || fase == FasePapa.perdido;
+
+  int? vidasDelActual() {
+    if (!conVidas || vidas.isEmpty || nombres.isEmpty) return null;
+    return vidas[indiceTurno % vidas.length];
+  }
 
   int? indiceDeNumero(int n) {
     for (var i = 0; i < casillas.length; i++) {
@@ -76,12 +97,12 @@ bool posicionesConsecutivasValidasPapa(int a, int b) {
   return true;
 }
 
-List<int?>? _generarCasillasPapa(math.Random rng) {
+List<int?>? _generarCasillasPapa(math.Random rng, int maxNumero) {
   final casillas = List<int?>.filled(totalCasillasPapa, null);
   final libres = List<int>.generate(totalCasillasPapa, (i) => i);
 
   bool colocar(int numero, int? prevIdx) {
-    if (numero > maxNumeroPapa) return true;
+    if (numero > maxNumero) return true;
     final orden = List<int>.of(libres)..shuffle(rng);
     for (final i in orden) {
       if (prevIdx != null && !posicionesConsecutivasValidasPapa(prevIdx, i)) {
@@ -100,21 +121,43 @@ List<int?>? _generarCasillasPapa(math.Random rng) {
   return casillas;
 }
 
-/// Genera 30 números (1..30) en 50 casillas al azar, con reglas de separación.
+List<int> _vidasIniciales(List<String> nombres, bool conVidas) {
+  if (!conVidas || nombres.isEmpty) return [];
+  return List<int>.filled(nombres.length, OpcionesPapa.vidasIniciales);
+}
+
+/// Genera la hoja según [opciones] (aleatoria o vacía para colocar a mano).
 PartidaPapa nuevaPartidaPapa({
   required List<String> nombres,
+  OpcionesPapa opciones = const OpcionesPapa(),
   int? semilla,
 }) {
+  final maxN = opciones.cantidadNumerosClamped;
+  final nombresCopy = List<String>.from(nombres);
+  final vidas = _vidasIniciales(nombresCopy, opciones.conVidas);
+
+  if (!opciones.numerosAleatorios) {
+    return PartidaPapa(
+      nombres: nombresCopy,
+      casillas: List<int?>.filled(totalCasillasPapa, null),
+      maxNumero: maxN,
+      fase: FasePapa.colocando,
+      siguienteAColocar: 1,
+      conVidas: opciones.conVidas,
+      modoFantasma: opciones.modoFantasma,
+      vidas: vidas,
+    );
+  }
+
   final rng = math.Random(semilla);
   List<int?>? casillas;
   for (var intento = 0; intento < 80; intento++) {
-    casillas = _generarCasillasPapa(rng);
+    casillas = _generarCasillasPapa(rng, maxN);
     if (casillas != null) break;
   }
   if (casillas == null) {
-    // Último recurso: reintentos extra (en la práctica casi no hace falta).
     for (var intento = 0; intento < 200; intento++) {
-      casillas = _generarCasillasPapa(math.Random(rng.nextInt(1 << 30)));
+      casillas = _generarCasillasPapa(math.Random(rng.nextInt(1 << 30)), maxN);
       if (casillas != null) break;
     }
   }
@@ -122,9 +165,41 @@ PartidaPapa nuevaPartidaPapa({
     throw StateError('No se pudo armar una hoja válida de La papa.');
   }
   return PartidaPapa(
-    nombres: List<String>.from(nombres),
+    nombres: nombresCopy,
     casillas: casillas,
+    maxNumero: maxN,
+    conVidas: opciones.conVidas,
+    modoFantasma: opciones.modoFantasma,
+    vidas: vidas,
   );
+}
+
+/// Coloca el siguiente número en [index]. Devuelve error o null si ok.
+String? colocarNumeroEnCasillaPapa(PartidaPapa p, int index) {
+  if (p.fase != FasePapa.colocando) return 'La hoja ya está armada.';
+  if (index < 0 || index >= p.casillas.length) return 'Casilla inválida.';
+  if (p.casillas[index] != null) return 'Esa casilla ya tiene número.';
+  final n = p.siguienteAColocar;
+  if (n > 1) {
+    final prev = p.indiceDeNumero(n - 1);
+    if (prev == null) return 'Falta el número anterior.';
+    if (!posicionesConsecutivasValidasPapa(prev, index)) {
+      return 'El $n debe quedar separado del ${n - 1} '
+          '(no misma fila/columna ni vecinos).';
+    }
+  }
+  p.casillas[index] = n;
+  if (n >= p.maxNumero) {
+    p.fase = FasePapa.jugando;
+    p.siguienteConectar = 1;
+    p.indiceTurno = 0;
+    return null;
+  }
+  p.siguienteAColocar = n + 1;
+  if (p.nombres.length > 1) {
+    p.indiceTurno = (p.indiceTurno + 1) % p.nombres.length;
+  }
+  return null;
 }
 
 Offset centroCasillaPapa(int index, Size boardSize) {
@@ -433,7 +508,7 @@ bool llegadaPorLadoBloqueadoPapa(
 
 /// Acepta el trazo si une el par actual y no chocó.
 void aceptarTrazoPapa(PartidaPapa p, List<Offset> puntos) {
-  if (p.terminada || puntos.length < 2) return;
+  if (p.terminada || p.fase != FasePapa.jugando || puntos.length < 2) return;
   final de = p.siguienteConectar;
   final a = de + 1;
   p.trazos.add(
@@ -444,9 +519,9 @@ void aceptarTrazoPapa(PartidaPapa p, List<Offset> puntos) {
       jugador: p.jugadorActual,
     ),
   );
-  if (a >= maxNumeroPapa) {
+  if (a >= p.maxNumero) {
     p.fase = FasePapa.ganado;
-    p.mensajeFin = '${p.jugadorActual} conectó hasta $maxNumeroPapa. ¡Ganó!';
+    p.mensajeFin = '${p.jugadorActual} conectó hasta ${p.maxNumero}. ¡Ganó!';
     return;
   }
   p.siguienteConectar = a;
@@ -460,6 +535,22 @@ void perderPapa(PartidaPapa p, {String? motivo}) {
   p.fase = FasePapa.perdido;
   p.mensajeFin = motivo ??
       '${p.jugadorActual} tocó una línea. Fin de la partida.';
+}
+
+/// Registra un fallo. Si hay vidas y quedan, resta una y sigue el mismo turno.
+/// Devuelve true si la partida terminó.
+bool registrarFalloPapa(PartidaPapa p, {String? motivo}) {
+  if (p.terminada) return true;
+  if (p.conVidas && p.vidas.isNotEmpty) {
+    final i = p.indiceTurno % p.vidas.length;
+    if (p.vidas[i] > 1) {
+      p.vidas[i]--;
+      return false;
+    }
+    p.vidas[i] = 0;
+  }
+  perderPapa(p, motivo: motivo);
+  return true;
 }
 
 /// Reescala trazos guardados en píxeles cuando cambia el tamaño de la hoja.

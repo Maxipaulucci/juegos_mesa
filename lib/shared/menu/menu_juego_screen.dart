@@ -40,6 +40,8 @@ class MenuJuegoScreen extends StatefulWidget {
     this.mostrarDificultad = false,
     /// Si true, la sección "vs PC" se muestra como "Jugar solo" (sin Modo Dios).
     this.jugarSoloEnLugarDePc = false,
+    /// Contenido extra debajo de Jugar solo / vs PC (p. ej. Modificar partida).
+    this.extraTrasModoLocal,
   });
 
   static const juegoIdDiezMil = 'diezMil';
@@ -52,6 +54,7 @@ class MenuJuegoScreen extends StatefulWidget {
   final List<int> modosDados;
   final bool mostrarDificultad;
   final bool jugarSoloEnLugarDePc;
+  final Widget? extraTrasModoLocal;
 
   final Future<void> Function(
     BuildContext context,
@@ -645,6 +648,12 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                             ),
                           ),
                         ],
+                      ],
+                      if (widget.extraTrasModoLocal != null) ...[
+                        const SizedBox(height: 16),
+                        const Divider(color: AppColors.fondoSuave),
+                        const SizedBox(height: 12),
+                        widget.extraTrasModoLocal!,
                       ],
                     ],
                   ),

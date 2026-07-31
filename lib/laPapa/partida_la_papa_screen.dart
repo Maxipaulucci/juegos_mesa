@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
+import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class PartidaLaPapaScreen extends StatefulWidget {
@@ -10,10 +11,12 @@ class PartidaLaPapaScreen extends StatefulWidget {
     super.key,
     required this.nombres,
     this.solo = false,
+    this.opciones = const OpcionesPapa(),
   });
 
   final List<String> nombres;
   final bool solo;
+  final OpcionesPapa opciones;
 
   @override
   State<PartidaLaPapaScreen> createState() => _PartidaLaPapaScreenState();
@@ -22,29 +25,36 @@ class PartidaLaPapaScreen extends StatefulWidget {
 class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   late PartidaPapa _partida;
   final List<Offset> _trazoActual = [];
-  /// Trazo con el que se perdió (se muestra en rojo al terminar).
+  /// Trazo con el que se perdió (o el último fallo con vidas).
   final List<Offset> _trazoFallido = [];
   final GlobalKey _hojaKey = GlobalKey();
   bool _dibujando = false;
   bool _inicioValido = false;
-  /// Ya se alejó del número de partida (evita cerrar el trazo al instante).
   bool _salioDelInicio = false;
   Size? _boardSize;
+  String? _avisoVida;
 
   @override
   void initState() {
     super.initState();
-    _partida = nuevaPartidaPapa(nombres: widget.nombres);
+    _partida = nuevaPartidaPapa(
+      nombres: widget.nombres,
+      opciones: widget.opciones,
+    );
   }
 
   void _reiniciar() {
     setState(() {
-      _partida = nuevaPartidaPapa(nombres: widget.nombres);
+      _partida = nuevaPartidaPapa(
+        nombres: widget.nombres,
+        opciones: widget.opciones,
+      );
       _trazoActual.clear();
       _trazoFallido.clear();
       _dibujando = false;
       _inicioValido = false;
       _salioDelInicio = false;
+      _avisoVida = null;
     });
   }
 
@@ -55,8 +65,6 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _salioDelInicio = false;
   }
 
-  /// Mantiene los trazos alineados si el tablero cambia de tamaño
-  /// (p. ej. al mostrar botones al terminar, o al redimensionar la ventana).
   Size _sincronizarTamanoHoja(Size boardSize) {
     final prev = _boardSize;
     if (prev != null && prev != boardSize) {
@@ -81,16 +89,40 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     return box.globalToLocal(global);
   }
 
-  void _perder(String motivo) {
-    perderPapa(_partida, motivo: motivo);
+  void _fallar(String motivo) {
     _trazoFallido
       ..clear()
       ..addAll(_trazoActual);
+    final termino = registrarFalloPapa(_partida, motivo: motivo);
     _limpiarTrazo();
+    if (!termino) {
+      final quedan = _partida.vidasDelActual() ?? 0;
+      _avisoVida =
+          '${_partida.jugadorActual} perdió una vida · quedan $quedan';
+    } else {
+      _avisoVida = null;
+    }
+  }
+
+  void _onTapColocar(Offset local, Size boardSize) {
+    if (_partida.fase != FasePapa.colocando) return;
+    for (var i = 0; i < totalCasillasPapa; i++) {
+      if (rectCasillaPapa(i, boardSize).contains(local)) {
+        final err = colocarNumeroEnCasillaPapa(_partida, i);
+        setState(() {
+          _avisoVida = err;
+        });
+        return;
+      }
+    }
   }
 
   void _onPointerDown(Offset local, Size boardSize) {
-    if (_partida.terminada) return;
+    if (_partida.fase == FasePapa.colocando) {
+      _onTapColocar(local, boardSize);
+      return;
+    }
+    if (_partida.terminada || _partida.fase != FasePapa.jugando) return;
     if (!_dentroHoja(local, boardSize)) return;
     final de = _partida.siguienteConectar;
     if (!cercaDeNumeroPapa(_partida, de, local, boardSize)) {
@@ -101,6 +133,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _dibujando = true;
       _inicioValido = true;
       _salioDelInicio = false;
+      _avisoVida = null;
+      _trazoFallido.clear();
       _trazoActual
         ..clear()
         ..add(local);
@@ -108,6 +142,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _onPointerMoveGlobal(Offset global) {
+    if (_partida.fase != FasePapa.jugando) return;
     if (!_dibujando || !_inicioValido || _partida.terminada) return;
     final boardSize = _boardSize;
     if (boardSize == null) return;
@@ -116,7 +151,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
     if (!_dentroHoja(local, boardSize)) {
       setState(() {
-        _perder(
+        _fallar(
           '${_partida.jugadorActual} se salió de la hoja. Fin de la partida.',
         );
       });
@@ -145,7 +180,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _trazoActual.add(local);
 
       if (chocaPrevios || chocaPropio) {
-        _perder(
+        _fallar(
           chocaPropio
               ? '${_partida.jugadorActual} tocó su propia línea. '
                   'Fin de la partida.'
@@ -159,7 +194,6 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _salioDelInicio = true;
       }
 
-      // Al tocar el destino: solo vale si entrás por un lado libre del círculo.
       if (_salioDelInicio &&
           cercaDeNumeroPapa(_partida, a, local, boardSize) &&
           _trazoActual.length >= 2) {
@@ -169,25 +203,26 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           _trazoActual,
           boardSize,
         )) {
-          _perder(
+          _fallar(
             '${_partida.jugadorActual} entró al número por un lado bloqueado. '
             'Fin de la partida.',
           );
           return;
         }
         aceptarTrazoPapa(_partida, _trazoActual);
+        _trazoFallido.clear();
         _limpiarTrazo();
       }
     });
   }
 
   void _onPointerUpOrCancel() {
+    if (_partida.fase != FasePapa.jugando) return;
     if (!_dibujando || !_inicioValido) {
       setState(_limpiarTrazo);
       return;
     }
     if (_partida.terminada) {
-      // Ya perdió en el move: no borrar el trazo fallido.
       setState(() {
         _dibujando = false;
         _inicioValido = false;
@@ -197,19 +232,39 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       return;
     }
 
-    // Empezó un trazo y lo soltó sin llegar al número: pierde.
     setState(() {
-      _perder(
+      _fallar(
         '${_partida.jugadorActual} no terminó el trazo en el número. '
         'Fin de la partida.',
       );
     });
   }
 
+  String get _titulo {
+    final base = widget.opciones.modoFantasma ? 'La papa · Fantasma' : 'La papa';
+    if (widget.solo) return '$base · Solo';
+    return '$base · ${_partida.jugadorActual}';
+  }
+
+  String get _mensajeEstado {
+    if (_partida.terminada) return _partida.mensajeFin ?? 'Fin';
+    if (_avisoVida != null) return _avisoVida!;
+    if (_partida.fase == FasePapa.colocando) {
+      return '${_partida.jugadorActual}: colocá el '
+          '${_partida.siguienteAColocar} '
+          '(${_partida.siguienteAColocar - 1}/${_partida.maxNumero})';
+    }
+    final de = _partida.siguienteConectar;
+    final a = de < _partida.maxNumero ? de + 1 : null;
+    if (a == null) return '¡Completaste la hoja!';
+    return 'Conectá $de → $a · soltá o salí de la hoja = perdés';
+  }
+
   @override
   Widget build(BuildContext context) {
     final de = _partida.siguienteConectar;
-    final a = de < maxNumeroPapa ? de + 1 : null;
+    final a = de < _partida.maxNumero ? de + 1 : null;
+    final vidas = _partida.vidasDelActual();
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
@@ -248,9 +303,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                         ),
                         Expanded(
                           child: Text(
-                            widget.solo
-                                ? 'La papa · Solo'
-                                : 'La papa · ${_partida.jugadorActual}',
+                            _titulo,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: AppColors.mint,
@@ -268,21 +321,40 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                       ],
                     ),
                   ),
+                  if (vidas != null &&
+                      _partida.fase == FasePapa.jugando &&
+                      !_partida.terminada)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (var i = 0; i < OpcionesPapa.vidasIniciales; i++)
+                            Icon(
+                              i < vidas
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color: AppColors.peligro,
+                              size: 18,
+                            ),
+                        ],
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      _partida.terminada
-                          ? (_partida.mensajeFin ?? 'Fin')
-                          : (a == null
-                              ? '¡Completaste la hoja!'
-                              : 'Conectá $de → $a · soltá o salí de la hoja = perdés'),
+                      _mensajeEstado,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: _partida.fase == FasePapa.perdido
+                        color: _partida.fase == FasePapa.perdido ||
+                                (_avisoVida != null &&
+                                    _partida.fase == FasePapa.colocando)
                             ? AppColors.peligro
                             : (_partida.fase == FasePapa.ganado
                                 ? AppColors.mint
-                                : AppColors.textoSuave),
+                                : (_avisoVida != null
+                                    ? AppColors.peligro
+                                    : AppColors.textoSuave)),
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
                       ),
@@ -338,6 +410,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                           trazoActual: List.of(_trazoActual),
                                           trazoFallido: List.of(_trazoFallido),
                                           boardSize: boardSize,
+                                          numeroActual: de,
+                                          numeroSiguiente: a,
                                         ),
                                       ),
                                     ),
@@ -350,8 +424,6 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                       ),
                     ),
                   ),
-                  // Reserva fija: si solo aparece al terminar, la hoja se
-                  // achica y los trazos en píxeles quedan desfasados.
                   SizedBox(
                     height: 96,
                     child: _partida.terminada
@@ -400,12 +472,16 @@ class _HojaPapaPainter extends CustomPainter {
     required this.trazoActual,
     required this.trazoFallido,
     required this.boardSize,
+    required this.numeroActual,
+    required this.numeroSiguiente,
   });
 
   final PartidaPapa partida;
   final List<Offset> trazoActual;
   final List<Offset> trazoFallido;
   final Size boardSize;
+  final int numeroActual;
+  final int? numeroSiguiente;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -426,20 +502,26 @@ class _HojaPapaPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final de = partida.siguienteConectar;
-    final a = de < maxNumeroPapa ? de + 1 : null;
+    final colocando = partida.fase == FasePapa.colocando;
+    final fantasma =
+        partida.modoFantasma && partida.fase == FasePapa.jugando;
 
     for (var i = 0; i < partida.casillas.length; i++) {
       final n = partida.casillas[i];
       if (n == null) continue;
+      if (fantasma && n != numeroActual && n != numeroSiguiente) {
+        continue;
+      }
       final c = centroCasillaPapa(i, size);
-      final destacado = !partida.terminada && (n == de || n == a);
+      final destacado = !partida.terminada &&
+          !colocando &&
+          (n == numeroActual || n == numeroSiguiente);
       if (destacado) {
         canvas.drawCircle(
           c,
           math.min(cellW, cellH) * 0.26,
           Paint()
-            ..color = (n == de ? AppColors.mint : AppColors.peligro)
+            ..color = (n == numeroActual ? AppColors.mint : AppColors.peligro)
                 .withValues(alpha: 0.22)
             ..style = PaintingStyle.fill,
         );
@@ -449,7 +531,9 @@ class _HojaPapaPainter extends CustomPainter {
           text: '$n',
           style: TextStyle(
             color: destacado
-                ? (n == de ? const Color(0xFF0A7A4A) : AppColors.peligro)
+                ? (n == numeroActual
+                    ? const Color(0xFF0A7A4A)
+                    : AppColors.peligro)
                 : const Color(0xFF1A0A33),
             fontWeight: FontWeight.w900,
             fontSize: math.min(cellW, cellH) * (destacado ? 0.28 : 0.24),

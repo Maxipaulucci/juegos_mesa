@@ -35,6 +35,7 @@ void main() {
     final p = PartidaPapa(
       nombres: const ['A', 'B'],
       casillas: casillas,
+      maxNumero: maxNumeroPapa,
       siguienteConectar: 2,
       indiceTurno: 1,
       trazos: [
@@ -103,6 +104,7 @@ void main() {
     final p = PartidaPapa(
       nombres: const ['A', 'B'],
       casillas: casillas,
+      maxNumero: maxNumeroPapa,
       siguienteConectar: 6,
       indiceTurno: 1,
       trazos: [atravesando],
@@ -137,6 +139,7 @@ void main() {
     final p = PartidaPapa(
       nombres: const ['A'],
       casillas: List<int?>.filled(totalCasillasPapa, null),
+      maxNumero: maxNumeroPapa,
       trazos: [
         TrazoPapa(
           puntos: const [Offset(40, 80), Offset(160, 320)],
