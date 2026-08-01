@@ -987,6 +987,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                 ganador: _partida.ganador,
                 subtitulo: _partida.mensajeFin,
                 animaciones: _ajustes.animaciones,
+                esSolo: widget.solo,
                 onVolverAJugar: _reiniciar,
                 onVolver: _salirAlMenu,
               ),

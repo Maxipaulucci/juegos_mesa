@@ -16,6 +16,7 @@ class VictoriaLaPapaOverlay extends StatefulWidget {
     this.ganador,
     this.subtitulo,
     this.animaciones = true,
+    this.esSolo = false,
   });
 
   final PartidaPapa partida;
@@ -24,6 +25,8 @@ class VictoriaLaPapaOverlay extends StatefulWidget {
   final VoidCallback onVolverAJugar;
   final VoidCallback onVolver;
   final bool animaciones;
+  /// Modo un solo jugador: cartel de fin distinto al de victoria multi.
+  final bool esSolo;
 
   @override
   State<VictoriaLaPapaOverlay> createState() => _VictoriaLaPapaOverlayState();
@@ -90,12 +93,39 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
 
   Widget _construirContenido() {
     if (!_mostrarStats) {
+      final maxN = widget.partida.maxNumero;
+      final completo = widget.partida.fase == FasePapa.ganado;
+      // Último número alcanzado (en derrota: el de origen del intento fallido).
+      final hasta = completo ? maxN : widget.partida.siguienteConectar;
+
+      final String titulo;
+      final String? nombre;
+      final String subtitulo;
+
+      if (widget.esSolo) {
+        if (completo) {
+          titulo = '¡GANADOR!';
+          nombre = _ganadorMostrado;
+          subtitulo = '¡Felicidades! Completaste los $maxN números.';
+        } else {
+          titulo = 'Fin';
+          nombre = null;
+          subtitulo =
+              'Felicidades, llegaste hasta el número $hasta de $maxN.';
+        }
+      } else {
+        titulo = '¡GANADOR!';
+        nombre = _ganadorMostrado;
+        subtitulo = widget.subtitulo ??
+            'Completó la hoja y se lleva la partida';
+      }
+
       return _WinnerCardPapa(
-        ganador: _ganadorMostrado,
+        titulo: titulo,
+        ganador: nombre,
         pulso: _pulso,
         animaciones: widget.animaciones,
-        subtitulo: widget.subtitulo ??
-            'Completó la hoja y se lleva la partida',
+        subtitulo: subtitulo,
         onEstadisticas: () => setState(() {
           _mostrarStats = true;
           _statsJugador = null;
@@ -203,16 +233,18 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
 
 class _WinnerCardPapa extends StatelessWidget {
   const _WinnerCardPapa({
-    required this.ganador,
+    required this.titulo,
     required this.pulso,
     required this.onEstadisticas,
     required this.onVolverAJugar,
     required this.onVolver,
     required this.subtitulo,
+    this.ganador,
     this.animaciones = true,
   });
 
-  final String ganador;
+  final String titulo;
+  final String? ganador;
   final AnimationController pulso;
   final VoidCallback onEstadisticas;
   final VoidCallback onVolverAJugar;
@@ -222,6 +254,8 @@ class _WinnerCardPapa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final esFin = titulo == 'Fin';
+
     Widget card(double glow) {
       return Container(
         width: double.infinity,
@@ -237,10 +271,14 @@ class _WinnerCardPapa extends StatelessWidget {
             ],
           ),
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: AppColors.acento, width: 2.5),
+          border: Border.all(
+            color: esFin ? AppColors.mint : AppColors.acento,
+            width: 2.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.acento.withValues(alpha: 0.55),
+              color: (esFin ? AppColors.mint : AppColors.acento)
+                  .withValues(alpha: 0.55),
               blurRadius: glow,
               spreadRadius: 2,
             ),
@@ -253,15 +291,17 @@ class _WinnerCardPapa extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🏆', style: TextStyle(fontSize: 52)),
+            Text(esFin ? '🏁' : '🏆', style: const TextStyle(fontSize: 52)),
             const SizedBox(height: 8),
             ShaderMask(
-              shaderCallback: (b) => const LinearGradient(
-                colors: [Colors.white, AppColors.acento, AppColors.rosa],
+              shaderCallback: (b) => LinearGradient(
+                colors: esFin
+                    ? const [Colors.white, AppColors.mint, AppColors.azul]
+                    : const [Colors.white, AppColors.acento, AppColors.rosa],
               ).createShader(b),
-              child: const Text(
-                '¡GANADOR!',
-                style: TextStyle(
+              child: Text(
+                titulo,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 34,
                   fontWeight: FontWeight.w900,
@@ -269,29 +309,33 @@ class _WinnerCardPapa extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              ganador.toUpperCase(),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.acento,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                shadows: [
-                  Shadow(
-                    color: AppColors.acento.withValues(alpha: 0.8),
-                    blurRadius: 16,
-                  ),
-                ],
+            if (ganador != null && ganador!.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                ganador!.toUpperCase(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.acento,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  shadows: [
+                    Shadow(
+                      color: AppColors.acento.withValues(alpha: 0.8),
+                      blurRadius: 16,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
+            ],
+            const SizedBox(height: 10),
             Text(
               subtitulo,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textoSuave,
                 fontWeight: FontWeight.w600,
+                fontSize: 15,
+                height: 1.35,
               ),
             ),
             const SizedBox(height: 24),
