@@ -70,7 +70,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     if (!_partida.bastaTodos) return false;
     // Quien dijo basta: ya no escribe.
     if (_yoDijeBasta) return true;
-    // Los demás: bloquean al terminar SU contador local de 2s.
+    // Los demás: bloquean al terminar SU contador local de gracia.
     if (_bastaLocalInicioMs == null) return false;
     return _progresoBastaLocal <= 0;
   }
@@ -117,7 +117,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
       } catch (_) {}
     }());
     _onlineSub = SalaService.instance
-        .watch(codigo, intervalo: const Duration(milliseconds: 1200))
+        .watch(codigo, intervalo: const Duration(milliseconds: 300))
         .listen(_onSalaOnlineActualizada);
   }
 
@@ -152,28 +152,34 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     final gameState = sala.gameState;
     if (gameState == null) return;
     final version = (gameState['version'] as num?)?.toInt() ?? 0;
-    if (version <= _onlineVersion) return;
-    // Mientras publicamos no pisamos; la cola reintentará si hace falta.
-    if (_publicandoOnline) return;
-
     final remoteFase = FaseTutiX.fromId(gameState['fase']?.toString());
+    final remotoMasAvanzado = remoteFase.orden > _partida.fase.orden;
+    final bastaNuevo =
+        gameState['bastaTodos'] == true && !_partida.bastaTodos;
+    final urgente = remotoMasAvanzado || bastaNuevo;
+
+    // Versión optimista local puede quedar por encima tras un publish ignorado;
+    // si el remoto ya avanzó de fase o hay BASTA, hay que aplicar igual.
+    if (version <= _onlineVersion && !urgente) return;
+    // Mientras publicamos, solo aceptamos avances urgentes (PARAR / BASTA).
+    if (_publicandoOnline && !urgente) return;
+
     // No volver atrás: p.ej. ruleta vieja no pisa un PARAR ya aplicado.
-    if (remoteFase.orden < _partida.fase.orden &&
-        version <= _onlineVersion + 1) {
-      // Versión apenas mayor pero fase anterior = sync obsoleto (acelerar).
-      if (_partida.fase.orden >= FaseTuti.countdownEscritura.orden &&
-          remoteFase.orden <= FaseTuti.ruleta.orden) {
-        // Republicar nuestro estado avanzado para corregir el servidor.
-        unawaited(_publicarEstadoOnline(forzar: true));
-        return;
-      }
-    }
     if (remoteFase.orden < _partida.fase.orden &&
         _partida.fase.orden >= FaseTuti.countdownEscritura.orden) {
       unawaited(_publicarEstadoOnline(forzar: true));
       return;
     }
 
+    _aplicarGameStateDeSala(sala, gameState, remoteFase);
+  }
+
+  void _aplicarGameStateDeSala(
+    Sala sala,
+    Map<String, dynamic> gameState,
+    FaseTuti remoteFase,
+  ) {
+    final version = (gameState['version'] as num?)?.toInt() ?? 0;
     final remoteBasta = gameState['bastaTodos'] == true;
     final estabaEscribiendo = _partida.fase == FaseTuti.escritura;
     final deboFusionar = remoteBasta &&
@@ -279,6 +285,8 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     final trabajo = () async {
       if (!mounted) return;
       for (var intento = 0; intento < 4; intento++) {
+        if (!mounted) return;
+        final faseAlPublicar = _partida.fase;
         _onlineVersion++;
         _partida.version = _onlineVersion;
         final gameState = encodeTutiGameState(_partida);
@@ -296,18 +304,29 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
             _partida.version = v;
             return;
           }
-          // Ignorado: el servidor tiene una versión >= la nuestra.
+          // Ignorado: alinear versión al servidor (puede ser menor que la optimista).
+          final remoteGs = res.sala.gameState;
           final remoteV = res.sala.gameVersion;
-          if (remoteV > _onlineVersion) {
-            _onlineVersion = remoteV;
+          _onlineVersion = remoteV;
+          _partida.version = remoteV;
+          final remoteFase = FaseTutiX.fromId(remoteGs?['fase']?.toString());
+
+          // El rival ya avanzó (PARAR / countdown) o publicó BASTA: adoptar.
+          final remoteBasta = remoteGs?['bastaTodos'] == true;
+          final bastaRemotoNuevo =
+              remoteBasta && gameState['bastaTodos'] != true;
+          if (remoteGs != null &&
+              (remoteFase.orden > faseAlPublicar.orden || bastaRemotoNuevo)) {
+            if (mounted) {
+              _aplicarGameStateDeSala(res.sala, remoteGs, remoteFase);
+            }
+            return;
           }
-          // Si el remoto está atrasado en fase, insistimos con versión más alta.
-          final remoteFase = FaseTutiX.fromId(
-            res.sala.gameState?['fase']?.toString(),
-          );
+
+          // Solo reintentar si debemos forzar un avance o el remoto está atrasado.
           if (forzar ||
-              remoteFase.orden < _partida.fase.orden ||
-              intento < 3) {
+              remoteFase.orden < faseAlPublicar.orden ||
+              (gameState['bastaTodos'] == true && !remoteBasta)) {
             await Future<void>.delayed(
               Duration(milliseconds: 80 * (intento + 1)),
             );
@@ -536,8 +555,11 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     final letra = _partida.letraActualRuleta();
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _esMiSpinner && !_parandoRuleta
+              onTap: _esMiSpinner &&
+              !_parandoRuleta &&
+              _partida.fase == FaseTuti.ruleta
           ? () {
+              if (_partida.fase != FaseTuti.ruleta) return;
               setState(() => acelerarRuletaTuti(_partida));
               final ahora = DateTime.now();
               final ultimo = _ultimoAcelerarPub;
@@ -704,19 +726,32 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
                 ElevatedButton(
                   onPressed: () {
                     _debounceRespuestas?.cancel();
-                    _mutar(() {
+                    setState(() {
                       _flushRespuestasLocales();
                       bastaTuti(_partida, widget.miNombre);
                       // Quien dice basta no ve el aviso ni el contador.
                       _bastaLocalInicioMs = null;
                     });
+                    unawaited(_publicarEstadoOnline(forzar: true));
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.peligro,
                     foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(54),
+                    minimumSize: const Size.fromHeight(58),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
-                  child: const Text('BASTA'),
+                  child: const Text(
+                    'Basta para mi, basta para todos',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                      height: 1.2,
+                    ),
+                  ),
                 )
               else if (_yoDijeBasta && _partida.fase == FaseTuti.escritura)
                 const Text(
@@ -1134,7 +1169,7 @@ class _TarjetaRespuesta extends StatelessWidget {
   }
 }
 
-/// Aviso de BASTA: mensaje + anillo que se vacía en 2s.
+/// Aviso de BASTA: mensaje + anillo que se vacía en la gracia local.
 class _AvisoBastaOverlay extends StatelessWidget {
   const _AvisoBastaOverlay({
     required this.quien,

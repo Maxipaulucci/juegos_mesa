@@ -34,6 +34,42 @@ function nuevoId(prefix) {
   return `${prefix}-${randomBytes(6).toString('hex')}`
 }
 
+/** Orden de fases Tutti Frutti (evita que acelerar ruleta pise un PARAR). */
+const TUTI_FASE_ORDEN = {
+  countdownRuleta: 0,
+  ruleta: 1,
+  countdownEscritura: 2,
+  escritura: 3,
+  countdownRevision: 4,
+  revision: 5,
+  fin: 6,
+}
+
+function tutiFaseRegresa(prev, next) {
+  if (!prev || prev.juego !== 'tutiFruti' || next?.juego !== 'tutiFruti') {
+    return false
+  }
+  const prevRonda = Number(prev.ronda) || 1
+  const nextRonda = Number(next.ronda) || 1
+  if (nextRonda < prevRonda) return true
+  if (nextRonda > prevRonda) return false
+  const prevOrden = TUTI_FASE_ORDEN[prev.fase] ?? 0
+  const nextOrden = TUTI_FASE_ORDEN[next.fase] ?? 0
+  return nextOrden < prevOrden
+}
+
+/** Evita que un sync de respuestas sin BASTA pise un BASTA ya publicado. */
+function tutiBastaPisado(prev, next) {
+  if (!prev || prev.juego !== 'tutiFruti' || next?.juego !== 'tutiFruti') {
+    return false
+  }
+  if (prev.bastaTodos !== true || next.bastaTodos === true) return false
+  const prevRonda = Number(prev.ronda) || 1
+  const nextRonda = Number(next.ronda) || 1
+  if (nextRonda !== prevRonda) return false
+  return prev.fase === 'escritura' && next.fase === 'escritura'
+}
+
 export default async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('', { status: 204, headers: CORS })
@@ -328,6 +364,13 @@ export default async (req) => {
       const actual = sala.gameState?.version || 0
       const nueva = gameState.version || 0
       if (nueva <= actual) {
+        return json(200, { sala, ignored: true })
+      }
+      // Tutti Frutti: no aceptar ruleta/acelerar si ya hubo PARAR (misma ronda).
+      if (tutiFaseRegresa(sala.gameState, gameState)) {
+        return json(200, { sala, ignored: true })
+      }
+      if (tutiBastaPisado(sala.gameState, gameState)) {
         return json(200, { sala, ignored: true })
       }
       sala.gameState = gameState

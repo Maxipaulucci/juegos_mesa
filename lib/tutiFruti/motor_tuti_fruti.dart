@@ -4,9 +4,9 @@ library;
 const int minCategoriasTuti = 3;
 const int maxCategoriasTuti = 6;
 const int maxCharsCategoriaTuti = 25;
-const Duration duracionContadorTuti = Duration(seconds: 3);
+const Duration duracionContadorTuti = Duration(seconds: 5);
 /// Gracia tras BASTA: se puede seguir escribiendo hasta que termine.
-const Duration duracionBastaTuti = Duration(seconds: 2);
+const Duration duracionBastaTuti = Duration(milliseconds: 1500);
 
 /// Abecedario A–Z (sin Ñ).
 const String abecedarioTuti = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -213,12 +213,12 @@ class PartidaTuti {
   bool get todosListos =>
       nombres.every((n) => listos[n] == true);
 
-  /// Aviso de basta activo (animación de 2s en curso o pendiente de cierre).
+  /// Aviso de basta activo (animación de gracia en curso o pendiente de cierre).
   bool get bastaEnCurso =>
       fase == FaseTuti.escritura && bastaTodos && bastaInicioMs != null;
 
-  /// Margen extra para que el aviso llegue a los demás y cumplan sus 2s locales.
-  static const Duration margenCierreBasta = Duration(milliseconds: 2000);
+  /// Margen extra para latencia de sync (el aviso local de cada rival es independiente).
+  static const Duration margenCierreBasta = Duration(milliseconds: 400);
 
   /// Listo para cerrar escritura y pasar a revisión (reloj del que dijo basta).
   bool listoParaCerrarBasta({int? ahoraMs}) {
@@ -252,7 +252,7 @@ class PartidaTuti {
     final ahora = ahoraMs ?? DateTime.now().millisecondsSinceEpoch;
     final resto = duracionContadorTuti.inMilliseconds - (ahora - inicio);
     if (resto <= 0) return 0;
-    return ((resto + 999) ~/ 1000).clamp(0, 3);
+    return ((resto + 999) ~/ 1000).clamp(0, duracionContadorTuti.inSeconds);
   }
 
   bool contadorTerminado({int? ahoraMs}) {
@@ -366,7 +366,7 @@ void setRespuestaTuti(PartidaTuti p, String nombre, int catIndex, String texto) 
   list[catIndex] = texto.length > 40 ? texto.substring(0, 40) : texto;
 }
 
-/// Anuncia BASTA: arranca gracia (los demás ven el aviso 2s desde que les llega).
+/// Anuncia BASTA: arranca gracia (los demás ven el aviso desde que les llega).
 void bastaTuti(PartidaTuti p, String quien) {
   if (p.fase != FaseTuti.escritura) return;
   if (p.bastaTodos) return;
