@@ -158,9 +158,13 @@ void main() {
     // Trazo en forma de bucle: la punta cruza el tramo inicial.
     final bucle = <Offset>[
       const Offset(40, 40),
+      const Offset(40, 80),
       const Offset(40, 120),
+      const Offset(40, 160),
       const Offset(40, 200),
+      const Offset(70, 200),
       const Offset(100, 200),
+      const Offset(100, 160),
       const Offset(100, 120),
       const Offset(20, 120), // cruza el tramo vertical x=40
     ];
@@ -170,10 +174,7 @@ void main() {
     );
 
     final recto = <Offset>[
-      const Offset(40, 40),
-      const Offset(40, 100),
-      const Offset(40, 160),
-      const Offset(40, 220),
+      for (var i = 0; i <= 20; i++) Offset(40, 40.0 + i * 12),
     ];
     expect(
       trazoSeTocaASiMismoPapa(recto, boardSize: board),

@@ -99,34 +99,28 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _lupaDy = _LupaTrazoPapa.offsetDedo.dy;
   }
 
-  void _actualizarLupa(Offset local, Size boardSize) {
+  /// Elige el lado de la lupa una sola vez al empezar el trazo.
+  /// No se vuelve a cambiar a mitad de camino (eso provocaba falsas muertes).
+  void _fijarLadoLupa(Offset local, Size boardSize) {
     const r = _LupaTrazoPapa.diametro / 2;
     const preferido = _LupaTrazoPapa.offsetDedo;
-    // Histéresis: solo cambia de lado si se pasó claramente del límite.
-    if (_lupaDx > 0) {
-      if (local.dx + preferido.dx + r > boardSize.width + 28) {
-        _lupaDx = -preferido.dx;
-      }
-    } else {
-      if (local.dx + preferido.dx + r < boardSize.width - 12) {
-        _lupaDx = preferido.dx;
-      }
-    }
-    if (_lupaDy < 0) {
-      if (local.dy + preferido.dy - r < -28) {
-        _lupaDy = -preferido.dy;
-      }
-    } else {
-      if (local.dy + preferido.dy - r > 12) {
-        _lupaDy = preferido.dy;
-      }
-    }
+    _lupaDx = (local.dx + preferido.dx + r > boardSize.width - 4)
+        ? -preferido.dx
+        : preferido.dx;
+    _lupaDy = (local.dy + preferido.dy - r < 4)
+        ? -preferido.dy
+        : preferido.dy;
+  }
+
+  void _actualizarLupa(Offset local) {
     _lupaPunto.value = local;
   }
 
   Size _sincronizarTamanoHoja(Size boardSize) {
     final prev = _boardSize;
-    if (prev != null && prev != boardSize) {
+    if (prev != null &&
+        ((prev.width - boardSize.width).abs() > 0.5 ||
+            (prev.height - boardSize.height).abs() > 0.5)) {
       reescalarTrazosPapa(_partida, prev, boardSize);
       reescalarPuntosPapa(_trazoActual, prev, boardSize);
       reescalarPuntosPapa(_trazoFallido, prev, boardSize);
@@ -199,7 +193,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         ..clear()
         ..add(local);
     });
-    _actualizarLupa(local, boardSize);
+    _fijarLadoLupa(local, boardSize);
+    _actualizarLupa(local);
   }
 
   void _onPointerMoveGlobal(Offset global) {
@@ -220,11 +215,18 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       return;
     }
 
-    _actualizarLupa(local, boardSize);
+    _actualizarLupa(local);
 
-    if (_trazoActual.isNotEmpty &&
-        (_trazoActual.last - local).distance < 2.5) {
-      return;
+    if (_trazoActual.isNotEmpty) {
+      final dist = (_trazoActual.last - local).distance;
+      if (dist < 2.5) return;
+      // Salto imposible en un frame (glitch al mover la lupa / layout).
+      // Se ignora el punto; no se cuenta como choque.
+      final cell = math.min(
+        boardSize.width / columnasPapa,
+        boardSize.height / filasPapa,
+      );
+      if (dist > math.max(72.0, cell * 1.35)) return;
     }
 
     final de = _partida.siguienteConectar;
@@ -721,6 +723,65 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
   }
 
+  /// Fichas del número actual / siguiente por encima de la lupa.
+  List<Widget> _marcadoresNumerosSobreLupa({
+    required Size boardSize,
+    required int actual,
+    required int? siguiente,
+  }) {
+    final cell = math.min(
+      boardSize.width / columnasPapa,
+      boardSize.height / filasPapa,
+    );
+    final radio = cell * 0.30;
+
+    Widget? ficha(int numero, Color color) {
+      final idx = _partida.indiceDeNumero(numero);
+      if (idx == null) return null;
+      final c = centroCasillaPapa(idx, boardSize);
+      return Positioned(
+        left: c.dx - radio,
+        top: c.dy - radio,
+        width: radio * 2,
+        height: radio * 2,
+        child: IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.96),
+              border: Border.all(color: color, width: 2.4),
+              boxShadow: [
+                ...neonGlow(color, blur: 12),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                '$numero',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: cell * 0.30,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return [
+      if (ficha(actual, const Color(0xFF0A7A4A)) case final w?) w,
+      if (siguiente != null)
+        if (ficha(siguiente, AppColors.peligro) case final w?) w,
+    ];
+  }
+
   Widget _botonTrazos() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
@@ -986,6 +1047,15 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                         );
                                       },
                                     ),
+                                    // Números objetivo por encima de la lupa.
+                                    if (_dibujando &&
+                                        _partida.fase == FasePapa.jugando &&
+                                        !_partida.terminada)
+                                      ..._marcadoresNumerosSobreLupa(
+                                        boardSize: boardSize,
+                                        actual: de,
+                                        siguiente: a,
+                                      ),
                                   ],
                                 );
                               },

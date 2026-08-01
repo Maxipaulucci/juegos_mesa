@@ -421,56 +421,50 @@ bool trazoChocaConPreviosPapa(
 }
 
 /// True si el trazo actual se cruza o se roza a sí mismo.
-/// Ignora un tramo reciente de la punta para no falsear en curvas normales
-/// ni en trazos rectos densos (evita falsos positivos colineales).
+/// Ignora un tramo reciente de la punta (por longitud de camino) para no
+/// falsear en curvas normales ni en trazos rectos densos.
 bool trazoSeTocaASiMismoPapa(
   List<Offset> trazoActual, {
   required Size boardSize,
   GrosorTrazoPapa grosor = GrosorTrazoPapa.normal,
 }) {
-  if (trazoActual.length < 6) return false;
+  if (trazoActual.length < 8) return false;
   final cell = math.min(
     boardSize.width / columnasPapa,
     boardSize.height / filasPapa,
   );
-  final umbral = math.max(
-    2.0,
-    grosor.radioChoque * 2,
-  );
-  // Cola generosa: en trazos rectos densos no hay que comparar la punta
-  // con el tramo recién dibujado (ni con colineales por AABB).
-  final colaIgnorar = math.max(36.0, cell * 0.75);
-  const minIndicesDeSeparacion = 10;
-
-  var acum = 0.0;
-  var inicioCola = trazoActual.length - 1;
-  for (var i = trazoActual.length - 1; i >= 1; i--) {
-    acum += (trazoActual[i] - trazoActual[i - 1]).distance;
-    inicioCola = i;
-    if (acum >= colaIgnorar) break;
-  }
-
-  final jMax = inicioCola;
-  if (jMax < 1) return false;
+  final umbral = math.max(2.0, grosor.radioChoque * 2);
+  final colaIgnorar = math.max(48.0, cell * 0.9);
+  const minIndicesDeSeparacion = 12;
 
   final tipIndex = trazoActual.length - 1;
+  final pathLen = List<double>.filled(trazoActual.length, 0);
+  for (var i = 1; i < trazoActual.length; i++) {
+    pathLen[i] =
+        pathLen[i - 1] + (trazoActual[i] - trazoActual[i - 1]).distance;
+  }
+  final total = pathLen[tipIndex];
+  if (total < colaIgnorar + umbral) return false;
+
   final minGap = math.min(minIndicesDeSeparacion, tipIndex ~/ 2);
   final a = trazoActual[tipIndex - 1];
   final b = trazoActual[tipIndex];
 
-  for (var j = 1; j < jMax; j++) {
+  for (var j = 1; j < tipIndex - 1; j++) {
     if (tipIndex - j < minGap) continue;
+    // Distancia de camino desde el fin del segmento j hasta la punta.
+    final distCamino = total - pathLen[j];
+    if (distCamino < colaIgnorar) continue;
+
     final p1 = trazoActual[j - 1];
     final p2 = trazoActual[j];
-    // Cruce geométrico real (no colineales: eso da falsos positivos en
-    // líneas rectas al usar solape de bounding-box).
+    // Cruce geométrico real (sin colineales por AABB).
     if (_cruzan(a, b, p1, p2, colinealesCuentan: false)) return true;
-    // Roce visual: la punta (y su interior) se acerca a un tramo viejo.
     if (_distPuntoSegmento(b, p1, p2) <= umbral) return true;
     if (_distPuntoSegmento(a, p1, p2) <= umbral * 0.85) return true;
     final segLen = (b - a).distance;
     if (segLen < 1e-6) continue;
-    final muestras = math.max(2, (segLen / 2.5).ceil());
+    final muestras = math.max(2, (segLen / 3.0).ceil());
     for (var s = 1; s < muestras; s++) {
       final pt = Offset.lerp(a, b, s / muestras)!;
       if (_distPuntoSegmento(pt, p1, p2) <= umbral) return true;
