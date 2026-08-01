@@ -153,16 +153,16 @@ PartidaPapa nuevaPartidaPapa({
 }) {
   final maxN = opciones.cantidadNumerosClamped;
   final nombresCopy = List<String>.from(nombres);
-  final vidas = _vidasIniciales(nombresCopy, opciones.conVidas);
+  final vidas = _vidasIniciales(nombresCopy, opciones.conVidasEfectivas);
 
-  if (!opciones.numerosAleatorios) {
+  if (!opciones.numerosAleatoriosEfectivos) {
     return PartidaPapa(
       nombres: nombresCopy,
       casillas: List<int?>.filled(totalCasillasPapa, null),
       maxNumero: maxN,
       fase: FasePapa.colocando,
       siguienteAColocar: 1,
-      conVidas: opciones.conVidas,
+      conVidas: opciones.conVidasEfectivas,
       modoFantasma: opciones.modoFantasma,
       vidas: vidas,
     );
@@ -187,7 +187,7 @@ PartidaPapa nuevaPartidaPapa({
     nombres: nombresCopy,
     casillas: casillas,
     maxNumero: maxN,
-    conVidas: opciones.conVidas,
+    conVidas: opciones.conVidasEfectivas,
     modoFantasma: opciones.modoFantasma,
     vidas: vidas,
   );

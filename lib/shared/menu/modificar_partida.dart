@@ -150,39 +150,49 @@ class FilaToggleModificarPartida extends StatelessWidget {
     required this.activo,
     required this.onChanged,
     required this.info,
+    this.habilitado = true,
   });
 
   final String titulo;
   final bool activo;
   final ValueChanged<bool> onChanged;
   final String info;
+  final bool habilitado;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            titulo,
-            style: const TextStyle(
-              color: AppColors.texto,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
+    final opacidad = habilitado ? 1.0 : 0.45;
+    return Opacity(
+      opacity: opacidad,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              titulo,
+              style: const TextStyle(
+                color: AppColors.texto,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
             ),
           ),
-        ),
-        SwitchNeon(activo: activo, onChanged: onChanged),
-        const SizedBox(width: 4),
-        IconButton(
-          tooltip: 'Info',
-          onPressed: () => mostrarInfoModificarPartida(
-            context,
-            titulo: titulo,
-            cuerpo: info,
+          SwitchNeon(
+            activo: activo,
+            onChanged: habilitado ? onChanged : (_) {},
           ),
-          icon: const Icon(Icons.help, size: 18, color: AppColors.textoSuave),
-        ),
-      ],
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: 'Info',
+            onPressed: () => mostrarInfoModificarPartida(
+              context,
+              titulo: titulo,
+              cuerpo: info,
+            ),
+            icon:
+                const Icon(Icons.help, size: 18, color: AppColors.textoSuave),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -196,6 +206,7 @@ class FilaCantidadModificarPartida extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.habilitado = true,
   });
 
   final String etiqueta;
@@ -203,62 +214,73 @@ class FilaCantidadModificarPartida extends StatelessWidget {
   final int min;
   final int max;
   final ValueChanged<int> onChanged;
+  final bool habilitado;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            etiqueta,
-            style: const TextStyle(
-              color: AppColors.texto,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        IconButton(
-          onPressed: valor <= min ? null : () => onChanged(valor - 1),
-          icon: const Icon(Icons.remove_circle_outline, color: AppColors.mint),
-        ),
-        InkWell(
-          onTap: () async {
-            final nuevo = await _editarCantidadDialog(
-              context: context,
-              actual: valor,
-              min: min,
-              max: max,
-            );
-            if (nuevo != null) onChanged(nuevo);
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: const Color(0xFF3A2A58),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: AppColors.violeta.withValues(alpha: 0.45),
+    return Opacity(
+      opacity: habilitado ? 1.0 : 0.45,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              etiqueta,
+              style: const TextStyle(
+                color: AppColors.texto,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
               ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Text(
-                '$valor',
-                style: const TextStyle(
-                  color: AppColors.mint,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
+          ),
+          IconButton(
+            onPressed: !habilitado || valor <= min
+                ? null
+                : () => onChanged(valor - 1),
+            icon: const Icon(Icons.remove_circle_outline, color: AppColors.mint),
+          ),
+          InkWell(
+            onTap: !habilitado
+                ? null
+                : () async {
+                    final nuevo = await _editarCantidadDialog(
+                      context: context,
+                      actual: valor,
+                      min: min,
+                      max: max,
+                    );
+                    if (nuevo != null) onChanged(nuevo);
+                  },
+            borderRadius: BorderRadius.circular(10),
+            child: Ink(
+              decoration: BoxDecoration(
+                color: const Color(0xFF3A2A58),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.violeta.withValues(alpha: 0.45),
+                ),
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Text(
+                  '$valor',
+                  style: const TextStyle(
+                    color: AppColors.mint,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        IconButton(
-          onPressed: valor >= max ? null : () => onChanged(valor + 1),
-          icon: const Icon(Icons.add_circle_outline, color: AppColors.mint),
-        ),
-      ],
+          IconButton(
+            onPressed: !habilitado || valor >= max
+                ? null
+                : () => onChanged(valor + 1),
+            icon: const Icon(Icons.add_circle_outline, color: AppColors.mint),
+          ),
+        ],
+      ),
     );
   }
 }

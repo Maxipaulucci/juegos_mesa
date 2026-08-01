@@ -13,8 +13,9 @@ String reglasLaPapa({OpcionesPapa opciones = const OpcionesPapa()}) {
           'vidas. Si fallás, perdés una vida y seguís tu turno. '
           'Sin vidas, terminás la partida.',
     if (opciones.modoFantasma)
-      '· Modo fantasma: solo ves las líneas dibujadas, el número actual '
-          'y el siguiente. El resto queda oculto.',
+      '· Modo infernal: solo ves las líneas dibujadas, el número actual '
+          'y el siguiente. Siempre hay 50 números al azar, sin cuadrícula '
+          'y sin vidas.',
   ];
 
   return '''

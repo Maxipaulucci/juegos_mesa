@@ -22,11 +22,21 @@ class OpcionesPapa {
   /// Cantidad de números en la hoja (2..50).
   final int cantidadNumeros;
 
-  /// Solo se ven líneas + número actual + siguiente.
+  /// Modo infernal: solo se ven líneas + número actual + siguiente.
+  /// Fuerza 50 números, aleatorios, sin vidas y sin cuadrícula.
   final bool modoFantasma;
 
   /// Si true, se dibujan las líneas de la cuadrícula de la hoja.
   final bool mostrarCuadricula;
+
+  /// Alias de UI: el modo fantasma se muestra como “Modo infernal”.
+  bool get modoInfernal => modoFantasma;
+
+  bool get conVidasEfectivas => !modoFantasma && conVidas;
+
+  bool get numerosAleatoriosEfectivos => modoFantasma || numerosAleatorios;
+
+  bool get mostrarCuadriculaEfectiva => !modoFantasma && mostrarCuadricula;
 
   OpcionesPapa copyWith({
     bool? conVidas,
@@ -44,8 +54,22 @@ class OpcionesPapa {
     );
   }
 
-  int get cantidadNumerosClamped => cantidadNumeros.clamp(
-        minCantidadNumeros,
-        maxCantidadNumeros,
-      );
+  /// Activa el modo infernal y fija el resto de opciones.
+  OpcionesPapa conModoInfernal(bool activo) {
+    if (!activo) return copyWith(modoFantasma: false);
+    return copyWith(
+      modoFantasma: true,
+      conVidas: false,
+      numerosAleatorios: true,
+      cantidadNumeros: maxCantidadNumeros,
+      mostrarCuadricula: false,
+    );
+  }
+
+  int get cantidadNumerosClamped => modoFantasma
+      ? maxCantidadNumeros
+      : cantidadNumeros.clamp(
+          minCantidadNumeros,
+          maxCantidadNumeros,
+        );
 }

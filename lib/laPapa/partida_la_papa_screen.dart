@@ -270,7 +270,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   String get _prefijoTitulo {
-    if (widget.opciones.modoFantasma) return 'La papa · Fantasma';
+    if (widget.opciones.modoInfernal) return 'La papa · Infernal';
     if (widget.solo) return 'La papa · Solo';
     return 'La papa';
   }
@@ -907,7 +907,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                               numeroSiguiente: a,
                                               grosorActual: _grosor,
                                               mostrarCuadricula: widget
-                                                  .opciones.mostrarCuadricula,
+                                                  .opciones
+                                                  .mostrarCuadriculaEfectiva,
                                             ),
                                           ),
                                         ),
@@ -924,7 +925,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                           numeroSiguiente: a,
                                           grosorActual: _grosor,
                                           mostrarCuadricula: widget
-                                              .opciones.mostrarCuadricula,
+                                              .opciones
+                                              .mostrarCuadriculaEfectiva,
                                         ),
                                     ],
                                   ),
