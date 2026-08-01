@@ -1354,16 +1354,18 @@ class _PlayerCard extends StatelessWidget {
                 )
               : null,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Flexible(
+              Expanded(
                 child: Text(
                   jugador.nombre.toUpperCase(),
+                  maxLines: 2,
+                  softWrap: true,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 14,
                     letterSpacing: 0.5,
+                    height: 1.15,
                   ),
                 ),
               ),
@@ -1411,55 +1413,57 @@ class _PlayerCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(child: _nombre()),
-                    if (jugador.rendido) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.peligro.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(99),
-                          border: Border.all(color: AppColors.peligro),
-                        ),
-                        child: const Text(
-                          'RENDIDO',
-                          style: TextStyle(
-                            color: AppColors.peligro,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                          ),
+                _nombre(),
+                if (jugador.rendido) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.peligro.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: AppColors.peligro),
+                      ),
+                      child: const Text(
+                        'RENDIDO',
+                        style: TextStyle(
+                          color: AppColors.peligro,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    ] else if (activo) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
+                    ),
+                  ),
+                ] else if (activo) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFE082), AppColors.acento],
                         ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFFE082), AppColors.acento],
-                          ),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          esTu ? 'TU TURNO' : 'SU TURNO',
-                          style: const TextStyle(
-                            color: Color(0xFF1A0A00),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        esTu ? 'TU TURNO' : 'SU TURNO',
+                        style: const TextStyle(
+                          color: Color(0xFF1A0A00),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                ],
                 Text(
                   '${jugador.total} PTS',
                   style: TextStyle(

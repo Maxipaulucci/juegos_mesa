@@ -1997,21 +1997,39 @@ class _PlayerCard extends StatelessWidget {
                 )
               : null,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment:
+                vertical ? MainAxisAlignment.center : MainAxisAlignment.start,
+            mainAxisSize: vertical ? MainAxisSize.min : MainAxisSize.max,
             children: [
-              Flexible(
-                child: Text(
+              if (vertical)
+                Text(
                   jugador.nombre.toUpperCase(),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: vertical ? TextAlign.center : TextAlign.start,
-                  style: TextStyle(
+                  maxLines: 2,
+                  softWrap: true,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: vertical ? 12 : 14,
+                    fontSize: 12,
                     letterSpacing: 0.5,
+                    height: 1.15,
+                  ),
+                )
+              else
+                Expanded(
+                  child: Text(
+                    jugador.nombre.toUpperCase(),
+                    maxLines: 2,
+                    softWrap: true,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.start,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      letterSpacing: 0.5,
+                      height: 1.15,
+                    ),
                   ),
                 ),
-              ),
               if (puedeRenombrar) ...[
                 const SizedBox(width: 6),
                 Icon(
@@ -2130,33 +2148,34 @@ class _PlayerCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Flexible(child: _nombre(accent)),
-                  if (activo) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFE082), AppColors.acento],
-                        ),
-                        borderRadius: BorderRadius.circular(99),
-                        boxShadow: neonGlow(AppColors.acento, blur: 8),
+              _nombre(accent),
+              if (activo) ...[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFE082), AppColors.acento],
                       ),
-                      child: Text(
-                        esTu ? 'TU TURNO' : 'SU TURNO',
-                        style: const TextStyle(
-                          color: Color(0xFF1A0A00),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      borderRadius: BorderRadius.circular(99),
+                      boxShadow: neonGlow(AppColors.acento, blur: 8),
+                    ),
+                    child: Text(
+                      esTu ? 'TU TURNO' : 'SU TURNO',
+                      style: const TextStyle(
+                        color: Color(0xFF1A0A00),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                  ],
-                ],
-              ),
+                  ),
+                ),
+              ],
               Text(
                 '${_pts(jugador.puntos)} PTS',
                 style: TextStyle(
