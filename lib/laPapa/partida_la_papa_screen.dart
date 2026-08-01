@@ -38,6 +38,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   bool _dibujando = false;
   bool _inicioValido = false;
   bool _salioDelInicio = false;
+  /// Punto local en la hoja bajo el dedo/clic (para la lupa).
+  Offset? _lupaPunto;
   Size? _boardSize;
   String? _avisoVida;
   GrosorTrazoPapa _grosor = GrosorTrazoPapa.normal;
@@ -68,6 +70,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _dibujando = false;
       _inicioValido = false;
       _salioDelInicio = false;
+      _lupaPunto = null;
       _avisoVida = null;
       _mostrarMenu = false;
       _mostrarAjustes = false;
@@ -80,6 +83,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _dibujando = false;
     _inicioValido = false;
     _salioDelInicio = false;
+    _lupaPunto = null;
   }
 
   Size _sincronizarTamanoHoja(Size boardSize) {
@@ -152,6 +156,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _inicioValido = true;
       _salioDelInicio = false;
       _avisoVida = null;
+      _lupaPunto = local;
       _trazoFallido.clear();
       _trazoActual
         ..clear()
@@ -179,6 +184,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
     if (_trazoActual.isNotEmpty &&
         (_trazoActual.last - local).distance < 2.5) {
+      setState(() => _lupaPunto = local);
       return;
     }
 
@@ -198,6 +204,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
 
     setState(() {
+      _lupaPunto = local;
       _trazoActual.add(local);
 
       if (chocaPrevios || chocaPropio) {
@@ -248,6 +255,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _dibujando = false;
         _inicioValido = false;
         _salioDelInicio = false;
+        _lupaPunto = null;
         _trazoActual.clear();
       });
       return;
@@ -870,31 +878,55 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                       blur: 16,
                                     ),
                                   ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Listener(
-                                      onPointerDown: (e) {
-                                        final box = _hojaKey.currentContext
-                                                ?.findRenderObject()
-                                            as RenderBox?;
-                                        if (box == null) return;
-                                        final local =
-                                            box.globalToLocal(e.position);
-                                        _onPointerDown(local, boardSize);
-                                      },
-                                      child: CustomPaint(
-                                        size: boardSize,
-                                        painter: _HojaPapaPainter(
+                                  child: Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Listener(
+                                          onPointerDown: (e) {
+                                            final box = _hojaKey
+                                                    .currentContext
+                                                    ?.findRenderObject()
+                                                as RenderBox?;
+                                            if (box == null) return;
+                                            final local =
+                                                box.globalToLocal(e.position);
+                                            _onPointerDown(local, boardSize);
+                                          },
+                                          child: CustomPaint(
+                                            size: boardSize,
+                                            painter: _HojaPapaPainter(
+                                              partida: _partida,
+                                              trazoActual:
+                                                  List.of(_trazoActual),
+                                              trazoFallido:
+                                                  List.of(_trazoFallido),
+                                              boardSize: boardSize,
+                                              numeroActual: de,
+                                              numeroSiguiente: a,
+                                              grosorActual: _grosor,
+                                              mostrarCuadricula: widget
+                                                  .opciones.mostrarCuadricula,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      if (_dibujando && _lupaPunto != null)
+                                        _LupaTrazoPapa(
+                                          focus: _lupaPunto!,
+                                          boardSize: boardSize,
                                           partida: _partida,
                                           trazoActual: List.of(_trazoActual),
-                                          trazoFallido: List.of(_trazoFallido),
-                                          boardSize: boardSize,
+                                          trazoFallido:
+                                              List.of(_trazoFallido),
                                           numeroActual: de,
                                           numeroSiguiente: a,
                                           grosorActual: _grosor,
+                                          mostrarCuadricula: widget
+                                              .opciones.mostrarCuadricula,
                                         ),
-                                      ),
-                                    ),
+                                    ],
                                   ),
                                 );
                               },
@@ -1258,6 +1290,152 @@ class _ArcadeButton extends StatelessWidget {
   }
 }
 
+class _LupaTrazoPapa extends StatelessWidget {
+  const _LupaTrazoPapa({
+    required this.focus,
+    required this.boardSize,
+    required this.partida,
+    required this.trazoActual,
+    required this.trazoFallido,
+    required this.numeroActual,
+    required this.numeroSiguiente,
+    required this.grosorActual,
+    required this.mostrarCuadricula,
+  });
+
+  static const diametro = 118.0;
+  static const zoom = 2.35;
+  /// Desplazamiento del centro de la lupa respecto al dedo (arriba-derecha).
+  static const offsetDedo = Offset(52, -70);
+
+  final Offset focus;
+  final Size boardSize;
+  final PartidaPapa partida;
+  final List<Offset> trazoActual;
+  final List<Offset> trazoFallido;
+  final int numeroActual;
+  final int? numeroSiguiente;
+  final GrosorTrazoPapa grosorActual;
+  final bool mostrarCuadricula;
+
+  @override
+  Widget build(BuildContext context) {
+    const r = diametro / 2;
+    var dx = offsetDedo.dx;
+    var dy = offsetDedo.dy;
+    // Si se sale mucho del borde, voltear el lado para no perderla.
+    if (focus.dx + dx + r > boardSize.width + 8) dx = -offsetDedo.dx;
+    if (focus.dy + dy - r < -8) dy = -offsetDedo.dy;
+
+    return Positioned(
+      left: focus.dx + dx - r,
+      top: focus.dy + dy - r,
+      width: diametro,
+      height: diametro,
+      child: IgnorePointer(
+        child: CustomPaint(
+          size: const Size(diametro, diametro),
+          painter: _LupaPapaPainter(
+            focus: focus,
+            boardSize: boardSize,
+            zoom: zoom,
+            hoja: _HojaPapaPainter(
+              partida: partida,
+              trazoActual: trazoActual,
+              trazoFallido: trazoFallido,
+              boardSize: boardSize,
+              numeroActual: numeroActual,
+              numeroSiguiente: numeroSiguiente,
+              grosorActual: grosorActual,
+              mostrarCuadricula: mostrarCuadricula,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LupaPapaPainter extends CustomPainter {
+  _LupaPapaPainter({
+    required this.focus,
+    required this.boardSize,
+    required this.zoom,
+    required this.hoja,
+  });
+
+  final Offset focus;
+  final Size boardSize;
+  final double zoom;
+  final _HojaPapaPainter hoja;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radio = size.width / 2;
+
+    canvas.drawCircle(
+      center.translate(1.5, 2.5),
+      radio,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+
+    canvas.save();
+    canvas.clipPath(
+      Path()..addOval(Rect.fromCircle(center: center, radius: radio - 1)),
+    );
+    canvas.drawCircle(center, radio, Paint()..color = Colors.white);
+
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(zoom);
+    canvas.translate(-focus.dx, -focus.dy);
+    hoja.paint(canvas, boardSize);
+    canvas.restore();
+
+    canvas.drawCircle(
+      center,
+      radio - 1.5,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = AppColors.mint,
+    );
+    canvas.drawCircle(
+      center,
+      radio - 1.5,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = Colors.white.withValues(alpha: 0.85),
+    );
+
+    // Cruz suave en el centro (punto bajo el dedo).
+    final cruz = Paint()
+      ..color = AppColors.mint.withValues(alpha: 0.55)
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+    const arm = 7.0;
+    canvas.drawLine(
+      center.translate(-arm, 0),
+      center.translate(arm, 0),
+      cruz,
+    );
+    canvas.drawLine(
+      center.translate(0, -arm),
+      center.translate(0, arm),
+      cruz,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LupaPapaPainter oldDelegate) =>
+      oldDelegate.focus != focus ||
+      oldDelegate.boardSize != boardSize ||
+      oldDelegate.zoom != zoom;
+}
+
 class _HojaPapaPainter extends CustomPainter {
   _HojaPapaPainter({
     required this.partida,
@@ -1267,6 +1445,7 @@ class _HojaPapaPainter extends CustomPainter {
     required this.numeroActual,
     required this.numeroSiguiente,
     required this.grosorActual,
+    this.mostrarCuadricula = true,
   });
 
   final PartidaPapa partida;
@@ -1276,24 +1455,27 @@ class _HojaPapaPainter extends CustomPainter {
   final int numeroActual;
   final int? numeroSiguiente;
   final GrosorTrazoPapa grosorActual;
+  final bool mostrarCuadricula;
 
   @override
   void paint(Canvas canvas, Size size) {
     final cellW = size.width / columnasPapa;
     final cellH = size.height / filasPapa;
 
-    final gridPaint = Paint()
-      ..color = const Color(0xFF2A1450).withValues(alpha: 0.55)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
+    if (mostrarCuadricula) {
+      final gridPaint = Paint()
+        ..color = const Color(0xFF2A1450).withValues(alpha: 0.55)
+        ..strokeWidth = 1
+        ..style = PaintingStyle.stroke;
 
-    for (var c = 0; c <= columnasPapa; c++) {
-      final x = c * cellW;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (var r = 0; r <= filasPapa; r++) {
-      final y = r * cellH;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      for (var c = 0; c <= columnasPapa; c++) {
+        final x = c * cellW;
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+      }
+      for (var r = 0; r <= filasPapa; r++) {
+        final y = r * cellH;
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      }
     }
 
     final colocando = partida.fase == FasePapa.colocando;

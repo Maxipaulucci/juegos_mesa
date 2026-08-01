@@ -70,6 +70,17 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
             ),
             const SizedBox(height: 12),
             FilaToggleModificarPartida(
+              titulo: 'Mostrar cuadrícula',
+              activo: draft.mostrarCuadricula,
+              onChanged: (v) =>
+                  setOpc(draft.copyWith(mostrarCuadricula: v)),
+              info:
+                  'Activado: se ven las líneas de la hoja (casillas).\n\n'
+                  'Desactivado: la hoja queda en blanco, solo con números '
+                  'y trazos.',
+            ),
+            const SizedBox(height: 12),
+            FilaToggleModificarPartida(
               titulo: 'Números aleatorios',
               activo: draft.numerosAleatorios,
               onChanged: (v) =>

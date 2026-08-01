@@ -5,6 +5,7 @@ class OpcionesPapa {
     this.numerosAleatorios = true,
     this.cantidadNumeros = maxNumeroPapaDefault,
     this.modoFantasma = false,
+    this.mostrarCuadricula = true,
   });
 
   static const int maxNumeroPapaDefault = 30;
@@ -24,17 +25,22 @@ class OpcionesPapa {
   /// Solo se ven líneas + número actual + siguiente.
   final bool modoFantasma;
 
+  /// Si true, se dibujan las líneas de la cuadrícula de la hoja.
+  final bool mostrarCuadricula;
+
   OpcionesPapa copyWith({
     bool? conVidas,
     bool? numerosAleatorios,
     int? cantidadNumeros,
     bool? modoFantasma,
+    bool? mostrarCuadricula,
   }) {
     return OpcionesPapa(
       conVidas: conVidas ?? this.conVidas,
       numerosAleatorios: numerosAleatorios ?? this.numerosAleatorios,
       cantidadNumeros: cantidadNumeros ?? this.cantidadNumeros,
       modoFantasma: modoFantasma ?? this.modoFantasma,
+      mostrarCuadricula: mostrarCuadricula ?? this.mostrarCuadricula,
     );
   }
 
