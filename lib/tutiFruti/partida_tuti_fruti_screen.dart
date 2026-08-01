@@ -391,6 +391,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.fondo,
+      resizeToAvoidBottomInset: true,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -635,6 +636,11 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
               const SizedBox(height: 8),
               Expanded(
                 child: ListView.separated(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+                  ),
                   itemCount: _partida.categorias.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
@@ -669,6 +675,13 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
                                 ? _respCtrls[i]
                                 : null,
                             enabled: !bloqueado && i < _respCtrls.length,
+                            textInputAction: i < _partida.categorias.length - 1
+                                ? TextInputAction.next
+                                : TextInputAction.done,
+                            scrollPadding: const EdgeInsets.only(
+                              top: 100,
+                              bottom: 160,
+                            ),
                             decoration: const InputDecoration(
                               hintText: 'Escribí…',
                               filled: true,
