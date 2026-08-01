@@ -157,8 +157,6 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
                                               ),
                                             ),
                                           ),
-                                          if (mostrarOjo)
-                                            const SizedBox(width: 42),
                                           if (puedeCerrar)
                                             IconButton(
                                               onPressed: cerrar,
@@ -214,12 +212,16 @@ class _TableroGeneralaOverlayState extends State<TableroGeneralaOverlay> {
 
               if (mostrarOjo)
                 Positioned(
-                  top: 8,
-                  right: 8,
-                  child: _BotonOjoDados(
-                    viendo: _verDados,
-                    onPressStart: () => setState(() => _verDados = true),
-                    onPressEnd: () => setState(() => _verDados = false),
+                  top: 4,
+                  left: 0,
+                  right: 0,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: _BotonOjoDados(
+                      viendo: _verDados,
+                      onPressStart: () => setState(() => _verDados = true),
+                      onPressEnd: () => setState(() => _verDados = false),
+                    ),
                   ),
                 ),
             ],
