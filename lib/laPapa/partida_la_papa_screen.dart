@@ -1386,11 +1386,28 @@ class _LupaPapaPainter extends CustomPainter {
     canvas.clipPath(
       Path()..addOval(Rect.fromCircle(center: center, radius: radio - 1)),
     );
-    canvas.drawCircle(center, radio, Paint()..color = Colors.white);
 
     canvas.translate(center.dx, center.dy);
     canvas.scale(zoom);
     canvas.translate(-focus.dx, -focus.dy);
+
+    final paper = Rect.fromLTWH(0, 0, boardSize.width, boardSize.height);
+    // Fuera de la hoja (para que el borde mint se note cerca del límite).
+    canvas.drawRect(
+      paper.inflate(500),
+      Paint()..color = const Color(0xFF0A1A14),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(paper, const Radius.circular(6)),
+      Paint()..color = Colors.white,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(paper, const Radius.circular(6)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = AppColors.mint,
+    );
     hoja.paint(canvas, boardSize);
     canvas.restore();
 
