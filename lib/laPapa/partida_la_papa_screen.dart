@@ -35,11 +35,14 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   /// Trazo con el que se perdió (o el último fallo con vidas).
   final List<Offset> _trazoFallido = [];
   final GlobalKey _hojaKey = GlobalKey();
+  /// Posición de la lupa sin forzar rebuild de toda la pantalla.
+  final ValueNotifier<Offset?> _lupaPunto = ValueNotifier<Offset?>(null);
+  /// Evita que la lupa “salte” de lado en cada frame cerca del borde.
+  double _lupaDx = _LupaTrazoPapa.offsetDedo.dx;
+  double _lupaDy = _LupaTrazoPapa.offsetDedo.dy;
   bool _dibujando = false;
   bool _inicioValido = false;
   bool _salioDelInicio = false;
-  /// Punto local en la hoja bajo el dedo/clic (para la lupa).
-  Offset? _lupaPunto;
   Size? _boardSize;
   String? _avisoVida;
   GrosorTrazoPapa _grosor = GrosorTrazoPapa.normal;
@@ -59,6 +62,12 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
   }
 
+  @override
+  void dispose() {
+    _lupaPunto.dispose();
+    super.dispose();
+  }
+
   void _reiniciar() {
     setState(() {
       _partida = nuevaPartidaPapa(
@@ -70,11 +79,13 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _dibujando = false;
       _inicioValido = false;
       _salioDelInicio = false;
-      _lupaPunto = null;
+      _lupaPunto.value = null;
       _avisoVida = null;
       _mostrarMenu = false;
       _mostrarAjustes = false;
       _confirmarRendicion = false;
+      _lupaDx = _LupaTrazoPapa.offsetDedo.dx;
+      _lupaDy = _LupaTrazoPapa.offsetDedo.dy;
     });
   }
 
@@ -83,7 +94,34 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _dibujando = false;
     _inicioValido = false;
     _salioDelInicio = false;
-    _lupaPunto = null;
+    _lupaPunto.value = null;
+    _lupaDx = _LupaTrazoPapa.offsetDedo.dx;
+    _lupaDy = _LupaTrazoPapa.offsetDedo.dy;
+  }
+
+  void _actualizarLupa(Offset local, Size boardSize) {
+    const r = _LupaTrazoPapa.diametro / 2;
+    const preferido = _LupaTrazoPapa.offsetDedo;
+    // Histéresis: solo cambia de lado si se pasó claramente del límite.
+    if (_lupaDx > 0) {
+      if (local.dx + preferido.dx + r > boardSize.width + 28) {
+        _lupaDx = -preferido.dx;
+      }
+    } else {
+      if (local.dx + preferido.dx + r < boardSize.width - 12) {
+        _lupaDx = preferido.dx;
+      }
+    }
+    if (_lupaDy < 0) {
+      if (local.dy + preferido.dy - r < -28) {
+        _lupaDy = -preferido.dy;
+      }
+    } else {
+      if (local.dy + preferido.dy - r > 12) {
+        _lupaDy = preferido.dy;
+      }
+    }
+    _lupaPunto.value = local;
   }
 
   Size _sincronizarTamanoHoja(Size boardSize) {
@@ -156,12 +194,12 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _inicioValido = true;
       _salioDelInicio = false;
       _avisoVida = null;
-      _lupaPunto = local;
       _trazoFallido.clear();
       _trazoActual
         ..clear()
         ..add(local);
     });
+    _actualizarLupa(local, boardSize);
   }
 
   void _onPointerMoveGlobal(Offset global) {
@@ -182,9 +220,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       return;
     }
 
+    _actualizarLupa(local, boardSize);
+
     if (_trazoActual.isNotEmpty &&
         (_trazoActual.last - local).distance < 2.5) {
-      setState(() => _lupaPunto = local);
       return;
     }
 
@@ -197,14 +236,17 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       boardSize: boardSize,
       grosorActual: _grosor,
     );
-    final chocaPropio = trazoSeTocaASiMismoPapa(
-      pts,
-      boardSize: boardSize,
-      grosor: _grosor,
-    );
+    // Solo evaluar autochoque después de salir del número de origen.
+    final yaSalio = _salioDelInicio ||
+        !cercaDeNumeroPapa(_partida, de, local, boardSize);
+    final chocaPropio = yaSalio &&
+        trazoSeTocaASiMismoPapa(
+          pts,
+          boardSize: boardSize,
+          grosor: _grosor,
+        );
 
     setState(() {
-      _lupaPunto = local;
       _trazoActual.add(local);
 
       if (chocaPrevios || chocaPropio) {
@@ -255,7 +297,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _dibujando = false;
         _inicioValido = false;
         _salioDelInicio = false;
-        _lupaPunto = null;
+        _lupaPunto.value = null;
         _trazoActual.clear();
       });
       return;
@@ -864,25 +906,26 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                     constraints.maxHeight,
                                   ),
                                 );
-                                return DecoratedBox(
-                                  key: _hojaKey,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: AppColors.mint,
-                                      width: 2,
-                                    ),
-                                    boxShadow: neonGlow(
-                                      AppColors.mint,
-                                      blur: 16,
-                                    ),
-                                  ),
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(6),
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: AppColors.mint,
+                                          width: 2,
+                                        ),
+                                        boxShadow: neonGlow(
+                                          AppColors.mint,
+                                          blur: 16,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius:
+                                            BorderRadius.circular(6),
                                         child: Listener(
                                           onPointerDown: (e) {
                                             final box = _hojaKey
@@ -890,11 +933,15 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                                     ?.findRenderObject()
                                                 as RenderBox?;
                                             if (box == null) return;
-                                            final local =
-                                                box.globalToLocal(e.position);
-                                            _onPointerDown(local, boardSize);
+                                            final local = box
+                                                .globalToLocal(e.position);
+                                            _onPointerDown(
+                                                local, boardSize);
                                           },
                                           child: CustomPaint(
+                                            // Key solo sobre la hoja: la lupa
+                                            // no debe afectar globalToLocal.
+                                            key: _hojaKey,
                                             size: boardSize,
                                             painter: _HojaPapaPainter(
                                               partida: _partida,
@@ -913,12 +960,21 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                           ),
                                         ),
                                       ),
-                                      if (_dibujando && _lupaPunto != null)
-                                        _LupaTrazoPapa(
-                                          focus: _lupaPunto!,
+                                    ),
+                                    ValueListenableBuilder<Offset?>(
+                                      valueListenable: _lupaPunto,
+                                      builder: (context, foco, _) {
+                                        if (!_dibujando || foco == null) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return _LupaTrazoPapa(
+                                          focus: foco,
+                                          offsetLupa:
+                                              Offset(_lupaDx, _lupaDy),
                                           boardSize: boardSize,
                                           partida: _partida,
-                                          trazoActual: List.of(_trazoActual),
+                                          trazoActual:
+                                              List.of(_trazoActual),
                                           trazoFallido:
                                               List.of(_trazoFallido),
                                           numeroActual: de,
@@ -927,9 +983,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                           mostrarCuadricula: widget
                                               .opciones
                                               .mostrarCuadriculaEfectiva,
-                                        ),
-                                    ],
-                                  ),
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 );
                               },
                             ),
@@ -1296,6 +1353,7 @@ class _ArcadeButton extends StatelessWidget {
 class _LupaTrazoPapa extends StatelessWidget {
   const _LupaTrazoPapa({
     required this.focus,
+    required this.offsetLupa,
     required this.boardSize,
     required this.partida,
     required this.trazoActual,
@@ -1312,6 +1370,7 @@ class _LupaTrazoPapa extends StatelessWidget {
   static const offsetDedo = Offset(52, -70);
 
   final Offset focus;
+  final Offset offsetLupa;
   final Size boardSize;
   final PartidaPapa partida;
   final List<Offset> trazoActual;
@@ -1324,15 +1383,10 @@ class _LupaTrazoPapa extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const r = diametro / 2;
-    var dx = offsetDedo.dx;
-    var dy = offsetDedo.dy;
-    // Si se sale mucho del borde, voltear el lado para no perderla.
-    if (focus.dx + dx + r > boardSize.width + 8) dx = -offsetDedo.dx;
-    if (focus.dy + dy - r < -8) dy = -offsetDedo.dy;
 
     return Positioned(
-      left: focus.dx + dx - r,
-      top: focus.dy + dy - r,
+      left: focus.dx + offsetLupa.dx - r,
+      top: focus.dy + offsetLupa.dy - r,
       width: diametro,
       height: diametro,
       child: IgnorePointer(

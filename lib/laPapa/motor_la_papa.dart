@@ -280,14 +280,20 @@ double _orient(Offset a, Offset b, Offset c) {
   return (b.dx - a.dx) * (c.dy - a.dy) - (b.dy - a.dy) * (c.dx - a.dx);
 }
 
-bool _cruzan(Offset a1, Offset a2, Offset b1, Offset b2) {
+bool _cruzan(
+  Offset a1,
+  Offset a2,
+  Offset b1,
+  Offset b2, {
+  bool colinealesCuentan = true,
+}) {
   final o1 = _orient(a1, a2, b1);
   final o2 = _orient(a1, a2, b2);
   final o3 = _orient(b1, b2, a1);
   final o4 = _orient(b1, b2, a2);
   if (o1 == 0 && o2 == 0 && o3 == 0 && o4 == 0) {
     // Colineales: se solapan si proyectan.
-    return _proyeccionSolapa(a1, a2, b1, b2);
+    return colinealesCuentan && _proyeccionSolapa(a1, a2, b1, b2);
   }
   // Cruce propio: signos estrictamente opuestos.
   return (o1 > 0) != (o2 > 0) &&
@@ -415,25 +421,27 @@ bool trazoChocaConPreviosPapa(
 }
 
 /// True si el trazo actual se cruza o se roza a sí mismo.
-/// Ignora un tramo reciente de la punta para no falsear en curvas normales.
+/// Ignora un tramo reciente de la punta para no falsear en curvas normales
+/// ni en trazos rectos densos (evita falsos positivos colineales).
 bool trazoSeTocaASiMismoPapa(
   List<Offset> trazoActual, {
   required Size boardSize,
   GrosorTrazoPapa grosor = GrosorTrazoPapa.normal,
 }) {
-  if (trazoActual.length < 4) return false;
+  if (trazoActual.length < 6) return false;
   final cell = math.min(
     boardSize.width / columnasPapa,
     boardSize.height / filasPapa,
   );
   final umbral = math.max(
     2.0,
-    grosor.radioChoque * 2, // equivalente a chocarse con un trazo igual
+    grosor.radioChoque * 2,
   );
-  // Un poco más de cola para curvas normales, sin dejar pasar un cruce claro.
-  final colaIgnorar = math.max(14.0, cell * 0.38);
+  // Cola generosa: en trazos rectos densos no hay que comparar la punta
+  // con el tramo recién dibujado (ni con colineales por AABB).
+  final colaIgnorar = math.max(36.0, cell * 0.75);
+  const minIndicesDeSeparacion = 10;
 
-  // Retrocede desde la punta: esa “cola” no se compara consigo misma.
   var acum = 0.0;
   var inicioCola = trazoActual.length - 1;
   for (var i = trazoActual.length - 1; i >= 1; i--) {
@@ -442,19 +450,31 @@ bool trazoSeTocaASiMismoPapa(
     if (acum >= colaIgnorar) break;
   }
 
-  // Segmentos viejos: terminan antes de la cola y no son adyacentes al último.
-  final jMax = math.min(inicioCola, trazoActual.length - 2);
+  final jMax = inicioCola;
   if (jMax < 1) return false;
 
-  final a = trazoActual[trazoActual.length - 2];
-  final b = trazoActual[trazoActual.length - 1];
+  final tipIndex = trazoActual.length - 1;
+  final minGap = math.min(minIndicesDeSeparacion, tipIndex ~/ 2);
+  final a = trazoActual[tipIndex - 1];
+  final b = trazoActual[tipIndex];
 
   for (var j = 1; j < jMax; j++) {
+    if (tipIndex - j < minGap) continue;
     final p1 = trazoActual[j - 1];
     final p2 = trazoActual[j];
-    if (_cruzan(a, b, p1, p2)) return true;
+    // Cruce geométrico real (no colineales: eso da falsos positivos en
+    // líneas rectas al usar solape de bounding-box).
+    if (_cruzan(a, b, p1, p2, colinealesCuentan: false)) return true;
+    // Roce visual: la punta (y su interior) se acerca a un tramo viejo.
     if (_distPuntoSegmento(b, p1, p2) <= umbral) return true;
-    if (_segmentosCercanos(a, b, p1, p2, umbral)) return true;
+    if (_distPuntoSegmento(a, p1, p2) <= umbral * 0.85) return true;
+    final segLen = (b - a).distance;
+    if (segLen < 1e-6) continue;
+    final muestras = math.max(2, (segLen / 2.5).ceil());
+    for (var s = 1; s < muestras; s++) {
+      final pt = Offset.lerp(a, b, s / muestras)!;
+      if (_distPuntoSegmento(pt, p1, p2) <= umbral) return true;
+    }
   }
   return false;
 }
