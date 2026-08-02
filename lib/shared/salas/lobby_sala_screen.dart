@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class LobbySalaScreen extends StatefulWidget {
@@ -246,6 +247,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
         dados: widget.mostrarSelectorDados ? _dados : 5,
         categorias: categorias,
         maxRondas: maxRondas,
+        opcionesPapa: SalaFormStore.opcionesPapa,
       );
       if (!mounted) return;
       _lanzarPartida(sala);

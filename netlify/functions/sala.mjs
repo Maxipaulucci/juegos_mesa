@@ -350,6 +350,49 @@ export default async (req) => {
           modoAnotar: false,
           mostrarVictoria: false,
         }
+      } else if (sala.juegoId === 'laPapa') {
+        // El anfitrión publica el tablero real al entrar a la partida.
+        const opts =
+          body.opcionesPapa && typeof body.opcionesPapa === 'object'
+            ? body.opcionesPapa
+            : {}
+        const modoFantasma = opts.modoFantasma === true
+        const conVidas = !modoFantasma && opts.conVidas === true
+        let cantidad = Number(opts.cantidadNumeros)
+        if (!Number.isFinite(cantidad)) cantidad = 30
+        cantidad = Math.floor(cantidad)
+        if (modoFantasma) cantidad = 50
+        if (cantidad < 2) cantidad = 2
+        if (cantidad > 50) cantidad = 50
+        const vidas = conVidas ? nombres.map(() => 3) : []
+        const aleatorios = modoFantasma || opts.numerosAleatorios !== false
+        sala.gameState = {
+          version: 1,
+          juego: 'laPapa',
+          nombres,
+          casillas: null,
+          maxNumero: cantidad,
+          indiceTurno: 0,
+          siguienteConectar: 1,
+          siguienteAColocar: 1,
+          fase: aleatorios ? 'jugando' : 'colocando',
+          mensajeFin: null,
+          ganador: null,
+          conVidas,
+          modoFantasma,
+          vidas,
+          trazos: [],
+          trazoFallido: [],
+          opciones: {
+            conVidas: !!opts.conVidas,
+            numerosAleatorios: opts.numerosAleatorios !== false,
+            cantidadNumeros: cantidad,
+            modoFantasma,
+            mostrarCuadricula: opts.mostrarCuadricula !== false,
+          },
+          mostrarVictoria: false,
+          pendienteTablero: true,
+        }
       } else {
         sala.gameState = {
           version: 1,

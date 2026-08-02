@@ -5,6 +5,8 @@ class SalaFormStore {
 
   static String nombre = '';
   static String codigo = '';
+  /// Opciones de La Papa del anfitrión al iniciar la sala (mapa del codec).
+  static Map<String, dynamic>? opcionesPapa;
 
   static void limpiarCodigo() => codigo = '';
 }

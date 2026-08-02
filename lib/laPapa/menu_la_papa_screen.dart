@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/laPapa/la_papa_online_codec.dart';
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/partida_la_papa_screen.dart';
 import 'package:app_juegos_mesa/laPapa/standby_store.dart';
@@ -7,6 +8,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/shared/menu/opcion_toggle.dart';
+import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de La papa: mismo layout que Generala, con "Jugar solo" + modificar.
@@ -118,12 +120,16 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
       },
     );
     if (ok && mounted) {
-      setState(() => _opciones = draft);
+      setState(() {
+        _opciones = draft;
+        SalaFormStore.opcionesPapa = encodePapaOpciones(_opciones);
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    SalaFormStore.opcionesPapa = encodePapaOpciones(_opciones);
     return MenuJuegoScreen(
       titulo: 'La papa',
       juegoId: MenuJuegoScreen.juegoIdLaPapa,
@@ -161,6 +167,8 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
           builder: (_) => PartidaLaPapaScreen(
             nombres: inicio.nombres,
             opciones: _opciones,
+            salaCodigo: inicio.salaCodigo,
+            miNombre: inicio.miNombre,
           ),
         );
       },

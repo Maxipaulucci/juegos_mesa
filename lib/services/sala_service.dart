@@ -167,6 +167,7 @@ class SalaService {
     required int dados,
     List<String>? categorias,
     int? maxRondas,
+    Map<String, dynamic>? opcionesPapa,
   }) async {
     final data = await _post({
       'action': 'iniciar',
@@ -175,6 +176,7 @@ class SalaService {
       'dados': dados,
       if (categorias != null) 'categorias': categorias,
       if (maxRondas != null) 'maxRondas': maxRondas,
+      if (opcionesPapa != null) 'opcionesPapa': opcionesPapa,
     });
     return _parseSala(Map<String, dynamic>.from(data['sala'] as Map));
   }

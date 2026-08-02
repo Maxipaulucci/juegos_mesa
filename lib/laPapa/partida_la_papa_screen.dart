@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/laPapa/la_papa_online_codec.dart';
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/standby_store.dart';
 import 'package:app_juegos_mesa/laPapa/textos.dart';
 import 'package:app_juegos_mesa/laPapa/victoria_la_papa_overlay.dart';
+import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -18,6 +22,8 @@ class PartidaLaPapaScreen extends StatefulWidget {
     this.opciones = const OpcionesPapa(),
     this.ajustesIniciales = const AjustesEstado(),
     this.resume,
+    this.salaCodigo,
+    this.miNombre,
   });
 
   final List<String> nombres;
@@ -25,6 +31,8 @@ class PartidaLaPapaScreen extends StatefulWidget {
   final OpcionesPapa opciones;
   final AjustesEstado ajustesIniciales;
   final PartidaPapaResume? resume;
+  final String? salaCodigo;
+  final String? miNombre;
 
   @override
   State<PartidaLaPapaScreen> createState() => _PartidaLaPapaScreenState();
@@ -34,6 +42,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   late PartidaPapa _partida;
   late List<String> _nombres;
   late AjustesEstado _ajustes;
+  late OpcionesPapa _opciones;
   final List<Offset> _trazoActual = [];
   /// Trazo con el que se perdió (o el último fallo con vidas).
   final List<Offset> _trazoFallido = [];
@@ -54,6 +63,26 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   bool _confirmarRendicion = false;
   static const int _maxNombre = 15;
 
+  StreamSubscription<Sala>? _onlineSub;
+  int _onlineVersion = 0;
+  bool _publicandoOnline = false;
+  bool _tableroPublicado = false;
+  bool _esperandoTableroOnline = false;
+
+  bool get _esOnline =>
+      widget.salaCodigo != null &&
+      widget.salaCodigo!.isNotEmpty &&
+      widget.miNombre != null &&
+      widget.miNombre!.isNotEmpty;
+
+  bool get _esMiTurno =>
+      !_esOnline || _partida.jugadorActual == widget.miNombre;
+
+  bool get _soyAnfitrionOnline =>
+      _esOnline &&
+      _partida.nombres.isNotEmpty &&
+      _partida.nombres.first == widget.miNombre;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +90,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     if (resume != null) {
       _nombres = List.of(resume.nombres);
       _ajustes = resume.ajustesIniciales;
+      _opciones = resume.opciones;
       _partida = resume.partida;
       _grosor = resume.grosor;
       _boardSize = resume.boardSize;
@@ -72,24 +102,162 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales;
+    _opciones = widget.opciones;
+    if (_esOnline) {
+      // Placeholder hasta recibir / publicar el tablero compartido.
+      _esperandoTableroOnline = true;
+      _partida = nuevaPartidaPapa(
+        nombres: _nombres,
+        opciones: _opciones,
+      );
+      // Vaciar casillas hasta sync (evita jugar con hoja local distinta).
+      for (var i = 0; i < _partida.casillas.length; i++) {
+        _partida.casillas[i] = null;
+      }
+      _iniciarSincronizacionOnline();
+      return;
+    }
+
     _partida = nuevaPartidaPapa(
       nombres: _nombres,
-      opciones: widget.opciones,
+      opciones: _opciones,
     );
   }
 
   @override
   void dispose() {
+    _onlineSub?.cancel();
     _lupaPunto.dispose();
     super.dispose();
   }
 
+  void _iniciarSincronizacionOnline() {
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+    if (_onlineVersion < 1) _onlineVersion = 1;
+    unawaited(() async {
+      try {
+        final sala = await SalaService.instance.obtener(codigo);
+        if (mounted) _onSalaOnlineActualizada(sala);
+      } catch (_) {}
+    }());
+    _onlineSub = SalaService.instance
+        .watch(codigo, intervalo: const Duration(milliseconds: 400))
+        .listen(_onSalaOnlineActualizada);
+  }
+
+  void _onSalaOnlineActualizada(Sala sala) {
+    if (!mounted || !_esOnline) return;
+    final gameState = sala.gameState;
+    if (gameState == null) return;
+    if (gameState['juego']?.toString() != 'laPapa') return;
+    final version = (gameState['version'] as num?)?.toInt() ?? 0;
+    if (version < _onlineVersion) return;
+    if (_publicandoOnline && version <= _onlineVersion) return;
+
+    final tieneTablero = papaTableroGenerado(gameState);
+    if (!tieneTablero) {
+      if (_soyAnfitrionOnline &&
+          !_tableroPublicado &&
+          _boardSize != null) {
+        unawaited(_publicarTableroInicialOnline());
+      }
+      return;
+    }
+
+    if (version <= _onlineVersion && !_esperandoTableroOnline) return;
+
+    final board = _boardSize ?? const Size(400, 800);
+    setState(() {
+      final optsMap = gameState['opciones'];
+      if (optsMap is Map) {
+        _opciones = decodePapaOpciones(Map<String, dynamic>.from(optsMap));
+      }
+      applyPapaGameState(
+        _partida,
+        gameState,
+        boardSize: board,
+        trazoFallidoOut: _trazoFallido,
+      );
+      _nombres = List.of(_partida.nombres);
+      _onlineVersion = version;
+      _esperandoTableroOnline = false;
+      _tableroPublicado = true;
+      if (!_esMiTurno) {
+        _limpiarTrazo();
+      }
+    });
+  }
+
+  Future<void> _publicarTableroInicialOnline() async {
+    if (!_esOnline || _tableroPublicado || _publicandoOnline) return;
+    final generada = nuevaPartidaPapa(
+      nombres: _nombres,
+      opciones: _opciones,
+    );
+    setState(() {
+      _partida = generada;
+      _esperandoTableroOnline = false;
+      _tableroPublicado = true;
+    });
+    await _publicarEstadoOnline(forzar: true);
+  }
+
+  Future<void> _publicarEstadoOnline({bool forzar = false}) async {
+    if (!_esOnline) return;
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+
+    _publicandoOnline = true;
+    try {
+      for (var intento = 0; intento < 4; intento++) {
+        _onlineVersion++;
+        final board = _boardSize ?? const Size(400, 800);
+        final gameState = encodePapaGameState(
+          partida: _partida,
+          version: _onlineVersion,
+          opciones: _opciones,
+          boardSize: board,
+          trazoFallido: _trazoFallido,
+        );
+        try {
+          final res = await SalaService.instance.actualizarJuego(
+            codigo: codigo,
+            gameState: gameState,
+          );
+          if (!res.ignored) {
+            final v =
+                (res.sala.gameState?['version'] as num?)?.toInt() ??
+                    _onlineVersion;
+            _onlineVersion = v;
+            return;
+          }
+          final remoteV = res.sala.gameVersion;
+          if (remoteV >= _onlineVersion) {
+            _onlineVersion = remoteV;
+            if (!forzar) return;
+          }
+          await Future<void>.delayed(
+            Duration(milliseconds: 60 * (intento + 1)),
+          );
+        } catch (_) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 100 * (intento + 1)),
+          );
+        }
+      }
+    } finally {
+      _publicandoOnline = false;
+    }
+  }
+
   void _reiniciar() {
+    if (_esOnline) return;
     if (widget.solo) PapaStandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaPapa(
         nombres: _nombres,
-        opciones: widget.opciones,
+        opciones: _opciones,
       );
       _trazoActual.clear();
       _trazoFallido.clear();
@@ -144,6 +312,12 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       reescalarPuntosPapa(_trazoFallido, prev, boardSize);
     }
     _boardSize = boardSize;
+    if (_esOnline &&
+        _soyAnfitrionOnline &&
+        !_tableroPublicado &&
+        _esperandoTableroOnline) {
+      unawaited(_publicarTableroInicialOnline());
+    }
     return boardSize;
   }
 
@@ -173,16 +347,19 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     } else {
       _avisoVida = null;
     }
+    unawaited(_publicarEstadoOnline(forzar: true));
   }
 
   void _onTapColocar(Offset local, Size boardSize) {
     if (_partida.fase != FasePapa.colocando) return;
+    if (!_esMiTurno) return;
     for (var i = 0; i < totalCasillasPapa; i++) {
       if (rectCasillaPapa(i, boardSize).contains(local)) {
         final err = colocarNumeroEnCasillaPapa(_partida, i);
         setState(() {
           _avisoVida = err;
         });
+        if (err == null) unawaited(_publicarEstadoOnline(forzar: true));
         return;
       }
     }
@@ -190,11 +367,13 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
   void _onPointerDown(Offset local, Size boardSize) {
     if (_mostrarMenu || _mostrarAjustes) return;
+    if (_esperandoTableroOnline) return;
     if (_partida.fase == FasePapa.colocando) {
       _onTapColocar(local, boardSize);
       return;
     }
     if (_partida.terminada || _partida.fase != FasePapa.jugando) return;
+    if (!_esMiTurno) return;
     if (!_dentroHoja(local, boardSize)) return;
     final de = _partida.siguienteConectar;
     if (!cercaDeNumeroPapa(_partida, de, local, boardSize)) {
@@ -302,6 +481,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         aceptarTrazoPapa(_partida, _trazoActual, grosor: _grosor);
         _trazoFallido.clear();
         _limpiarTrazo();
+        unawaited(_publicarEstadoOnline(forzar: true));
       }
     });
   }
@@ -332,8 +512,9 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   String get _prefijoTitulo {
-    if (widget.opciones.modoInfernal) return 'La papa · Infernal';
+    if (_opciones.modoInfernal) return 'La papa · Infernal';
     if (widget.solo) return 'La papa · Solo';
+    if (_esOnline) return 'La papa · Online';
     return 'La papa';
   }
 
@@ -559,7 +740,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
               ),
               const SizedBox(height: 14),
               Text(
-                reglasLaPapa(opciones: widget.opciones),
+                reglasLaPapa(opciones: _opciones),
                 style: const TextStyle(color: AppColors.texto, height: 1.45),
               ),
             ],
@@ -580,7 +761,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           PartidaPapaResume(
             partida: _partida,
             nombres: _nombres,
-            opciones: widget.opciones,
+            opciones: _opciones,
             ajustesIniciales: _ajustes,
             grosor: _grosor,
             boardSize: _boardSize,
@@ -596,6 +777,30 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     if (_partida.terminada) return;
     if (widget.solo) {
       _salirAlMenu();
+      return;
+    }
+    if (_esOnline) {
+      // Abandono online: gana el rival (si queda uno).
+      final yo = widget.miNombre ?? _partida.jugadorActual;
+      final otros = [
+        for (final n in _partida.nombres)
+          if (n != yo) n,
+      ];
+      setState(() {
+        _mostrarMenu = false;
+        _confirmarRendicion = false;
+        _limpiarTrazo();
+        if (otros.isEmpty) {
+          _partida.fase = FasePapa.perdido;
+          _partida.ganador = null;
+          _partida.mensajeFin = '$yo se rindió.';
+        } else {
+          _partida.fase = FasePapa.ganado;
+          _partida.ganador = otros.first;
+          _partida.mensajeFin = '$yo se rindió. ¡${otros.first} gana!';
+        }
+      });
+      unawaited(_publicarEstadoOnline(forzar: true));
       return;
     }
 
@@ -626,8 +831,16 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   String get _mensajeEstado {
+    if (_esperandoTableroOnline) {
+      return _soyAnfitrionOnline
+          ? 'Preparando hoja compartida…'
+          : 'Esperando la hoja del anfitrión…';
+    }
     if (_partida.terminada) return _partida.mensajeFin ?? 'Fin';
     if (_avisoVida != null) return _avisoVida!;
+    if (_esOnline && !_esMiTurno) {
+      return 'Turno de ${_partida.jugadorActual}…';
+    }
     if (_partida.fase == FasePapa.colocando) {
       return '${_partida.jugadorActual}: colocá el '
           '${_partida.siguienteAColocar} '
@@ -1051,9 +1264,9 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                               numeroActual: de,
                                               numeroSiguiente: a,
                                               grosorActual: _grosor,
-                                              mostrarCuadricula: widget
-                                                  .opciones
+                                              mostrarCuadricula: _opciones
                                                   .mostrarCuadriculaEfectiva,
+                                              miNombre: widget.miNombre,
                                             ),
                                           ),
                                         ),
@@ -1078,9 +1291,9 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                           numeroActual: de,
                                           numeroSiguiente: a,
                                           grosorActual: _grosor,
-                                          mostrarCuadricula: widget
-                                              .opciones
+                                          mostrarCuadricula: _opciones
                                               .mostrarCuadriculaEfectiva,
+                                          miNombre: widget.miNombre,
                                         );
                                       },
                                     ),
@@ -1469,6 +1682,7 @@ class _LupaTrazoPapa extends StatelessWidget {
     required this.numeroSiguiente,
     required this.grosorActual,
     required this.mostrarCuadricula,
+    this.miNombre,
   });
 
   static const diametro = 118.0;
@@ -1486,6 +1700,7 @@ class _LupaTrazoPapa extends StatelessWidget {
   final int? numeroSiguiente;
   final GrosorTrazoPapa grosorActual;
   final bool mostrarCuadricula;
+  final String? miNombre;
 
   @override
   Widget build(BuildContext context) {
@@ -1512,6 +1727,7 @@ class _LupaTrazoPapa extends StatelessWidget {
               numeroSiguiente: numeroSiguiente,
               grosorActual: grosorActual,
               mostrarCuadricula: mostrarCuadricula,
+              miNombre: miNombre,
             ),
           ),
         ),
@@ -1627,6 +1843,7 @@ class _HojaPapaPainter extends CustomPainter {
     required this.numeroSiguiente,
     required this.grosorActual,
     this.mostrarCuadricula = true,
+    this.miNombre,
   });
 
   final PartidaPapa partida;
@@ -1637,6 +1854,7 @@ class _HojaPapaPainter extends CustomPainter {
   final int? numeroSiguiente;
   final GrosorTrazoPapa grosorActual;
   final bool mostrarCuadricula;
+  final String? miNombre;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1701,13 +1919,29 @@ class _HojaPapaPainter extends CustomPainter {
       tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
     }
 
+    final ultimo = partida.trazos.isEmpty ? null : partida.trazos.last;
     for (final t in partida.trazos) {
+      final esUltimoRival = miNombre != null &&
+          identical(t, ultimo) &&
+          t.jugador != miNombre;
+      if (esUltimoRival) {
+        _dibujarPolyline(
+          canvas,
+          t.puntos,
+          Paint()
+            ..color = AppColors.mint.withValues(alpha: 0.45)
+            ..strokeWidth = t.grosor.ancho + 4
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..style = PaintingStyle.stroke,
+        );
+      }
       _dibujarPolyline(
         canvas,
         t.puntos,
         Paint()
-          ..color = const Color(0xFF1A0A33)
-          ..strokeWidth = t.grosor.ancho
+          ..color = esUltimoRival ? AppColors.mint : const Color(0xFF1A0A33)
+          ..strokeWidth = t.grosor.ancho + (esUltimoRival ? 0.8 : 0)
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
           ..style = PaintingStyle.stroke,
