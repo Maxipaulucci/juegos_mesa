@@ -17,6 +17,8 @@ class VictoriaLaPapaOverlay extends StatefulWidget {
     this.subtitulo,
     this.animaciones = true,
     this.esSolo = false,
+    this.trazoFallido = const [],
+    this.boardSizeTrazo,
   });
 
   final PartidaPapa partida;
@@ -27,6 +29,10 @@ class VictoriaLaPapaOverlay extends StatefulWidget {
   final bool animaciones;
   /// Modo un solo jugador: cartel de fin distinto al de victoria multi.
   final bool esSolo;
+  /// Último trazo fallido (se pinta en rojo en “Ver tablero”).
+  final List<Offset> trazoFallido;
+  /// Tamaño de hoja con el que se guardó [trazoFallido] / trazos en píxeles.
+  final Size? boardSizeTrazo;
 
   @override
   State<VictoriaLaPapaOverlay> createState() => _VictoriaLaPapaOverlayState();
@@ -44,6 +50,7 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
 
   bool _mostrarStats = false;
   String? _statsJugador;
+  bool _mostrarTablero = false;
   bool _cartelVisible = true;
 
   @override
@@ -92,6 +99,16 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
   }
 
   Widget _construirContenido() {
+    if (_mostrarTablero) {
+      return _TableroFinalPapa(
+        partida: widget.partida,
+        trazoFallido: widget.trazoFallido,
+        boardSizeTrazo: widget.boardSizeTrazo,
+        onCerrar: () => setState(() => _mostrarTablero = false),
+        onVolver: widget.onVolver,
+      );
+    }
+
     if (!_mostrarStats) {
       final maxN = widget.partida.maxNumero;
       final completo = widget.partida.fase == FasePapa.ganado;
@@ -141,7 +158,7 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
         ganador: widget.ganador ?? _ganadorMostrado,
         onSeleccionar: (nombre) => setState(() => _statsJugador = nombre),
         onCerrar: () => setState(() => _mostrarStats = false),
-        onVolver: widget.onVolver,
+        onVerTablero: () => setState(() => _mostrarTablero = true),
       );
     }
 
@@ -150,7 +167,7 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
       jugador: _statsJugador!,
       ganador: widget.ganador ?? _ganadorMostrado,
       onCerrar: () => setState(() => _statsJugador = null),
-      onVolver: widget.onVolver,
+      onVerTablero: () => setState(() => _mostrarTablero = true),
     );
   }
 
@@ -379,14 +396,14 @@ class _StatsSelectorPapa extends StatelessWidget {
     required this.ganador,
     required this.onSeleccionar,
     required this.onCerrar,
-    required this.onVolver,
+    required this.onVerTablero,
   });
 
   final List<String> jugadores;
   final String? ganador;
   final ValueChanged<String> onSeleccionar;
   final VoidCallback onCerrar;
-  final VoidCallback onVolver;
+  final VoidCallback onVerTablero;
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +466,7 @@ class _StatsSelectorPapa extends StatelessWidget {
                           : Icons.person,
                       color: jugadores[i] == ganador
                           ? AppColors.acento
-                          : AppColors.azul,
+                          : colorTrazoJugadorPapa(i),
                       onPressed: () => onSeleccionar(jugadores[i]),
                     ),
                   ],
@@ -459,10 +476,10 @@ class _StatsSelectorPapa extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           GlowButtonVictoria(
-            label: 'VOLVER AL MENÚ',
-            icon: Icons.home_rounded,
-            color: AppColors.violeta,
-            onPressed: onVolver,
+            label: 'VER TABLERO',
+            icon: Icons.grid_on_rounded,
+            color: AppColors.mint,
+            onPressed: onVerTablero,
           ),
         ],
       ),
@@ -476,19 +493,21 @@ class _StatsBoardPanel extends StatelessWidget {
     required this.jugador,
     required this.ganador,
     required this.onCerrar,
-    required this.onVolver,
+    required this.onVerTablero,
   });
 
   final PartidaPapa partida;
   final String jugador;
   final String? ganador;
   final VoidCallback onCerrar;
-  final VoidCallback onVolver;
+  final VoidCallback onVerTablero;
 
   @override
   Widget build(BuildContext context) {
     final esGanador = jugador == ganador;
-    final accent = esGanador ? AppColors.acento : AppColors.azul;
+    final idx = partida.nombres.indexOf(jugador);
+    final accent =
+        esGanador ? AppColors.acento : colorTrazoJugadorPapa(idx < 0 ? 0 : idx);
     final numeros = numerosConectadosPorPapa(partida, jugador);
     final trazos = trazosDeJugadorPapa(partida, jugador);
     final conexiones = trazos.length;
@@ -563,8 +582,8 @@ class _StatsBoardPanel extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.mint, width: 2),
-                    boxShadow: neonGlow(AppColors.mint, blur: 12),
+                    border: Border.all(color: accent, width: 2),
+                    boxShadow: neonGlow(accent, blur: 12),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
@@ -573,6 +592,173 @@ class _StatsBoardPanel extends StatelessWidget {
                         partida: partida,
                         numerosVisibles: numeros,
                         trazos: trazos,
+                        colorTrazo: accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          GlowButtonVictoria(
+            label: 'VER TABLERO',
+            icon: Icons.grid_on_rounded,
+            color: AppColors.mint,
+            onPressed: onVerTablero,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Colores de trazo por jugador (máx. 4 en una partida).
+Color colorTrazoJugadorPapa(int index) => switch (index % 4) {
+      0 => const Color(0xFF1565C0), // azul
+      1 => const Color(0xFF6A1B9A), // violeta
+      2 => const Color(0xFF00897B), // teal
+      _ => const Color(0xFFE65100), // naranja
+    };
+
+class _TableroFinalPapa extends StatelessWidget {
+  const _TableroFinalPapa({
+    required this.partida,
+    required this.trazoFallido,
+    required this.onCerrar,
+    required this.onVolver,
+    this.boardSizeTrazo,
+  });
+
+  final PartidaPapa partida;
+  final List<Offset> trazoFallido;
+  final Size? boardSizeTrazo;
+  final VoidCallback onCerrar;
+  final VoidCallback onVolver;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF2A1450), Color(0xFF12081F)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.mint, width: 2),
+        boxShadow: neonGlow(AppColors.mint, blur: 18),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: onCerrar,
+                tooltip: 'Volver',
+                icon: const Icon(Icons.arrow_back, color: AppColors.texto),
+              ),
+              const Expanded(
+                child: Text(
+                  'TABLERO',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    color: AppColors.mint,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          const Text(
+            'Pellizcá o usá la rueda para hacer zoom',
+            style: TextStyle(
+              color: AppColors.textoSuave,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Leyenda de colores por jugador.
+          Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              for (var i = 0; i < partida.nombres.length; i++)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: colorTrazoJugadorPapa(i),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      partida.nombres[i],
+                      style: const TextStyle(
+                        color: AppColors.textoSuave,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              if (trazoFallido.isNotEmpty)
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.peligro,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 5),
+                    Text(
+                      'Error',
+                      style: TextStyle(
+                        color: AppColors.textoSuave,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: ColoredBox(
+                color: Colors.white,
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4.5,
+                  child: AspectRatio(
+                    aspectRatio: columnasPapa / filasPapa,
+                    child: CustomPaint(
+                      painter: _HojaTableroFinalPainter(
+                        partida: partida,
+                        trazoFallido: trazoFallido,
+                        boardSizeTrazo: boardSizeTrazo,
                       ),
                     ),
                   ),
@@ -599,11 +785,13 @@ class _HojaStatsPapaPainter extends CustomPainter {
     required this.partida,
     required this.numerosVisibles,
     required this.trazos,
+    required this.colorTrazo,
   });
 
   final PartidaPapa partida;
   final Set<int> numerosVisibles;
   final List<TrazoPapa> trazos;
+  final Color colorTrazo;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -625,7 +813,7 @@ class _HojaStatsPapaPainter extends CustomPainter {
     }
 
     final strokePaint = Paint()
-      ..color = const Color(0xFF1A0A33)
+      ..color = colorTrazo
       ..strokeWidth = math.max(2.2, math.min(cellW, cellH) * 0.09)
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
@@ -637,8 +825,8 @@ class _HojaStatsPapaPainter extends CustomPainter {
       if (iDe == null || iA == null) continue;
       final desde = centroCasillaPapa(iDe, size);
       final hasta = centroCasillaPapa(iA, size);
-      final pts = _trazoAlineadoACentros(t.puntos, desde, hasta);
-      _dibujarPolyline(canvas, pts, strokePaint);
+      final pts = alinearTrazoPapaACentros(t.puntos, desde, hasta);
+      dibujarPolylinePapa(canvas, pts, strokePaint);
     }
 
     for (var i = 0; i < partida.casillas.length; i++) {
@@ -685,53 +873,169 @@ class _HojaStatsPapaPainter extends CustomPainter {
     }
   }
 
-  /// Adapta el trazo libre para que empiece en [desde] y termine en [hasta].
-  List<Offset> _trazoAlineadoACentros(
-    List<Offset> originales,
-    Offset desde,
-    Offset hasta,
-  ) {
-    if (originales.length < 2) return [desde, hasta];
+  @override
+  bool shouldRepaint(covariant _HojaStatsPapaPainter oldDelegate) => true;
+}
 
-    final o0 = originales.first;
-    final o1 = originales.last;
-    final ox = o1.dx - o0.dx;
-    final oy = o1.dy - o0.dy;
-    final nx = hasta.dx - desde.dx;
-    final ny = hasta.dy - desde.dy;
-    final olen2 = ox * ox + oy * oy;
-    if (olen2 < 1e-6) return [desde, hasta];
+class _HojaTableroFinalPainter extends CustomPainter {
+  _HojaTableroFinalPainter({
+    required this.partida,
+    required this.trazoFallido,
+    this.boardSizeTrazo,
+  });
 
-    final oLen = math.sqrt(olen2);
-    final nLen = math.sqrt(nx * nx + ny * ny);
-    if (nLen < 1e-6) return [desde, hasta];
+  final PartidaPapa partida;
+  final List<Offset> trazoFallido;
+  final Size? boardSizeTrazo;
 
-    final scale = nLen / oLen;
-    final rot = math.atan2(ny, nx) - math.atan2(oy, ox);
-    final cosR = math.cos(rot);
-    final sinR = math.sin(rot);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cellW = size.width / columnasPapa;
+    final cellH = size.height / filasPapa;
 
-    final out = <Offset>[];
-    for (final p in originales) {
-      final dx = p.dx - o0.dx;
-      final dy = p.dy - o0.dy;
-      final rx = (dx * cosR - dy * sinR) * scale;
-      final ry = (dx * sinR + dy * cosR) * scale;
-      out.add(Offset(desde.dx + rx, desde.dy + ry));
+    final gridPaint = Paint()
+      ..color = const Color(0xFF2A1450).withValues(alpha: 0.45)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    for (var c = 0; c <= columnasPapa; c++) {
+      final x = c * cellW;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
-    return out;
+    for (var r = 0; r <= filasPapa; r++) {
+      final y = r * cellH;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    // Trazos por jugador (colores distintos).
+    for (final t in partida.trazos) {
+      final idx = partida.nombres.indexOf(t.jugador);
+      final color = colorTrazoJugadorPapa(idx < 0 ? 0 : idx);
+      final iDe = partida.indiceDeNumero(t.de);
+      final iA = partida.indiceDeNumero(t.a);
+      List<Offset> pts;
+      if (iDe != null && iA != null && t.puntos.length >= 2) {
+        pts = alinearTrazoPapaACentros(
+          t.puntos,
+          centroCasillaPapa(iDe, size),
+          centroCasillaPapa(iA, size),
+        );
+      } else {
+        pts = _escalarPuntos(t.puntos, size);
+      }
+      dibujarPolylinePapa(
+        canvas,
+        pts,
+        Paint()
+          ..color = color
+          ..strokeWidth = math.max(2.4, math.min(cellW, cellH) * 0.1)
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke,
+      );
+    }
+
+    // Último error en rojo.
+    final fallido = _escalarPuntos(trazoFallido, size);
+    if (fallido.length >= 2) {
+      dibujarPolylinePapa(
+        canvas,
+        fallido,
+        Paint()
+          ..color = AppColors.peligro
+          ..strokeWidth = math.max(3.0, math.min(cellW, cellH) * 0.12)
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke,
+      );
+    } else if (fallido.length == 1) {
+      canvas.drawCircle(
+        fallido.first,
+        math.max(3.0, math.min(cellW, cellH) * 0.08),
+        Paint()..color = AppColors.peligro,
+      );
+    }
+
+    // Todos los números.
+    for (var i = 0; i < partida.casillas.length; i++) {
+      final n = partida.casillas[i];
+      if (n == null) continue;
+      final c = centroCasillaPapa(i, size);
+      final fontSize = math.min(cellW, cellH) * 0.22;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '$n',
+          style: TextStyle(
+            color: const Color(0xFF1A0A33),
+            fontWeight: FontWeight.w900,
+            fontSize: fontSize,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+    }
   }
 
-  void _dibujarPolyline(Canvas canvas, List<Offset> pts, Paint paint) {
-    if (pts.length < 2) return;
-    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (var i = 1; i < pts.length; i++) {
-      path.lineTo(pts[i].dx, pts[i].dy);
+  List<Offset> _escalarPuntos(List<Offset> pts, Size size) {
+    final origen = boardSizeTrazo;
+    if (origen == null ||
+        origen.width < 1e-6 ||
+        origen.height < 1e-6 ||
+        pts.isEmpty) {
+      return pts;
     }
-    canvas.drawPath(path, paint);
+    final sx = size.width / origen.width;
+    final sy = size.height / origen.height;
+    return [for (final p in pts) Offset(p.dx * sx, p.dy * sy)];
   }
 
   @override
-  bool shouldRepaint(covariant _HojaStatsPapaPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _HojaTableroFinalPainter oldDelegate) => true;
+}
+
+List<Offset> alinearTrazoPapaACentros(
+  List<Offset> originales,
+  Offset desde,
+  Offset hasta,
+) {
+  if (originales.length < 2) return [desde, hasta];
+
+  final o0 = originales.first;
+  final o1 = originales.last;
+  final ox = o1.dx - o0.dx;
+  final oy = o1.dy - o0.dy;
+  final nx = hasta.dx - desde.dx;
+  final ny = hasta.dy - desde.dy;
+  final olen2 = ox * ox + oy * oy;
+  if (olen2 < 1e-6) return [desde, hasta];
+
+  final oLen = math.sqrt(olen2);
+  final nLen = math.sqrt(nx * nx + ny * ny);
+  if (nLen < 1e-6) return [desde, hasta];
+
+  final scale = nLen / oLen;
+  final rot = math.atan2(ny, nx) - math.atan2(oy, ox);
+  final cosR = math.cos(rot);
+  final sinR = math.sin(rot);
+
+  final out = <Offset>[];
+  for (final p in originales) {
+    final dx = p.dx - o0.dx;
+    final dy = p.dy - o0.dy;
+    final rx = (dx * cosR - dy * sinR) * scale;
+    final ry = (dx * sinR + dy * cosR) * scale;
+    out.add(Offset(desde.dx + rx, desde.dy + ry));
+  }
+  return out;
+}
+
+void dibujarPolylinePapa(Canvas canvas, List<Offset> pts, Paint paint) {
+  if (pts.length < 2) return;
+  final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+  for (var i = 1; i < pts.length; i++) {
+    path.lineTo(pts[i].dx, pts[i].dy);
+  }
+  canvas.drawPath(path, paint);
 }
 

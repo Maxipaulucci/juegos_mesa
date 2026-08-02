@@ -1367,6 +1367,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                 subtitulo: _partida.mensajeFin,
                 animaciones: _ajustes.animaciones,
                 esSolo: widget.solo,
+                trazoFallido: List.of(_trazoFallido),
+                boardSizeTrazo: _boardSize,
                 onVolverAJugar: _reiniciar,
                 onVolver: _salirAlMenu,
               ),
