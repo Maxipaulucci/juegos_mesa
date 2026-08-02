@@ -13,12 +13,14 @@ class ResumenRondaEscobaOverlay extends StatefulWidget {
     required this.onContinuar,
     this.esFinPartida = false,
     this.labelContinuar,
+    this.continuarHabilitado = true,
   });
 
   final ResultadoRondaEscoba resultado;
   final VoidCallback onContinuar;
   final bool esFinPartida;
   final String? labelContinuar;
+  final bool continuarHabilitado;
 
   @override
   State<ResumenRondaEscobaOverlay> createState() =>
@@ -182,19 +184,26 @@ class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    child: GlowButtonVictoria(
-                      label: widget.labelContinuar ??
-                          (widget.esFinPartida
-                              ? 'VER GANADOR'
-                              : 'SIGUIENTE RONDA'),
-                      icon: widget.esFinPartida && widget.labelContinuar == null
-                          ? Icons.emoji_events_rounded
-                          : Icons.play_arrow_rounded,
-                      color: widget.esFinPartida &&
-                              widget.labelContinuar == null
-                          ? AppColors.acento
-                          : AppColors.mint,
-                      onPressed: widget.onContinuar,
+                    child: Opacity(
+                      opacity: widget.continuarHabilitado ? 1 : 0.55,
+                      child: IgnorePointer(
+                        ignoring: !widget.continuarHabilitado,
+                        child: GlowButtonVictoria(
+                          label: widget.labelContinuar ??
+                              (widget.esFinPartida
+                                  ? 'VER GANADOR'
+                                  : 'SIGUIENTE RONDA'),
+                          icon: widget.esFinPartida &&
+                                  widget.labelContinuar == null
+                              ? Icons.emoji_events_rounded
+                              : Icons.play_arrow_rounded,
+                          color: widget.esFinPartida &&
+                                  widget.labelContinuar == null
+                              ? AppColors.acento
+                              : AppColors.mint,
+                          onPressed: widget.onContinuar,
+                        ),
+                      ),
                     ),
                   ),
                 ],

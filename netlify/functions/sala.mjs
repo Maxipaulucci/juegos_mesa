@@ -393,6 +393,33 @@ export default async (req) => {
           mostrarVictoria: false,
           pendienteTablero: true,
         }
+      } else if (sala.juegoId === 'escobaDel15') {
+        // El anfitrión publica el mazo repartido al entrar a la partida.
+        sala.gameState = {
+          version: 1,
+          juego: 'escobaDel15',
+          pendienteMazo: true,
+          objetivo: 15,
+          indiceTurno: 0,
+          fase: 'jugando',
+          ultimaCapturaIdx: null,
+          mensajeFin: null,
+          ganador: null,
+          reiniciarCombosEnProximaJugada: false,
+          mazo: [],
+          mesa: [],
+          jugadores: nombres.map((n) => ({
+            nombre: n,
+            mano: [],
+            capturadas: [],
+            combos: [],
+            escobasRonda: 0,
+            puntos: 0,
+          })),
+          ultimoResultado: null,
+          ultimaJugada: null,
+          mostrarVictoria: false,
+        }
       } else {
         sala.gameState = {
           version: 1,

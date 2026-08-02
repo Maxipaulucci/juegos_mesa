@@ -14,12 +14,14 @@ class VictoriaEscobaOverlay extends StatefulWidget {
     required this.onVolverAJugar,
     required this.onVolver,
     this.animaciones = true,
+    this.mostrarVolverAJugar = true,
   });
 
   final PartidaEscoba partida;
   final VoidCallback onVolverAJugar;
   final VoidCallback onVolver;
   final bool animaciones;
+  final bool mostrarVolverAJugar;
 
   @override
   State<VictoriaEscobaOverlay> createState() => _VictoriaEscobaOverlayState();
@@ -104,7 +106,7 @@ class _VictoriaEscobaOverlayState extends State<VictoriaEscobaOverlay>
       pulso: _pulso,
       animaciones: widget.animaciones,
       onEstadisticas: () => setState(() => _mostrarStats = true),
-      onVolverAJugar: widget.onVolverAJugar,
+      onVolverAJugar: widget.mostrarVolverAJugar ? widget.onVolverAJugar : null,
       onVolver: widget.onVolver,
     );
   }
@@ -189,7 +191,7 @@ class _WinnerCardEscoba extends StatelessWidget {
     required this.subtitulo,
     required this.pulso,
     required this.onEstadisticas,
-    required this.onVolverAJugar,
+    this.onVolverAJugar,
     required this.onVolver,
     this.animaciones = true,
   });
@@ -198,7 +200,7 @@ class _WinnerCardEscoba extends StatelessWidget {
   final String subtitulo;
   final AnimationController pulso;
   final VoidCallback onEstadisticas;
-  final VoidCallback onVolverAJugar;
+  final VoidCallback? onVolverAJugar;
   final VoidCallback onVolver;
   final bool animaciones;
 
@@ -283,13 +285,15 @@ class _WinnerCardEscoba extends StatelessWidget {
               color: AppColors.azul,
               onPressed: onEstadisticas,
             ),
-            const SizedBox(height: 10),
-            GlowButtonVictoria(
-              label: 'VOLVER A JUGAR',
-              icon: Icons.replay_rounded,
-              color: AppColors.mint,
-              onPressed: onVolverAJugar,
-            ),
+            if (onVolverAJugar != null) ...[
+              const SizedBox(height: 10),
+              GlowButtonVictoria(
+                label: 'VOLVER A JUGAR',
+                icon: Icons.replay_rounded,
+                color: AppColors.mint,
+                onPressed: onVolverAJugar!,
+              ),
+            ],
             const SizedBox(height: 10),
             GlowButtonVictoria(
               label: 'VOLVER AL MENÚ',

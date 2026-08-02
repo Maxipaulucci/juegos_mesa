@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/escobaDel15/escoba_online_codec.dart';
 import 'package:app_juegos_mesa/escobaDel15/marcador_palitos.dart';
 import 'package:app_juegos_mesa/escobaDel15/menu_partida_escoba.dart';
 import 'package:app_juegos_mesa/escobaDel15/motor_escoba.dart';
@@ -9,6 +10,8 @@ import 'package:app_juegos_mesa/escobaDel15/resumen_ronda_escoba_overlay.dart';
 import 'package:app_juegos_mesa/escobaDel15/standby_store.dart';
 import 'package:app_juegos_mesa/escobaDel15/textos.dart';
 import 'package:app_juegos_mesa/escobaDel15/victoria_escoba_overlay.dart';
+import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -51,6 +54,30 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   String? _mensajePc;
   int _pcToken = 0;
 
+  StreamSubscription<Sala>? _onlineSub;
+  int _onlineVersion = 0;
+  bool _publicandoOnline = false;
+  bool _mazoPublicado = false;
+  bool _esperandoMazoOnline = false;
+  Map<String, dynamic>? _ultimaJugadaParaPublicar;
+
+  bool get _esOnline =>
+      widget.salaCodigo != null &&
+      widget.salaCodigo!.isNotEmpty &&
+      widget.miNombre != null &&
+      widget.miNombre!.isNotEmpty;
+
+  bool get _esMiTurno =>
+      !_esOnline || _partida.jugadorActual.nombre == widget.miNombre;
+
+  bool get _soyAnfitrionOnline =>
+      _esOnline &&
+      _partida.jugadores.isNotEmpty &&
+      _partida.jugadores.first.nombre == widget.miNombre;
+
+  bool get _esperandoRivalOnline =>
+      _esOnline && (!_esMiTurno || _esperandoMazoOnline);
+
   bool get _mostrarResumenRonda {
     final r = _partida.ultimoResultado;
     if (r == null) return false;
@@ -62,9 +89,19 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     return _partida.jugadorActual.nombre == 'PC';
   }
 
-  bool get _bloquearHumano => _esPcTurno || _pcMostrandoJugada;
+  bool get _bloquearHumano =>
+      _esPcTurno ||
+      _pcMostrandoJugada ||
+      _esperandoRivalOnline ||
+      (_esOnline && !_esMiTurno);
 
   JugadorEscoba get _manoVisible {
+    if (_esOnline) {
+      return _partida.jugadores.firstWhere(
+        (j) => j.nombre == widget.miNombre,
+        orElse: () => _partida.jugadores.first,
+      );
+    }
     if (!widget.contraPc) return _partida.jugadorActual;
     return _partida.jugadores.firstWhere(
       (j) => j.nombre != 'PC',
@@ -75,7 +112,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   static const int _maxNombre = 15;
 
   int? get _indiceRenombrable {
-    if (_partida.terminada) return null;
+    if (_partida.terminada || _esOnline) return null;
     if (widget.contraPc) {
       final i = _partida.jugadores.indexWhere((j) => j.nombre != 'PC');
       return i >= 0 ? i : null;
@@ -241,6 +278,27 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       _cartaSeleccionada != null &&
       _sumaSeleccion != 15;
 
+  String get _textoEstadoPartida {
+    if (_esperandoMazoOnline) {
+      return _soyAnfitrionOnline
+          ? 'Preparando mazo compartido…'
+          : 'Esperando el mazo del anfitrión…';
+    }
+    if (_partida.fase == FaseEscoba.finRonda) return 'Fin de ronda';
+    if (_pcMostrandoJugada) return '¡Mirá la jugada de la PC!';
+    if (_esPcTurno) return 'Turno de la PC…';
+    if (_esOnline && !_esMiTurno) {
+      return 'Turno de ${_partida.jugadorActual.nombre}…';
+    }
+    if (!_haySeleccion) {
+      return _mensajePc != null
+          ? 'Tu turno · mazo ${_partida.mazo.length}'
+          : 'Elegí cartas de la mesa y/o de tu mano · mazo ${_partida.mazo.length}';
+    }
+    return 'Suma: $_sumaSeleccion / 15'
+        '${_puedeCapturar ? ' · ¡listo para capturar!' : _cartaSeleccionada == null ? ' · falta tu carta' : ''}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -257,8 +315,158 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     }
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
+    if (_esOnline) {
+      _esperandoMazoOnline = true;
+      _partida = nuevaPartidaEscoba(nombres: _nombres);
+      // Vaciar hasta sync (evita jugar con mazo local distinto).
+      _partida.mazo.clear();
+      _partida.mesa.clear();
+      for (final j in _partida.jugadores) {
+        j.mano.clear();
+        j.capturadas.clear();
+        j.combos.clear();
+      }
+      _iniciarSincronizacionOnline();
+      return;
+    }
     _partida = nuevaPartidaEscoba(nombres: _nombres);
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+  }
+
+  @override
+  void dispose() {
+    _onlineSub?.cancel();
+    _pcToken++;
+    super.dispose();
+  }
+
+  void _iniciarSincronizacionOnline() {
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+    if (_onlineVersion < 1) _onlineVersion = 1;
+    unawaited(() async {
+      try {
+        final sala = await SalaService.instance.obtener(codigo);
+        if (mounted) _onSalaOnlineActualizada(sala);
+      } catch (_) {}
+    }());
+    _onlineSub = SalaService.instance
+        .watch(codigo, intervalo: const Duration(milliseconds: 400))
+        .listen(_onSalaOnlineActualizada);
+  }
+
+  void _onSalaOnlineActualizada(Sala sala) {
+    if (!mounted || !_esOnline) return;
+    final gameState = sala.gameState;
+    if (gameState == null) return;
+
+    final juego = gameState['juego']?.toString();
+    // Si el seed del servidor no es Escoba (p. ej. deploy viejo), el anfitrión
+    // publica el mazo y sobreescribe el estado.
+    if (juego != 'escobaDel15') {
+      if (_soyAnfitrionOnline && !_mazoPublicado) {
+        unawaited(_publicarMazoInicialOnline());
+      }
+      return;
+    }
+
+    final version = (gameState['version'] as num?)?.toInt() ?? 0;
+    if (version < _onlineVersion) return;
+    if (_publicandoOnline && version <= _onlineVersion) return;
+
+    final tieneMazo = escobaPartidaGenerada(gameState);
+    if (!tieneMazo) {
+      if (_soyAnfitrionOnline && !_mazoPublicado) {
+        unawaited(_publicarMazoInicialOnline());
+      }
+      return;
+    }
+
+    if (version <= _onlineVersion && !_esperandoMazoOnline) return;
+
+    final ultima = gameState['ultimaJugada'];
+    Map<String, dynamic>? jugadaMap;
+    if (ultima is Map) {
+      jugadaMap = Map<String, dynamic>.from(ultima);
+    }
+
+    setState(() {
+      applyEscobaGameState(_partida, gameState);
+      _nombres = [for (final j in _partida.jugadores) j.nombre];
+      _onlineVersion = version;
+      _esperandoMazoOnline = false;
+      _mazoPublicado = true;
+      if (!_esMiTurno) {
+        _limpiarSeleccion();
+      }
+      final desc = jugadaMap?['descripcion']?.toString();
+      final quien = jugadaMap?['jugador']?.toString();
+      if (desc != null &&
+          quien != null &&
+          quien != widget.miNombre) {
+        // Mostrar lo que hizo el rival aunque ahora sea mi turno.
+        _mensajePc = desc;
+        _aviso = null;
+      } else if (_esMiTurno) {
+        _mensajePc = null;
+      }
+    });
+  }
+
+  Future<void> _publicarMazoInicialOnline() async {
+    if (!_esOnline || _mazoPublicado || _publicandoOnline) return;
+    final generada = nuevaPartidaEscoba(nombres: _nombres);
+    setState(() {
+      _partida = generada;
+      _esperandoMazoOnline = false;
+      _mazoPublicado = true;
+    });
+    await _publicarEstadoOnline(forzar: true);
+  }
+
+  Future<void> _publicarEstadoOnline({bool forzar = false}) async {
+    if (!_esOnline) return;
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+
+    _publicandoOnline = true;
+    try {
+      for (var intento = 0; intento < 4; intento++) {
+        _onlineVersion++;
+        final gameState = encodeEscobaGameState(
+          partida: _partida,
+          version: _onlineVersion,
+          ultimaJugada: _ultimaJugadaParaPublicar,
+        );
+        try {
+          final res = await SalaService.instance.actualizarJuego(
+            codigo: codigo,
+            gameState: gameState,
+          );
+          if (!res.ignored) {
+            final v =
+                (res.sala.gameState?['version'] as num?)?.toInt() ??
+                    _onlineVersion;
+            _onlineVersion = v;
+            return;
+          }
+          final remoteV = res.sala.gameVersion;
+          if (remoteV >= _onlineVersion) {
+            _onlineVersion = remoteV;
+            if (!forzar) return;
+          }
+          await Future<void>.delayed(
+            Duration(milliseconds: 60 * (intento + 1)),
+          );
+        } catch (_) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 100 * (intento + 1)),
+          );
+        }
+      }
+    } finally {
+      _publicandoOnline = false;
+    }
   }
 
   void _limpiarSeleccion() {
@@ -268,6 +476,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   }
 
   Future<void> _talVezPc() async {
+    if (_esOnline) return;
     if (!mounted || !_esPcTurno || _partida.terminada) return;
     if (_partida.fase == FaseEscoba.finRonda) return;
     if (_partida.fase == FaseEscoba.ganado) return;
@@ -355,41 +564,73 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   }
 
   void _tirarAMesa() {
+    if (_esOnline && !_esMiTurno) return;
     final carta = _cartaSeleccionada;
     if (carta == null || !_puedeTirar) return;
+    final jugador = _partida.jugadorActual.nombre;
     final err = jugarCartaEscoba(_partida, carta, forzarTirar: true);
     setState(() {
       _aviso = err;
-      if (err == null) _limpiarSeleccion();
+      if (err == null) {
+        _ultimaJugadaParaPublicar = encodeUltimaJugadaEscoba(
+          jugador: jugador,
+          carta: carta,
+          tiro: true,
+        );
+        _mensajePc = null;
+        _limpiarSeleccion();
+      }
     });
-    if (err == null) _talVezPc();
+    if (err == null) {
+      unawaited(_publicarEstadoOnline());
+      _talVezPc();
+    }
   }
 
   void _confirmarCaptura() {
+    if (_esOnline && !_esMiTurno) return;
     final carta = _cartaSeleccionada;
     if (carta == null || !_puedeCapturar) return;
+    final jugador = _partida.jugadorActual.nombre;
+    final mesa = List.of(_mesaSeleccion);
     final err = jugarCartaEscoba(
       _partida,
       carta,
-      mesaElegida: List.of(_mesaSeleccion),
+      mesaElegida: mesa,
     );
     setState(() {
       _aviso = err;
-      if (err == null) _limpiarSeleccion();
+      if (err == null) {
+        _ultimaJugadaParaPublicar = encodeUltimaJugadaEscoba(
+          jugador: jugador,
+          carta: carta,
+          mesaElegida: mesa,
+          tiro: false,
+        );
+        _mensajePc = null;
+        _limpiarSeleccion();
+      }
     });
-    if (err == null) _talVezPc();
+    if (err == null) {
+      unawaited(_publicarEstadoOnline());
+      _talVezPc();
+    }
   }
 
   void _continuarRonda() {
+    if (_esOnline && !_soyAnfitrionOnline) return;
     setState(() {
       siguienteRondaEscoba(_partida);
       _partida.ultimoResultado = null;
+      _ultimaJugadaParaPublicar = null;
       _limpiarSeleccion();
     });
+    unawaited(_publicarEstadoOnline());
     if (_partida.fase == FaseEscoba.jugando) _talVezPc();
   }
 
   void _volverAJugar() {
+    if (_esOnline) return;
     EscobaStandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaEscoba(nombres: _nombres);
@@ -433,6 +674,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   }
 
   Future<void> _abrirForzarCartas() async {
+    if (_esOnline) return;
     if (!widget.modoDios || _partida.terminada || _bloquearHumano) return;
     if (_partida.fase != FaseEscoba.jugando) return;
 
@@ -483,8 +725,11 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   }
 
   void _rendirse() {
-    if (_partida.terminada || widget.contraPc) return;
-    final yo = _partida.jugadorActual.nombre;
+    if (_partida.terminada) return;
+    if (widget.contraPc && !_esOnline) return;
+    final yo = _esOnline
+        ? (widget.miNombre ?? _partida.jugadorActual.nombre)
+        : _partida.jugadorActual.nombre;
     final otros = [
       for (final j in _partida.jugadores)
         if (j.nombre != yo) j.nombre,
@@ -504,7 +749,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
         _partida.mensajeFin =
             '$yo se rindió. ¡${otros.first} gana por abandono!';
       }
+      _ultimaJugadaParaPublicar = null;
     });
+    unawaited(_publicarEstadoOnline(forzar: true));
   }
 
   void _abrirCombos(JugadorEscoba jugador) {
@@ -550,7 +797,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                         child: Center(
                           child: _TituloNombreEditable(
                             etiquetaJuego: 'Escoba',
-                            nombre: widget.contraPc
+                            nombre: (widget.contraPc || _esOnline)
                                 ? _manoVisible.nombre
                                 : j.nombre,
                             puedeEditar: _indiceRenombrable != null,
@@ -575,21 +822,12 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _partida.fase == FaseEscoba.finRonda
-                        ? 'Fin de ronda'
-                        : _pcMostrandoJugada
-                            ? '¡Mirá la jugada de la PC!'
-                            : _esPcTurno
-                                ? 'Turno de la PC…'
-                                : !_haySeleccion
-                                    ? (_mensajePc != null
-                                        ? 'Tu turno · mazo ${_partida.mazo.length}'
-                                        : 'Elegí cartas de la mesa y/o de tu mano · mazo ${_partida.mazo.length}')
-                                    : 'Suma: $_sumaSeleccion / 15'
-                                        '${_puedeCapturar ? ' · ¡listo para capturar!' : _cartaSeleccionada == null ? ' · falta tu carta' : ''}',
+                    _textoEstadoPartida,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: _pcMostrandoJugada || _puedeCapturar
+                      color: _pcMostrandoJugada ||
+                              _puedeCapturar ||
+                              (_esOnline && !_esMiTurno && !_esperandoMazoOnline)
                           ? AppColors.mint
                           : AppColors.textoSuave,
                       fontWeight: FontWeight.w700,
@@ -675,7 +913,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                           ),
                         ),
                       ),
-                      if (widget.modoDios)
+                      if (widget.modoDios && !_esOnline)
                         Material(
                           color: AppColors.carta,
                           shape: const CircleBorder(),
@@ -719,7 +957,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  if (widget.contraPc)
+                  if (widget.contraPc || (_esOnline && !_esperandoMazoOnline))
                     SizedBox(
                       height: 72,
                       child: _pcMostrandoJugada && _cartaSeleccionada != null
@@ -745,16 +983,24 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                             )
                           : Center(
                               child: Text(
-                                _esPcTurno ? 'PC está eligiendo…' : '',
-                                style: const TextStyle(
-                                  color: AppColors.textoSuave,
+                                widget.contraPc
+                                    ? (_esPcTurno ? 'PC está eligiendo…' : '')
+                                    : (_esMiTurno
+                                        ? 'Tu turno'
+                                        : (_mensajePc ??
+                                            'Esperando a ${_partida.jugadorActual.nombre}…')),
+                                style: TextStyle(
+                                  color: _esOnline && !_esMiTurno
+                                      ? AppColors.rosa
+                                      : AppColors.textoSuave,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13,
                                 ),
                               ),
                             ),
                     ),
-                  if (widget.contraPc) const SizedBox(height: 8),
+                  if (widget.contraPc || (_esOnline && !_esperandoMazoOnline))
+                    const SizedBox(height: 8),
                   SizedBox(
                     height: 54,
                     child: Row(
@@ -836,6 +1082,10 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
               child: ResumenRondaEscobaOverlay(
                 resultado: _partida.ultimoResultado!,
                 onContinuar: _continuarRonda,
+                continuarHabilitado: !_esOnline || _soyAnfitrionOnline,
+                labelContinuar: _esOnline && !_soyAnfitrionOnline
+                    ? 'ESPERANDO AL ANFITRIÓN…'
+                    : null,
               ),
             ),
           if (_mostrarAjustes)
@@ -907,6 +1157,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                 partida: _partida,
                 animaciones: _ajustes.animaciones,
                 onVolverAJugar: _volverAJugar,
+                mostrarVolverAJugar: !_esOnline,
                 onVolver: () {
                   EscobaStandByStore.limpiar();
                   _salirAlMenu();
