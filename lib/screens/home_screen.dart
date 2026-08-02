@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../diezMil/menu_diez_mil_screen.dart';
+import '../escobaDel15/menu_escoba_screen.dart';
 import '../generala/menu_generala_screen.dart';
 import '../laPapa/menu_la_papa_screen.dart';
 import '../shared/carga/pantalla_carga.dart';
@@ -111,10 +112,9 @@ class _HomeScreenState extends State<HomeScreen>
     _JuegoHome(
       tipo: _TipoJuegoHome.escobaDel15,
       titulo: 'Escoba del 15',
-      subtitulo: 'Próximamente',
+      subtitulo: 'Cartas españolas · a 15',
       accent: AppColors.azul,
       categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
@@ -280,8 +280,13 @@ class _HomeScreenState extends State<HomeScreen>
               acento: AppColors.mint,
               mensaje: 'La papa',
             );
-      case _TipoJuegoHome.culoSucio:
       case _TipoJuegoHome.escobaDel15:
+        return () => _abrirJuego(
+              menu: const MenuEscobaScreen(),
+              acento: AppColors.azul,
+              mensaje: 'Escoba del 15',
+            );
+      case _TipoJuegoHome.culoSucio:
       case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.casitaRobada:
       case _TipoJuegoHome.chanchoVa:
