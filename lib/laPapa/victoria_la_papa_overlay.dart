@@ -812,13 +812,6 @@ class _HojaStatsPapaPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final strokePaint = Paint()
-      ..color = colorTrazo
-      ..strokeWidth = math.max(2.2, math.min(cellW, cellH) * 0.09)
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
     for (final t in trazos) {
       final iDe = partida.indiceDeNumero(t.de);
       final iA = partida.indiceDeNumero(t.a);
@@ -826,7 +819,17 @@ class _HojaStatsPapaPainter extends CustomPainter {
       final desde = centroCasillaPapa(iDe, size);
       final hasta = centroCasillaPapa(iA, size);
       final pts = alinearTrazoPapaACentros(t.puntos, desde, hasta);
-      dibujarPolylinePapa(canvas, pts, strokePaint);
+      final escala = (math.min(cellW, cellH) / 36).clamp(0.35, 1.0);
+      dibujarPolylinePapa(
+        canvas,
+        pts,
+        Paint()
+          ..color = colorTrazo
+          ..strokeWidth = t.grosor.ancho * escala
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..style = PaintingStyle.stroke,
+      );
     }
 
     for (var i = 0; i < partida.casillas.length; i++) {
@@ -907,7 +910,8 @@ class _HojaTableroFinalPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Trazos por jugador (colores distintos).
+    // Trazos por jugador (mismo grosor que al dibujar, escalado al tamaño).
+    final escala = _escalaTrazo(size);
     for (final t in partida.trazos) {
       final idx = partida.nombres.indexOf(t.jugador);
       final color = colorTrazoJugadorPapa(idx < 0 ? 0 : idx);
@@ -928,7 +932,7 @@ class _HojaTableroFinalPainter extends CustomPainter {
         pts,
         Paint()
           ..color = color
-          ..strokeWidth = math.max(2.4, math.min(cellW, cellH) * 0.1)
+          ..strokeWidth = t.grosor.ancho * escala
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
           ..style = PaintingStyle.stroke,
@@ -937,13 +941,14 @@ class _HojaTableroFinalPainter extends CustomPainter {
 
     // Último error en rojo.
     final fallido = _escalarPuntos(trazoFallido, size);
+    final anchoFallido = GrosorTrazoPapa.normal.ancho * escala;
     if (fallido.length >= 2) {
       dibujarPolylinePapa(
         canvas,
         fallido,
         Paint()
           ..color = AppColors.peligro
-          ..strokeWidth = math.max(3.0, math.min(cellW, cellH) * 0.12)
+          ..strokeWidth = anchoFallido + 0.3
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
           ..style = PaintingStyle.stroke,
@@ -951,7 +956,7 @@ class _HojaTableroFinalPainter extends CustomPainter {
     } else if (fallido.length == 1) {
       canvas.drawCircle(
         fallido.first,
-        math.max(3.0, math.min(cellW, cellH) * 0.08),
+        math.max(2.5, anchoFallido * 0.7),
         Paint()..color = AppColors.peligro,
       );
     }
@@ -988,6 +993,20 @@ class _HojaTableroFinalPainter extends CustomPainter {
     final sx = size.width / origen.width;
     final sy = size.height / origen.height;
     return [for (final p in pts) Offset(p.dx * sx, p.dy * sy)];
+  }
+
+  /// Escala el grosor del lápiz al tamaño actual de la hoja.
+  double _escalaTrazo(Size size) {
+    final origen = boardSizeTrazo;
+    if (origen == null || origen.width < 1e-6 || origen.height < 1e-6) {
+      // Sin tamaño original: aproximar a un lápiz fino sobre la celda.
+      final cell = math.min(
+        size.width / columnasPapa,
+        size.height / filasPapa,
+      );
+      return (cell / 36).clamp(0.35, 1.0);
+    }
+    return math.min(size.width / origen.width, size.height / origen.height);
   }
 
   @override
