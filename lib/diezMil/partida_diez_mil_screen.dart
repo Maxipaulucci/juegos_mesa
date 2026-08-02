@@ -1068,35 +1068,30 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                               ),
                               const SizedBox(height: 6),
                               if (!terminada) ...[
-                                if (_esperandoCambioDeTurno)
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 8),
-                                    child: Text(
-                                      'Cambiando de turno…',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: AppColors.textoSuave,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 14,
+                                if (_esperandoCambioDeTurno ||
+                                    _turnoDeLaPc ||
+                                    _esperandoRivalOnline)
+                                  // Misma altura que TIRAR + espacio + PLANTARSE
+                                  // para que el layout no salte al turno de la PC.
+                                  SizedBox(
+                                    height: 52 + 6 + 52,
+                                    child: Center(
+                                      child: Text(
+                                        _esperandoCambioDeTurno
+                                            ? 'Cambiando de turno…'
+                                            : (_turnoDeLaPc
+                                                ? 'Turno de la PC…'
+                                                : 'Turno de ${_partida.jugadorActual.nombre}…'),
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: AppColors.textoSuave,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                        ),
                                       ),
                                     ),
                                   )
-                else if (_turnoDeLaPc || _esperandoRivalOnline)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      _turnoDeLaPc
-                          ? 'Turno de la PC…'
-                          : 'Turno de ${_partida.jugadorActual.nombre}…',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textoSuave,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                  )
-                else ...[
+                                else ...[
                                   _ArcadeButton(
                                     label: 'TIRAR DADOS',
                                     icon: Icons.casino,
