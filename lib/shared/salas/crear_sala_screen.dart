@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
@@ -28,7 +27,6 @@ class CrearSalaScreen extends StatefulWidget {
 
 class _CrearSalaScreenState extends State<CrearSalaScreen> {
   late final TextEditingController _nombreCtrl;
-  late final TextEditingController _codigoCtrl;
   String? _error;
   bool _cargando = false;
 
@@ -36,25 +34,13 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
   void initState() {
     super.initState();
     _nombreCtrl = TextEditingController(text: SalaFormStore.nombre);
-    _codigoCtrl = TextEditingController(text: SalaFormStore.codigo);
     _nombreCtrl.addListener(() => SalaFormStore.nombre = _nombreCtrl.text);
-    _codigoCtrl.addListener(() => SalaFormStore.codigo = _codigoCtrl.text);
   }
 
   @override
   void dispose() {
     _nombreCtrl.dispose();
-    _codigoCtrl.dispose();
     super.dispose();
-  }
-
-  static final _codigoPermitido = RegExp(r'^[a-zA-Z0-9]{6}$');
-
-  String? _validarCodigo(String codigo) {
-    if (codigo.isEmpty) return 'El código debe tener 6 caracteres.';
-    if (codigo.length != 6) return 'El código debe tener exactamente 6 caracteres.';
-    if (!_codigoPermitido.hasMatch(codigo)) return 'El código solo puede tener letras y números.';
-    return null;
   }
 
   Future<void> _crear() async {
@@ -64,24 +50,18 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
       return;
     }
 
-    final codigo = _codigoCtrl.text.trim();
-    final errorCodigo = _validarCodigo(codigo);
-    if (errorCodigo != null) {
-      setState(() => _error = errorCodigo);
-      return;
-    }
-
     setState(() {
       _cargando = true;
       _error = null;
     });
 
     try {
+      // El código lo genera el servidor (alfanumérico aleatorio).
       final result = await SalaService.instance.crear(
         juegoId: widget.juegoId,
         nombreAnfitrion: nombre,
-        codigoPreferido: codigo,
       );
+      SalaFormStore.limpiarCodigo();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
@@ -123,23 +103,15 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(hintText: 'Ej: Maxi'),
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Código / contraseña de la sala',
-              style: TextStyle(color: AppColors.textoSuave),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _codigoCtrl,
-              enabled: !_cargando,
-              maxLength: 6,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-              ],
-              decoration: const InputDecoration(
-                hintText: 'Exactamente 6 letras o números',
-                counterText: '',
+            const SizedBox(height: 16),
+            Text(
+              'Al crear la sala se genera un código aleatorio de 6 letras y números. '
+              'Lo vas a ver en el lobby para compartirlo. '
+              'El código se borra sola 1 hora después de iniciar la partida.',
+              style: TextStyle(
+                color: AppColors.textoSuave.withValues(alpha: 0.95),
+                height: 1.35,
+                fontSize: 13,
               ),
             ),
             if (_error != null) ...[

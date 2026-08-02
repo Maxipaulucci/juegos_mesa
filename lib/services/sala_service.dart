@@ -95,14 +95,11 @@ class SalaService {
   Future<({Sala sala, String miId})> crear({
     required String juegoId,
     required String nombreAnfitrion,
-    String? codigoPreferido,
   }) async {
     final data = await _post({
       'action': 'crear',
       'juegoId': juegoId,
       'nombre': nombreAnfitrion.trim(),
-      if (codigoPreferido != null && codigoPreferido.trim().isNotEmpty)
-        'codigo': codigoPreferido.trim().toUpperCase(),
     });
     final salaMap = Map<String, dynamic>.from(data['sala'] as Map);
     return (sala: _parseSala(salaMap), miId: data['miId'] as String);

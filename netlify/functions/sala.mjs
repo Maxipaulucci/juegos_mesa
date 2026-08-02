@@ -7,8 +7,13 @@ const CORS = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
-const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+/** Letras y dígitos (sin I/O/0/1 para evitar confusiones al dictar). */
+const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+const DIGITS = '23456789'
+const CHARS = LETTERS + DIGITS
 const CODIGO_REGEX = /^[A-Za-z0-9]{6}$/
+/** Tras iniciar la partida, el código/sala se elimina a la 1 h. */
+const TTL_PARTIDA_MS = 60 * 60 * 1000
 
 function codigoValido(codigo) {
   return CODIGO_REGEX.test(codigo)
@@ -21,13 +26,64 @@ function json(status, body) {
   })
 }
 
+/** Código de 6 chars alfanumérico con al menos 1 letra y 1 número. */
 function generarCodigo(largo = 6) {
   const bytes = randomBytes(largo)
-  let out = ''
+  const chars = []
   for (let i = 0; i < largo; i++) {
-    out += CHARS[bytes[i] % CHARS.length]
+    chars.push(CHARS[bytes[i] % CHARS.length])
   }
-  return out
+  // Garantizar mezcla letra + número.
+  const hasLetter = chars.some((c) => LETTERS.includes(c))
+  const hasDigit = chars.some((c) => DIGITS.includes(c))
+  if (!hasLetter) {
+    chars[bytes[0] % largo] = LETTERS[bytes[1] % LETTERS.length]
+  }
+  if (!hasDigit) {
+    const idx = (bytes[0] + 1) % largo
+    chars[idx] = DIGITS[bytes[2] % DIGITS.length]
+  }
+  return chars.join('')
+}
+
+async function codigoLibre(store) {
+  for (let i = 0; i < 24; i++) {
+    const codigo = generarCodigo(6)
+    const existe = await store.get(codigo, {
+      type: 'json',
+      consistency: 'strong',
+    })
+    if (!existe) return codigo
+    // Si existe pero ya expiró, se puede reutilizar.
+    if (await salaExpiradaYBorrar(store, codigo, existe)) return codigo
+  }
+  throw new Error('No se pudo generar un código libre. Reintentá.')
+}
+
+function partidaExpirada(sala) {
+  if (!sala?.iniciadaEn) return false
+  return Date.now() - Number(sala.iniciadaEn) >= TTL_PARTIDA_MS
+}
+
+async function salaExpiradaYBorrar(store, codigo, sala) {
+  if (!partidaExpirada(sala)) return false
+  try {
+    await store.delete(codigo)
+  } catch (_) {}
+  return true
+}
+
+/** Lee sala; si la partida lleva >1 h iniciada, la borra y devuelve null. */
+async function leerSala(store, codigo) {
+  const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
+  if (!sala) return null
+  if (await salaExpiradaYBorrar(store, codigo, sala)) return null
+  return sala
+}
+
+/** Guarda la sala (la expiración se aplica al leer vía iniciadaEn). */
+async function guardarSala(store, codigo, sala) {
+  await store.setJSON(codigo, sala)
 }
 
 function nuevoId(prefix) {
@@ -82,8 +138,13 @@ export default async (req) => {
     if (req.method === 'GET') {
       const codigo = (url.searchParams.get('codigo') || '').trim().toUpperCase()
       if (!codigo) return json(400, { error: 'Falta el código.' })
-      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
-      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      const sala = await leerSala(store, codigo)
+      if (!sala) {
+        return json(404, {
+          error:
+            'No existe una sala con ese código (o expiró tras 1 hora de juego).',
+        })
+      }
       return json(200, { sala })
     }
 
@@ -100,26 +161,8 @@ export default async (req) => {
       if (!juegoId) return json(400, { error: 'Falta el juego.' })
       if (!nombre) return json(400, { error: 'Escribí tu nombre.' })
 
-      let codigo = (body.codigo || '').trim().toUpperCase()
-      if (!codigo) {
-        return json(400, { error: 'El código debe tener exactamente 6 caracteres.' })
-      }
-      if (!codigoValido(codigo)) {
-        return json(400, {
-          error: 'El código debe tener exactamente 6 caracteres y solo letras o números.',
-        })
-      }
-      const existe = await store.get(codigo, {
-        type: 'json',
-        consistency: 'strong',
-      })
-      // Reutilizar código si la sala anterior ya no está en lobby.
-      if (existe) {
-        if (existe.estado === 'lobby') {
-          return json(409, { error: 'Ese código ya está en uso. Probá otro.' })
-        }
-        await store.delete(codigo)
-      }
+      // El código siempre lo genera el servidor (alfanumérico aleatorio).
+      const codigo = await codigoLibre(store)
 
       const anfitrionId = nuevoId('host')
       const sala = {
@@ -136,7 +179,7 @@ export default async (req) => {
           juegoId === 'tutiFruti' ? ['Nombre', 'Animal', 'Color'] : [],
         lobbyMaxRondas: juegoId === 'tutiFruti' ? 5 : null,
       }
-      await store.setJSON(codigo, sala)
+      await guardarSala(store, codigo, sala)
       return json(200, { sala, miId: anfitrionId })
     }
 
@@ -152,8 +195,13 @@ export default async (req) => {
       }
       if (!nombre) return json(400, { error: 'Escribí tu nombre.' })
 
-      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
-      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      const sala = await leerSala(store, codigo)
+      if (!sala) {
+        return json(404, {
+          error:
+            'No existe una sala con ese código (o expiró tras 1 hora de juego).',
+        })
+      }
       if (sala.estado !== 'lobby') {
         return json(409, { error: 'La partida ya empezó.' })
       }
@@ -173,7 +221,7 @@ export default async (req) => {
 
       const miId = nuevoId('p')
       sala.jugadores.push({ id: miId, nombre, rol: 'invitado' })
-      await store.setJSON(codigo, sala)
+      await guardarSala(store, codigo, sala)
       return json(200, { sala, miId })
     }
 
@@ -181,8 +229,13 @@ export default async (req) => {
       const codigo = (body.codigo || '').trim().toUpperCase()
       const anfitrionId = body.anfitrionId
       const jugadorId = body.jugadorId
-      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
-      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      const sala = await leerSala(store, codigo)
+      if (!sala) {
+        return json(404, {
+          error:
+            'No existe una sala con ese código (o expiró tras 1 hora de juego).',
+        })
+      }
       if (sala.anfitrionId !== anfitrionId) {
         return json(403, { error: 'Solo el anfitrión puede expulsar.' })
       }
@@ -190,7 +243,7 @@ export default async (req) => {
         return json(400, { error: 'No podés expulsar al anfitrión.' })
       }
       sala.jugadores = sala.jugadores.filter((j) => j.id !== jugadorId)
-      await store.setJSON(codigo, sala)
+      await guardarSala(store, codigo, sala)
       return json(200, { sala })
     }
 
@@ -198,8 +251,13 @@ export default async (req) => {
       const codigo = (body.codigo || '').trim().toUpperCase()
       const anfitrionId = body.anfitrionId
       const dados = body.dados === 6 ? 6 : 5
-      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
-      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      const sala = await leerSala(store, codigo)
+      if (!sala) {
+        return json(404, {
+          error:
+            'No existe una sala con ese código (o expiró tras 1 hora de juego).',
+        })
+      }
       if (sala.anfitrionId !== anfitrionId) {
         return json(403, { error: 'Solo el anfitrión puede iniciar.' })
       }
@@ -317,15 +375,20 @@ export default async (req) => {
           ultimoResumen: null,
         }
       }
-      await store.setJSON(codigo, sala)
+      await guardarSala(store, codigo, sala)
       return json(200, { sala })
     }
 
     if (action === 'actualizarLobby') {
       const codigo = (body.codigo || '').trim().toUpperCase()
       const anfitrionId = body.anfitrionId
-      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
-      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      const sala = await leerSala(store, codigo)
+      if (!sala) {
+        return json(404, {
+          error:
+            'No existe una sala con ese código (o expiró tras 1 hora de juego).',
+        })
+      }
       if (sala.anfitrionId !== anfitrionId) {
         return json(403, { error: 'Solo el anfitrión puede editar la sala.' })
       }
@@ -345,7 +408,7 @@ export default async (req) => {
       if (maxRondas > 26) maxRondas = 26
       sala.lobbyCategorias = cats
       sala.lobbyMaxRondas = maxRondas
-      await store.setJSON(codigo, sala)
+      await guardarSala(store, codigo, sala)
       return json(200, { sala })
     }
 
@@ -356,8 +419,13 @@ export default async (req) => {
       if (!gameState || typeof gameState !== 'object') {
         return json(400, { error: 'Falta el estado de juego.' })
       }
-      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
-      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      const sala = await leerSala(store, codigo)
+      if (!sala) {
+        return json(404, {
+          error:
+            'No existe una sala con ese código (o expiró tras 1 hora de juego).',
+        })
+      }
       if (sala.estado !== 'jugando') {
         return json(409, { error: 'La partida no está en curso.' })
       }
@@ -377,15 +445,20 @@ export default async (req) => {
       if (gameState.mostrarVictoria === true) {
         sala.estado = 'terminada'
       }
-      await store.setJSON(codigo, sala)
+      await guardarSala(store, codigo, sala)
       return json(200, { sala })
     }
 
     if (action === 'cerrar') {
       const codigo = (body.codigo || '').trim().toUpperCase()
       const anfitrionId = body.anfitrionId
-      const sala = await store.get(codigo, { type: 'json', consistency: 'strong' })
-      if (!sala) return json(404, { error: 'No existe una sala con ese código.' })
+      const sala = await leerSala(store, codigo)
+      if (!sala) {
+        return json(404, {
+          error:
+            'No existe una sala con ese código (o expiró tras 1 hora de juego).',
+        })
+      }
       if (sala.anfitrionId !== anfitrionId) {
         return json(403, { error: 'Solo el anfitrión puede cerrar la sala.' })
       }
