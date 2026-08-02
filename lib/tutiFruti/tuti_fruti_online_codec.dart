@@ -29,6 +29,9 @@ Map<String, dynamic> encodeTutiGameState(PartidaTuti p) {
     },
     'totales': Map<String, int>.from(p.totales),
     'historial': [for (final h in p.historial) h.toJson()],
+    'rendidos': List<String>.from(p.rendidos),
+    'victoriaPorAbandono': p.victoriaPorAbandono,
+    'ganadorAbandono': p.ganadorAbandono,
     'mostrarVictoria': p.fase == FaseTuti.fin,
   };
 }
@@ -127,6 +130,12 @@ PartidaTuti decodeTutiGameState(Map<String, dynamic> raw) {
     puntajes: puntajes,
     totales: totales,
     historial: historial,
+    rendidos: (raw['rendidos'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[],
+    victoriaPorAbandono: raw['victoriaPorAbandono'] == true,
+    ganadorAbandono: raw['ganadorAbandono']?.toString(),
     version: (raw['version'] as num?)?.toInt() ?? 1,
   );
 }
@@ -155,6 +164,11 @@ void applyTutiGameState(PartidaTuti destino, Map<String, dynamic> raw) {
   destino.historial
     ..clear()
     ..addAll(nuevo.historial);
+  destino.rendidos
+    ..clear()
+    ..addAll(nuevo.rendidos);
+  destino.victoriaPorAbandono = nuevo.victoriaPorAbandono;
+  destino.ganadorAbandono = nuevo.ganadorAbandono;
   destino.version = nuevo.version;
   if (nuevo.categorias.isNotEmpty) {
     destino.categorias

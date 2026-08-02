@@ -11,11 +11,14 @@ class VictoriaTutiFrutiOverlay extends StatefulWidget {
     required this.partida,
     required this.onVolver,
     this.animaciones = true,
+    this.subtitulo,
   });
 
   final PartidaTuti partida;
   final VoidCallback onVolver;
   final bool animaciones;
+  /// Si se setea, reemplaza el subtítulo por puntos (p.ej. abandono).
+  final String? subtitulo;
 
   @override
   State<VictoriaTutiFrutiOverlay> createState() =>
@@ -39,13 +42,19 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
   List<MapEntry<String, int>> get _ranking => rankingTuti(widget.partida);
 
   List<String> get _ganadores {
+    if (widget.partida.victoriaPorAbandono) {
+      final g = widget.partida.ganadorAbandono;
+      if (g != null && g.isNotEmpty) return [g];
+      return widget.partida.nombresActivos;
+    }
     final r = _ranking;
     if (r.isEmpty) return const [];
     final top = r.first.value;
     return r.where((e) => e.value == top).map((e) => e.key).toList();
   }
 
-  bool get _empate => _ganadores.length > 1;
+  bool get _empate =>
+      !widget.partida.victoriaPorAbandono && _ganadores.length > 1;
 
   @override
   void initState() {
@@ -116,15 +125,19 @@ class _VictoriaTutiFrutiOverlayState extends State<VictoriaTutiFrutiOverlay>
     final nombres = _ganadores.isEmpty
         ? '—'
         : _ganadores.map((n) => n.toUpperCase()).join('\n');
+    final sub = widget.subtitulo ??
+        (widget.partida.victoriaPorAbandono
+            ? 'Has ganado por abandono'
+            : (_empate
+                ? '$pts PTS · ¡Quedaron a la par!'
+                : '$pts PTS · ¡Más puntos y se lleva la partida!'));
 
     return _WinnerCardTuti(
       titulo: _empate ? '¡EMPATE!' : '¡GANADOR!',
       nombres: nombres,
       pulso: _pulso,
       animaciones: widget.animaciones,
-      subtitulo: _empate
-          ? '$pts PTS · ¡Quedaron a la par!'
-          : '$pts PTS · ¡Más puntos y se lleva la partida!',
+      subtitulo: sub,
       onVerTablero: () => setState(() {
         _mostrarSelectorTablero = true;
         _jugadorTablero = null;

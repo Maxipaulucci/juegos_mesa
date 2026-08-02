@@ -149,9 +149,13 @@ class PartidaTuti {
     Map<String, List<int?>>? puntajes,
     Map<String, int>? totales,
     List<RondaTutiHistorial>? historial,
+    List<String>? rendidos,
+    this.victoriaPorAbandono = false,
+    this.ganadorAbandono,
     this.version = 1,
   })  : letrasUsadas = letrasUsadas ?? [],
         historial = historial ?? [],
+        rendidos = rendidos ?? [],
         respuestas = respuestas ??
             {
               for (final n in nombres)
@@ -190,6 +194,12 @@ class PartidaTuti {
   Map<String, int> totales;
   /// Rondas ya cerradas (respuestas + puntajes).
   List<RondaTutiHistorial> historial;
+  /// Jugadores que se rindieron / abandonaron.
+  List<String> rendidos;
+  /// Victoria por abandono (quedó un solo activo).
+  bool victoriaPorAbandono;
+  /// Nombre del ganador forzado por abandono (si aplica).
+  String? ganadorAbandono;
   int version;
 
   /// Abecedario sin las letras ya jugadas.
@@ -201,14 +211,41 @@ class PartidaTuti {
     ];
   }
 
-  int get indiceParador =>
-      nombres.isEmpty ? 0 : (indiceSpinner + 1) % nombres.length;
+  bool estaRendido(String nombre) =>
+      rendidos.any((r) => r == nombre);
 
-  String get nombreSpinner =>
-      nombres.isEmpty ? '' : nombres[indiceSpinner % nombres.length];
+  List<String> get nombresActivos =>
+      [for (final n in nombres) if (!estaRendido(n)) n];
 
-  String get nombreParador =>
-      nombres.isEmpty ? '' : nombres[indiceParador];
+  int get indiceParador {
+    final activos = nombresActivos;
+    if (activos.isEmpty) return 0;
+    final spinner = nombreSpinner;
+    final i = activos.indexOf(spinner);
+    if (i < 0) return 0;
+    return nombres.indexOf(activos[(i + 1) % activos.length]);
+  }
+
+  String get nombreSpinner {
+    if (nombres.isEmpty) return '';
+    // Si el índice apunta a alguien rendido, avanza al próximo activo.
+    for (var k = 0; k < nombres.length; k++) {
+      final n = nombres[(indiceSpinner + k) % nombres.length];
+      if (!estaRendido(n)) return n;
+    }
+    return nombres[indiceSpinner % nombres.length];
+  }
+
+  String get nombreParador {
+    final activos = nombresActivos;
+    if (activos.length < 2) {
+      return activos.isEmpty ? '' : activos.first;
+    }
+    final spinner = nombreSpinner;
+    final i = activos.indexOf(spinner);
+    if (i < 0) return activos[(0 + 1) % activos.length];
+    return activos[(i + 1) % activos.length];
+  }
 
   bool get todosListos =>
       nombres.every((n) => listos[n] == true);
@@ -409,10 +446,10 @@ void setPuntajePropioTuti(
   p.totales[nombre] = total - (prev ?? 0) + puntos;
 }
 
-/// True si todos eligieron un puntaje (incluido 0) en la categoría actual.
+/// True si todos los activos eligieron un puntaje (incluido 0) en la categoría actual.
 bool todosVotaronCategoriaTuti(PartidaTuti p, [int? catIndex]) {
   final idx = catIndex ?? p.categoriaRevision;
-  for (final n in p.nombres) {
+  for (final n in p.nombresActivos) {
     final list = p.puntajes[n];
     if (list == null || idx < 0 || idx >= list.length) return false;
     if (list[idx] == null) return false;
@@ -423,7 +460,7 @@ bool todosVotaronCategoriaTuti(PartidaTuti p, [int? catIndex]) {
 List<String> pendientesVotoTuti(PartidaTuti p, [int? catIndex]) {
   final idx = catIndex ?? p.categoriaRevision;
   final out = <String>[];
-  for (final n in p.nombres) {
+  for (final n in p.nombresActivos) {
     final list = p.puntajes[n];
     if (list == null || idx >= list.length || list[idx] == null) {
       out.add(n);
@@ -510,6 +547,36 @@ void acabarPartidaTuti(PartidaTuti p) {
   p.fase = FaseTuti.fin;
   p.faseInicioMs = DateTime.now().millisecondsSinceEpoch;
 }
+
+/// Marca abandono. Si queda ≤1 activo, termina con victoria por abandono.
+/// Devuelve true si la partida terminó.
+bool rendirseTuti(PartidaTuti p, String nombre) {
+  if (p.fase == FaseTuti.fin) return true;
+  if (p.estaRendido(nombre)) return p.fase == FaseTuti.fin;
+  p.rendidos = [...p.rendidos, nombre];
+  final activos = p.nombresActivos;
+  if (activos.length <= 1) {
+    p.victoriaPorAbandono = true;
+    p.ganadorAbandono = activos.isEmpty ? null : activos.first;
+    acabarPartidaTuti(p);
+    return true;
+  }
+  // Ajustar spinner al próximo activo si hacía falta.
+  final spinner = p.nombreSpinner;
+  final idx = p.nombres.indexOf(spinner);
+  if (idx >= 0) p.indiceSpinner = idx;
+  return false;
+}
+
+String reglasTutiFruti() => '''
+• Cada ronda sale una letra al azar (ruleta).
+• Un jugador acelera la ruleta y otro la para.
+• Escribí una palabra por categoría que empiece con esa letra.
+• Quien termine toca «Basta para mi, basta para todos»: hay una gracia corta y se cierra la escritura.
+• En la revisión cada uno se puntúa: 0, 5, 10 o 20.
+• Gana quien sume más puntos al final de las rondas.
+• Si alguien se rinde y queda un solo jugador, ese gana por abandono.
+''';
 
 List<MapEntry<String, int>> rankingTuti(PartidaTuti p) {
   final entries = p.totales.entries.toList()

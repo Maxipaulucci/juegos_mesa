@@ -40,6 +40,8 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
   Future<void> _colaPublicacion = Future<void>.value();
   bool _parandoRuleta = false;
   DateTime? _ultimoAcelerarPub;
+  bool _mostrarMenu = false;
+  bool _confirmarRendicion = false;
 
   bool get _esMiSpinner =>
       _partida.nombreSpinner == widget.miNombre;
@@ -153,20 +155,26 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     if (gameState == null) return;
     final version = (gameState['version'] as num?)?.toInt() ?? 0;
     final remoteFase = FaseTutiX.fromId(gameState['fase']?.toString());
-    final remotoMasAvanzado = remoteFase.orden > _partida.fase.orden;
+    final remoteRonda = (gameState['ronda'] as num?)?.toInt() ?? 1;
+    // Nueva ronda reinicia a countdownRuleta (orden bajo): eso NO es regressión.
+    final progresoRemoto = remoteRonda > _partida.ronda ||
+        (remoteRonda == _partida.ronda &&
+            remoteFase.orden > _partida.fase.orden);
+    final regresionRemota = remoteRonda < _partida.ronda ||
+        (remoteRonda == _partida.ronda &&
+            remoteFase.orden < _partida.fase.orden);
     final bastaNuevo =
         gameState['bastaTodos'] == true && !_partida.bastaTodos;
-    final urgente = remotoMasAvanzado || bastaNuevo;
+    final urgente = progresoRemoto || bastaNuevo;
 
     // Versión optimista local puede quedar por encima tras un publish ignorado;
-    // si el remoto ya avanzó de fase o hay BASTA, hay que aplicar igual.
+    // si el remoto ya avanzó de fase/ronda o hay BASTA, hay que aplicar igual.
     if (version <= _onlineVersion && !urgente) return;
-    // Mientras publicamos, solo aceptamos avances urgentes (PARAR / BASTA).
+    // Mientras publicamos, solo aceptamos avances urgentes.
     if (_publicandoOnline && !urgente) return;
 
-    // No volver atrás: p.ej. ruleta vieja no pisa un PARAR ya aplicado.
-    if (remoteFase.orden < _partida.fase.orden &&
-        _partida.fase.orden >= FaseTuti.countdownEscritura.orden) {
+    // No volver atrás dentro de la misma ronda (p.ej. ruleta vieja vs PARAR).
+    if (regresionRemota) {
       unawaited(_publicarEstadoOnline(forzar: true));
       return;
     }
@@ -244,6 +252,15 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     if (deboFusionar) {
       unawaited(_publicarEstadoOnline());
     }
+
+    // Si me rendí y la partida sigue (3+), vuelvo al lobby.
+    if (_partida.estaRendido(widget.miNombre) &&
+        _partida.fase != FaseTuti.fin &&
+        mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+    }
   }
 
   void _rebuildRespCtrls() {
@@ -310,13 +327,22 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
           _onlineVersion = remoteV;
           _partida.version = remoteV;
           final remoteFase = FaseTutiX.fromId(remoteGs?['fase']?.toString());
+          final remoteRonda =
+              (remoteGs?['ronda'] as num?)?.toInt() ?? 1;
+          final localRonda = (gameState['ronda'] as num?)?.toInt() ??
+              _partida.ronda;
+          final progresoRemoto = remoteRonda > localRonda ||
+              (remoteRonda == localRonda &&
+                  remoteFase.orden > faseAlPublicar.orden);
+          final regresionRemota = remoteRonda < localRonda ||
+              (remoteRonda == localRonda &&
+                  remoteFase.orden < faseAlPublicar.orden);
 
-          // El rival ya avanzó (PARAR / countdown) o publicó BASTA: adoptar.
+          // El rival ya avanzó (nueva ronda / PARAR / BASTA): adoptar.
           final remoteBasta = remoteGs?['bastaTodos'] == true;
           final bastaRemotoNuevo =
               remoteBasta && gameState['bastaTodos'] != true;
-          if (remoteGs != null &&
-              (remoteFase.orden > faseAlPublicar.orden || bastaRemotoNuevo)) {
+          if (remoteGs != null && (progresoRemoto || bastaRemotoNuevo)) {
             if (mounted) {
               _aplicarGameStateDeSala(res.sala, remoteGs, remoteFase);
             }
@@ -325,7 +351,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
 
           // Solo reintentar si debemos forzar un avance o el remoto está atrasado.
           if (forzar ||
-              remoteFase.orden < faseAlPublicar.orden ||
+              regresionRemota ||
               (gameState['bastaTodos'] == true && !remoteBasta)) {
             await Future<void>.delayed(
               Duration(milliseconds: 80 * (intento + 1)),
@@ -347,9 +373,88 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
     return _colaPublicacion;
   }
 
-  void _mutar(void Function() fn) {
+  void _mutar(void Function() fn, {bool forzar = false}) {
     setState(fn);
-    unawaited(_publicarEstadoOnline());
+    unawaited(_publicarEstadoOnline(forzar: forzar));
+  }
+
+  Future<void> _continuarRevisionOnline() async {
+    setState(() => continuarRevisionTuti(_partida));
+    await _publicarEstadoOnline(forzar: true);
+  }
+
+  Future<void> _acabarPartidaOnline() async {
+    setState(() => acabarPartidaTuti(_partida));
+    await _publicarEstadoOnline(forzar: true);
+  }
+
+  void _abrirMenu() {
+    setState(() {
+      _mostrarMenu = true;
+      _confirmarRendicion = false;
+    });
+  }
+
+  void _cerrarMenu() {
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+    });
+  }
+
+  void _abrirReglas() {
+    _cerrarMenu();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.carta,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'REGLAS · TUTTI FRUTTI',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.acento,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                reglasTutiFruti(),
+                style: const TextStyle(color: AppColors.texto, height: 1.45),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _rendirse() async {
+    if (_partida.fase == FaseTuti.fin) return;
+    if (_partida.estaRendido(widget.miNombre)) return;
+
+    final termino = rendirseTuti(_partida, widget.miNombre);
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+    });
+    await _publicarEstadoOnline(forzar: true);
+
+    if (!mounted) return;
+    // Si la partida sigue con otros jugadores, salgo yo.
+    if (!termino) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _pararRuleta() async {
@@ -408,41 +513,69 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.fondo,
-      resizeToAvoidBottomInset: true,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -0.25),
-                radius: 1.15,
-                colors: [
-                  Color(0xFF3A1450),
-                  AppColors.fondo,
-                  Color(0xFF05020C),
+    final terminada = _partida.fase == FaseTuti.fin;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (terminada) {
+          Navigator.of(context).pop();
+          return;
+        }
+        _abrirMenu();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.fondo,
+        resizeToAvoidBottomInset: true,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -0.25),
+                  radius: 1.15,
+                  colors: [
+                    Color(0xFF3A1450),
+                    AppColors.fondo,
+                    Color(0xFF05020C),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  _barraSuperior(),
+                  Expanded(child: _cuerpoFase()),
                 ],
               ),
             ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                _barraSuperior(),
-                Expanded(child: _cuerpoFase()),
-              ],
-            ),
-          ),
-          if (_partida.fase == FaseTuti.fin)
-            Positioned.fill(
-              child: VictoriaTutiFrutiOverlay(
-                partida: _partida,
-                onVolver: () => Navigator.of(context).pop(),
+            if (terminada)
+              Positioned.fill(
+                child: VictoriaTutiFrutiOverlay(
+                  partida: _partida,
+                  onVolver: () => Navigator.of(context).pop(),
+                ),
               ),
-            ),
-        ],
+            if (_mostrarMenu)
+              Positioned.fill(
+                child: _MenuOverlayTuti(
+                  jugador: widget.miNombre,
+                  partidaTerminada: terminada,
+                  confirmarRendicion: _confirmarRendicion,
+                  onCerrar: _cerrarMenu,
+                  onReglas: _abrirReglas,
+                  onSalirORendirse: terminada
+                      ? () => Navigator.of(context).pop()
+                      : () => setState(() => _confirmarRendicion = true),
+                  onConfirmarRendicion: () => unawaited(_rendirse()),
+                  onCancelarRendicion: () =>
+                      setState(() => _confirmarRendicion = false),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -452,9 +585,9 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back, color: AppColors.texto),
+          _RoundIconTuti(
+            icon: Icons.menu,
+            onTap: _abrirMenu,
           ),
           Expanded(
             child: Text(
@@ -468,7 +601,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 48),
+          const SizedBox(width: 42),
         ],
       ),
     );
@@ -866,9 +999,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
                     if (!ultimaCat)
                       ElevatedButton(
                         onPressed: puedenContinuar
-                            ? () => _mutar(
-                                  () => continuarRevisionTuti(_partida),
-                                )
+                            ? () => unawaited(_continuarRevisionOnline())
                             : null,
                         child: const Text('Continuar'),
                       )
@@ -876,17 +1007,14 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
                       if (quedan)
                         ElevatedButton(
                           onPressed: puedenContinuar
-                              ? () => _mutar(
-                                    () => continuarRevisionTuti(_partida),
-                                  )
+                              ? () => unawaited(_continuarRevisionOnline())
                               : null,
                           child: const Text('Siguiente ronda'),
                         ),
                       if (quedan) const SizedBox(height: 8),
                       OutlinedButton(
                         onPressed: puedenContinuar
-                            ? () =>
-                                _mutar(() => acabarPartidaTuti(_partida))
+                            ? () => unawaited(_acabarPartidaOnline())
                             : null,
                         child: Text(
                           quedan
@@ -1288,5 +1416,296 @@ class _AnilloBastaPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AnilloBastaPainter oldDelegate) =>
       oldDelegate.progreso != progreso || oldDelegate.color != color;
+}
+
+class _RoundIconTuti extends StatelessWidget {
+  const _RoundIconTuti({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.carta,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(icon, color: AppColors.texto),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuOverlayTuti extends StatelessWidget {
+  const _MenuOverlayTuti({
+    required this.jugador,
+    required this.partidaTerminada,
+    required this.confirmarRendicion,
+    required this.onCerrar,
+    required this.onReglas,
+    required this.onSalirORendirse,
+    required this.onConfirmarRendicion,
+    required this.onCancelarRendicion,
+  });
+
+  final String jugador;
+  final bool partidaTerminada;
+  final bool confirmarRendicion;
+  final VoidCallback onCerrar;
+  final VoidCallback onReglas;
+  final VoidCallback onSalirORendirse;
+  final VoidCallback onConfirmarRendicion;
+  final VoidCallback onCancelarRendicion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onCerrar,
+        child: SafeArea(
+          child: Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 380),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF3B1D6E),
+                          Color(0xFF1A0A33),
+                          Color(0xFF2A1050),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppColors.acento, width: 2),
+                      boxShadow: neonGlow(AppColors.acento, blur: 18),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'MENÚ',
+                                style: TextStyle(
+                                  color: AppColors.acento,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: onCerrar,
+                              icon: const Icon(
+                                Icons.close,
+                                color: AppColors.texto,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          jugador.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.texto,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                            shadows: [
+                              Shadow(
+                                color: AppColors.acento.withValues(alpha: 0.7),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          partidaTerminada
+                              ? 'Partida terminada'
+                              : 'En partida',
+                          style: TextStyle(
+                            color:
+                                AppColors.textoSuave.withValues(alpha: 0.95),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        _ArcadeButtonTuti(
+                          label: 'REGLAS',
+                          icon: Icons.menu_book_rounded,
+                          tono: _BotonTonoTuti.azul,
+                          onPressed: onReglas,
+                        ),
+                        const SizedBox(height: 10),
+                        if (partidaTerminada)
+                          _ArcadeButtonTuti(
+                            label: 'SALIR',
+                            icon: Icons.logout_rounded,
+                            tono: _BotonTonoTuti.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else if (!confirmarRendicion)
+                          _ArcadeButtonTuti(
+                            label: 'RENDIRSE',
+                            icon: Icons.flag_rounded,
+                            tono: _BotonTonoTuti.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else ...[
+                          const Text(
+                            '¿Confirmás tu derrota?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.peligro,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _ArcadeButtonTuti(
+                            label: 'CONFIRMAR RENDICIÓN',
+                            icon: Icons.check_circle_outline,
+                            tono: _BotonTonoTuti.rojo,
+                            onPressed: onConfirmarRendicion,
+                          ),
+                          const SizedBox(height: 10),
+                          _ArcadeButtonTuti(
+                            label: 'CANCELAR',
+                            icon: Icons.close,
+                            tono: _BotonTonoTuti.violeta,
+                            onPressed: onCancelarRendicion,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _BotonTonoTuti { violeta, azul, rojo }
+
+class _ArcadeButtonTuti extends StatelessWidget {
+  const _ArcadeButtonTuti({
+    required this.label,
+    required this.icon,
+    required this.tono,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final _BotonTonoTuti tono;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    late final List<Color> colors;
+    late final Color glow;
+    late final Color fg;
+
+    switch (tono) {
+      case _BotonTonoTuti.violeta:
+        colors = const [
+          Color(0xFFCE93D8),
+          Color(0xFFAB47BC),
+          Color(0xFF6A1B9A),
+        ];
+        glow = AppColors.rosa;
+        fg = Colors.white;
+      case _BotonTonoTuti.azul:
+        colors = const [
+          Color(0xFF81D4FA),
+          Color(0xFF29B6F6),
+          Color(0xFF0277BD),
+        ];
+        glow = AppColors.azul;
+        fg = Colors.white;
+      case _BotonTonoTuti.rojo:
+        colors = const [
+          Color(0xFFFF8A80),
+          Color(0xFFFF5252),
+          Color(0xFFC62828),
+        ];
+        glow = AppColors.peligro;
+        fg = Colors.white;
+    }
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.4,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: enabled ? neonGlow(glow, blur: 16) : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: Ink(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: colors,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white70, width: 1.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: fg),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: fg,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
