@@ -559,8 +559,8 @@ void elegirGuardadosPc(
     }
   }
 
-  // Generala o póker: un grupo útil (trío+, o par de un número aún libre).
-  // Prioriza tríos; si hay empate, el de más puntos en casilla de número.
+  // Generala o póker: un grupo útil (trío+, o pares de números aún libres).
+  // Prioriza tríos; si solo hay pares de números libres, marca todos esos.
   if (buscaGenerala || buscaPoker) {
     final paresUtiles = pares
         .where((c) => (counts[c] ?? 0) >= 3 || numerosLibres.contains(c))
@@ -576,6 +576,25 @@ void elegirGuardadosPc(
       return b.compareTo(a);
     });
     if (paresUtiles.isNotEmpty) {
+      final trios = [
+        for (final c in paresUtiles)
+          if ((counts[c] ?? 0) >= 3) c,
+      ];
+      if (trios.isNotEmpty) {
+        // Trío/póker en camino: un solo grupo (el mejor).
+        _marcarSoloCara(t, trios.first);
+        return;
+      }
+      // Varios pares de números libres en el tablero: marcarlos todos
+      // (p.ej. dos 6 y dos 1 si ambas casillas están vacías).
+      final paresLibres = {
+        for (final c in paresUtiles)
+          if (numerosLibres.contains(c)) c,
+      };
+      if (paresLibres.isNotEmpty) {
+        _marcarCaras(t, paresLibres);
+        return;
+      }
       _marcarSoloCara(t, paresUtiles.first);
       return;
     }
@@ -590,13 +609,13 @@ void elegirGuardadosPc(
     }
   }
 
-  // Mejor par de número libre (más puntos cara×cantidad), no todos a la vez:
-  // así no se queda con un 2 débil si también tiene un trío de 3.
-  final paresDeNumeroLibre =
-      pares.where(numerosLibres.contains).toList(growable: false);
+  // Pares de números libres en el tablero: marcar todos, no solo el de más puntos.
+  final paresDeNumeroLibre = {
+    for (final c in pares)
+      if (numerosLibres.contains(c)) c,
+  };
   if (paresDeNumeroLibre.isNotEmpty) {
-    // Ya vienen ordenados por cantidad/puntos en [pares].
-    _marcarSoloCara(t, paresDeNumeroLibre.first);
+    _marcarCaras(t, paresDeNumeroLibre);
     return;
   }
 

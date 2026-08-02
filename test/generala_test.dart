@@ -318,6 +318,30 @@ void main() {
     expect(t.guardados.last, isFalse);
   });
 
+  test('auto-selecciona todos los pares de números libres en el tablero', () {
+    final j = JugadorGenerala('A');
+    // Sin full: no entra por el atajo de FULL; igual debe marcar 6 y 1.
+    j.casillas[CategoriaGenerala.full] = ptsFull;
+    final t = EstadoTurnoGenerala();
+    tirarDadosGenerala(t, dadosForzados: [6, 6, 1, 1, 3]);
+    autoSeleccionarDadosUtiles(j, t);
+    expect(t.guardados.where((g) => g).length, 4);
+    expect(t.dados.take(4).toSet(), {6, 1});
+    expect(t.dados.last, 3);
+    expect(t.guardados.last, isFalse);
+  });
+
+  test('no auto-selecciona el par de un número ya anotado', () {
+    final j = JugadorGenerala('A');
+    j.casillas[CategoriaGenerala.uno] = 2;
+    j.casillas[CategoriaGenerala.full] = ptsFull;
+    final t = EstadoTurnoGenerala();
+    tirarDadosGenerala(t, dadosForzados: [6, 6, 1, 1, 3]);
+    autoSeleccionarDadosUtiles(j, t);
+    expect(t.guardados.where((g) => g).length, 2);
+    expect(t.dados.take(2).toSet(), {6});
+  });
+
   test('no auto-selecciona pares de números ya anotados si full está lleno', () {
     final j = JugadorGenerala('A');
     j.casillas[CategoriaGenerala.tres] = 9;
