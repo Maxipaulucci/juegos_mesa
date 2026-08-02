@@ -1971,69 +1971,59 @@ class _PlayerCard extends StatelessWidget {
   }
 
   Widget _nombre(Color accent) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: puedeRenombrar ? onRenombrar : null,
-        borderRadius: BorderRadius.circular(10),
-        child: Ink(
-          padding: EdgeInsets.symmetric(
-            vertical: puedeRenombrar ? 4 : 2,
-            horizontal: puedeRenombrar ? 8 : 2,
-          ),
-          decoration: puedeRenombrar
-              ? BoxDecoration(
-                  color: const Color(0xFF0E061C),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: AppColors.violeta.withValues(alpha: 0.7),
-                    width: 1.2,
-                  ),
-                )
-              : null,
-          child: Row(
-            mainAxisAlignment:
-                vertical ? MainAxisAlignment.center : MainAxisAlignment.start,
-            mainAxisSize: vertical ? MainAxisSize.min : MainAxisSize.max,
-            children: [
-              if (vertical)
-                Text(
-                  jugador.nombre.toUpperCase(),
-                  maxLines: 2,
-                  softWrap: true,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    letterSpacing: 0.5,
-                    height: 1.15,
-                  ),
-                )
-              else
-                Expanded(
+    return Align(
+      alignment: vertical ? Alignment.center : Alignment.centerLeft,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: puedeRenombrar ? onRenombrar : null,
+          borderRadius: BorderRadius.circular(10),
+          child: Ink(
+            padding: EdgeInsets.symmetric(
+              vertical: puedeRenombrar ? 4 : 2,
+              horizontal: puedeRenombrar ? 8 : 2,
+            ),
+            decoration: puedeRenombrar
+                ? BoxDecoration(
+                    color: const Color(0xFF0E061C),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.violeta.withValues(alpha: 0.7),
+                      width: 1.2,
+                    ),
+                  )
+                : null,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: vertical
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                Flexible(
                   child: Text(
                     jugador.nombre.toUpperCase(),
                     maxLines: 2,
                     softWrap: true,
                     overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.start,
-                    style: const TextStyle(
+                    textAlign: vertical ? TextAlign.center : TextAlign.start,
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 14,
+                      fontSize: vertical ? 12 : 14,
                       letterSpacing: 0.5,
                       height: 1.15,
                     ),
                   ),
                 ),
-              if (puedeRenombrar) ...[
-                const SizedBox(width: 6),
-                Icon(
-                  Icons.edit_rounded,
-                  size: 14,
-                  color: AppColors.violeta.withValues(alpha: 0.95),
-                ),
+                if (puedeRenombrar) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.edit_rounded,
+                    size: 14,
+                    color: AppColors.violeta.withValues(alpha: 0.95),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
