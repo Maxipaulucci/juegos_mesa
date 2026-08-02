@@ -5,14 +5,25 @@ import 'screens/home_screen.dart';
 import 'shared/carga/pantalla_carga.dart';
 import 'theme/app_theme.dart';
 
+bool get _esWindowsEscritorio =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Bug de Flutter en Windows: el puente de accesibilidad (AXTree) se
-  // desincroniza con Tooltips/overlays y spamea errores en consola.
-  // Ver https://github.com/flutter/flutter/issues/182444
+  // Bug de Flutter en Windows (AXTree / accessibility_bridge): se corrompe
+  // con Tooltips y overlays. Cortamos actualizaciones semánticas al engine.
+  // https://github.com/flutter/flutter/issues/182444
+  if (_esWindowsEscritorio) {
+    final dispatcher = PlatformDispatcher.instance;
+    void apagarArbol() => dispatcher.setSemanticsTreeEnabled(false);
+    dispatcher.onSemanticsEnabledChanged = apagarArbol;
+    apagarArbol();
+    WidgetsBinding.instance.addPostFrameCallback((_) => apagarArbol());
+  }
+
   Widget app = const JuegosMesaApp();
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+  if (_esWindowsEscritorio) {
     app = ExcludeSemantics(child: app);
   }
   runApp(app);
@@ -27,6 +38,11 @@ class JuegosMesaApp extends StatelessWidget {
       title: 'Juegos de Mesa',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      builder: (context, child) {
+        final page = child ?? const SizedBox.shrink();
+        if (!_esWindowsEscritorio) return page;
+        return ExcludeSemantics(child: page);
+      },
       home: const _SplashInicial(),
     );
   }

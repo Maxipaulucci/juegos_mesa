@@ -1007,51 +1007,43 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                   if (widget.modoDios)
                                     Positioned(
                                       right: 0,
-                                      child: Tooltip(
-                                        excludeFromSemantics: true,
-                                        message: _dadosForzados == null
-                                            ? 'Forzar próxima tirada'
-                                            : 'Próxima: ${_dadosForzados!.join(' ')}'
-                                                ' + azar',
-                                        child: Material(
-                                          color: AppColors.carta,
-                                          shape: const CircleBorder(),
-                                          child: InkWell(
-                                            customBorder: const CircleBorder(),
-                                            onTap: terminada ||
-                                                    _turnoDeLaPc ||
-                                                    _esperandoRivalOnline
-                                                ? null
-                                                : _configurarDadosForzados,
-                                            child: Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: _dadosForzados != null
-                                                      ? AppColors.mint
-                                                      : AppColors.textoSuave
-                                                          .withValues(
-                                                              alpha: 0.5),
-                                                  width: _dadosForzados != null
-                                                      ? 2
-                                                      : 1,
-                                                ),
-                                                boxShadow:
-                                                    _dadosForzados != null
-                                                        ? neonGlow(
-                                                            AppColors.mint,
-                                                            blur: 10)
-                                                        : null,
-                                              ),
-                                              child: Icon(
-                                                Icons.bug_report,
-                                                size: 20,
+                                      child: Material(
+                                        color: AppColors.carta,
+                                        shape: const CircleBorder(),
+                                        child: InkWell(
+                                          customBorder: const CircleBorder(),
+                                          onTap: terminada ||
+                                                  _turnoDeLaPc ||
+                                                  _esperandoRivalOnline
+                                              ? null
+                                              : _configurarDadosForzados,
+                                          child: Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
                                                 color: _dadosForzados != null
                                                     ? AppColors.mint
-                                                    : AppColors.textoSuave,
+                                                    : AppColors.textoSuave
+                                                        .withValues(
+                                                            alpha: 0.5),
+                                                width: _dadosForzados != null
+                                                    ? 2
+                                                    : 1,
                                               ),
+                                              boxShadow: _dadosForzados != null
+                                                  ? neonGlow(
+                                                      AppColors.mint,
+                                                      blur: 10)
+                                                  : null,
+                                            ),
+                                            child: Icon(
+                                              Icons.bug_report,
+                                              size: 20,
+                                              color: _dadosForzados != null
+                                                  ? AppColors.mint
+                                                  : AppColors.textoSuave,
                                             ),
                                           ),
                                         ),

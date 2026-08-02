@@ -246,33 +246,29 @@ class _BotonOjoDados extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      excludeFromSemantics: true,
-      message: 'Mantené para ver los dados',
-      child: Listener(
-        onPointerDown: (_) => onPressStart(),
-        onPointerUp: (_) => onPressEnd(),
-        onPointerCancel: (_) => onPressEnd(),
-        child: Container(
-          width: 38,
-          height: 38,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: viendo
-                ? AppColors.azul.withValues(alpha: 0.35)
-                : AppColors.carta,
-            border: Border.all(
-              color: viendo ? AppColors.azul : AppColors.cartaBorde,
-              width: 1.5,
-            ),
-            boxShadow: viendo ? neonGlow(AppColors.azul, blur: 10) : null,
+    return Listener(
+      onPointerDown: (_) => onPressStart(),
+      onPointerUp: (_) => onPressEnd(),
+      onPointerCancel: (_) => onPressEnd(),
+      child: Container(
+        width: 38,
+        height: 38,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: viendo
+              ? AppColors.azul.withValues(alpha: 0.35)
+              : AppColors.carta,
+          border: Border.all(
+            color: viendo ? AppColors.azul : AppColors.cartaBorde,
+            width: 1.5,
           ),
-          child: Icon(
-            viendo ? Icons.visibility : Icons.visibility_outlined,
-            size: 18,
-            color: viendo ? AppColors.azul : AppColors.textoSuave,
-          ),
+          boxShadow: viendo ? neonGlow(AppColors.azul, blur: 10) : null,
+        ),
+        child: Icon(
+          viendo ? Icons.visibility : Icons.visibility_outlined,
+          size: 18,
+          color: viendo ? AppColors.azul : AppColors.textoSuave,
         ),
       ),
     );
