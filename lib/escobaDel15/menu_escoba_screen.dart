@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/escobaDel15/partida_escoba_screen.dart';
+import 'package:app_juegos_mesa/escobaDel15/standby_store.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
-import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Menú de Escoba del 15: mismas entradas que Generala.
+/// Menú de Escoba del 15 (sin selector de dificultad: una sola IA).
 class MenuEscobaScreen extends StatelessWidget {
   const MenuEscobaScreen({super.key});
 
@@ -15,11 +15,11 @@ class MenuEscobaScreen extends StatelessWidget {
     required BuildContext ctx,
     required List<String> nombres,
     bool contraPc = false,
-    DificultadPc? dificultadPc,
     String? salaCodigo,
     String? miNombre,
     bool replace = false,
     AjustesEstado? ajustes,
+    PartidaEscobaResume? resume,
   }) {
     return navegarConCarga<void>(
       ctx,
@@ -29,10 +29,10 @@ class MenuEscobaScreen extends StatelessWidget {
       builder: (_) => PartidaEscobaScreen(
         nombres: nombres,
         contraPc: contraPc,
-        dificultadPc: dificultadPc,
         salaCodigo: salaCodigo,
         miNombre: miNombre,
         ajustesIniciales: ajustes,
+        resume: resume,
       ),
     );
   }
@@ -43,7 +43,7 @@ class MenuEscobaScreen extends StatelessWidget {
       titulo: 'Escoba del 15',
       juegoId: MenuJuegoScreen.juegoIdEscobaDel15,
       modosDados: const [1],
-      mostrarDificultad: true,
+      mostrarDificultad: false,
       onPartidaRapida: (ctx, estado, _) async {
         await _abrir(
           ctx: ctx,
@@ -52,15 +52,17 @@ class MenuEscobaScreen extends StatelessWidget {
         );
       },
       onVsPc: (ctx, estado, _) {
-        final nombres = estado.nombres.length >= 2
-            ? [estado.nombres.first, 'PC']
-            : const ['Jugador 1', 'PC'];
+        final resume = EscobaStandByStore.consumir();
+        final nombres = resume?.nombres ??
+            (estado.nombres.length >= 2
+                ? [estado.nombres.first, 'PC']
+                : const ['Jugador 1', 'PC']);
         _abrir(
           ctx: ctx,
           nombres: nombres,
           contraPc: true,
-          dificultadPc: estado.dificultad,
-          ajustes: estado.ajustes,
+          ajustes: resume?.ajustesIniciales ?? estado.ajustes,
+          resume: resume,
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {

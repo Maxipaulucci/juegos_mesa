@@ -19,16 +19,7 @@ class MarcadorPalitosEscoba extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = puntos.clamp(0, 99);
-    if (n == 0) {
-      return Text(
-        '0',
-        style: TextStyle(
-          color: color.withValues(alpha: 0.7),
-          fontWeight: FontWeight.w800,
-          fontSize: tamanoGrupo * 0.55,
-        ),
-      );
-    }
+    if (n == 0) return const SizedBox.shrink();
     final completos = n ~/ 5;
     final resto = n % 5;
     return Wrap(

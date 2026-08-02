@@ -14,6 +14,9 @@ String reglasEscobaDel15() => '''
 · Escoba: si te llevás todas las cartas de la mesa, sumás 1 punto
   (por cada escoba) al final de la ronda.
 
+· Al terminar la ronda, las cartas que quedan en la mesa (el pozo)
+  se las lleva el último jugador que haya capturado una combinación.
+
 · Al terminar la ronda también suman:
   - 1 punto por cada escoba hecha en la ronda;
   - 1 punto quien juntó más cartas (si empatan, nadie);

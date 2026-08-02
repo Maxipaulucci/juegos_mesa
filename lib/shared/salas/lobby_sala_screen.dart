@@ -277,58 +277,58 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
               padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset * 0.15),
               keyboardDismissBehavior:
                   ScrollViewKeyboardDismissBehavior.onDrag,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          codigoVisible,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 4,
-                            color: AppColors.acento,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: _mostrarCodigo ? 'Ocultar' : 'Mostrar',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    codigoVisible,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 4,
+                      color: AppColors.acento,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: _mostrarCodigo ? 'Ocultar' : 'Mostrar',
                         onPressed: () => setState(
                           () => _mostrarCodigo = !_mostrarCodigo,
                         ),
-                        icon: Icon(
+                  icon: Icon(
                           _mostrarCodigo
                               ? Icons.visibility_off
                               : Icons.visibility,
-                          color: AppColors.texto,
-                        ),
-                      ),
-                      if (_mostrarCodigo)
-                        IconButton(
-                          tooltip: 'Copiar',
-                          onPressed: _copiarCodigo,
-                          icon: const Icon(Icons.copy, color: AppColors.texto),
-                        ),
-                    ],
+                    color: AppColors.texto,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _soyAnfitrion
-                        ? 'Sos el anfitrión. Compartí el código cuando quieras.'
-                        : 'Esperando que el anfitrión inicie la partida…',
-                    style: const TextStyle(color: AppColors.textoSuave),
+                ),
+                if (_mostrarCodigo)
+                  IconButton(
+                    tooltip: 'Copiar',
+                    onPressed: _copiarCodigo,
+                    icon: const Icon(Icons.copy, color: AppColors.texto),
                   ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _soyAnfitrion
+                  ? 'Sos el anfitrión. Compartí el código cuando quieras.'
+                  : 'Esperando que el anfitrión inicie la partida…',
+              style: const TextStyle(color: AppColors.textoSuave),
+            ),
                   if (_soyAnfitrion && widget.mostrarSelectorDados) ...[
-                    const SizedBox(height: 20),
+              const SizedBox(height: 20),
                     const Text(
                       'Modo',
                       style: TextStyle(color: AppColors.textoSuave),
                     ),
-                    const SizedBox(height: 8),
+              const SizedBox(height: 8),
                     SegmentedButton<int>(
-                      segments: const [
+                segments: const [
                         ButtonSegment(value: 5, label: Text('5 dados')),
                         ButtonSegment(value: 6, label: Text('6 dados')),
                       ],
@@ -507,58 +507,58 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                         ),
                       ),
                     ],
-                  ],
-                  const SizedBox(height: 24),
-                  Text(
+            ],
+            const SizedBox(height: 24),
+            Text(
                     'Jugadores (${_sala.jugadores.length})',
-                    style: const TextStyle(
-                      color: AppColors.texto,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+              style: const TextStyle(
+                color: AppColors.texto,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
                   for (var i = 0; i < _sala.jugadores.length; i++) ...[
                     if (i > 0) const SizedBox(height: 8),
                     Builder(
                       builder: (context) {
                         final j = _sala.jugadores[i];
                         final esHost = j.id == _sala.anfitrionId;
-                        return Container(
+                  return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
                             vertical: 10,
                           ),
-                          decoration: BoxDecoration(
-                            color: AppColors.carta,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
+                    decoration: BoxDecoration(
+                      color: AppColors.carta,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
                                   esHost
                                       ? '${j.nombre} (anfitrión)'
                                       : j.nombre,
-                                  style: const TextStyle(
-                                    color: AppColors.texto,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                              if (_soyAnfitrion && !esHost)
-                                IconButton(
-                                  tooltip: 'Expulsar',
-                                  onPressed: () => _expulsar(j),
+                            style: const TextStyle(
+                              color: AppColors.texto,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        if (_soyAnfitrion && !esHost)
+                          IconButton(
+                            tooltip: 'Expulsar',
+                            onPressed: () => _expulsar(j),
                                   icon: const Icon(
                                     Icons.delete_outline,
                                     color: AppColors.peligro,
                                   ),
-                                ),
-                            ],
                           ),
-                        );
-                      },
+                      ],
+                    ),
+                  );
+                },
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -585,7 +585,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                     )
                   : const Text(
                       'Cuando el anfitrión inicie, la partida arranca sola acá.',
-                      textAlign: TextAlign.center,
+                textAlign: TextAlign.center,
                       style: TextStyle(
                         color: AppColors.textoSuave,
                         fontSize: 12,

@@ -1,14 +1,16 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/escobaDel15/marcador_palitos.dart';
+import 'package:app_juegos_mesa/escobaDel15/menu_partida_escoba.dart';
 import 'package:app_juegos_mesa/escobaDel15/motor_escoba.dart';
+import 'package:app_juegos_mesa/escobaDel15/resumen_ronda_escoba_overlay.dart';
+import 'package:app_juegos_mesa/escobaDel15/standby_store.dart';
 import 'package:app_juegos_mesa/escobaDel15/textos.dart';
+import 'package:app_juegos_mesa/escobaDel15/victoria_escoba_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
-import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
-import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
 
 /// Partida de Escoba del 15 (cartas en texto crudo, sin skin).
 class PartidaEscobaScreen extends StatefulWidget {
@@ -16,18 +18,18 @@ class PartidaEscobaScreen extends StatefulWidget {
     super.key,
     required this.nombres,
     this.contraPc = false,
-    this.dificultadPc,
     this.salaCodigo,
     this.miNombre,
     this.ajustesIniciales,
+    this.resume,
   });
 
   final List<String> nombres;
   final bool contraPc;
-  final DificultadPc? dificultadPc;
   final String? salaCodigo;
   final String? miNombre;
   final AjustesEstado? ajustesIniciales;
+  final PartidaEscobaResume? resume;
 
   @override
   State<PartidaEscobaScreen> createState() => _PartidaEscobaScreenState();
@@ -35,91 +37,335 @@ class PartidaEscobaScreen extends StatefulWidget {
 
 class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   late PartidaEscoba _partida;
+  late List<String> _nombres;
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
-  bool _confirmarSalir = false;
+  bool _confirmarRendicion = false;
   String? _aviso;
   CartaEscoba? _cartaSeleccionada;
   final List<CartaEscoba> _mesaSeleccion = [];
+  bool _pcMostrandoJugada = false;
+  String? _mensajePc;
+  int _pcToken = 0;
+
+  bool get _mostrarResumenRonda {
+    final r = _partida.ultimoResultado;
+    if (r == null) return false;
+    return _partida.fase == FaseEscoba.finRonda;
+  }
 
   bool get _esPcTurno {
     if (!widget.contraPc) return false;
     return _partida.jugadorActual.nombre == 'PC';
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
-    _partida = nuevaPartidaEscoba(nombres: widget.nombres);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+  bool get _bloquearHumano => _esPcTurno || _pcMostrandoJugada;
+
+  JugadorEscoba get _manoVisible {
+    if (!widget.contraPc) return _partida.jugadorActual;
+    return _partida.jugadores.firstWhere(
+      (j) => j.nombre != 'PC',
+      orElse: () => _partida.jugadores.first,
+    );
   }
 
-  void _talVezPc() {
-    if (!mounted || !_esPcTurno || _partida.terminada) return;
-    if (_partida.fase == FaseEscoba.finRonda) return;
-    Future<void>.delayed(const Duration(milliseconds: 650), () {
-      if (!mounted || !_esPcTurno) return;
-      setState(() {
-        jugarTurnoPcEscoba(_partida);
-        _cartaSeleccionada = null;
-        _mesaSeleccion.clear();
-        _aviso = null;
-      });
-      if (_partida.fase == FaseEscoba.jugando) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+  static const int _maxNombre = 15;
+
+  int? get _indiceRenombrable {
+    if (_partida.terminada) return null;
+    if (widget.contraPc) {
+      final i = _partida.jugadores.indexWhere((j) => j.nombre != 'PC');
+      return i >= 0 ? i : null;
+    }
+    final i = _partida.indiceTurno % _partida.jugadores.length;
+    if (_partida.jugadores[i].nombre == 'PC') return null;
+    return i;
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    if (nombre == 'PC') return 'Ese nombre está reservado.';
+    final ocupado = _partida.jugadores.asMap().entries.any(
+          (e) => e.key != index && e.value.nombre == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarDesdeHeader() async {
+    final index = _indiceRenombrable;
+    if (index == null) return;
+    final actual = _partida.jugadores[index].nombre;
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.mint, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle:
+                      const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final t = ctrl.text.trim();
+                    if (_validarNombre(t, index) case final e?) {
+                      setDialogState(() => error = e);
+                      return;
+                    }
+                    Navigator.of(context).pop(t);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.mint,
+                    foregroundColor: const Color(0xFF062018),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: const Text(
+                    'Guardar',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.peligro,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+    setState(() {
+      final anterior = _partida.jugadores[index].nombre;
+      _partida.jugadores[index].nombre = nuevo;
+      _nombres[index] = nuevo;
+      if (_partida.ganador == anterior) {
+        _partida.ganador = nuevo;
+      }
+      if (_partida.mensajeFin != null &&
+          _partida.mensajeFin!.contains(anterior)) {
+        _partida.mensajeFin =
+            _partida.mensajeFin!.replaceFirst(anterior, nuevo);
       }
     });
   }
 
-  Future<void> _jugarCarta(CartaEscoba carta) async {
-    if (_partida.fase != FaseEscoba.jugando || _esPcTurno) return;
-    final caps = capturasPosiblesEscoba(carta, _partida.mesa);
-    if (caps.isEmpty) {
-      setState(() {
-        _aviso = jugarCartaEscoba(_partida, carta);
-        _cartaSeleccionada = null;
-        _mesaSeleccion.clear();
-      });
-      _talVezPc();
+  int get _sumaMesa =>
+      _mesaSeleccion.fold<int>(0, (s, c) => s + c.valorSuma);
+
+  int get _sumaSeleccion {
+    final mano = _cartaSeleccionada?.valorSuma ?? 0;
+    return mano + _sumaMesa;
+  }
+
+  bool get _haySeleccion =>
+      _cartaSeleccionada != null || _mesaSeleccion.isNotEmpty;
+
+  bool get _faltaCartaMano =>
+      _cartaSeleccionada == null &&
+      _mesaSeleccion.isNotEmpty &&
+      _sumaMesa == 15;
+
+  bool get _puedeCapturar =>
+      !_bloquearHumano &&
+      _cartaSeleccionada != null &&
+      _mesaSeleccion.isNotEmpty &&
+      _sumaSeleccion == 15;
+
+  bool get _puedeTirar =>
+      !_bloquearHumano &&
+      _cartaSeleccionada != null &&
+      _sumaSeleccion != 15;
+
+  @override
+  void initState() {
+    super.initState();
+    final resume = widget.resume;
+    if (resume != null) {
+      _nombres = List.of(resume.nombres);
+      _ajustes = resume.ajustesIniciales;
+      _partida = resume.partida;
+      _limpiarSeleccion();
+      _mensajePc = null;
+      _pcMostrandoJugada = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
       return;
     }
-    if (caps.length == 1) {
-      setState(() {
-        _aviso = jugarCartaEscoba(
-          _partida,
-          carta,
-          mesaElegida: caps.first,
-        );
-        _cartaSeleccionada = null;
-        _mesaSeleccion.clear();
-      });
-      _talVezPc();
-      return;
-    }
-    // Varias capturas: seleccionar cartas de mesa.
+    _nombres = List.of(widget.nombres);
+    _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
+    _partida = nuevaPartidaEscoba(nombres: _nombres);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+  }
+
+  void _limpiarSeleccion() {
+    _cartaSeleccionada = null;
+    _mesaSeleccion.clear();
+    _aviso = null;
+  }
+
+  Future<void> _talVezPc() async {
+    if (!mounted || !_esPcTurno || _partida.terminada) return;
+    if (_partida.fase == FaseEscoba.finRonda) return;
+    if (_partida.fase == FaseEscoba.ganado) return;
+    final token = _pcToken;
+
+    await Future<void>.delayed(const Duration(milliseconds: 550));
+    if (!mounted || token != _pcToken) return;
+    if (!_esPcTurno || _partida.fase != FaseEscoba.jugando) return;
+
+    final jugada = planificarTurnoPcEscoba(_partida);
+    if (jugada == null) return;
+
     setState(() {
-      _cartaSeleccionada = carta;
+      _pcMostrandoJugada = true;
+      _mensajePc = jugada.descripcion;
+      _cartaSeleccionada = jugada.carta;
+      _mesaSeleccion
+        ..clear()
+        ..addAll(jugada.mesaElegida ?? const []);
+      _aviso = null;
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 1600));
+    if (!mounted || token != _pcToken) return;
+
+    setState(() {
+      ejecutarJugadaPcEscoba(_partida, jugada);
+      _pcMostrandoJugada = false;
+      _cartaSeleccionada = null;
       _mesaSeleccion.clear();
-      _aviso = 'Elegí las cartas de la mesa que suman 15 con ${carta.etiqueta}';
+      _aviso = _mensajePc;
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted || token != _pcToken) return;
+    if (_partida.fase == FaseEscoba.jugando && _esPcTurno) {
+      setState(() {
+        _mensajePc = null;
+        _aviso = null;
+      });
+      await _talVezPc();
+    }
+  }
+
+  Future<void> _seleccionarMano(CartaEscoba carta) async {
+    if (_partida.fase != FaseEscoba.jugando || _bloquearHumano) return;
+    setState(() {
+      _mensajePc = null;
+      _cartaSeleccionada = carta;
+      if (_mesaSeleccion.isEmpty) {
+        _aviso =
+            'Elegí cartas de la mesa o tocá TIRAR para dejar ${carta.etiqueta}';
+      } else {
+        final suma = carta.valorSuma + _sumaMesa;
+        _aviso = suma == 15
+            ? '¡Suma 15! Solo podés capturar, no tirar.'
+            : 'Suma: $suma / 15';
+      }
     });
   }
 
   void _toggleMesa(CartaEscoba c) {
-    if (_cartaSeleccionada == null) return;
+    if (_partida.fase != FaseEscoba.jugando || _bloquearHumano) return;
     setState(() {
+      _mensajePc = null;
       if (_mesaSeleccion.contains(c)) {
         _mesaSeleccion.remove(c);
       } else {
         _mesaSeleccion.add(c);
       }
+      if (_cartaSeleccionada == null && _mesaSeleccion.isEmpty) {
+        _aviso = null;
+      } else if (_cartaSeleccionada == null && _sumaMesa == 15) {
+        _aviso =
+            '¡Debés elegir una carta de tu mano sí o sí para poder capturar!';
+      } else if (_cartaSeleccionada == null) {
+        _aviso = 'Suma del pozo: $_sumaMesa / 15';
+      } else if (_mesaSeleccion.isNotEmpty) {
+        final suma = _cartaSeleccionada!.valorSuma + _sumaMesa;
+        _aviso = suma == 15
+            ? '¡Suma 15! Solo podés capturar, no tirar.'
+            : 'Suma: $suma / 15';
+      }
     });
+  }
+
+  void _tirarAMesa() {
+    final carta = _cartaSeleccionada;
+    if (carta == null || !_puedeTirar) return;
+    final err = jugarCartaEscoba(_partida, carta, forzarTirar: true);
+    setState(() {
+      _aviso = err;
+      if (err == null) _limpiarSeleccion();
+    });
+    if (err == null) _talVezPc();
   }
 
   void _confirmarCaptura() {
     final carta = _cartaSeleccionada;
-    if (carta == null) return;
+    if (carta == null || !_puedeCapturar) return;
     final err = jugarCartaEscoba(
       _partida,
       carta,
@@ -127,10 +373,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     );
     setState(() {
       _aviso = err;
-      if (err == null) {
-        _cartaSeleccionada = null;
-        _mesaSeleccion.clear();
-      }
+      if (err == null) _limpiarSeleccion();
     });
     if (err == null) _talVezPc();
   }
@@ -138,11 +381,21 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   void _continuarRonda() {
     setState(() {
       siguienteRondaEscoba(_partida);
-      _aviso = null;
-      _cartaSeleccionada = null;
-      _mesaSeleccion.clear();
+      _partida.ultimoResultado = null;
+      _limpiarSeleccion();
     });
-    _talVezPc();
+    if (_partida.fase == FaseEscoba.jugando) _talVezPc();
+  }
+
+  void _volverAJugar() {
+    EscobaStandByStore.limpiar();
+    setState(() {
+      _partida = nuevaPartidaEscoba(nombres: _nombres);
+      _limpiarSeleccion();
+      _mensajePc = null;
+      _pcMostrandoJugada = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
   }
 
   void _salirAlMenu() {
@@ -151,9 +404,68 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     }
   }
 
+  void _salirGuardandoResumeYVolverAlMenu() {
+    if (!widget.contraPc) return;
+    if (_partida.terminada) {
+      EscobaStandByStore.limpiar();
+      _salirAlMenu();
+      return;
+    }
+    EscobaStandByStore.guardar(
+      PartidaEscobaResume(
+        partida: _partida,
+        nombres: _nombres,
+        ajustesIniciales: _ajustes,
+      ),
+    );
+    _pcToken++;
+    _salirAlMenu();
+  }
+
+  void _rendirse() {
+    if (_partida.terminada || widget.contraPc) return;
+    final yo = _partida.jugadorActual.nombre;
+    final otros = [
+      for (final j in _partida.jugadores)
+        if (j.nombre != yo) j.nombre,
+    ];
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+      _limpiarSeleccion();
+      _mensajePc = null;
+      _pcMostrandoJugada = false;
+      _partida.fase = FaseEscoba.ganado;
+      if (otros.isEmpty) {
+        _partida.ganador = yo;
+        _partida.mensajeFin = '$yo se rindió.';
+      } else {
+        _partida.ganador = otros.first;
+        _partida.mensajeFin =
+            '$yo se rindió. ¡${otros.first} gana por abandono!';
+      }
+    });
+  }
+
+  void _abrirCombos(JugadorEscoba jugador) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.carta,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _HojaCombosJugador(
+        jugador: jugador,
+        esRondaAnterior: _partida.reiniciarCombosEnProximaJugada,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final j = _partida.jugadorActual;
+    final mano = _manoVisible;
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
@@ -170,18 +482,19 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                       IconButton(
                         onPressed: () => setState(() {
                           _mostrarMenu = true;
-                          _confirmarSalir = false;
+                          _confirmarRendicion = false;
                         }),
                         icon: const Icon(Icons.menu, color: AppColors.texto),
                       ),
                       Expanded(
-                        child: Text(
-                          'Escoba · ${j.nombre}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.mint,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
+                        child: Center(
+                          child: _TituloNombreEditable(
+                            etiquetaJuego: 'Escoba',
+                            nombre: widget.contraPc
+                                ? _manoVisible.nombre
+                                : j.nombre,
+                            puedeEditar: _indiceRenombrable != null,
+                            onEditar: _renombrarDesdeHeader,
                           ),
                         ),
                       ),
@@ -196,37 +509,103 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  _MarcadoresFila(partida: _partida),
+                  _MarcadoresFila(
+                    partida: _partida,
+                    onVerCartas: _abrirCombos,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     _partida.fase == FaseEscoba.finRonda
                         ? 'Fin de ronda'
-                        : _esPcTurno
-                            ? 'Turno de la PC…'
-                            : 'Jugá una carta · mesa ${ _partida.mesa.length} · mazo ${_partida.mazo.length}',
+                        : _pcMostrandoJugada
+                            ? '¡Mirá la jugada de la PC!'
+                            : _esPcTurno
+                                ? 'Turno de la PC…'
+                                : !_haySeleccion
+                                    ? (_mensajePc != null
+                                        ? 'Tu turno · mazo ${_partida.mazo.length}'
+                                        : 'Elegí cartas de la mesa y/o de tu mano · mazo ${_partida.mazo.length}')
+                                    : 'Suma: $_sumaSeleccion / 15'
+                                        '${_puedeCapturar ? ' · ¡listo para capturar!' : _cartaSeleccionada == null ? ' · falta tu carta' : ''}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textoSuave,
+                    style: TextStyle(
+                      color: _pcMostrandoJugada || _puedeCapturar
+                          ? AppColors.mint
+                          : AppColors.textoSuave,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
                   ),
-                  if (_aviso != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      _aviso!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.acento,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 44,
+                    child: _faltaCartaMano && !_bloquearHumano
+                        ? Container(
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.acento.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppColors.acento,
+                                width: 1.8,
+                              ),
+                              boxShadow: neonGlow(AppColors.acento, blur: 10),
+                            ),
+                            child: const Text(
+                              '👆 ¡Debés elegir una carta de tu mano sí o sí!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.acento,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
+                            ),
+                          )
+                        : (_mensajePc != null || _aviso != null)
+                            ? Container(
+                                width: double.infinity,
+                                alignment: Alignment.center,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: _mensajePc != null
+                                    ? BoxDecoration(
+                                        color: AppColors.rosa
+                                            .withValues(alpha: 0.16),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: AppColors.rosa,
+                                          width: 1.6,
+                                        ),
+                                      )
+                                    : null,
+                                child: Text(
+                                  _mensajePc ?? _aviso!,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: _mensajePc != null
+                                        ? AppColors.rosa
+                                        : (_puedeCapturar
+                                            ? AppColors.mint
+                                            : AppColors.acento),
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                  ),
                   const SizedBox(height: 10),
-                  const Text(
-                    'MESA',
-                    style: TextStyle(
+                  Text(
+                    _pcMostrandoJugada && _mesaSeleccion.isNotEmpty
+                        ? 'MESA · PC elige ${_mesaSeleccion.length}'
+                        : _mesaSeleccion.isEmpty
+                            ? 'MESA (pozo)'
+                            : 'MESA · ${_mesaSeleccion.length} seleccionada(s)',
+                    style: const TextStyle(
                       color: AppColors.azul,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 1,
@@ -238,38 +617,96 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     child: _ZonaCartas(
                       cartas: _partida.mesa,
                       seleccionadas: _mesaSeleccion,
-                      onTap: _cartaSeleccionada == null ? null : _toggleMesa,
+                      onTap: (_bloquearHumano ||
+                              _partida.fase != FaseEscoba.jugando)
+                          ? null
+                          : _toggleMesa,
                     ),
                   ),
-                  if (_cartaSeleccionada != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
+                  const SizedBox(height: 8),
+                  if (widget.contraPc)
+                    SizedBox(
+                      height: 72,
+                      child: _pcMostrandoJugada && _cartaSeleccionada != null
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  'LA PC JUEGA CON',
+                                  style: TextStyle(
+                                    color: AppColors.rosa,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 11,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                _CartaTexto(
+                                  carta: _cartaSeleccionada!,
+                                  seleccionada: true,
+                                  compacta: true,
+                                ),
+                              ],
+                            )
+                          : Center(
+                              child: Text(
+                                _esPcTurno ? 'PC está eligiendo…' : '',
+                                style: const TextStyle(
+                                  color: AppColors.textoSuave,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                    ),
+                  if (widget.contraPc) const SizedBox(height: 8),
+                  SizedBox(
+                    height: 54,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () => setState(() {
-                              _cartaSeleccionada = null;
-                              _mesaSeleccion.clear();
-                              _aviso = null;
-                            }),
-                            child: const Text('Cancelar'),
+                            onPressed: _puedeTirar ? _tirarAMesa : null,
+                            child: Text(
+                              _cartaSeleccionada == null || _bloquearHumano
+                                  ? 'Tirar'
+                                  : _sumaSeleccion == 15
+                                      ? 'Tirar (bloqueado)'
+                                      : 'Tirar (${_cartaSeleccionada!.valorSuma})',
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: FilledButton(
-                            onPressed: _mesaSeleccion.isEmpty
-                                ? null
-                                : _confirmarCaptura,
-                            child: const Text('Capturar'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.mint,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor:
+                                  AppColors.mint.withValues(alpha: 0.38),
+                              disabledForegroundColor:
+                                  Colors.white.withValues(alpha: 0.78),
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            onPressed:
+                                _puedeCapturar ? _confirmarCaptura : null,
+                            child: Text(
+                              _puedeCapturar
+                                  ? 'Capturar ($_sumaSeleccion)'
+                                  : 'Capturar',
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                   const SizedBox(height: 10),
                   Text(
-                    'TU MANO · ${j.nombre}',
+                    'TU MANO · ${mano.nombre}',
                     style: const TextStyle(
                       color: AppColors.mint,
                       fontWeight: FontWeight.w900,
@@ -280,39 +717,32 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                   Expanded(
                     flex: 2,
                     child: _ZonaCartas(
-                      cartas: j.mano,
-                      seleccionadas: [
-                        if (_cartaSeleccionada != null) _cartaSeleccionada!,
-                      ],
-                      onTap: (_esPcTurno ||
+                      cartas: mano.mano,
+                      seleccionadas: _bloquearHumano
+                          ? const []
+                          : [
+                              if (_cartaSeleccionada != null)
+                                _cartaSeleccionada!,
+                            ],
+                      onTap: (_bloquearHumano ||
                               _partida.fase != FaseEscoba.jugando)
                           ? null
                           : (c) {
-                              if (_cartaSeleccionada != null) return;
-                              unawaited(_jugarCarta(c));
+                              unawaited(_seleccionarMano(c));
                             },
-                      atenuar: _esPcTurno,
                     ),
                   ),
-                  if (_partida.fase == FaseEscoba.finRonda) ...[
-                    const SizedBox(height: 10),
-                    if (_partida.ultimoResultado != null)
-                      _ResumenRonda(
-                        partida: _partida,
-                        resultado: _partida.ultimoResultado!,
-                      ),
-                    const SizedBox(height: 8),
-                    GlowButtonVictoria(
-                      label: 'SIGUIENTE RONDA',
-                      icon: Icons.replay,
-                      color: AppColors.azul,
-                      onPressed: _continuarRonda,
-                    ),
-                  ],
                 ],
               ),
             ),
           ),
+          if (_mostrarResumenRonda && _partida.ultimoResultado != null)
+            Positioned.fill(
+              child: ResumenRondaEscobaOverlay(
+                resultado: _partida.ultimoResultado!,
+                onContinuar: _continuarRonda,
+              ),
+            ),
           if (_mostrarAjustes)
             Positioned.fill(
               child: AjustesOverlay(
@@ -323,11 +753,17 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
             ),
           if (_mostrarMenu)
             Positioned.fill(
-              child: _MenuPartidaEscoba(
-                confirmarSalir: _confirmarSalir,
+              child: MenuPartidaEscoba(
+                jugador: widget.contraPc
+                    ? _manoVisible.nombre
+                    : _partida.jugadorActual.nombre,
+                partidaTerminada: _partida.terminada,
+                esContraPc: widget.contraPc,
+                confirmarRendicion:
+                    _confirmarRendicion && !widget.contraPc,
                 onCerrar: () => setState(() {
                   _mostrarMenu = false;
-                  _confirmarSalir = false;
+                  _confirmarRendicion = false;
                 }),
                 onReglas: () {
                   setState(() => _mostrarMenu = false);
@@ -357,48 +793,29 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     ),
                   );
                 },
-                onSalir: () => setState(() => _confirmarSalir = true),
-                onConfirmarSalir: _salirAlMenu,
-                onCancelarSalir: () =>
-                    setState(() => _confirmarSalir = false),
+                onSalirORendirse: _partida.terminada
+                    ? () {
+                        EscobaStandByStore.limpiar();
+                        _salirAlMenu();
+                      }
+                    : (widget.contraPc
+                        ? _salirGuardandoResumeYVolverAlMenu
+                        : () => setState(() => _confirmarRendicion = true)),
+                onConfirmarRendicion: _rendirse,
+                onCancelarRendicion: () =>
+                    setState(() => _confirmarRendicion = false),
               ),
             ),
           if (_partida.terminada)
             Positioned.fill(
-              child: Material(
-                color: Colors.black.withValues(alpha: 0.72),
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '¡${_partida.ganador ?? 'Alguien'} gana!',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.acento,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 28,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _partida.mensajeFin ?? '',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppColors.textoSuave),
-                        ),
-                        const SizedBox(height: 20),
-                        GlowButtonVictoria(
-                          label: 'VOLVER AL MENÚ',
-                          icon: Icons.home,
-                          color: AppColors.violeta,
-                          onPressed: _salirAlMenu,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              child: VictoriaEscobaOverlay(
+                partida: _partida,
+                animaciones: _ajustes.animaciones,
+                onVolverAJugar: _volverAJugar,
+                onVolver: () {
+                  EscobaStandByStore.limpiar();
+                  _salirAlMenu();
+                },
               ),
             ),
         ],
@@ -407,85 +824,84 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   }
 }
 
-class _ResumenRonda extends StatelessWidget {
-  const _ResumenRonda({
-    required this.partida,
-    required this.resultado,
+class _TituloNombreEditable extends StatelessWidget {
+  const _TituloNombreEditable({
+    required this.etiquetaJuego,
+    required this.nombre,
+    required this.puedeEditar,
+    required this.onEditar,
   });
 
-  final PartidaEscoba partida;
-  final ResultadoRondaEscoba resultado;
-
-  String? _nombre(int? idx) =>
-      idx == null ? null : partida.jugadores[idx].nombre;
+  final String etiquetaJuego;
+  final String nombre;
+  final bool puedeEditar;
+  final VoidCallback onEditar;
 
   @override
   Widget build(BuildContext context) {
-    final lineas = <String>[];
-    for (var i = 0; i < partida.jugadores.length; i++) {
-      final e = resultado.puntosEscobas[i];
-      if (e > 0) {
-        lineas.add('${partida.jugadores[i].nombre}: +$e por escoba(s)');
-      }
-    }
-    if (_nombre(resultado.idxMasCartas) case final n?) {
-      lineas.add('$n: +1 más cartas');
-    }
-    if (_nombre(resultado.idxMasOros) case final n?) {
-      lineas.add('$n: +1 más oros');
-    }
-    if (_nombre(resultado.idxSieteOro) case final n?) {
-      lineas.add('$n: +1 por el 7 de oro');
-    }
-    if (_nombre(resultado.idxMasSietes) case final n?) {
-      lineas.add('$n: +1 más sietes');
-    }
-    if (lineas.isEmpty) {
-      lineas.add('Nadie sumó puntos extra en esta ronda.');
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.carta.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.azul.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Puntos de la ronda',
-            style: TextStyle(
-              color: AppColors.azul,
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final l in lineas)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
-                '· $l',
-                style: const TextStyle(
-                  color: AppColors.texto,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: puedeEditar ? onEditar : null,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '$etiquetaJuego · ',
+                        style: const TextStyle(
+                          color: AppColors.mint,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                        ),
+                      ),
+                      TextSpan(
+                        text: nombre,
+                        style: TextStyle(
+                          color: puedeEditar
+                              ? AppColors.texto
+                              : AppColors.mint,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                 ),
               ),
-            ),
-        ],
+              if (puedeEditar) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.edit_rounded,
+                  size: 16,
+                  color: AppColors.textoSuave.withValues(alpha: 0.9),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
 class _MarcadoresFila extends StatelessWidget {
-  const _MarcadoresFila({required this.partida});
+  const _MarcadoresFila({
+    required this.partida,
+    required this.onVerCartas,
+  });
 
   final PartidaEscoba partida;
+  final ValueChanged<JugadorEscoba> onVerCartas;
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +912,7 @@ class _MarcadoresFila extends StatelessWidget {
           for (var i = 0; i < partida.jugadores.length; i++) ...[
             if (i > 0) const SizedBox(width: 14),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
               decoration: BoxDecoration(
                 color: AppColors.carta.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(12),
@@ -506,30 +922,68 @@ class _MarcadoresFila extends StatelessWidget {
                       : AppColors.textoSuave.withValues(alpha: 0.3),
                 ),
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    partida.jugadores[i].nombre,
-                    style: const TextStyle(
-                      color: AppColors.texto,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        partida.jugadores[i].nombre,
+                        style: const TextStyle(
+                          color: AppColors.texto,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      MarcadorPalitosEscoba(
+                        puntos: partida.jugadores[i].puntos,
+                        color: AppColors.acento,
+                        tamanoGrupo: 22,
+                      ),
+                      Text(
+                        '${partida.jugadores[i].puntos} pts'
+                        '${partida.jugadores[i].escobasRonda > 0 ? ' · ${partida.jugadores[i].escobasRonda} escoba(s)' : ''}',
+                        style: const TextStyle(
+                          color: AppColors.textoSuave,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  MarcadorPalitosEscoba(
-                    puntos: partida.jugadores[i].puntos,
-                    color: AppColors.acento,
-                    tamanoGrupo: 22,
-                  ),
-                  Text(
-                    '${partida.jugadores[i].puntos} pts'
-                    '${partida.jugadores[i].escobasRonda > 0 ? ' · ${partida.jugadores[i].escobasRonda} escoba(s)' : ''}',
-                    style: const TextStyle(
-                      color: AppColors.textoSuave,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: 6),
+                  Material(
+                    color: AppColors.azul.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => onVerCartas(partida.jugadores[i]),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.style_rounded,
+                              color: AppColors.azul,
+                              size: 18,
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Cartas',
+                              style: TextStyle(
+                                color: AppColors.azul,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 9,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -542,18 +996,169 @@ class _MarcadoresFila extends StatelessWidget {
   }
 }
 
+class _HojaCombosJugador extends StatelessWidget {
+  const _HojaCombosJugador({
+    required this.jugador,
+    required this.esRondaAnterior,
+  });
+
+  final JugadorEscoba jugador;
+  final bool esRondaAnterior;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = jugador.combos.length;
+    final combos = [
+      for (var i = n - 1; i >= 0; i--) jugador.combos[i],
+    ];
+    final maxH = MediaQuery.sizeOf(context).height * 0.7;
+
+    return SafeArea(
+      child: SizedBox(
+        height: maxH,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textoSuave.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Cartas de ${jugador.nombre}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.mint,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                esRondaAnterior
+                    ? 'Última ronda · orden #n → #1 (★ = escoba)'
+                    : 'Orden #n → #1 · la más reciente arriba (★ = escoba)',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: combos.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Todavía no agarró ningún combo.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.textoSuave,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: combos.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, i) {
+                          final combo = combos[i];
+                          final numero = n - i;
+                          final esUltima = i == 0;
+                          final titulo = combo.esPozoFinal
+                              ? 'Pozo final'
+                              : (combo.escoba ? 'Escoba' : 'Captura');
+                          final colorMarca = combo.escoba
+                              ? AppColors.acento
+                              : (esUltima ? AppColors.mint : AppColors.azul);
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.22),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: colorMarca.withValues(alpha: 0.75),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      combo.escoba
+                                          ? '#$numero ★'
+                                          : '#$numero',
+                                      style: TextStyle(
+                                        color: colorMarca,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        titulo,
+                                        style: const TextStyle(
+                                          color: AppColors.texto,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                    if (esUltima)
+                                      const Text(
+                                        'más reciente',
+                                        style: TextStyle(
+                                          color: AppColors.mint,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  combo.resumen,
+                                  style: const TextStyle(
+                                    color: AppColors.textoSuave,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ZonaCartas extends StatelessWidget {
   const _ZonaCartas({
     required this.cartas,
     this.seleccionadas = const [],
     this.onTap,
-    this.atenuar = false,
   });
 
   final List<CartaEscoba> cartas;
   final List<CartaEscoba> seleccionadas;
   final ValueChanged<CartaEscoba>? onTap;
-  final bool atenuar;
 
   @override
   Widget build(BuildContext context) {
@@ -568,22 +1173,19 @@ class _ZonaCartas extends StatelessWidget {
         ),
       );
     }
-    return Opacity(
-      opacity: atenuar ? 0.55 : 1,
-      child: SingleChildScrollView(
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children: [
-            for (final c in cartas)
-              _CartaTexto(
-                carta: c,
-                seleccionada: seleccionadas.contains(c),
-                onTap: onTap == null ? null : () => onTap!(c),
-              ),
-          ],
-        ),
+    return SingleChildScrollView(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: [
+          for (final c in cartas)
+            _CartaTexto(
+              carta: c,
+              seleccionada: seleccionadas.contains(c),
+              onTap: onTap == null ? null : () => onTap!(c),
+            ),
+        ],
       ),
     );
   }
@@ -594,15 +1196,19 @@ class _CartaTexto extends StatelessWidget {
     required this.carta,
     required this.seleccionada,
     this.onTap,
+    this.compacta = false,
   });
 
   final CartaEscoba carta;
   final bool seleccionada;
   final VoidCallback? onTap;
+  final bool compacta;
 
   @override
   Widget build(BuildContext context) {
     final accent = carta.esOro ? AppColors.acento : AppColors.azul;
+    final padH = compacta ? 10.0 : 12.0;
+    final padV = compacta ? 8.0 : 14.0;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -610,8 +1216,11 @@ class _CartaTexto extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          constraints: const BoxConstraints(minWidth: 96, minHeight: 56),
+          padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+          constraints: BoxConstraints(
+            minWidth: compacta ? 84 : 96,
+            minHeight: compacta ? 44 : 56,
+          ),
           decoration: BoxDecoration(
             color: AppColors.carta,
             borderRadius: BorderRadius.circular(10),
@@ -623,123 +1232,26 @@ class _CartaTexto extends StatelessWidget {
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 carta.etiqueta,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.texto,
                   fontWeight: FontWeight.w900,
-                  fontSize: 13,
+                  fontSize: compacta ? 12 : 13,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: compacta ? 1 : 2),
               Text(
                 'vale ${carta.valorSuma}',
                 style: TextStyle(
                   color: accent.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w700,
-                  fontSize: 11,
+                  fontSize: compacta ? 10 : 11,
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MenuPartidaEscoba extends StatelessWidget {
-  const _MenuPartidaEscoba({
-    required this.confirmarSalir,
-    required this.onCerrar,
-    required this.onReglas,
-    required this.onSalir,
-    required this.onConfirmarSalir,
-    required this.onCancelarSalir,
-  });
-
-  final bool confirmarSalir;
-  final VoidCallback onCerrar;
-  final VoidCallback onReglas;
-  final VoidCallback onSalir;
-  final VoidCallback onConfirmarSalir;
-  final VoidCallback onCancelarSalir;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.65),
-      child: Center(
-        child: Container(
-          width: 300,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: AppColors.carta,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.azul, width: 2),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Menú',
-                      style: TextStyle(
-                        color: AppColors.mint,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: onCerrar,
-                    icon: const Icon(Icons.close, color: AppColors.texto),
-                  ),
-                ],
-              ),
-              if (!confirmarSalir) ...[
-                ListTile(
-                  leading: const Icon(Icons.menu_book, color: AppColors.azul),
-                  title: const Text('Reglas'),
-                  onTap: onReglas,
-                ),
-                ListTile(
-                  leading:
-                      const Icon(Icons.exit_to_app, color: AppColors.peligro),
-                  title: const Text('Salir al menú'),
-                  onTap: onSalir,
-                ),
-              ] else ...[
-                const Text(
-                  '¿Salir de la partida?',
-                  style: TextStyle(
-                    color: AppColors.texto,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: onCancelarSalir,
-                        child: const Text('Cancelar'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: onConfirmarSalir,
-                        child: const Text('Salir'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ],
           ),
         ),

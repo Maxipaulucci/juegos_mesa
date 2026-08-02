@@ -48,11 +48,29 @@ class CartaEscoba {
 class JugadorEscoba {
   JugadorEscoba(this.nombre);
 
-  final String nombre;
+  String nombre;
   final List<CartaEscoba> mano = [];
   final List<CartaEscoba> capturadas = [];
+  /// Combos de captura de la ronda (o de la anterior hasta la 1ª jugada nueva).
+  final List<ComboCapturaEscoba> combos = [];
   int escobasRonda = 0;
   int puntos = 0;
+}
+
+/// Una captura (o el pozo final) hecha por un jugador.
+class ComboCapturaEscoba {
+  const ComboCapturaEscoba({
+    required this.cartas,
+    this.escoba = false,
+    this.esPozoFinal = false,
+  });
+
+  /// Carta de la mano + cartas de mesa (o solo pozo final).
+  final List<CartaEscoba> cartas;
+  final bool escoba;
+  final bool esPozoFinal;
+
+  String get resumen => cartas.map((c) => c.etiqueta).join(' + ');
 }
 
 class PartidaEscoba {
@@ -66,6 +84,7 @@ class PartidaEscoba {
     this.ultimaCapturaIdx,
     this.mensajeFin,
     this.ganador,
+    this.reiniciarCombosEnProximaJugada = false,
   })  : mazo = mazo ?? [],
         mesa = mesa ?? [];
 
@@ -80,6 +99,8 @@ class PartidaEscoba {
   String? mensajeFin;
   String? ganador;
   ResultadoRondaEscoba? ultimoResultado;
+  /// Tras repartir una ronda nueva, los combos se ven hasta la 1ª jugada.
+  bool reiniciarCombosEnProximaJugada;
 
   JugadorEscoba get jugadorActual =>
       jugadores[indiceTurno % jugadores.length];
@@ -120,13 +141,19 @@ PartidaEscoba nuevaPartidaEscoba({
 }
 
 void _repartirInicio(PartidaEscoba p) {
+  final esNuevaRondaTrasFin = p.fase == FaseEscoba.finRonda;
   for (final j in p.jugadores) {
     j.mano.clear();
     j.capturadas.clear();
     j.escobasRonda = 0;
+    // Los combos se conservan hasta la primera jugada de la nueva ronda.
+    if (!esNuevaRondaTrasFin) {
+      j.combos.clear();
+    }
   }
   p.mesa.clear();
   p.ultimaCapturaIdx = null;
+  p.reiniciarCombosEnProximaJugada = esNuevaRondaTrasFin;
   for (var i = 0; i < 3; i++) {
     for (final j in p.jugadores) {
       if (p.mazo.isEmpty) break;
@@ -174,14 +201,22 @@ String? jugarCartaEscoba(
   PartidaEscoba p,
   CartaEscoba carta, {
   List<CartaEscoba>? mesaElegida,
+  bool forzarTirar = false,
 }) {
   if (p.fase != FaseEscoba.jugando) return 'La partida no está en juego.';
   final j = p.jugadorActual;
   final idx = j.mano.indexOf(carta);
   if (idx < 0) return 'Esa carta no está en tu mano.';
 
+  if (p.reiniciarCombosEnProximaJugada) {
+    for (final jug in p.jugadores) {
+      jug.combos.clear();
+    }
+    p.reiniciarCombosEnProximaJugada = false;
+  }
+
   final opciones = capturasPosiblesEscoba(carta, p.mesa);
-  if (opciones.isEmpty) {
+  if (forzarTirar || opciones.isEmpty) {
     j.mano.removeAt(idx);
     p.mesa.add(carta);
   } else {
@@ -203,8 +238,15 @@ String? jugarCartaEscoba(
       j.capturadas.add(c);
     }
     j.capturadas.add(carta);
+    final escoba = p.mesa.isEmpty;
+    j.combos.add(
+      ComboCapturaEscoba(
+        cartas: [carta, ...tomadas],
+        escoba: escoba,
+      ),
+    );
     p.ultimaCapturaIdx = p.indiceTurno % p.jugadores.length;
-    if (p.mesa.isEmpty) {
+    if (escoba) {
       j.escobasRonda++;
     }
   }
@@ -245,13 +287,51 @@ void _avanzarTrasJugada(PartidaEscoba p) {
   }
 
   // Fin de ronda: cartas de mesa al último que capturó.
+  List<CartaEscoba> cartasPozoFinal = const [];
+  int? idxLlevoPozo;
   if (p.mesa.isNotEmpty && p.ultimaCapturaIdx != null) {
-    final j = p.jugadores[p.ultimaCapturaIdx!];
-    j.capturadas.addAll(p.mesa);
+    idxLlevoPozo = p.ultimaCapturaIdx;
+    cartasPozoFinal = List.of(p.mesa);
+    final j = p.jugadores[idxLlevoPozo!];
+    j.capturadas.addAll(cartasPozoFinal);
+    j.combos.add(
+      ComboCapturaEscoba(
+        cartas: List.of(cartasPozoFinal),
+        esPozoFinal: true,
+      ),
+    );
     p.mesa.clear();
   }
 
-  puntuarRondaEscoba(p);
+  puntuarRondaEscoba(
+    p,
+    cartasPozoFinal: cartasPozoFinal,
+    idxLlevoPozo: idxLlevoPozo,
+  );
+}
+
+class DetalleJugadorRondaEscoba {
+  DetalleJugadorRondaEscoba({
+    required this.nombre,
+    required this.escobas,
+    required this.cartas,
+    required this.oros,
+    required this.sietes,
+    required this.puntosTrasRonda,
+  });
+
+  final String nombre;
+  final int escobas;
+  final List<CartaEscoba> cartas;
+  final List<CartaEscoba> oros;
+  final List<CartaEscoba> sietes;
+  final int puntosTrasRonda;
+
+  int get cantidadCartas => cartas.length;
+  int get cantidadOros => oros.length;
+  int get cantidadSietes => sietes.length;
+  bool get tieneSieteOro =>
+      sietes.any((c) => c.palo == PaloEscoba.oro);
 }
 
 class ResultadoRondaEscoba {
@@ -261,6 +341,12 @@ class ResultadoRondaEscoba {
     required this.idxMasOros,
     required this.idxSieteOro,
     required this.idxMasSietes,
+    required this.detalles,
+    this.empateMasCartas = false,
+    this.empateMasOros = false,
+    this.empateMasSietes = false,
+    this.idxLlevoPozo,
+    this.cartasPozoFinal = const [],
   });
 
   final List<int> puntosEscobas;
@@ -268,6 +354,13 @@ class ResultadoRondaEscoba {
   final int? idxMasOros;
   final int? idxSieteOro;
   final int? idxMasSietes;
+  final List<DetalleJugadorRondaEscoba> detalles;
+  final bool empateMasCartas;
+  final bool empateMasOros;
+  final bool empateMasSietes;
+  /// Quién se llevó las cartas que quedaban en el pozo al cerrar la ronda.
+  final int? idxLlevoPozo;
+  final List<CartaEscoba> cartasPozoFinal;
 }
 
 /// Mejor carta de [capturadas] del [palo] con número 1–6 (debajo del 7).
@@ -306,7 +399,11 @@ Set<PaloEscoba> _palosDeSietes(List<CartaEscoba> capturadas) {
 int _cantidadSietes(List<CartaEscoba> capturadas) =>
     capturadas.where((c) => c.numero == 7).length;
 
-ResultadoRondaEscoba puntuarRondaEscoba(PartidaEscoba p) {
+ResultadoRondaEscoba puntuarRondaEscoba(
+  PartidaEscoba p, {
+  List<CartaEscoba> cartasPozoFinal = const [],
+  int? idxLlevoPozo,
+}) {
   final n = p.jugadores.length;
   final escobas = [for (final j in p.jugadores) j.escobasRonda];
   for (var i = 0; i < n; i++) {
@@ -326,6 +423,7 @@ ResultadoRondaEscoba puntuarRondaEscoba(PartidaEscoba p) {
       empateC = true;
     }
   }
+  final empateMasCartas = empateC && maxC > 0;
   if (empateC || maxC <= 0) {
     idxCartas = null;
   } else {
@@ -345,6 +443,7 @@ ResultadoRondaEscoba puntuarRondaEscoba(PartidaEscoba p) {
       empateO = true;
     }
   }
+  final empateMasOros = empateO && maxO > 0;
   if (empateO || maxO <= 0) {
     idxOros = null;
   } else {
@@ -378,13 +477,14 @@ ResultadoRondaEscoba puntuarRondaEscoba(PartidaEscoba p) {
       empatadosS.add(i);
     }
   }
+  var empateMasSietes = false;
   if (maxS <= 0) {
     idxMasSietes = null;
   } else if (empatadosS.length == 1) {
     idxMasSietes = empatadosS.first;
     p.jugadores[idxMasSietes].puntos += 1;
   } else {
-    // Desempate: cada uno mira los palos de los 7 de los demás empatados.
+    empateMasSietes = true;
     var mejorDes = -1;
     var idxDes = -1;
     var empateDes = false;
@@ -404,14 +504,24 @@ ResultadoRondaEscoba puntuarRondaEscoba(PartidaEscoba p) {
     }
     if (!empateDes && idxDes >= 0 && mejorDes > 0) {
       idxMasSietes = idxDes;
+      empateMasSietes = false;
       p.jugadores[idxMasSietes].puntos += 1;
-    } else if (!empateDes && idxDes >= 0 && mejorDes == 0) {
-      // Todos en 0: nadie (o el primero con 0 único — mejor nadie).
-      idxMasSietes = null;
     } else {
       idxMasSietes = null;
     }
   }
+
+  final detalles = [
+    for (final j in p.jugadores)
+      DetalleJugadorRondaEscoba(
+        nombre: j.nombre,
+        escobas: j.escobasRonda,
+        cartas: List.of(j.capturadas),
+        oros: [for (final c in j.capturadas) if (c.esOro) c],
+        sietes: [for (final c in j.capturadas) if (c.numero == 7) c],
+        puntosTrasRonda: j.puntos,
+      ),
+  ];
 
   final resultado = ResultadoRondaEscoba(
     puntosEscobas: escobas,
@@ -419,6 +529,12 @@ ResultadoRondaEscoba puntuarRondaEscoba(PartidaEscoba p) {
     idxMasOros: idxOros,
     idxSieteOro: idxSieteOro,
     idxMasSietes: idxMasSietes,
+    detalles: detalles,
+    empateMasCartas: empateMasCartas,
+    empateMasOros: empateMasOros,
+    empateMasSietes: empateMasSietes,
+    idxLlevoPozo: idxLlevoPozo,
+    cartasPozoFinal: cartasPozoFinal,
   );
   p.ultimoResultado = resultado;
 
@@ -458,20 +574,54 @@ void siguienteRondaEscoba(PartidaEscoba p, [math.Random? rng]) {
   _repartirInicio(p);
 }
 
-/// Jugada simple de PC: primera captura posible o tira la carta de menor valor.
-void jugarTurnoPcEscoba(PartidaEscoba p) {
-  if (p.fase != FaseEscoba.jugando) return;
+/// Jugada decidida por la PC (para mostrarla antes de ejecutarla).
+class JugadaPcEscoba {
+  const JugadaPcEscoba({
+    required this.carta,
+    this.mesaElegida,
+  });
+
+  final CartaEscoba carta;
+  /// null = tira a la mesa; no vacío = captura esas cartas.
+  final List<CartaEscoba>? mesaElegida;
+
+  bool get esCaptura => mesaElegida != null && mesaElegida!.isNotEmpty;
+
+  String get descripcion {
+    if (!esCaptura) return 'PC tira ${carta.etiqueta} a la mesa';
+    final tomadas = mesaElegida!.map((c) => c.etiqueta).join(' + ');
+    return 'PC captura ${carta.etiqueta} + $tomadas = 15';
+  }
+}
+
+/// Elige qué haría la PC sin modificar la partida.
+JugadaPcEscoba? planificarTurnoPcEscoba(PartidaEscoba p) {
+  if (p.fase != FaseEscoba.jugando) return null;
   final j = p.jugadorActual;
-  if (j.mano.isEmpty) return;
+  if (j.mano.isEmpty) return null;
 
   for (final carta in List.of(j.mano)) {
     final caps = capturasPosiblesEscoba(carta, p.mesa);
     if (caps.isNotEmpty) {
-      jugarCartaEscoba(p, carta, mesaElegida: caps.first);
-      return;
+      return JugadaPcEscoba(carta: carta, mesaElegida: List.of(caps.first));
     }
   }
   final orden = List.of(j.mano)
     ..sort((a, b) => a.valorSuma.compareTo(b.valorSuma));
-  jugarCartaEscoba(p, orden.first);
+  return JugadaPcEscoba(carta: orden.first);
+}
+
+/// Jugada simple de PC: primera captura posible o tira la carta de menor valor.
+void jugarTurnoPcEscoba(PartidaEscoba p) {
+  final jugada = planificarTurnoPcEscoba(p);
+  if (jugada == null) return;
+  ejecutarJugadaPcEscoba(p, jugada);
+}
+
+void ejecutarJugadaPcEscoba(PartidaEscoba p, JugadaPcEscoba jugada) {
+  if (jugada.esCaptura) {
+    jugarCartaEscoba(p, jugada.carta, mesaElegida: jugada.mesaElegida);
+  } else {
+    jugarCartaEscoba(p, jugada.carta, forzarTirar: true);
+  }
 }
