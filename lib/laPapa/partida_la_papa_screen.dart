@@ -104,7 +104,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   void _fijarLadoLupa(Offset local, Size boardSize) {
     const r = _LupaTrazoPapa.diametro / 2;
     const preferido = _LupaTrazoPapa.offsetDedo;
-    _lupaDx = (local.dx + preferido.dx + r > boardSize.width - 4)
+    // Preferido = izquierda; si se corta el borde izquierdo, pasa a la derecha.
+    _lupaDx = (local.dx + preferido.dx - r < 4)
         ? -preferido.dx
         : preferido.dx;
     _lupaDy = (local.dy + preferido.dy - r < 4)
@@ -1436,8 +1437,8 @@ class _LupaTrazoPapa extends StatelessWidget {
 
   static const diametro = 118.0;
   static const zoom = 2.35;
-  /// Desplazamiento del centro de la lupa respecto al dedo (arriba-derecha).
-  static const offsetDedo = Offset(52, -70);
+  /// Desplazamiento del centro de la lupa respecto al dedo (arriba-izquierda).
+  static const offsetDedo = Offset(-52, -70);
 
   final Offset focus;
   final Offset offsetLupa;
