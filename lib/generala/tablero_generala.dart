@@ -247,6 +247,7 @@ class _BotonOjoDados extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
+      excludeFromSemantics: true,
       message: 'Mantené para ver los dados',
       child: Listener(
         onPointerDown: (_) => onPressStart(),

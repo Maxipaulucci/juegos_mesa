@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'screens/home_screen.dart';
@@ -6,7 +7,15 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const JuegosMesaApp());
+
+  // Bug de Flutter en Windows: el puente de accesibilidad (AXTree) se
+  // desincroniza con Tooltips/overlays y spamea errores en consola.
+  // Ver https://github.com/flutter/flutter/issues/182444
+  Widget app = const JuegosMesaApp();
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    app = ExcludeSemantics(child: app);
+  }
+  runApp(app);
 }
 
 class JuegosMesaApp extends StatelessWidget {

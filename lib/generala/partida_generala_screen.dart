@@ -917,6 +917,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                     Positioned(
                                       right: 0,
                                       child: Tooltip(
+                                        excludeFromSemantics: true,
                                         message: _dadosForzados == null
                                             ? 'Forzar próxima tirada'
                                             : 'Próxima: ${_dadosForzados!.join(' ')}'
