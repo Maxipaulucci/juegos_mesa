@@ -12,6 +12,7 @@ Map<String, dynamic> encodePapaOpciones(OpcionesPapa o) => {
       'cantidadNumeros': o.cantidadNumeros,
       'modoFantasma': o.modoFantasma,
       'mostrarCuadricula': o.mostrarCuadricula,
+      'permitirTrazoSobreNumeros': o.permitirTrazoSobreNumeros,
     };
 
 OpcionesPapa decodePapaOpciones(Map? raw) {
@@ -23,6 +24,7 @@ OpcionesPapa decodePapaOpciones(Map? raw) {
         OpcionesPapa.maxNumeroPapaDefault,
     modoFantasma: raw['modoFantasma'] == true,
     mostrarCuadricula: raw['mostrarCuadricula'] != false,
+    permitirTrazoSobreNumeros: raw['permitirTrazoSobreNumeros'] != false,
   );
 }
 

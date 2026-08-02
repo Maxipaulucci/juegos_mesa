@@ -6,6 +6,7 @@ class OpcionesPapa {
     this.cantidadNumeros = maxNumeroPapaDefault,
     this.modoFantasma = false,
     this.mostrarCuadricula = true,
+    this.permitirTrazoSobreNumeros = true,
   });
 
   static const int maxNumeroPapaDefault = 30;
@@ -29,6 +30,10 @@ class OpcionesPapa {
   /// Si true, se dibujan las líneas de la cuadrícula de la hoja.
   final bool mostrarCuadricula;
 
+  /// Si true (default), el trazo puede pasar por encima de otros números.
+  /// Si false, tocar la zona de otro número = pérdida.
+  final bool permitirTrazoSobreNumeros;
+
   /// Alias de UI: el modo fantasma se muestra como “Modo infernal”.
   bool get modoInfernal => modoFantasma;
 
@@ -44,6 +49,7 @@ class OpcionesPapa {
     int? cantidadNumeros,
     bool? modoFantasma,
     bool? mostrarCuadricula,
+    bool? permitirTrazoSobreNumeros,
   }) {
     return OpcionesPapa(
       conVidas: conVidas ?? this.conVidas,
@@ -51,6 +57,8 @@ class OpcionesPapa {
       cantidadNumeros: cantidadNumeros ?? this.cantidadNumeros,
       modoFantasma: modoFantasma ?? this.modoFantasma,
       mostrarCuadricula: mostrarCuadricula ?? this.mostrarCuadricula,
+      permitirTrazoSobreNumeros:
+          permitirTrazoSobreNumeros ?? this.permitirTrazoSobreNumeros,
     );
   }
 

@@ -58,6 +58,7 @@ class PapaStandByStore {
         a.numerosAleatorios == b.numerosAleatorios &&
         a.cantidadNumeros == b.cantidadNumeros &&
         a.modoFantasma == b.modoFantasma &&
-        a.mostrarCuadricula == b.mostrarCuadricula;
+        a.mostrarCuadricula == b.mostrarCuadricula &&
+        a.permitirTrazoSobreNumeros == b.permitirTrazoSobreNumeros;
   }
 }

@@ -595,6 +595,51 @@ bool puntoEnZonaHabilitadaPapa(
   return true;
 }
 
+/// True si la punta toca un número que no corresponde (origen/destino OK).
+bool trazoTocaNumeroProhibidoPapa(
+  PartidaPapa p,
+  List<Offset> trazoActual,
+  Size boardSize, {
+  required bool yaSalioDelInicio,
+  double factorRadio = factorRadioVerificacionPapa,
+}) {
+  if (trazoActual.isEmpty) return false;
+  final de = p.siguienteConectar;
+  final destino = de + 1;
+  final tip = trazoActual.last;
+
+  for (final n in p.casillas) {
+    if (n == null) continue;
+    if (n == destino) continue;
+    if (n == de && !yaSalioDelInicio) continue;
+    if (cercaDeNumeroPapa(p, n, tip, boardSize, factorRadio: factorRadio)) {
+      return true;
+    }
+  }
+
+  if (trazoActual.length >= 2) {
+    final a = trazoActual[trazoActual.length - 2];
+    final b = tip;
+    final cell = math.min(
+      boardSize.width / columnasPapa,
+      boardSize.height / filasPapa,
+    );
+    final radio = cell * factorRadio;
+    for (var i = 0; i < p.casillas.length; i++) {
+      final n = p.casillas[i];
+      if (n == null || n == destino || n == de) continue;
+      final c = centroCasillaPapa(i, boardSize);
+      final da = (a - c).distance;
+      final db = (b - c).distance;
+      if (da <= radio || db <= radio) return true;
+      if (_interseccionesSegmentoCirculo(c, radio, a, b).isNotEmpty) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /// Intersecciones del segmento [a,b] con la circunferencia (c,r).
 List<Offset> _interseccionesSegmentoCirculo(
   Offset c,

@@ -488,6 +488,19 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _salioDelInicio = true;
       }
 
+      if (!_opciones.permitirTrazoSobreNumeros &&
+          trazoTocaNumeroProhibidoPapa(
+            _partida,
+            _trazoActual,
+            boardSize,
+            yaSalioDelInicio: _salioDelInicio,
+          )) {
+        _fallar(
+          '${_partida.jugadorActual} tocó un número. Fin de la partida.',
+        );
+        return;
+      }
+
       // Tocar la zona habilitada marca al toque. Si una línea corta el círculo,
       // solo cuentan los lóbulos abiertos (sin cruzar esa tinta).
       if (_salioDelInicio &&

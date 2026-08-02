@@ -16,6 +16,9 @@ String reglasLaPapa({OpcionesPapa opciones = const OpcionesPapa()}) {
       '· Modo infernal: solo ves las líneas dibujadas, el número actual '
           'y el siguiente. Siempre hay 50 números al azar, sin cuadrícula '
           'y sin vidas.',
+    if (!opciones.permitirTrazoSobreNumeros)
+      '· Trazo sobre números desactivado: si tu línea toca la zona de otro '
+          'número (que no sea el de salida o el de llegada), perdés.',
   ];
 
   return '''

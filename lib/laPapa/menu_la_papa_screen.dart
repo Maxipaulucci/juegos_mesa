@@ -93,6 +93,18 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
             ),
             const SizedBox(height: 12),
             FilaToggleModificarPartida(
+              titulo: 'Trazo sobre números',
+              activo: draft.permitirTrazoSobreNumeros,
+              onChanged: (v) =>
+                  setOpc(draft.copyWith(permitirTrazoSobreNumeros: v)),
+              info:
+                  'Activado (por defecto): podés pasar el trazo por encima '
+                  'de otros números sin perder.\n\n'
+                  'Desactivado: si tu línea toca la zona de otro número '
+                  '(que no sea el de salida o el de llegada), perdés.',
+            ),
+            const SizedBox(height: 12),
+            FilaToggleModificarPartida(
               titulo: 'Números aleatorios',
               activo: draft.numerosAleatoriosEfectivos,
               habilitado: !infernal,
