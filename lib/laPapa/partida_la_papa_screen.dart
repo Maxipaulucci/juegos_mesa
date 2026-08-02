@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
+import 'package:app_juegos_mesa/laPapa/standby_store.dart';
 import 'package:app_juegos_mesa/laPapa/textos.dart';
 import 'package:app_juegos_mesa/laPapa/victoria_la_papa_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
@@ -16,12 +17,14 @@ class PartidaLaPapaScreen extends StatefulWidget {
     this.solo = false,
     this.opciones = const OpcionesPapa(),
     this.ajustesIniciales = const AjustesEstado(),
+    this.resume,
   });
 
   final List<String> nombres;
   final bool solo;
   final OpcionesPapa opciones;
   final AjustesEstado ajustesIniciales;
+  final PartidaPapaResume? resume;
 
   @override
   State<PartidaLaPapaScreen> createState() => _PartidaLaPapaScreenState();
@@ -54,6 +57,19 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   @override
   void initState() {
     super.initState();
+    final resume = widget.resume;
+    if (resume != null) {
+      _nombres = List.of(resume.nombres);
+      _ajustes = resume.ajustesIniciales;
+      _partida = resume.partida;
+      _grosor = resume.grosor;
+      _boardSize = resume.boardSize;
+      _trazoFallido
+        ..clear()
+        ..addAll(resume.trazoFallido);
+      return;
+    }
+
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales;
     _partida = nuevaPartidaPapa(
@@ -69,6 +85,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _reiniciar() {
+    if (widget.solo) PapaStandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaPapa(
         nombres: _nombres,
@@ -553,6 +570,25 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _salirAlMenu() {
+    if (widget.solo) {
+      if (_partida.terminada) {
+        PapaStandByStore.limpiar();
+      } else {
+        // No guardar un trazo a medias: al volver empieza limpio.
+        _limpiarTrazo();
+        PapaStandByStore.guardar(
+          PartidaPapaResume(
+            partida: _partida,
+            nombres: _nombres,
+            opciones: widget.opciones,
+            ajustesIniciales: _ajustes,
+            grosor: _grosor,
+            boardSize: _boardSize,
+            trazoFallido: List.of(_trazoFallido),
+          ),
+        );
+      }
+    }
     Navigator.of(context).pop();
   }
 

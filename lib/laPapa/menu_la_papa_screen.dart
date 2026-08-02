@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/partida_la_papa_screen.dart';
+import 'package:app_juegos_mesa/laPapa/standby_store.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
@@ -24,6 +25,7 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
     required List<String> nombres,
     required MenuJuegoEstado estado,
     bool solo = false,
+    PartidaPapaResume? resume,
   }) {
     return navegarConCarga<void>(
       ctx,
@@ -32,10 +34,11 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
           : 'Preparando colocación',
       acento: AppColors.mint,
       builder: (_) => PartidaLaPapaScreen(
-        nombres: nombres,
+        nombres: resume?.nombres ?? nombres,
         solo: solo,
-        opciones: _opciones,
-        ajustesIniciales: estado.ajustes,
+        opciones: resume?.opciones ?? _opciones,
+        ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
+        resume: resume,
       ),
     );
   }
@@ -137,13 +140,16 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
         );
       },
       onVsPc: (ctx, estado, _) {
+        final resume = PapaStandByStore.consumirSiCoincide(_opciones);
         _abrirPartida(
           ctx: ctx,
-          nombres: estado.nombres.isEmpty
-              ? const ['Jugador']
-              : estado.nombres,
+          nombres: resume?.nombres ??
+              (estado.nombres.isEmpty
+                  ? const ['Jugador']
+                  : estado.nombres),
           estado: estado,
           solo: true,
+          resume: resume,
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {
