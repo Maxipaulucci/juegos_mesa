@@ -133,6 +133,121 @@ void main() {
     );
   });
 
+  test('tinta que atraviesa el círculo verde colisiona al roce', () {
+    const board = Size(200, 400);
+    final idx5 = 12; // fila 2, col 2
+    final c5 = centroCasillaPapa(idx5, board);
+    final cell = math.min(board.width / columnasPapa, board.height / filasPapa);
+    final radioVerde = cell * factorRadioVerificacionPapa;
+
+    final casillas = List<int?>.filled(totalCasillasPapa, null);
+    casillas[47] = 4;
+    casillas[idx5] = 5;
+    casillas[0] = 6;
+
+    // Línea rival que cruza el círculo verde del 5 (no solo la punta).
+    final rival = TrazoPapa(
+      puntos: [
+        Offset(c5.dx - radioVerde - 20, c5.dy),
+        Offset(c5.dx - radioVerde * 0.4, c5.dy),
+        Offset(c5.dx + radioVerde * 0.4, c5.dy),
+        Offset(c5.dx + radioVerde + 20, c5.dy),
+      ],
+      de: 1,
+      a: 2,
+      jugador: 'B',
+    );
+    // Llegada propia al 5 desde abajo (punta ignorada al despegar).
+    final llegada = TrazoPapa(
+      puntos: [
+        Offset(c5.dx, c5.dy + radioVerde + 40),
+        Offset(c5.dx, c5.dy + 4),
+        c5,
+      ],
+      de: 4,
+      a: 5,
+      jugador: 'A',
+    );
+
+    final p = PartidaPapa(
+      nombres: const ['A', 'B'],
+      casillas: casillas,
+      maxNumero: maxNumeroPapa,
+      siguienteConectar: 5,
+      trazos: [rival, llegada],
+    );
+
+    // Sale hacia arriba libre: todavía no toca la tinta horizontal.
+    final libre = <Offset>[
+      c5,
+      Offset(c5.dx, c5.dy - radioVerde * 0.5),
+      Offset(c5.dx, c5.dy - radioVerde - 10),
+    ];
+    expect(
+      trazoChocaConPreviosPapa(p, libre, boardSize: board),
+      isFalse,
+    );
+
+    // Sigue trazando hasta rozar la línea que atraviesa el círculo.
+    final choca = <Offset>[
+      c5,
+      Offset(c5.dx, c5.dy - 6),
+      Offset(c5.dx - radioVerde * 0.35, c5.dy - 2),
+      Offset(c5.dx - radioVerde * 0.35, c5.dy), // sobre la tinta rival
+    ];
+    expect(
+      trazoChocaConPreviosPapa(p, choca, boardSize: board),
+      isTrue,
+    );
+  });
+
+  test('zona del número cortada por una línea: visión al centro', () {
+    const board = Size(200, 400);
+    final idx3 = 22; // centro
+    final c3 = centroCasillaPapa(idx3, board);
+    final cell = math.min(board.width / columnasPapa, board.height / filasPapa);
+    final radio = cell * factorRadioVerificacionPapa;
+
+    final casillas = List<int?>.filled(totalCasillasPapa, null);
+    casillas[2] = 1;
+    casillas[47] = 2;
+    casillas[idx3] = 3;
+
+    // Línea vertical que parte el círculo del 3 a la derecha del centro
+    // (como el 1→2 pasando por un costado de la zona).
+    final corta = TrazoPapa(
+      puntos: [
+        Offset(c3.dx + radio * 0.25, c3.dy - radio - 40),
+        Offset(c3.dx + radio * 0.25, c3.dy - radio * 0.2),
+        Offset(c3.dx + radio * 0.25, c3.dy + radio * 0.2),
+        Offset(c3.dx + radio * 0.25, c3.dy + radio + 40),
+      ],
+      de: 1,
+      a: 2,
+      jugador: 'A',
+    );
+
+    final p = PartidaPapa(
+      nombres: const ['A'],
+      casillas: casillas,
+      maxNumero: maxNumeroPapa,
+      siguienteConectar: 3,
+      trazos: [corta],
+    );
+
+    // Lado izquierdo: ve el centro sin cruzar tinta → habilitada.
+    final izq = Offset(c3.dx - radio * 0.55, c3.dy);
+    expect(puntoEnZonaHabilitadaPapa(p, 3, izq, board), isTrue);
+
+    // Lado derecho (detrás del corte): no ve el centro → no habilitada.
+    final der = Offset(c3.dx + radio * 0.7, c3.dy);
+    expect(puntoEnZonaHabilitadaPapa(p, 3, der, board), isFalse);
+
+    // Encima de la tinta: no habilitada.
+    final sobreTinta = Offset(c3.dx + radio * 0.25, c3.dy);
+    expect(puntoEnZonaHabilitadaPapa(p, 3, sobreTinta, board), isFalse);
+  });
+
   test('reescalar trazos mantiene proporción al cambiar el tablero', () {
     const desde = Size(200, 400);
     const hacia = Size(100, 200);

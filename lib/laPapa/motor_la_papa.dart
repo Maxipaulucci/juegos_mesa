@@ -343,8 +343,10 @@ bool _puntoCercaDeTrazos(Offset p, List<TrazoPapa> trazos, double umbral) {
 }
 
 /// True si el trazo actual cruza o roza una línea previa.
-/// Pierde al toque inmediato; solo se ignora un entorno chico del número
-/// de salida (para poder despegar sin chocar con la punta del trazo anterior).
+///
+/// En el centro del número de salida hay una punta libre (para poder empezar).
+/// Fuera de esa punta, cualquier tinta —incluida la que atraviesa el círculo
+/// verde— es límite sólido: se puede seguir trazando hasta chocarla.
 bool trazoChocaConPreviosPapa(
   PartidaPapa p,
   List<Offset> trazoActual, {
@@ -359,17 +361,35 @@ bool trazoChocaConPreviosPapa(
   final idxInicio = p.indiceDeNumero(p.siguienteConectar);
   final centroInicio =
       idxInicio != null ? centroCasillaPapa(idxInicio, boardSize) : null;
-  // Zona chica: solo para salir del número, no para “atravesar” la hoja.
-  final radioIgnorar = cell * 0.14;
+  // Punta libre al despegar; el resto del círculo verde colisiona con la tinta.
+  final radioPunta = cell * 0.14;
 
-  bool enZonaInicio(Offset pt) =>
-      centroInicio != null && (pt - centroInicio).distance <= radioIgnorar;
+  bool enPuntaLibre(Offset pt) =>
+      centroInicio != null && (pt - centroInicio).distance <= radioPunta;
 
-  // Segmentos previos a evaluar (sin la punta que llega al número de salida).
+  /// Recorta el inicio del segmento si nace dentro de la punta libre.
+  (Offset, Offset)? segmentoFueraPunta(Offset a, Offset b) {
+    final aIn = enPuntaLibre(a);
+    final bIn = enPuntaLibre(b);
+    if (aIn && bIn) return null;
+    if (!aIn) return (a, b);
+    if (centroInicio == null) return (a, b);
+    final crosses = _interseccionesSegmentoCirculo(
+      centroInicio,
+      radioPunta,
+      a,
+      b,
+    );
+    if (crosses.isEmpty) return (a, b);
+    crosses.sort(
+      (p, q) => (p - a).distanceSquared.compareTo((q - a).distanceSquared),
+    );
+    return (crosses.first, b);
+  }
+
   final segsPrev = <(Offset, Offset, double)>[];
   for (final t in p.trazos) {
     final pts = t.puntos;
-    // Suma de radios: si se tocan visualmente los trazos gruesos, cuenta.
     final umbral = math.max(
       2.0,
       grosorActual.radioChoque + t.grosor.radioChoque,
@@ -377,10 +397,10 @@ bool trazoChocaConPreviosPapa(
     for (var j = 1; j < pts.length; j++) {
       final p1 = pts[j - 1];
       final p2 = pts[j];
-      // Solo la punta inmediata del trazo de llegada (ambos extremos cerca).
+      // Solo la punta misma de llegada (ambos extremos en la zona libre).
       if (t.a == p.siguienteConectar &&
-          enZonaInicio(p1) &&
-          enZonaInicio(p2)) {
+          enPuntaLibre(p1) &&
+          enPuntaLibre(p2)) {
         continue;
       }
       segsPrev.add((p1, p2, umbral));
@@ -389,29 +409,20 @@ bool trazoChocaConPreviosPapa(
   if (segsPrev.isEmpty) return false;
 
   for (var i = 1; i < trazoActual.length; i++) {
-    final a = trazoActual[i - 1];
-    final b = trazoActual[i];
+    final raw = segmentoFueraPunta(trazoActual[i - 1], trazoActual[i]);
+    if (raw == null) continue;
+    final (a, b) = raw;
     final segLen = (b - a).distance;
     if (segLen < 1e-6) continue;
 
-    // Al despegar del número solo cuenta cruce geométrico (no el roce con la
-    // punta del trazo que llegó). Fuera de esa zona, cruce o roce = pierde.
-    final saliendo = enZonaInicio(a) || enZonaInicio(b);
-
     for (final (p1, p2, umbral) in segsPrev) {
-      if (saliendo) {
-        if (_cruzan(a, b, p1, p2)) return true;
-      } else if (_segmentosCercanos(a, b, p1, p2, umbral)) {
-        return true;
-      }
+      if (_segmentosCercanos(a, b, p1, p2, umbral)) return true;
     }
-
-    if (saliendo) continue;
 
     final muestras = math.max(3, (segLen / 0.9).ceil());
     for (var s = 0; s <= muestras; s++) {
       final pt = Offset.lerp(a, b, s / muestras)!;
-      if (enZonaInicio(pt)) continue;
+      if (enPuntaLibre(pt)) continue;
       for (final (p1, p2, umbral) in segsPrev) {
         if (_distPuntoSegmento(pt, p1, p2) <= umbral) return true;
       }
@@ -473,12 +484,15 @@ bool trazoSeTocaASiMismoPapa(
   return false;
 }
 
+/// Radio del círculo de verificación (zona táctil del número).
+const double factorRadioVerificacionPapa = 0.32;
+
 bool cercaDeNumeroPapa(
   PartidaPapa p,
   int numero,
   Offset pos,
   Size boardSize, {
-  double factorRadio = 0.32,
+  double factorRadio = factorRadioVerificacionPapa,
 }) {
   final idx = p.indiceDeNumero(numero);
   if (idx == null) return false;
@@ -487,6 +501,98 @@ bool cercaDeNumeroPapa(
   final radio = math.min(cellW, cellH) * factorRadio;
   final c = centroCasillaPapa(idx, boardSize);
   return (pos - c).distance <= radio;
+}
+
+/// True si [pos] está sobre tinta de trazos previos.
+bool puntaSobreTintaPreviaPapa(
+  PartidaPapa p,
+  Offset pos,
+  Size boardSize, {
+  GrosorTrazoPapa grosorActual = GrosorTrazoPapa.normal,
+}) {
+  if (p.trazos.isEmpty) return false;
+  for (final t in p.trazos) {
+    final umbral = math.max(
+      2.0,
+      grosorActual.radioChoque + t.grosor.radioChoque,
+    );
+    final pts = t.puntos;
+    for (var i = 1; i < pts.length; i++) {
+      if (_distPuntoSegmento(pos, pts[i - 1], pts[i]) <= umbral) return true;
+    }
+  }
+  return false;
+}
+
+double _umbralChoquePuntaPapa(
+  PartidaPapa p, {
+  GrosorTrazoPapa grosorActual = GrosorTrazoPapa.normal,
+}) {
+  var umbral = 2.0;
+  for (final t in p.trazos) {
+    umbral = math.max(
+      umbral,
+      grosorActual.radioChoque + t.grosor.radioChoque,
+    );
+  }
+  return umbral;
+}
+
+/// Zona habilitada del número: el círculo “achicado” por la tinta que lo corta.
+/// Cuenta solo si el punto ve el centro sin cruzar ninguna línea previa
+/// (como en el croquis: un lado del corte sirve, el otro no).
+bool puntoEnZonaHabilitadaPapa(
+  PartidaPapa p,
+  int numero,
+  Offset pos,
+  Size boardSize, {
+  GrosorTrazoPapa grosorActual = GrosorTrazoPapa.normal,
+  double factorRadio = factorRadioVerificacionPapa,
+}) {
+  final idx = p.indiceDeNumero(numero);
+  if (idx == null) return false;
+  final cell = math.min(
+    boardSize.width / columnasPapa,
+    boardSize.height / filasPapa,
+  );
+  final radio = cell * factorRadio;
+  final c = centroCasillaPapa(idx, boardSize);
+  final dist = (pos - c).distance;
+  if (dist > radio) return false;
+
+  final umbral = _umbralChoquePuntaPapa(p, grosorActual: grosorActual);
+  if (puntaSobreTintaPreviaPapa(
+    p,
+    pos,
+    boardSize,
+    grosorActual: grosorActual,
+  )) {
+    return false;
+  }
+
+  if (p.trazos.isEmpty) return true;
+
+  // Visión al centro: si hay tinta entre el toque y el centro, zona tapada.
+  // Se ignora un entorno mínimo del centro (para no anular todo el círculo
+  // cuando una línea solo roza el punto central).
+  final ignorarCentro = math.max(umbral, cell * 0.06);
+  if (dist <= ignorarCentro) return true;
+
+  final muestras = math.max(4, (dist / 1.2).ceil());
+  for (var i = 1; i < muestras; i++) {
+    final t = i / muestras;
+    final pt = Offset.lerp(pos, c, t)!;
+    if ((pt - c).distance <= ignorarCentro) continue;
+    if (puntaSobreTintaPreviaPapa(
+      p,
+      pt,
+      boardSize,
+      grosorActual: grosorActual,
+    )) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /// Intersecciones del segmento [a,b] con la circunferencia (c,r).
@@ -548,6 +654,14 @@ Offset? puntoEntradaAlCirculoPapa(
   return null;
 }
 
+double _umbralTintaPapa(PartidaPapa p, double cell) {
+  var umbral = math.max(2.6, cell * 0.04);
+  for (final t in p.trazos) {
+    umbral = math.max(umbral, t.grosor.radioChoque);
+  }
+  return umbral;
+}
+
 /// True si el punto de entrada cae encima de tinta previa en el borde.
 /// Una línea que pasa por la casilla solo tapa donde realmente roza el
 /// círculo del número; el resto de lados siguen libres.
@@ -556,7 +670,7 @@ bool llegadaPorLadoBloqueadoPapa(
   int numero,
   List<Offset> trazoActual,
   Size boardSize, {
-  double factorRadio = 0.32,
+  double factorRadio = factorRadioVerificacionPapa,
 }) {
   final idx = p.indiceDeNumero(numero);
   if (idx == null || trazoActual.length < 2) return false;
@@ -569,12 +683,7 @@ bool llegadaPorLadoBloqueadoPapa(
   final entrada = puntoEntradaAlCirculoPapa(trazoActual, c, radio);
   if (entrada == null) return false;
 
-  // ~grosor del trazo: hay que tocar la tinta, no un arco enorme.
-  var umbralTinta = math.max(2.6, cell * 0.04);
-  for (final t in p.trazos) {
-    umbralTinta = math.max(umbralTinta, t.grosor.radioChoque);
-  }
-  return _puntoCercaDeTrazos(entrada, p.trazos, umbralTinta);
+  return _puntoCercaDeTrazos(entrada, p.trazos, _umbralTintaPapa(p, cell));
 }
 
 /// Acepta el trazo si une el par actual y no chocó.

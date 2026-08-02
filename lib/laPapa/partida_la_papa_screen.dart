@@ -379,6 +379,16 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     if (!cercaDeNumeroPapa(_partida, de, local, boardSize)) {
       return;
     }
+    // Solo se puede empezar desde la zona habilitada (círculo achicado).
+    if (!puntoEnZonaHabilitadaPapa(
+      _partida,
+      de,
+      local,
+      boardSize,
+      grosorActual: _grosor,
+    )) {
+      return;
+    }
     setState(() {
       _boardSize = boardSize;
       _dibujando = true;
@@ -417,13 +427,28 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     if (_trazoActual.isNotEmpty) {
       final dist = (_trazoActual.last - local).distance;
       if (dist < 2.5) return;
-      // Salto imposible en un frame (glitch al mover la lupa / layout).
-      // Se ignora el punto; no se cuenta como choque.
+      // Salto grande (lupa/layout): igual se evalúa choque en el segmento.
       final cell = math.min(
         boardSize.width / columnasPapa,
         boardSize.height / filasPapa,
       );
-      if (dist > math.max(72.0, cell * 1.35)) return;
+      if (dist > math.max(72.0, cell * 1.35)) {
+        final salto = [..._trazoActual, local];
+        if (trazoChocaConPreviosPapa(
+          _partida,
+          salto,
+          boardSize: boardSize,
+          grosorActual: _grosor,
+        )) {
+          setState(() {
+            _trazoActual.add(local);
+            _fallar(
+              '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
+            );
+          });
+        }
+        return;
+      }
     }
 
     final de = _partida.siguienteConectar;
@@ -463,9 +488,32 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _salioDelInicio = true;
       }
 
+      // Tocar la zona habilitada marca al toque. Si una línea corta el círculo,
+      // solo cuentan los lóbulos abiertos (sin cruzar esa tinta).
       if (_salioDelInicio &&
           cercaDeNumeroPapa(_partida, a, local, boardSize) &&
           _trazoActual.length >= 2) {
+        if (puntaSobreTintaPreviaPapa(
+          _partida,
+          local,
+          boardSize,
+          grosorActual: _grosor,
+        )) {
+          _fallar(
+            '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
+          );
+          return;
+        }
+        if (!puntoEnZonaHabilitadaPapa(
+          _partida,
+          a,
+          local,
+          boardSize,
+          grosorActual: _grosor,
+        )) {
+          // Dentro del círculo pero en zona tapada: seguir trazando / chocar.
+          return;
+        }
         if (llegadaPorLadoBloqueadoPapa(
           _partida,
           a,
