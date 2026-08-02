@@ -1622,9 +1622,18 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
                             ),
                           ),
                           const SizedBox(height: 8),
-                          OutlinedButton(
+                          ElevatedButton(
                             onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Cancelar'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.peligro,
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text(
+                              'Cancelar',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
                           ),
                         ],
                       ),
@@ -1657,46 +1666,61 @@ class _BotonModoForzar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          decoration: BoxDecoration(
-            color: activo
-                ? color.withValues(alpha: 0.22)
-                : Colors.black.withValues(alpha: 0.25),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: activo ? color : color.withValues(alpha: 0.45),
-              width: activo ? 2.2 : 1.3,
+    final radius = BorderRadius.circular(14);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: activo
+            ? [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.45),
+                  blurRadius: 12,
+                  spreadRadius: 0,
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: activo
+            ? color.withValues(alpha: 0.22)
+            : Colors.black.withValues(alpha: 0.25),
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(
+                color: activo ? color : color.withValues(alpha: 0.45),
+                width: activo ? 2.2 : 1.3,
+              ),
             ),
-            boxShadow: activo ? neonGlow(color, blur: 10) : null,
-          ),
-          child: Column(
-            children: [
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  height: 1.15,
+            child: Column(
+              children: [
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    height: 1.15,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                sublabel,
-                style: const TextStyle(
-                  color: AppColors.texto,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
+                const SizedBox(height: 4),
+                Text(
+                  sublabel,
+                  style: const TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
