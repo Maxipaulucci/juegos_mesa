@@ -384,11 +384,13 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
           ],
         ),
         content: const Text(
-          'Antes de empezar la partida, cada jugador tira un dado. '
-          'Quien saque el número más alto juega primero, y así en orden '
-          'descendente.\n\n'
-          'Si hay empate, solo los empatados vuelven a tirar hasta '
-          'desempatar. Después se muestra el orden y arranca la partida.',
+          'Antes de empezar la partida, cada jugador saca una carta del '
+          'mazo español (1 al 12 de oro, copa, espada y basto).\n\n'
+          'Quien saque el número más alto juega primero (el palo no importa), '
+          'y así en orden descendente.\n\n'
+          'Ninguna carta se repite: la que sale se saca del mazo. '
+          'Si hay empate de número, solo los empatados vuelven a sacar '
+          'hasta desempatar. Después se muestra el orden y arranca la partida.',
           style: TextStyle(color: AppColors.texto, height: 1.45),
         ),
         actions: [

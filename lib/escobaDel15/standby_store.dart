@@ -7,11 +7,13 @@ class PartidaEscobaResume {
     required this.partida,
     required this.nombres,
     required this.ajustesIniciales,
+    this.modoDios = false,
   });
 
   final PartidaEscoba partida;
   final List<String> nombres;
   final AjustesEstado ajustesIniciales;
+  final bool modoDios;
 }
 
 class EscobaStandByStore {

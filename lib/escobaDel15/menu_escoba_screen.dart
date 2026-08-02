@@ -20,6 +20,7 @@ class MenuEscobaScreen extends StatelessWidget {
     bool replace = false,
     AjustesEstado? ajustes,
     PartidaEscobaResume? resume,
+    bool modoDios = false,
   }) {
     return navegarConCarga<void>(
       ctx,
@@ -33,6 +34,7 @@ class MenuEscobaScreen extends StatelessWidget {
         miNombre: miNombre,
         ajustesIniciales: ajustes,
         resume: resume,
+        modoDios: resume?.modoDios ?? modoDios,
       ),
     );
   }
@@ -49,6 +51,7 @@ class MenuEscobaScreen extends StatelessWidget {
           ctx: ctx,
           nombres: estado.nombres,
           ajustes: estado.ajustes,
+          modoDios: estado.modoDios,
         );
       },
       onVsPc: (ctx, estado, _) {
@@ -63,6 +66,7 @@ class MenuEscobaScreen extends StatelessWidget {
           contraPc: true,
           ajustes: resume?.ajustesIniciales ?? estado.ajustes,
           resume: resume,
+          modoDios: resume?.modoDios ?? estado.modoDios,
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {

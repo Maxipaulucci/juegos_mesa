@@ -140,6 +140,71 @@ PartidaEscoba nuevaPartidaEscoba({
   return p;
 }
 
+/// Quita [carta] de mazo, mesa, manos y capturadas (modo dios / testing).
+bool extraerCartaEscoba(PartidaEscoba p, CartaEscoba carta) {
+  if (p.mazo.remove(carta)) return true;
+  if (p.mesa.remove(carta)) return true;
+  for (final j in p.jugadores) {
+    if (j.mano.remove(carta)) return true;
+    if (j.capturadas.remove(carta)) return true;
+  }
+  return false;
+}
+
+/// Completa [elegidas] hasta [cupo] con cartas al azar no usadas en [ocupadas].
+List<CartaEscoba> completarCartasEscobaConAzar(
+  List<CartaEscoba> elegidas,
+  int cupo, {
+  Set<CartaEscoba> ocupadas = const {},
+  math.Random? rng,
+}) {
+  final out = <CartaEscoba>[];
+  for (final c in elegidas) {
+    if (out.length >= cupo) break;
+    if (!out.contains(c)) out.add(c);
+  }
+  if (out.length >= cupo) return out;
+
+  final r = rng ?? math.Random();
+  final pool = [
+    for (final c in crearMazoEscoba())
+      if (!out.contains(c) && !ocupadas.contains(c)) c,
+  ];
+  for (var i = pool.length - 1; i > 0; i--) {
+    final j = r.nextInt(i + 1);
+    final tmp = pool[i];
+    pool[i] = pool[j];
+    pool[j] = tmp;
+  }
+  for (final c in pool) {
+    if (out.length >= cupo) break;
+    out.add(c);
+  }
+  return out;
+}
+
+/// Reemplaza la mesa. Las cartas anteriores vuelven al mazo.
+void forzarMesaEscoba(PartidaEscoba p, List<CartaEscoba> cartas) {
+  p.mazo.addAll(p.mesa);
+  p.mesa.clear();
+  for (final c in cartas) {
+    extraerCartaEscoba(p, c);
+    p.mesa.add(c);
+  }
+}
+
+/// Reemplaza la mano del jugador [idx].
+void forzarManoEscoba(PartidaEscoba p, int idx, List<CartaEscoba> cartas) {
+  assert(idx >= 0 && idx < p.jugadores.length);
+  final j = p.jugadores[idx];
+  p.mazo.addAll(j.mano);
+  j.mano.clear();
+  for (final c in cartas) {
+    extraerCartaEscoba(p, c);
+    j.mano.add(c);
+  }
+}
+
 void _repartirInicio(PartidaEscoba p) {
   final esNuevaRondaTrasFin = p.fase == FaseEscoba.finRonda;
   for (final j in p.jugadores) {

@@ -2,12 +2,43 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Cada jugador tira un dado; el más alto empieza. Empates se resuelven
-/// volviendo a tirar solo los empatados (el desempate solo ordena dentro
-/// de ese grupo, sin pisar a quienes ya sacaron más alto).
+enum _PaloOrden { oro, copa, espada, basto }
+
+class _CartaOrden {
+  const _CartaOrden({required this.numero, required this.palo});
+
+  /// 1–12.
+  final int numero;
+  final _PaloOrden palo;
+
+  String get nombrePalo => switch (palo) {
+        _PaloOrden.oro => 'oro',
+        _PaloOrden.copa => 'copa',
+        _PaloOrden.espada => 'espada',
+        _PaloOrden.basto => 'basto',
+      };
+
+  String get etiqueta => '$numero de $nombrePalo';
+
+  @override
+  bool operator ==(Object other) =>
+      other is _CartaOrden && other.numero == numero && other.palo == palo;
+
+  @override
+  int get hashCode => Object.hash(numero, palo);
+}
+
+/// Mazo español completo: 12 cartas × 4 palos = 48 (sin comodines).
+List<_CartaOrden> _crearMazoOrden() => [
+      for (final palo in _PaloOrden.values)
+        for (var n = 1; n <= 12; n++) _CartaOrden(numero: n, palo: palo),
+    ];
+
+/// Cada jugador saca una carta del mazo español; gana el número más alto
+/// (el palo no importa). Empates: solo los empatados vuelven a sacar,
+/// sin repetir cartas ya salidas.
 class DecidirOrdenScreen extends StatefulWidget {
   const DecidirOrdenScreen({super.key, required this.nombres});
 
@@ -22,30 +53,33 @@ class _ResultadoTiradaOrden {
 
   final String nombre;
   final int indiceOriginal;
-  /// Historial de tiradas: la 1.ª define el grupo; las siguientes solo
-  /// desempatan dentro del mismo prefijo.
-  final List<int> tiradas = [];
+  /// Historial de cartas: la 1.ª define el grupo; las siguientes solo
+  /// desempatan dentro del mismo prefijo de números.
+  final List<_CartaOrden> cartas = [];
 
-  int? get valorMostrado => tiradas.isEmpty ? null : tiradas.last;
+  _CartaOrden? get cartaMostrada => cartas.isEmpty ? null : cartas.last;
 
-  String get claveGrupo => tiradas.join(',');
+  /// Clave de grupo por números (sin palo), para empates.
+  String get claveGrupo =>
+      [for (final c in cartas) c.numero].join(',');
 }
 
 class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
   final _rng = math.Random();
   late final List<_ResultadoTiradaOrden> _jugadores;
-  /// Índices en [_jugadores] que deben tirar en esta ronda.
+  late final List<_CartaOrden> _mazo;
+  /// Índices en [_jugadores] que deben sacar en esta ronda.
   late List<int> _cola;
   int _posCola = 0;
-  bool _tirando = false;
-  int? _valorAnimado;
+  bool _sacando = false;
+  _CartaOrden? _cartaAnimada;
   bool _mostrarOrden = false;
-  /// Se apaga al tirar y vuelve al pasar el turno al siguiente.
-  bool _puedeTirar = true;
+  bool _puedeSacar = true;
 
   _ResultadoTiradaOrden get _actual => _jugadores[_cola[_posCola]];
 
-  bool get _rondaDeDesempate => _jugadores.any((j) => j.tiradas.isNotEmpty) &&
+  bool get _rondaDeDesempate =>
+      _jugadores.any((j) => j.cartas.isNotEmpty) &&
       _cola.length < _jugadores.length;
 
   @override
@@ -59,6 +93,7 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
         ),
     ];
     _cola = List.generate(_jugadores.length, (i) => i);
+    _mazo = _crearMazoOrden()..shuffle(_rng);
   }
 
   static Color _colorDe(int index) => switch (index) {
@@ -68,52 +103,71 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
         _ => AppColors.mint,
       };
 
-  Future<void> _tirar() async {
-    if (!_puedeTirar || _tirando || _mostrarOrden) return;
+  _CartaOrden _sacarDelMazo() {
+    if (_mazo.isEmpty) {
+      // Por si se agotara el mazo en desempatados extremos: reponer sin
+      // las cartas ya usadas en el historial actual.
+      final usadas = <_CartaOrden>{
+        for (final j in _jugadores) ...j.cartas,
+      };
+      _mazo.addAll([
+        for (final c in _crearMazoOrden())
+          if (!usadas.contains(c)) c,
+      ]);
+      _mazo.shuffle(_rng);
+    }
+    return _mazo.removeLast();
+  }
+
+  Future<void> _sacarCarta() async {
+    if (!_puedeSacar || _sacando || _mostrarOrden) return;
     setState(() {
-      _puedeTirar = false;
-      _tirando = true;
-      _valorAnimado = null;
+      _puedeSacar = false;
+      _sacando = true;
+      _cartaAnimada = null;
     });
 
     for (var i = 0; i < 8; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 55));
       if (!mounted) return;
-      setState(() => _valorAnimado = _rng.nextInt(6) + 1);
+      // Animación solo visual; no consume del mazo real.
+      final preview = _mazo.isEmpty
+          ? _crearMazoOrden()[_rng.nextInt(48)]
+          : _mazo[_rng.nextInt(_mazo.length)];
+      setState(() => _cartaAnimada = preview);
     }
 
-    final valor = _rng.nextInt(6) + 1;
-    _actual.tiradas.add(valor);
+    final carta = _sacarDelMazo();
+    _actual.cartas.add(carta);
     if (!mounted) return;
     setState(() {
-      _valorAnimado = valor;
-      _tirando = false;
+      _cartaAnimada = carta;
+      _sacando = false;
     });
 
     await Future<void>.delayed(const Duration(milliseconds: 650));
     if (!mounted) return;
-    _avanzarTrasTirada();
+    _avanzarTrasSacar();
 
-    // Recién cuando ya cambió el turno (nombre / dado vacío) se puede tirar.
     if (!mounted || _mostrarOrden) return;
-    setState(() => _puedeTirar = true);
+    setState(() => _puedeSacar = true);
   }
 
-  void _avanzarTrasTirada() {
+  void _avanzarTrasSacar() {
     if (_posCola < _cola.length - 1) {
       setState(() {
         _posCola++;
-        _valorAnimado = null;
+        _cartaAnimada = null;
       });
       return;
     }
 
-    // Empates: mismo historial completo (mismo grupo). Un 5 de desempate
-    // entre los que sacaron 1 no compite con quien sacó 5 en la 1.ª ronda.
+    // Empates: mismo historial de números. Un 5 de desempate entre los
+    // que sacaron 1 no compite con quien sacó 5 en la 1.ª ronda.
     final porGrupo = <String, List<int>>{};
     for (var i = 0; i < _jugadores.length; i++) {
       final j = _jugadores[i];
-      if (j.tiradas.isEmpty) continue;
+      if (j.cartas.isEmpty) continue;
       porGrupo.putIfAbsent(j.claveGrupo, () => []).add(i);
     }
     final empatados = <int>[
@@ -125,7 +179,7 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
       setState(() {
         _cola = empatados;
         _posCola = 0;
-        _valorAnimado = null;
+        _cartaAnimada = null;
       });
       return;
     }
@@ -133,15 +187,14 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
     setState(() => _mostrarOrden = true);
   }
 
-  /// Orden: se compara tirada a tirada (más alto gana). Así [5] queda
-  /// delante de [1, 5], y [1, 5] delante de [1, 2].
+  /// Orden: se compara número a número (más alto gana). El palo no importa.
   List<_ResultadoTiradaOrden> get _ordenFinal {
     final lista = List<_ResultadoTiradaOrden>.of(_jugadores);
     lista.sort((a, b) {
-      final n = math.max(a.tiradas.length, b.tiradas.length);
+      final n = math.max(a.cartas.length, b.cartas.length);
       for (var i = 0; i < n; i++) {
-        final va = i < a.tiradas.length ? a.tiradas[i] : -1;
-        final vb = i < b.tiradas.length ? b.tiradas[i] : -1;
+        final va = i < a.cartas.length ? a.cartas[i].numero : -1;
+        final vb = i < b.cartas.length ? b.cartas[i].numero : -1;
         if (va != vb) return vb.compareTo(va);
       }
       return a.indiceOriginal.compareTo(b.indiceOriginal);
@@ -180,7 +233,7 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
                       Text(
                         _rondaDeDesempate
                             ? 'Desempate'
-                            : 'Tirada para el orden',
+                            : 'Cartas para el orden',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AppColors.acento,
@@ -192,8 +245,9 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
                       const SizedBox(height: 6),
                       Text(
                         _rondaDeDesempate
-                            ? 'Hay empate: solo vuelven a tirar quienes empataron.'
-                            : 'Cada jugador tira un dado. El más alto empieza.',
+                            ? 'Hay empate: solo vuelven a sacar quienes empataron.'
+                            : 'Cada jugador saca una carta del mazo español. '
+                                'Gana el número más alto (el palo no importa).',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AppColors.textoSuave,
@@ -201,7 +255,17 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
                           height: 1.35,
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Cartas en el mazo: ${_mazo.length}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.textoSuave,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       Expanded(
                         child: ListView.separated(
                           itemCount: _jugadores.length,
@@ -220,10 +284,11 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
                                 idxEnCola > _posCola;
                             return _FilaResultado(
                               nombre: j.nombre,
-                              valor: j.valorMostrado,
+                              carta: j.cartaMostrada,
                               accent: accent,
                               destacado: esActual,
-                              pendiente: pendiente && j.valorMostrado == null,
+                              pendiente:
+                                  pendiente && j.cartaMostrada == null,
                             );
                           },
                         ),
@@ -249,7 +314,7 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Te toca tirar',
+                          'Te toca sacar una carta',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: AppColors.textoSuave,
@@ -258,18 +323,20 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
                         ),
                         const SizedBox(height: 16),
                         Center(
-                          child: DadoFace(
-                            valor: _valorAnimado ?? 1,
-                            vacio: _valorAnimado == null,
-                            suma: true,
-                            tamano: 88,
+                          child: _CartaFace(
+                            carta: _cartaAnimada,
+                            vacia: _cartaAnimada == null,
+                            tamano: 108,
                           ),
                         ),
                         const SizedBox(height: 22),
                         ElevatedButton(
-                          onPressed:
-                              (_puedeTirar && !_tirando) ? _tirar : null,
-                          child: Text(_tirando ? 'Tirando…' : 'Tirar dado'),
+                          onPressed: (_puedeSacar && !_sacando)
+                              ? _sacarCarta
+                              : null,
+                          child: Text(
+                            _sacando ? 'Sacando…' : 'Sacar carta',
+                          ),
                         ),
                       ],
                     ],
@@ -290,17 +357,86 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
   }
 }
 
+class _CartaFace extends StatelessWidget {
+  const _CartaFace({
+    required this.carta,
+    this.vacia = false,
+    this.tamano = 72,
+  });
+
+  final _CartaOrden? carta;
+  final bool vacia;
+  final double tamano;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = carta;
+    return Container(
+      width: tamano * 0.72,
+      height: tamano,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.carta,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: vacia || c == null
+              ? AppColors.textoSuave.withValues(alpha: 0.4)
+              : AppColors.acento,
+          width: 2,
+        ),
+        boxShadow: vacia || c == null
+            ? null
+            : neonGlow(AppColors.acento, blur: 10),
+      ),
+      child: vacia || c == null
+          ? const Text(
+              '?',
+              style: TextStyle(
+                color: AppColors.textoSuave,
+                fontWeight: FontWeight.w900,
+                fontSize: 28,
+              ),
+            )
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${c.numero}',
+                  style: const TextStyle(
+                    color: AppColors.acento,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 26,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  c.nombrePalo,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
 class _FilaResultado extends StatelessWidget {
   const _FilaResultado({
     required this.nombre,
-    required this.valor,
+    required this.carta,
     required this.accent,
     required this.destacado,
     required this.pendiente,
   });
 
   final String nombre;
-  final int? valor;
+  final _CartaOrden? carta;
   final Color accent;
   final bool destacado;
   final bool pendiente;
@@ -335,8 +471,15 @@ class _FilaResultado extends StatelessWidget {
               ),
             ),
           ),
-          if (valor != null)
-            DadoFace(valor: valor!, suma: true, tamano: 36)
+          if (carta != null)
+            Text(
+              carta!.etiqueta,
+              style: TextStyle(
+                color: accent,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+              ),
+            )
           else
             Text(
               pendiente ? 'Pendiente' : '—',
@@ -397,7 +540,7 @@ class _CartelOrden extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
-                        Icons.casino_rounded,
+                        Icons.style_rounded,
                         color: AppColors.acento,
                         size: 36,
                       ),
@@ -456,11 +599,14 @@ class _CartelOrden extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            if (orden[i].tiradas.isNotEmpty)
-                              DadoFace(
-                                valor: orden[i].tiradas.first,
-                                suma: true,
-                                tamano: 32,
+                            if (orden[i].cartas.isNotEmpty)
+                              Text(
+                                orden[i].cartas.first.etiqueta,
+                                style: TextStyle(
+                                  color: colorDe(orden[i].indiceOriginal),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12,
+                                ),
                               ),
                           ],
                         ),

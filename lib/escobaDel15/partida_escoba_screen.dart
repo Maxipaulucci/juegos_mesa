@@ -22,6 +22,7 @@ class PartidaEscobaScreen extends StatefulWidget {
     this.miNombre,
     this.ajustesIniciales,
     this.resume,
+    this.modoDios = false,
   });
 
   final List<String> nombres;
@@ -30,6 +31,7 @@ class PartidaEscobaScreen extends StatefulWidget {
   final String? miNombre;
   final AjustesEstado? ajustesIniciales;
   final PartidaEscobaResume? resume;
+  final bool modoDios;
 
   @override
   State<PartidaEscobaScreen> createState() => _PartidaEscobaScreenState();
@@ -416,10 +418,68 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
         partida: _partida,
         nombres: _nombres,
         ajustesIniciales: _ajustes,
+        modoDios: widget.modoDios,
       ),
     );
     _pcToken++;
     _salirAlMenu();
+  }
+
+  int get _idxManoForzar {
+    if (widget.contraPc) {
+      return _partida.jugadores.indexWhere((j) => j.nombre != 'PC');
+    }
+    return _partida.indiceTurno % _partida.jugadores.length;
+  }
+
+  Future<void> _abrirForzarCartas() async {
+    if (!widget.modoDios || _partida.terminada || _bloquearHumano) return;
+    if (_partida.fase != FaseEscoba.jugando) return;
+
+    final cupoMesa = _partida.mesa.length;
+    final cupoMano = _manoVisible.mano.length;
+    if (cupoMesa == 0 && cupoMano == 0) {
+      setState(() => _aviso = 'No hay cartas en mesa ni en mano para forzar.');
+      return;
+    }
+
+    final resultado = await showDialog<_ForzarCartasResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _DialogoForzarCartasEscoba(
+        mesaInicial: List.of(_partida.mesa),
+        manoInicial: List.of(_manoVisible.mano),
+        cupoMesa: cupoMesa,
+        cupoMano: cupoMano,
+      ),
+    );
+    if (resultado == null || !mounted) return;
+
+    setState(() {
+      _limpiarSeleccion();
+      _mensajePc = null;
+
+      final mesaElegidas = List.of(resultado.mesa);
+      final manoElegidas = List.of(resultado.mano);
+
+      final mesaFinal = completarCartasEscobaConAzar(
+        mesaElegidas,
+        cupoMesa,
+        ocupadas: {...manoElegidas},
+      );
+      final manoFinal = completarCartasEscobaConAzar(
+        manoElegidas,
+        cupoMano,
+        ocupadas: {...mesaFinal},
+      );
+
+      if (cupoMesa > 0) forzarMesaEscoba(_partida, mesaFinal);
+      if (cupoMano > 0) {
+        final idx = _idxManoForzar;
+        if (idx >= 0) forzarManoEscoba(_partida, idx, manoFinal);
+      }
+      _aviso = 'Cartas forzadas aplicadas.';
+    });
   }
 
   void _rendirse() {
@@ -599,17 +659,52 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                             : const SizedBox.shrink(),
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    _pcMostrandoJugada && _mesaSeleccion.isNotEmpty
-                        ? 'MESA · PC elige ${_mesaSeleccion.length}'
-                        : _mesaSeleccion.isEmpty
-                            ? 'MESA (pozo)'
-                            : 'MESA · ${_mesaSeleccion.length} seleccionada(s)',
-                    style: const TextStyle(
-                      color: AppColors.azul,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _pcMostrandoJugada && _mesaSeleccion.isNotEmpty
+                              ? 'MESA · PC elige ${_mesaSeleccion.length}'
+                              : _mesaSeleccion.isEmpty
+                                  ? 'MESA (pozo)'
+                                  : 'MESA · ${_mesaSeleccion.length} seleccionada(s)',
+                          style: const TextStyle(
+                            color: AppColors.azul,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      if (widget.modoDios)
+                        Material(
+                          color: AppColors.carta,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: (_partida.terminada ||
+                                    _bloquearHumano ||
+                                    _partida.fase != FaseEscoba.jugando)
+                                ? null
+                                : _abrirForzarCartas,
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.textoSuave
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.bug_report,
+                                size: 20,
+                                color: AppColors.textoSuave,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Expanded(
@@ -1250,6 +1345,355 @@ class _CartaTexto extends StatelessWidget {
                   color: accent.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w700,
                   fontSize: compacta ? 10 : 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ForzarCartasResult {
+  const _ForzarCartasResult({
+    required this.mesa,
+    required this.mano,
+  });
+
+  final List<CartaEscoba> mesa;
+  final List<CartaEscoba> mano;
+}
+
+enum _ModoForzarCartas { mesa, mano }
+
+class _DialogoForzarCartasEscoba extends StatefulWidget {
+  const _DialogoForzarCartasEscoba({
+    required this.mesaInicial,
+    required this.manoInicial,
+    required this.cupoMesa,
+    required this.cupoMano,
+  });
+
+  final List<CartaEscoba> mesaInicial;
+  final List<CartaEscoba> manoInicial;
+  final int cupoMesa;
+  final int cupoMano;
+
+  @override
+  State<_DialogoForzarCartasEscoba> createState() =>
+      _DialogoForzarCartasEscobaState();
+}
+
+class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> {
+  late final List<CartaEscoba> _todas;
+  late List<CartaEscoba> _mesa;
+  late List<CartaEscoba> _mano;
+  late _ModoForzarCartas _modo;
+
+  int get _cupoMesa => widget.cupoMesa;
+  int get _cupoMano => widget.cupoMano;
+
+  @override
+  void initState() {
+    super.initState();
+    _todas = crearMazoEscoba()
+      ..sort((a, b) {
+        final p = a.palo.index.compareTo(b.palo.index);
+        if (p != 0) return p;
+        return a.numero.compareTo(b.numero);
+      });
+    _mesa = List.of(widget.mesaInicial.take(_cupoMesa));
+    _mano = List.of(widget.manoInicial.take(_cupoMano));
+    _modo = _cupoMesa > 0
+        ? _ModoForzarCartas.mesa
+        : _ModoForzarCartas.mano;
+  }
+
+  bool _enMesa(CartaEscoba c) => _mesa.contains(c);
+  bool _enMano(CartaEscoba c) => _mano.contains(c);
+
+  void _toggle(CartaEscoba c) {
+    setState(() {
+      if (_modo == _ModoForzarCartas.mesa) {
+        if (_cupoMesa <= 0) return;
+        if (_enMesa(c)) {
+          _mesa.remove(c);
+          return;
+        }
+        if (_enMano(c)) _mano.remove(c);
+        if (_mesa.length >= _cupoMesa) return;
+        _mesa.add(c);
+      } else {
+        if (_cupoMano <= 0) return;
+        if (_enMano(c)) {
+          _mano.remove(c);
+          return;
+        }
+        if (_enMesa(c)) _mesa.remove(c);
+        if (_mano.length >= _cupoMano) return;
+        _mano.add(c);
+      }
+    });
+  }
+
+  Color _bordeCarta(CartaEscoba c) {
+    if (_enMesa(c)) return AppColors.azul;
+    if (_enMano(c)) return AppColors.mint;
+    return AppColors.textoSuave.withValues(alpha: 0.35);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxH = MediaQuery.sizeOf(context).height * 0.88;
+    return Dialog(
+      backgroundColor: AppColors.carta,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 720, maxHeight: maxH),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          child: Column(
+            children: [
+              const Text(
+                '🎯 Forzar cartas',
+                style: TextStyle(
+                  color: AppColors.acento,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _modo == _ModoForzarCartas.mesa
+                    ? 'Modo mesa: elegí hasta $_cupoMesa '
+                        '(si faltan, se completan al azar)'
+                    : 'Modo mano: elegí hasta $_cupoMano '
+                        '(si faltan, se completan al azar)',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AppColors.textoSuave.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: GridView.builder(
+                          padding: const EdgeInsets.all(8),
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 110,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                            childAspectRatio: 1.35,
+                          ),
+                          itemCount: _todas.length,
+                          itemBuilder: (context, i) {
+                            final c = _todas[i];
+                            final sel = _enMesa(c) || _enMano(c);
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _toggle(c),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.carta,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: _bordeCarta(c),
+                                      width: sel ? 2.2 : 1.2,
+                                    ),
+                                    boxShadow: sel
+                                        ? neonGlow(_bordeCarta(c), blur: 8)
+                                        : null,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        c.etiqueta,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.texto,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      Text(
+                                        'vale ${c.valorSuma}',
+                                        style: TextStyle(
+                                          color: AppColors.textoSuave
+                                              .withValues(alpha: 0.95),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                      if (_enMesa(c))
+                                        const Text(
+                                          'MESA',
+                                          style: TextStyle(
+                                            color: AppColors.azul,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 9,
+                                          ),
+                                        ),
+                                      if (_enMano(c))
+                                        const Text(
+                                          'MANO',
+                                          style: TextStyle(
+                                            color: AppColors.mint,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 9,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 132,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_cupoMesa > 0) ...[
+                            _BotonModoForzar(
+                              label: 'Tirar en\nla mesa',
+                              sublabel: '${_mesa.length}/$_cupoMesa',
+                              color: AppColors.azul,
+                              activo: _modo == _ModoForzarCartas.mesa,
+                              onTap: () => setState(
+                                () => _modo = _ModoForzarCartas.mesa,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                          if (_cupoMano > 0)
+                            _BotonModoForzar(
+                              label: 'Mano',
+                              sublabel: '${_mano.length}/$_cupoMano',
+                              color: AppColors.mint,
+                              activo: _modo == _ModoForzarCartas.mano,
+                              onTap: () => setState(
+                                () => _modo = _ModoForzarCartas.mano,
+                              ),
+                            ),
+                          const Spacer(),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.acento,
+                              foregroundColor: const Color(0xFF1A0A00),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).pop(
+                                _ForzarCartasResult(
+                                  mesa: List.of(_mesa),
+                                  mano: List.of(_mano),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              'Aplicar',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Cancelar'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonModoForzar extends StatelessWidget {
+  const _BotonModoForzar({
+    required this.label,
+    required this.sublabel,
+    required this.color,
+    required this.activo,
+    required this.onTap,
+  });
+
+  final String label;
+  final String sublabel;
+  final Color color;
+  final bool activo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          decoration: BoxDecoration(
+            color: activo
+                ? color.withValues(alpha: 0.22)
+                : Colors.black.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: activo ? color : color.withValues(alpha: 0.45),
+              width: activo ? 2.2 : 1.3,
+            ),
+            boxShadow: activo ? neonGlow(color, blur: 10) : null,
+          ),
+          child: Column(
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                sublabel,
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
                 ),
               ),
             ],
