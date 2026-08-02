@@ -415,6 +415,7 @@ export default async (req) => {
             combos: [],
             escobasRonda: 0,
             puntos: 0,
+            rendido: false,
           })),
           ultimoResultado: null,
           ultimaJugada: null,

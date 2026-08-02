@@ -166,6 +166,7 @@ Map<String, dynamic> encodeEscobaGameState({
           ],
           'escobasRonda': j.escobasRonda,
           'puntos': j.puntos,
+          'rendido': j.rendido,
         },
     ],
     'ultimoResultado': _encodeResultado(partida.ultimoResultado),
@@ -225,6 +226,7 @@ void applyEscobaGameState(PartidaEscoba destino, Map<String, dynamic> raw) {
         ]);
       j.escobasRonda = (m['escobasRonda'] as num?)?.toInt() ?? 0;
       j.puntos = (m['puntos'] as num?)?.toInt() ?? 0;
+      j.rendido = m['rendido'] == true;
     }
   }
 

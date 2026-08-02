@@ -730,28 +730,29 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     final yo = _esOnline
         ? (widget.miNombre ?? _partida.jugadorActual.nombre)
         : _partida.jugadorActual.nombre;
-    final otros = [
-      for (final j in _partida.jugadores)
-        if (j.nombre != yo) j.nombre,
-    ];
+    final ya = _partida.jugadores.where((j) => j.nombre == yo);
+    if (ya.isEmpty || ya.first.rendido) return;
+
     setState(() {
       _mostrarMenu = false;
       _confirmarRendicion = false;
       _limpiarSeleccion();
       _mensajePc = null;
       _pcMostrandoJugada = false;
-      _partida.fase = FaseEscoba.ganado;
-      if (otros.isEmpty) {
-        _partida.ganador = yo;
-        _partida.mensajeFin = '$yo se rindió.';
-      } else {
-        _partida.ganador = otros.first;
-        _partida.mensajeFin =
-            '$yo se rindió. ¡${otros.first} gana por abandono!';
-      }
+      rendirseEscoba(_partida, yo);
+      _aviso = _partida.terminada
+          ? null
+          : '$yo se rindió. La partida continúa.';
       _ultimaJugadaParaPublicar = null;
     });
     unawaited(_publicarEstadoOnline(forzar: true));
+
+    // Online con más de un activo: el que se rinde vuelve al menú.
+    if (_esOnline && !_partida.terminada && mounted) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (_partida.fase == FaseEscoba.jugando) _talVezPc();
   }
 
   void _abrirCombos(JugadorEscoba jugador) {
@@ -1263,7 +1264,8 @@ class _MarcadoresFila extends StatelessWidget {
                 color: AppColors.carta.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: i == partida.indiceTurno % partida.jugadores.length
+                  color: !partida.jugadores[i].rendido &&
+                          i == partida.indiceTurno % partida.jugadores.length
                       ? AppColors.mint
                       : AppColors.textoSuave.withValues(alpha: 0.3),
                 ),
@@ -1275,11 +1277,18 @@ class _MarcadoresFila extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        partida.jugadores[i].nombre,
-                        style: const TextStyle(
-                          color: AppColors.texto,
+                        partida.jugadores[i].rendido
+                            ? '${partida.jugadores[i].nombre} (fuera)'
+                            : partida.jugadores[i].nombre,
+                        style: TextStyle(
+                          color: partida.jugadores[i].rendido
+                              ? AppColors.textoSuave
+                              : AppColors.texto,
                           fontWeight: FontWeight.w800,
                           fontSize: 12,
+                          decoration: partida.jugadores[i].rendido
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1519,19 +1528,23 @@ class _ZonaCartas extends StatelessWidget {
         ),
       );
     }
-    return SingleChildScrollView(
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.center,
-        children: [
-          for (final c in cartas)
-            _CartaTexto(
-              carta: c,
-              seleccionada: seleccionadas.contains(c),
-              onTap: onTap == null ? null : () => onTap!(c),
-            ),
-        ],
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.center,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final c in cartas)
+              _CartaTexto(
+                carta: c,
+                seleccionada: seleccionadas.contains(c),
+                onTap: onTap == null ? null : () => onTap!(c),
+              ),
+          ],
+        ),
       ),
     );
   }

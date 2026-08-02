@@ -51,10 +51,11 @@ class JugadorEscoba {
   String nombre;
   final List<CartaEscoba> mano = [];
   final List<CartaEscoba> capturadas = [];
-  /// Combos de captura de la ronda (o de la anterior hasta la 1ª jugada nueva).
+  /// Combos de captura de la ronda (o de la anterior hasta la 1ª jugada).
   final List<ComboCapturaEscoba> combos = [];
   int escobasRonda = 0;
   int puntos = 0;
+  bool rendido = false;
 }
 
 /// Una captura (o el pozo final) hecha por un jugador.
@@ -104,6 +105,9 @@ class PartidaEscoba {
 
   JugadorEscoba get jugadorActual =>
       jugadores[indiceTurno % jugadores.length];
+
+  List<JugadorEscoba> get jugadoresActivos =>
+      jugadores.where((j) => !j.rendido).toList();
 
   bool get terminada => fase == FaseEscoba.ganado;
 }
@@ -221,6 +225,7 @@ void _repartirInicio(PartidaEscoba p) {
   p.reiniciarCombosEnProximaJugada = esNuevaRondaTrasFin;
   for (var i = 0; i < 3; i++) {
     for (final j in p.jugadores) {
+      if (j.rendido) continue;
       if (p.mazo.isEmpty) break;
       j.mano.add(p.mazo.removeLast());
     }
@@ -270,6 +275,7 @@ String? jugarCartaEscoba(
 }) {
   if (p.fase != FaseEscoba.jugando) return 'La partida no está en juego.';
   final j = p.jugadorActual;
+  if (j.rendido) return 'Ese jugador ya se rindió.';
   final idx = j.mano.indexOf(carta);
   if (idx < 0) return 'Esa carta no está en tu mano.';
 
@@ -330,23 +336,34 @@ bool _mismasCartas(List<CartaEscoba> a, List<CartaEscoba> b) {
   return true;
 }
 
+void _pasarASiguienteActivoEscoba(PartidaEscoba p) {
+  final n = p.jugadores.length;
+  if (n == 0) return;
+  for (var i = 0; i < n; i++) {
+    p.indiceTurno = (p.indiceTurno + 1) % n;
+    if (!p.jugadores[p.indiceTurno].rendido) return;
+  }
+}
+
 void _avanzarTrasJugada(PartidaEscoba p) {
-  final todosVacios = p.jugadores.every((j) => j.mano.isEmpty);
+  final activos = p.jugadoresActivos;
+  final todosVacios = activos.every((j) => j.mano.isEmpty);
   if (!todosVacios) {
-    p.indiceTurno = (p.indiceTurno + 1) % p.jugadores.length;
+    _pasarASiguienteActivoEscoba(p);
     return;
   }
 
   if (p.mazo.isNotEmpty) {
-    // Reparto lo que quede (hasta 3 por jugador).
+    // Reparto lo que quede (hasta 3 por jugador activo).
     for (var i = 0; i < 3; i++) {
       for (final j in p.jugadores) {
+        if (j.rendido) continue;
         if (p.mazo.isEmpty) break;
         j.mano.add(p.mazo.removeLast());
       }
     }
-    if (p.jugadores.any((j) => j.mano.isNotEmpty)) {
-      p.indiceTurno = (p.indiceTurno + 1) % p.jugadores.length;
+    if (activos.any((j) => j.mano.isNotEmpty)) {
+      _pasarASiguienteActivoEscoba(p);
       return;
     }
   }
@@ -373,6 +390,36 @@ void _avanzarTrasJugada(PartidaEscoba p) {
     cartasPozoFinal: cartasPozoFinal,
     idxLlevoPozo: idxLlevoPozo,
   );
+}
+
+/// Marca [nombre] como rendido. Devuelve el ganador si solo queda uno activo.
+String? rendirseEscoba(PartidaEscoba p, String nombre) {
+  final idx = p.jugadores.indexWhere((j) => j.nombre == nombre && !j.rendido);
+  if (idx < 0) return null;
+  final j = p.jugadores[idx];
+  j.rendido = true;
+  // Sus cartas de mano salen de juego (no van a la mesa).
+  j.mano.clear();
+
+  final activos = p.jugadoresActivos;
+  if (activos.length <= 1) {
+    if (activos.isEmpty) {
+      p.fase = FaseEscoba.ganado;
+      p.ganador = null;
+      p.mensajeFin = '$nombre se rindió.';
+      return null;
+    }
+    final ganador = activos.first.nombre;
+    p.fase = FaseEscoba.ganado;
+    p.ganador = ganador;
+    p.mensajeFin = '$nombre se rindió. ¡$ganador gana por abandono!';
+    return ganador;
+  }
+
+  if (p.jugadorActual.nombre == nombre || p.jugadorActual.rendido) {
+    _pasarASiguienteActivoEscoba(p);
+  }
+  return null;
 }
 
 class DetalleJugadorRondaEscoba {
@@ -603,11 +650,12 @@ ResultadoRondaEscoba puntuarRondaEscoba(
   );
   p.ultimoResultado = resultado;
 
-  // ¿Alguien llegó al objetivo?
+  // ¿Alguien activo llegó al objetivo?
   var mejor = -1;
   var idxGanador = -1;
   var empate = false;
   for (var i = 0; i < n; i++) {
+    if (p.jugadores[i].rendido) continue;
     final pts = p.jugadores[i].puntos;
     if (pts >= p.objetivo && pts > mejor) {
       mejor = pts;
