@@ -59,10 +59,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _navegando = false;
   _CategoriaHome _categoria = _CategoriaHome.todo;
   late final AnimationController _entrada;
+  late final AnimationController _listaEntrada;
   late final Animation<double> _tituloOpacidad;
   late final Animation<Offset> _tituloDesliz;
   final ScrollController _scrollController = ScrollController();
@@ -164,6 +165,11 @@ class _HomeScreenState extends State<HomeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..forward();
+    // Solo la lista de juegos; el header no se reinicia al cambiar categoría.
+    _listaEntrada = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
 
     _tituloOpacidad = CurvedAnimation(
       parent: _entrada,
@@ -183,6 +189,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _scrollController.dispose();
+    _listaEntrada.dispose();
     _entrada.dispose();
     super.dispose();
   }
@@ -292,7 +299,8 @@ class _HomeScreenState extends State<HomeScreen>
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
-    _entrada
+    // Solo reanima las tarjetas; título, subtítulo y chips quedan quietos.
+    _listaEntrada
       ..reset()
       ..forward();
   }
@@ -307,17 +315,17 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _tarjetaEntrada({required int index, required Widget child}) {
-    final start = (0.12 + index * 0.055).clamp(0.0, 0.7);
-    final end = (start + 0.38).clamp(0.0, 1.0);
+    final start = (0.05 + index * 0.07).clamp(0.0, 0.65);
+    final end = (start + 0.4).clamp(0.0, 1.0);
     final curved = CurvedAnimation(
-      parent: _entrada,
+      parent: _listaEntrada,
       curve: Interval(start, end, curve: Curves.easeOutCubic),
     );
     return FadeTransition(
       opacity: curved,
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(0, 0.22),
+          begin: const Offset(0, 0.18),
           end: Offset.zero,
         ).animate(curved),
         child: child,
@@ -404,10 +412,13 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(height: 16),
                   Expanded(
                     child: filtrados.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'No hay juegos en esta categoría',
-                              style: TextStyle(color: AppColors.textoSuave),
+                        ? FadeTransition(
+                            opacity: _listaEntrada,
+                            child: const Center(
+                              child: Text(
+                                'No hay juegos en esta categoría',
+                                style: TextStyle(color: AppColors.textoSuave),
+                              ),
                             ),
                           )
                         : Scrollbar(
@@ -428,6 +439,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     return false;
                                   },
                                   child: ListView.separated(
+                                    key: ValueKey(_categoria),
                                     controller: _scrollController,
                                     physics: const ClampingScrollPhysics(),
                                     itemCount: filtrados.length,
