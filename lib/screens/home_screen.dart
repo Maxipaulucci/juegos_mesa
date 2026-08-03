@@ -8,6 +8,7 @@ import '../laPapa/menu_la_papa_screen.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
+import '../unoSolo/menu_uno_solo_screen.dart';
 
 enum _CategoriaHome {
   todo('Todo'),
@@ -26,6 +27,7 @@ enum _TipoJuegoHome {
   tuttiFrutti,
   culoSucio,
   laPapa,
+  unoSolo,
   escobaDel15,
   canasta,
   casitaRobada,
@@ -106,6 +108,13 @@ class _HomeScreenState extends State<HomeScreen>
       tipo: _TipoJuegoHome.laPapa,
       titulo: 'La papa',
       subtitulo: 'Hoja · uní los números',
+      accent: AppColors.mint,
+      categoria: _CategoriaHome.papel,
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.unoSolo,
+      titulo: 'Uno solo',
+      subtitulo: 'Tablero · una ficha en el centro',
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
     ),
@@ -279,6 +288,12 @@ class _HomeScreenState extends State<HomeScreen>
               menu: const MenuLaPapaScreen(),
               acento: AppColors.mint,
               mensaje: 'La papa',
+            );
+      case _TipoJuegoHome.unoSolo:
+        return () => _abrirJuego(
+              menu: const MenuUnoSoloScreen(),
+              acento: AppColors.mint,
+              mensaje: 'Uno solo',
             );
       case _TipoJuegoHome.escobaDel15:
         return () => _abrirJuego(

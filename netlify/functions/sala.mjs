@@ -421,6 +421,21 @@ export default async (req) => {
           ultimaJugada: null,
           mostrarVictoria: false,
         }
+      } else if (sala.juegoId === 'unoSolo') {
+        // El anfitrión publica el tablero inicial al entrar a la partida.
+        sala.gameState = {
+          version: 1,
+          juego: 'unoSolo',
+          pendienteTablero: true,
+          nombres,
+          celdas: null,
+          indiceTurno: 0,
+          fase: 'jugando',
+          mensajeFin: null,
+          ganador: null,
+          solo: false,
+          mostrarVictoria: false,
+        }
       } else {
         sala.gameState = {
           version: 1,
