@@ -45,6 +45,8 @@ class PartidaUnoSoloScreen extends StatefulWidget {
 }
 
 class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
+  static const int _maxNombre = 15;
+
   late PartidaUnoSolo _partida;
   late List<String> _nombres;
   late OpcionesUnoSolo _opciones;
@@ -57,6 +59,8 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
   Timer? _avisoTimer;
   late final GuiaModoDiosUnoSolo? _guiaDios;
   final List<MovimientoUnoSolo> _historial = [];
+  /// Movimientos deshechos que se pueden rehacer (modo práctica).
+  final List<MovimientoUnoSolo> _rehacer = [];
   /// Tras ganar: muestra el tablero con el orden real de eliminación.
   bool _verOrdenFinal = false;
 
@@ -72,6 +76,9 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
 
   bool get _puedeDeshacer =>
       _modoPracticaActivo && _historial.isNotEmpty;
+
+  bool get _puedeRehacer =>
+      _modoPracticaActivo && _rehacer.isNotEmpty;
 
   bool get _esCelular {
     final p = Theme.of(context).platform;
@@ -109,7 +116,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     final resume = widget.resume;
     final quiereGuia = widget.modoDios || (resume?.modoDios ?? false);
     _guiaDios = quiereGuia ? GuiaModoDiosUnoSolo.estandar() : null;
-    _opciones = resume?.opciones ?? widget.opciones;
+    _opciones = widget.opciones;
     if (resume != null) {
       _nombres = List.of(resume.nombres);
       _ajustes = resume.ajustesIniciales;
@@ -152,6 +159,11 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     if (!_modoPracticaActivo) return false;
     if (_mostrarMenu || _mostrarAjustes) return false;
     final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowRight) {
+      if (!mounted) return false;
+      _rehacerMovimiento();
+      return true;
+    }
     if (key != LogicalKeyboardKey.arrowLeft &&
         key != LogicalKeyboardKey.space) {
       return false;
@@ -331,6 +343,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       _seleccion = null;
       if (err == null && mov != null) {
         _historial.add(mov);
+        _rehacer.clear();
       }
     });
     if (err != null) {
@@ -346,10 +359,37 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       _mostrarAviso('Ya estás al inicio de la partida.');
       return;
     }
+    final mov = _historial.last;
     final err = deshacerUltimoUnoSolo(_partida, _historial);
     setState(() {
       _seleccion = null;
       _verOrdenFinal = false;
+      if (err == null) {
+        _rehacer.add(mov);
+      }
+    });
+    if (err != null) {
+      _mostrarAviso(err);
+    } else {
+      _ocultarAviso();
+    }
+  }
+
+  void _rehacerMovimiento() {
+    if (!_puedeRehacer) {
+      _mostrarAviso('No hay movimiento para rehacer.');
+      return;
+    }
+    final mov = _rehacer.removeLast();
+    final err = jugarMovimientoUnoSolo(_partida, mov);
+    setState(() {
+      _seleccion = null;
+      _verOrdenFinal = false;
+      if (err == null) {
+        _historial.add(mov);
+      } else {
+        _rehacer.add(mov);
+      }
     });
     if (err != null) {
       _mostrarAviso(err);
@@ -368,6 +408,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
         solo: widget.solo || _nombres.length == 1,
       );
       _historial.clear();
+      _rehacer.clear();
       _seleccion = null;
       _aviso = null;
       _verOrdenFinal = false;
@@ -419,17 +460,15 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       if (otros.isEmpty) {
         _partida.fase = FaseUnoSolo.perdido;
         _partida.ganador = null;
+        _partida.calificacion = null;
         _partida.mensajeFin = '$yo se rindió.';
-      } else if (otros.length == 1 || _partida.nombres.length <= 2) {
-        _partida.fase = FaseUnoSolo.ganado;
-        _partida.ganador = otros.first;
-        _partida.mensajeFin = '$yo se rindió. ¡${otros.first} gana!';
       } else {
-        // Varios: sacar al rendido del turno y seguir (simplificado: gana el siguiente).
-        // Mantener simple: el siguiente activo gana solo si queda uno; si no, removemos del ciclo.
+        // Multijugador: gana el rival (victoria por abandono).
         _partida.fase = FaseUnoSolo.ganado;
         _partida.ganador = otros.first;
-        _partida.mensajeFin = '$yo se rindió. ¡${otros.first} gana!';
+        _partida.calificacion = '¡Victoria!';
+        _partida.mensajeFin =
+            '$yo se rindió. ¡${otros.first} gana por abandono!';
       }
     });
     unawaited(_publicarEstadoOnline(forzar: true));
@@ -440,18 +479,224 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
 
   Set<int> get _destinosResaltados {
     final sel = _seleccion;
-    if (sel == null) return {};
-    return {
-      for (final m in movimientosDesdeUnoSolo(_partida, sel)) m.hasta,
-    };
+    if (sel != null) {
+      return {
+        for (final m in movimientosDesdeUnoSolo(_partida, sel)) m.hasta,
+      };
+    }
+    if (_modoDiosActivo) {
+      final prox = _guiaDios!.proximoLegal(_partida);
+      if (prox != null) return {prox.hasta};
+    }
+    return {};
   }
 
   Set<int> get _mediosResaltados {
     final sel = _seleccion;
-    if (sel == null) return {};
-    return {
-      for (final m in movimientosDesdeUnoSolo(_partida, sel)) m.medio,
-    };
+    if (sel != null) {
+      return {
+        for (final m in movimientosDesdeUnoSolo(_partida, sel)) m.medio,
+      };
+    }
+    if (_modoDiosActivo) {
+      final prox = _guiaDios!.proximoLegal(_partida);
+      if (prox != null) return {prox.medio};
+    }
+    return {};
+  }
+
+  String get _nombreHeader {
+    if (_esOnline) {
+      return widget.miNombre ?? _partida.jugadorActual;
+    }
+    return _partida.jugadorActual;
+  }
+
+  int? get _indiceRenombrable {
+    if (_partida.terminada || _nombres.isEmpty) return null;
+    if (_esOnline) {
+      final i = _nombres.indexWhere((n) => n == widget.miNombre);
+      return i >= 0 ? i : null;
+    }
+    return _partida.indiceTurno % _nombres.length;
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    final ocupado = _nombres.asMap().entries.any(
+          (e) => e.key != index && e.value == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarDesdeHeader() async {
+    final index = _indiceRenombrable;
+    if (index == null) return;
+    final actual = _nombres[index];
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.mint, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle:
+                      const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final t = ctrl.text.trim();
+                    if (_validarNombre(t, index) case final e?) {
+                      setDialogState(() => error = e);
+                      return;
+                    }
+                    Navigator.of(context).pop(t);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.mint,
+                    foregroundColor: const Color(0xFF062018),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: const Text(
+                    'Guardar',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.peligro,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 4,
+                    shadowColor: Colors.black54,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+    setState(() {
+      _nombres[index] = nuevo;
+      _partida.nombres[index] = nuevo;
+      if (_partida.ganador == actual) {
+        _partida.ganador = nuevo;
+      }
+    });
+    unawaited(_publicarEstadoOnline(forzar: true));
+  }
+
+  Widget _chipNombre() {
+    final nombre = _nombreHeader;
+    final puedeRenombrar = _indiceRenombrable != null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: puedeRenombrar ? _renombrarDesdeHeader : null,
+        borderRadius: BorderRadius.circular(10),
+        child: Ink(
+          padding: EdgeInsets.symmetric(
+            vertical: puedeRenombrar ? 4 : 2,
+            horizontal: puedeRenombrar ? 8 : 2,
+          ),
+          decoration: puedeRenombrar
+              ? BoxDecoration(
+                  color: const Color(0xFF0E061C),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.violeta.withValues(alpha: 0.7),
+                    width: 1.2,
+                  ),
+                )
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  nombre.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: puedeRenombrar ? AppColors.texto : AppColors.mint,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              if (puedeRenombrar) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.edit_rounded,
+                  size: 14,
+                  color: AppColors.violeta.withValues(alpha: 0.95),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String get _textoEstado {
@@ -474,7 +719,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     }
     if (_partida.solo) {
       if (_modoDiosActivo) {
-        return 'Modo Dios · números = orden de eliminación';
+        return 'Modo Dios · flecha = ficha a comer (hacia el centro)';
       }
       if (_modoPracticaActivo) {
         return 'Modo práctica · ${_partida.fichasRestantes} fichas';
@@ -505,16 +750,24 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                         }),
                         icon: const Icon(Icons.menu, color: AppColors.texto),
                       ),
-                      const Expanded(
-                        child: Text(
-                          'Uno solo',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Color(0xFFFFB74D),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 20,
-                            letterSpacing: 0.6,
-                          ),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Flexible(
+                              child: Text(
+                                'Uno solo · ',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Color(0xFFFFB74D),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 15,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ),
+                            Flexible(child: _chipNombre()),
+                          ],
                         ),
                       ),
                       if ((widget.solo || _partida.solo) && !_esOnline)
@@ -552,7 +805,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                     if (!_esCelular) ...[
                       const SizedBox(height: 6),
                       Text(
-                        '← o Espacio: deshacer un movimiento',
+                        '← / Espacio: deshacer · →: rehacer',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: AppColors.acento.withValues(alpha: 0.9),
@@ -562,30 +815,23 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                       ),
                     ],
                     const SizedBox(height: 8),
-                    SizedBox(
-                      height: 40,
-                      child: OutlinedButton.icon(
-                        onPressed: _puedeDeshacer ? _deshacer : null,
-                        icon: const Icon(Icons.undo_rounded, size: 18),
-                        label: const Text(
-                          'Deshacer',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.acento,
-                          disabledForegroundColor:
-                              AppColors.textoSuave.withValues(alpha: 0.4),
-                          side: BorderSide(
-                            color: _puedeDeshacer
-                                ? AppColors.acento
-                                : AppColors.textoSuave.withValues(alpha: 0.35),
-                            width: 1.5,
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _BotonCircularPractica(
+                            icon: Icons.undo_rounded,
+                            activo: _puedeDeshacer,
+                            onTap: _puedeDeshacer ? _deshacer : null,
                           ),
-                          backgroundColor: AppColors.carta,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                          const SizedBox(width: 10),
+                          _BotonCircularPractica(
+                            icon: Icons.redo_rounded,
+                            activo: _puedeRehacer,
+                            onTap: _puedeRehacer ? _rehacerMovimiento : null,
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ],
@@ -617,6 +863,16 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                             final ordenReview = _verOrdenFinal
                                 ? ordenEliminacionDesdeHistorial(_historial)
                                 : null;
+                            final ordenDios = _modoDiosActivo
+                                ? {
+                                    for (final e
+                                        in _guiaDios!.ordenEliminacion.entries)
+                                      e.key: '${e.value}',
+                                  }
+                                : null;
+                            final proxDios = _modoDiosActivo
+                                ? _guiaDios!.proximoLegal(_partida)
+                                : null;
                             return SizedBox(
                               width: side,
                               height: side,
@@ -625,16 +881,10 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                                 seleccion: _seleccion,
                                 destinos: _destinosResaltados,
                                 medios: _mediosResaltados,
-                                ordenEliminacion: ordenReview ??
-                                    (_modoDiosActivo
-                                        ? _guiaDios!.ordenEliminacion
-                                        : null),
+                                ordenEliminacion: ordenReview ?? ordenDios,
                                 mostrarOrdenEnVacias: ordenReview != null,
-                                proximoDesde: _modoDiosActivo
-                                    ? _guiaDios!
-                                        .proximoLegal(_partida)
-                                        ?.desde
-                                    : null,
+                                proximoDesde: proxDios?.desde,
+                                proximoMedio: proxDios?.medio,
                                 onTap: _bloquearHumano || _verOrdenFinal
                                     ? null
                                     : _onTapCelda,
@@ -790,10 +1040,13 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                     setState(() => _confirmarRendicion = false),
               ),
             ),
-          if (_partida.terminada && !_verOrdenFinal)
+          if (_partida.terminada &&
+              !_verOrdenFinal &&
+              VictoriaUnoSoloOverlay.debeMostrar(_partida))
             Positioned.fill(
               child: VictoriaUnoSoloOverlay(
                 partida: _partida,
+                animaciones: _ajustes.animaciones,
                 mostrarVolverAJugar: !_esOnline,
                 onVolverAJugar: _volverAJugar,
                 onVerOrden: _historial.isEmpty
@@ -838,101 +1091,280 @@ class _MenuPartidaUnoSolo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.7),
-      child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(maxWidth: 380),
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-              decoration: BoxDecoration(
-                color: AppColors.carta,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.mint, width: 2),
-                boxShadow: neonGlow(AppColors.mint, blur: 16),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          partidaTerminada ? 'Menú' : 'Turno de $jugador',
-                          style: const TextStyle(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onCerrar,
+        child: SafeArea(
+          child: Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 380),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF3B1D6E),
+                          Color(0xFF1A0A33),
+                          Color(0xFF2A1050),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppColors.acento, width: 2),
+                      boxShadow: neonGlow(AppColors.acento, blur: 18),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'MENÚ',
+                                style: TextStyle(
+                                  color: AppColors.acento,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: onCerrar,
+                              icon: const Icon(
+                                Icons.close,
+                                color: AppColors.texto,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          jugador.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
                             color: AppColors.texto,
+                            fontSize: 26,
                             fontWeight: FontWeight.w900,
-                            fontSize: 18,
+                            letterSpacing: 1,
+                            shadows: [
+                              Shadow(
+                                color: AppColors.acento.withValues(alpha: 0.7),
+                                blurRadius: 14,
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      IconButton(
-                        onPressed: onCerrar,
-                        icon: const Icon(Icons.close, color: AppColors.texto),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: onReglas,
-                    icon: const Icon(Icons.menu_book_rounded),
-                    label: const Text('REGLAS'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.azul,
-                      foregroundColor: Colors.white,
+                        const SizedBox(height: 6),
+                        Text(
+                          partidaTerminada
+                              ? 'Partida terminada'
+                              : (esSolo ? 'Juego en curso' : 'Turno actual'),
+                          style: TextStyle(
+                            color: AppColors.textoSuave.withValues(alpha: 0.95),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        _ArcadeButtonUnoSolo(
+                          label: 'REGLAS',
+                          icon: Icons.menu_book_rounded,
+                          tono: _BotonTonoUnoSolo.azul,
+                          onPressed: onReglas,
+                        ),
+                        const SizedBox(height: 10),
+                        if (partidaTerminada || esSolo)
+                          _ArcadeButtonUnoSolo(
+                            label: 'SALIR',
+                            icon: Icons.logout_rounded,
+                            tono: _BotonTonoUnoSolo.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else if (!confirmarRendicion)
+                          _ArcadeButtonUnoSolo(
+                            label: 'RENDIRSE',
+                            icon: Icons.flag_rounded,
+                            tono: _BotonTonoUnoSolo.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else ...[
+                          const Text(
+                            '¿Confirmás tu derrota?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.peligro,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _ArcadeButtonUnoSolo(
+                            label: 'CONFIRMAR RENDICIÓN',
+                            icon: Icons.check_circle_outline,
+                            tono: _BotonTonoUnoSolo.rojo,
+                            onPressed: onConfirmarRendicion,
+                          ),
+                          const SizedBox(height: 10),
+                          _ArcadeButtonUnoSolo(
+                            label: 'CANCELAR',
+                            icon: Icons.close,
+                            tono: _BotonTonoUnoSolo.violeta,
+                            onPressed: onCancelarRendicion,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  if (partidaTerminada || esSolo)
-                    ElevatedButton.icon(
-                      onPressed: onSalirORendirse,
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('SALIR'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.peligro,
-                        foregroundColor: Colors.white,
-                      ),
-                    )
-                  else if (!confirmarRendicion)
-                    ElevatedButton.icon(
-                      onPressed: onSalirORendirse,
-                      icon: const Icon(Icons.flag_rounded),
-                      label: const Text('RENDIRSE'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.peligro,
-                        foregroundColor: Colors.white,
-                      ),
-                    )
-                  else ...[
-                    const Text(
-                      '¿Confirmás tu derrota?',
-                      textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _BotonTonoUnoSolo { violeta, azul, rojo }
+
+class _ArcadeButtonUnoSolo extends StatelessWidget {
+  const _ArcadeButtonUnoSolo({
+    required this.label,
+    required this.icon,
+    required this.tono,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final _BotonTonoUnoSolo tono;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    late final List<Color> colors;
+    late final Color glow;
+    late final Color fg;
+
+    switch (tono) {
+      case _BotonTonoUnoSolo.violeta:
+        colors = const [
+          Color(0xFFCE93D8),
+          Color(0xFFAB47BC),
+          Color(0xFF6A1B9A),
+        ];
+        glow = AppColors.rosa;
+        fg = Colors.white;
+      case _BotonTonoUnoSolo.azul:
+        colors = const [
+          Color(0xFF81D4FA),
+          Color(0xFF29B6F6),
+          Color(0xFF0277BD),
+        ];
+        glow = AppColors.azul;
+        fg = Colors.white;
+      case _BotonTonoUnoSolo.rojo:
+        colors = const [
+          Color(0xFFFF8A80),
+          Color(0xFFFF5252),
+          Color(0xFFC62828),
+        ];
+        glow = AppColors.peligro;
+        fg = Colors.white;
+    }
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.4,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: enabled ? neonGlow(glow, blur: 16) : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: Ink(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: colors,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white70, width: 1.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: fg),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: AppColors.peligro,
-                        fontWeight: FontWeight.w800,
+                        color: fg,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    ElevatedButton(
-                      onPressed: onConfirmarRendicion,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.peligro,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('CONFIRMAR RENDICIÓN'),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: onCancelarRendicion,
-                      child: const Text('Cancelar'),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonCircularPractica extends StatelessWidget {
+  const _BotonCircularPractica({
+    required this.icon,
+    required this.activo,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool activo;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: activo
+          ? AppColors.acento
+          : AppColors.carta.withValues(alpha: 0.75),
+      shape: const CircleBorder(),
+      elevation: activo ? 4 : 0,
+      shadowColor: AppColors.acento.withValues(alpha: 0.55),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(
+            icon,
+            size: 26,
+            color: activo
+                ? const Color(0xFF1A0A00)
+                : AppColors.textoSuave.withValues(alpha: 0.4),
           ),
         ),
       ),

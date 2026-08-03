@@ -38,7 +38,7 @@ class PartidaUnoSolo {
   FaseUnoSolo fase;
   String? mensajeFin;
   String? ganador;
-  /// Regular / Mejor / Bueno / Muy bueno / ¡Perfecto!
+  /// Regular / Mejor / … ya no se usan; solo victoria o “Seguí intentando”.
   String? calificacion;
   final bool solo;
 
@@ -144,20 +144,14 @@ List<MovimientoUnoSolo> todosLosMovimientosUnoSolo(PartidaUnoSolo p) {
 bool hayMovimientosUnoSolo(PartidaUnoSolo p) =>
     todosLosMovimientosUnoSolo(p).isNotEmpty;
 
-/// Puntuación clásica según fichas que sobran al final.
-String calificacionUnoSolo(int fichas, {required bool enCentro}) {
+/// Calificación al cerrar: victoria (1 en centro), derrota (1 fuera),
+/// “Seguí intentando” (≥6) o null (2–5).
+String? calificacionUnoSolo(int fichas, {required bool enCentro}) {
   if (fichas <= 1) {
-    return enCentro
-        ? '¡Perfecto (Ganaste)!'
-        : '¡Perfecto! (idealmente en el centro)';
+    return enCentro ? '¡Perfecto!' : 'Derrota';
   }
-  return switch (fichas) {
-    2 => 'Muy bueno',
-    3 => 'Bueno',
-    4 => 'Mejor',
-    5 => 'Regular',
-    _ => 'Seguí intentando',
-  };
+  if (fichas >= 6) return 'Seguí intentando';
+  return null;
 }
 
 void _cerrarConPuntuacion(PartidaUnoSolo p) {
@@ -166,19 +160,23 @@ void _cerrarConPuntuacion(PartidaUnoSolo p) {
   final cal = calificacionUnoSolo(n, enCentro: enCentro);
   p.calificacion = cal;
 
-  final perfecto = n <= 1;
-  if (perfecto) {
-    p.fase = FaseUnoSolo.ganado;
-    if (p.solo) {
-      p.ganador = p.nombres.isEmpty ? null : p.nombres.first;
-      p.mensajeFin = enCentro
-          ? '¡Una sola ficha en el centro!'
-          : '¡Quedó una sola ficha! (el desafío completo es dejarla en el centro)';
+  // Una sola ficha: gana solo si está en el centro.
+  if (n <= 1) {
+    if (enCentro) {
+      p.fase = FaseUnoSolo.ganado;
+      if (p.solo) {
+        p.ganador = p.nombres.isEmpty ? null : p.nombres.first;
+        p.mensajeFin = '¡Una sola ficha en el centro!';
+      } else {
+        p.ganador = p.jugadorActual;
+        p.mensajeFin = '¡${p.jugadorActual} dejó una ficha en el centro!';
+      }
     } else {
-      p.ganador = p.jugadorActual;
-      p.mensajeFin = enCentro
-          ? '¡${p.jugadorActual} dejó una ficha en el centro!'
-          : '¡${p.jugadorActual} dejó una sola ficha!';
+      p.fase = FaseUnoSolo.perdido;
+      p.ganador = null;
+      p.mensajeFin =
+          'Quedó una sola ficha, pero no en el centro. '
+          'El juego exige que la última pieza esté en el centro para ganar.';
     }
     return;
   }
@@ -187,14 +185,16 @@ void _cerrarConPuntuacion(PartidaUnoSolo p) {
   if (p.solo) {
     p.fase = FaseUnoSolo.perdido;
     p.ganador = null;
-    p.mensajeFin = 'No quedan movimientos. Quedaron $n fichas · $cal';
+    p.mensajeFin = cal == null
+        ? 'No quedan movimientos. Quedaron $n fichas.'
+        : 'No quedan movimientos. Quedaron $n fichas · $cal';
   } else {
-    // Tablero compartido: se muestra la calificación; gana quien hizo el último salto.
     p.fase = FaseUnoSolo.ganado;
     p.ganador = p.jugadorActual;
-    p.mensajeFin =
-        'No quedan movimientos. $n fichas · $cal. '
-        'Último turno: ${p.jugadorActual}';
+    p.mensajeFin = cal == null
+        ? 'No quedan movimientos. $n fichas. Último turno: ${p.jugadorActual}'
+        : 'No quedan movimientos. $n fichas · $cal. '
+            'Último turno: ${p.jugadorActual}';
   }
 }
 
@@ -269,13 +269,16 @@ String? deshacerUltimoUnoSolo(
   return null;
 }
 
-/// Índice de celda eliminada → orden (1 = primera ficha sacada).
-Map<int, int> ordenEliminacionDesdeHistorial(
+/// Casilla → etiqueta de orden de piezas comidas (1 = primera, etc.).
+/// Si la misma casilla se usó más de una vez, lista todos: "3·18".
+Map<int, String> ordenEliminacionDesdeHistorial(
   List<MovimientoUnoSolo> historial,
 ) {
-  final out = <int, int>{};
+  final porCelda = <int, List<int>>{};
   for (var i = 0; i < historial.length; i++) {
-    out[historial[i].medio] = i + 1;
+    porCelda.putIfAbsent(historial[i].medio, () => <int>[]).add(i + 1);
   }
-  return out;
+  return {
+    for (final e in porCelda.entries) e.key: e.value.join('·'),
+  };
 }

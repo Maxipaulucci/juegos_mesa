@@ -12,15 +12,13 @@ MOVIMIENTO
 · Para mover, saltá por encima de una ficha vecina hacia un agujero libre que esté justo después (a dos casillas).
 · Cada vez que saltás una ficha, retírala del tablero.
 
-FIN DEL JUEGO Y PUNTUACIÓN
-El objetivo principal es que quede un solo botón exactamente en el centro del tablero.
+FIN DEL JUEGO
+El objetivo es dejar un solo botón exactamente en el centro del tablero.
 
-Según cuántas fichas te sobren al final:
-· 5 fichas: Regular
-· 4 fichas: Mejor
-· 3 fichas: Bueno
-· 2 fichas: Muy bueno
-· 1 ficha: ¡Perfecto (Ganaste)!
+· 1 ficha en el centro: ¡ganaste!
+· 1 ficha fuera del centro: derrota (hay que dejarla en el centro).
+· Si te trabás con 6 o más fichas: seguí intentando.
+· Con modo práctica podés deshacer y rehacer saltos para probar otro camino.
 
 CONTRA OTRA PERSONA
 · Se turnan los saltos sobre el mismo tablero.

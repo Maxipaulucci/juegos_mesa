@@ -59,7 +59,9 @@ class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
         nombres: resume?.nombres ?? nombres,
         solo: solo,
         modoDios: solo && (resume?.modoDios ?? estado.modoDios),
-        opciones: resume?.opciones ?? _opciones,
+        // Siempre las opciones del menú (p. ej. modo práctica recién activado),
+        // no las de un resume viejo.
+        opciones: _opciones,
         ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
         resume: resume,
       ),
@@ -76,8 +78,9 @@ class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
       mostrarModoDiosEnSolo: true,
       textoInfoModoDios:
           'Solo aplica a “Jugar solo”.\n\n'
-          'Muestra en cada ficha el orden en que hay que eliminarla '
-          'según una solución ganadora (tutorial / ayuda).\n\n'
+          'Te guía con la solución para dejar una sola ficha en el centro: '
+          'una flecha marca la ficha que tenés que comer en cada paso, '
+          'y los números indican el orden de eliminación.\n\n'
           'Es una ayuda muy fuerte: si preferís el desafío limpio, '
           'dejalo apagado.',
       extraTrasModoLocal: BotonModificarPartida(

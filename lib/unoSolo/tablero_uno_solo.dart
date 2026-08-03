@@ -17,6 +17,7 @@ class TableroUnoSolo extends StatelessWidget {
     this.ordenEliminacion,
     this.mostrarOrdenEnVacias = false,
     this.proximoDesde,
+    this.proximoMedio,
   });
 
   final PartidaUnoSolo partida;
@@ -24,9 +25,14 @@ class TableroUnoSolo extends StatelessWidget {
   final Set<int> destinos;
   final Set<int> medios;
   final ValueChanged<int>? onTap;
-  final Map<int, int>? ordenEliminacion;
+  /// Casilla → texto del orden (p. ej. "3" o "3·18").
+  final Map<int, String>? ordenEliminacion;
+  /// Si true, muestra el orden en vacías y ocupadas (repaso tras la partida).
+  /// Si false, solo sobre fichas (modo dios / tutorial).
   final bool mostrarOrdenEnVacias;
   final int? proximoDesde;
+  /// Ficha a comer del próximo salto de la guía (modo dios).
+  final int? proximoMedio;
 
   static const _naranjaClaro = Color(0xFFFFB74D);
   static const _naranja = Color(0xFFFF9800);
@@ -146,10 +152,11 @@ class TableroUnoSolo extends StatelessWidget {
     final medio = medios.contains(i);
     final nGuia = ordenEliminacion?[i];
     final esProximo = proximoDesde == i;
+    final esProximoComer = proximoMedio == i;
     final badgeOrden = nGuia == null
         ? null
         : Positioned(
-            top: -1,
+            top: esProximoComer ? 12 : -1,
             left: 0,
             right: 0,
             child: Center(
@@ -161,17 +168,42 @@ class TableroUnoSolo extends StatelessWidget {
                   border: Border.all(color: AppColors.acento, width: 1.2),
                 ),
                 child: Text(
-                  '$nGuia',
-                  style: const TextStyle(
+                  nGuia,
+                  style: TextStyle(
                     color: AppColors.acento,
                     fontWeight: FontWeight.w900,
-                    fontSize: 10,
+                    fontSize: nGuia.length > 3 ? 8 : 10,
                     height: 1.1,
                   ),
                 ),
               ),
             ),
           );
+
+    final flechaComer = !esProximoComer
+        ? null
+        : const Positioned(
+            top: -16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Icon(
+                Icons.arrow_drop_down_rounded,
+                color: AppColors.acento,
+                size: 34,
+                shadows: [
+                  Shadow(
+                    color: Color(0xCC000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          );
+
+    final mostrarBadge = badgeOrden != null &&
+        (mostrarOrdenEnVacias || celda == CeldaUnoSolo.ocupada);
 
     return Padding(
       padding: const EdgeInsets.all(2.5),
@@ -192,16 +224,23 @@ class TableroUnoSolo extends StatelessWidget {
                 ],
               ),
               border: Border.all(
-                color: esProximo || seleccionada
-                    ? Colors.white
-                    : destino
-                        ? const Color(0xFFFFFDE7)
-                        : medio
-                            ? const Color(0xFFFF8A65)
-                            : (mostrarOrdenEnVacias && nGuia != null)
-                                ? AppColors.acento.withValues(alpha: 0.7)
-                                : _naranjaOscuro.withValues(alpha: 0.55),
-                width: esProximo || seleccionada || destino ? 2.6 : 1.4,
+                color: esProximoComer
+                    ? AppColors.acento
+                    : esProximo || seleccionada
+                        ? Colors.white
+                        : destino
+                            ? const Color(0xFFFFFDE7)
+                            : medio
+                                ? const Color(0xFFFF8A65)
+                                : (mostrarOrdenEnVacias && nGuia != null)
+                                    ? AppColors.acento.withValues(alpha: 0.7)
+                                    : _naranjaOscuro.withValues(alpha: 0.55),
+                width: esProximoComer ||
+                        esProximo ||
+                        seleccionada ||
+                        destino
+                    ? 2.6
+                    : 1.4,
               ),
               boxShadow: [
                 BoxShadow(
@@ -210,7 +249,13 @@ class TableroUnoSolo extends StatelessWidget {
                   offset: const Offset(0, 1),
                   spreadRadius: -0.5,
                 ),
-                if (esProximo || seleccionada)
+                if (esProximoComer)
+                  BoxShadow(
+                    color: AppColors.acento.withValues(alpha: 0.65),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  )
+                else if (esProximo || seleccionada)
                   BoxShadow(
                     color: Colors.white.withValues(alpha: 0.55),
                     blurRadius: 10,
@@ -229,11 +274,12 @@ class TableroUnoSolo extends StatelessWidget {
                     children: [
                       Center(
                         child: _FichaAmarilla(
-                          resaltada: seleccionada || esProximo,
+                          resaltada:
+                              seleccionada || esProximo || esProximoComer,
                         ),
                       ),
-                      if (!mostrarOrdenEnVacias && badgeOrden != null)
-                        badgeOrden,
+                      if (flechaComer != null) flechaComer,
+                      if (mostrarBadge) badgeOrden!,
                     ],
                   )
                 : Stack(
@@ -256,8 +302,7 @@ class TableroUnoSolo extends StatelessWidget {
                             ),
                           ),
                         ),
-                      if (mostrarOrdenEnVacias && badgeOrden != null)
-                        badgeOrden,
+                      if (mostrarBadge) badgeOrden!,
                     ],
                   ),
           ),

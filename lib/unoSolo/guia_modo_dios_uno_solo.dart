@@ -91,7 +91,8 @@ class GuiaModoDiosUnoSolo {
     );
   }
 
-  /// Próximo salto de la guía que sigue siendo legal en [p].
+  /// Próximo salto de la guía que sigue siendo legal en [p]
+  /// (camino a dejar una ficha en el centro).
   MovimientoUnoSolo? proximoLegal(PartidaUnoSolo p) {
     for (final m in movimientos) {
       final ok = movimientosDesdeUnoSolo(p, m.desde).any(
