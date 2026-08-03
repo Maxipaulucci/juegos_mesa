@@ -446,58 +446,58 @@ class _HomeScreenState extends State<HomeScreen>
                         : Scrollbar(
                             controller: _scrollController,
                             thumbVisibility: true,
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                NotificationListener<ScrollNotification>(
-                                  onNotification: (n) {
-                                    // Si el usuario arrastra, sincronizar objetivo.
-                                    if (n is ScrollUpdateNotification &&
-                                        n.dragDetails != null) {
-                                      _ruedaAnimando = false;
-                                      _scrollAnimToken++;
-                                      _scrollObjetivo =
-                                          _scrollController.offset;
-                                    }
-                                    return false;
-                                  },
-                                  child: ListView.separated(
-                                    key: ValueKey(_categoria),
-                                    controller: _scrollController,
-                                    clipBehavior: Clip.none,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 2,
-                                      vertical: 6,
-                                    ),
-                                    physics: const ClampingScrollPhysics(),
-                                    itemCount: filtrados.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 14),
-                                    itemBuilder: (context, index) {
-                                      final juego = filtrados[index];
-                                      return _tarjetaEntrada(
-                                        index: index,
-                                        child: _JuegoTile(
-                                          titulo: juego.titulo,
-                                          subtitulo: juego.subtitulo,
-                                          accent: juego.accent,
-                                          enabled: juego.enabled,
-                                          onTap: _onTapDe(juego),
-                                        ),
-                                      );
+                            child: ClipRect(
+                              child: Stack(
+                                children: [
+                                  NotificationListener<ScrollNotification>(
+                                    onNotification: (n) {
+                                      // Si el usuario arrastra, sincronizar objetivo.
+                                      if (n is ScrollUpdateNotification &&
+                                          n.dragDetails != null) {
+                                        _ruedaAnimando = false;
+                                        _scrollAnimToken++;
+                                        _scrollObjetivo =
+                                            _scrollController.offset;
+                                      }
+                                      return false;
                                     },
+                                    child: ListView.separated(
+                                      key: ValueKey(_categoria),
+                                      controller: _scrollController,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 10,
+                                      ),
+                                      physics: const ClampingScrollPhysics(),
+                                      itemCount: filtrados.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 14),
+                                      itemBuilder: (context, index) {
+                                        final juego = filtrados[index];
+                                        return _tarjetaEntrada(
+                                          index: index,
+                                          child: _JuegoTile(
+                                            titulo: juego.titulo,
+                                            subtitulo: juego.subtitulo,
+                                            accent: juego.accent,
+                                            enabled: juego.enabled,
+                                            onTap: _onTapDe(juego),
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ),
-                                ),
-                                // Encima del ListView para ganar el
-                                // pointerSignalResolver (el primero gana).
-                                Positioned.fill(
-                                  child: Listener(
-                                    behavior: HitTestBehavior.translucent,
-                                    onPointerSignal: _onPointerSignalScroll,
-                                    child: const SizedBox.expand(),
+                                  // Encima del ListView para ganar el
+                                  // pointerSignalResolver (el primero gana).
+                                  Positioned.fill(
+                                    child: Listener(
+                                      behavior: HitTestBehavior.translucent,
+                                      onPointerSignal: _onPointerSignalScroll,
+                                      child: const SizedBox.expand(),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                   ),
@@ -645,19 +645,19 @@ class _JuegoTileState extends State<_JuegoTile> {
               : [
                   BoxShadow(
                     color: widget.accent.withValues(
-                      alpha: _presionado && activo ? 0.45 : 0.22,
+                      alpha: _presionado && activo ? 0.4 : 0.2,
                     ),
-                    blurRadius: _presionado && activo ? 22 : 16,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 4),
+                    blurRadius: _presionado && activo ? 18 : 12,
+                    spreadRadius: -1,
+                    offset: Offset.zero,
                   ),
                   BoxShadow(
                     color: widget.accent.withValues(
-                      alpha: _presionado && activo ? 0.2 : 0.1,
+                      alpha: _presionado && activo ? 0.18 : 0.08,
                     ),
-                    blurRadius: _presionado && activo ? 36 : 28,
+                    blurRadius: _presionado && activo ? 28 : 20,
                     spreadRadius: 0,
-                    offset: const Offset(0, 8),
+                    offset: const Offset(0, 6),
                   ),
                 ],
         ),
