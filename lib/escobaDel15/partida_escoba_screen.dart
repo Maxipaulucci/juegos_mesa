@@ -292,8 +292,8 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     }
     if (!_haySeleccion) {
       return _mensajePc != null
-          ? 'Tu turno · mazo ${_partida.mazo.length}'
-          : 'Elegí cartas de la mesa y/o de tu mano · mazo ${_partida.mazo.length}';
+          ? 'Tu turno'
+          : 'Elegí cartas de la mesa y/o de tu mano';
     }
     return 'Suma: $_sumaSeleccion / 15'
         '${_puedeCapturar ? ' · ¡listo para capturar!' : _cartaSeleccionada == null ? ' · falta tu carta' : ''}';
@@ -619,11 +619,20 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
 
   void _continuarRonda() {
     if (_esOnline && !_soyAnfitrionOnline) return;
+    final r = _partida.ultimoResultado;
+    final avisoPozo = (r != null &&
+            r.idxLlevoPozo != null &&
+            r.cartasPozoFinal.isNotEmpty)
+        ? 'Pozo final → ${r.detalles[r.idxLlevoPozo!].nombre}: '
+            '${r.cartasPozoFinal.map((c) => c.etiqueta).join(' · ')}'
+        : null;
     setState(() {
       siguienteRondaEscoba(_partida);
       _partida.ultimoResultado = null;
       _ultimaJugadaParaPublicar = null;
       _limpiarSeleccion();
+      _mensajePc = null;
+      _aviso = avisoPozo;
     });
     unawaited(_publicarEstadoOnline());
     if (_partida.fase == FaseEscoba.jugando) _talVezPc();
@@ -685,6 +694,10 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       return;
     }
 
+    final capturadas = <CartaEscoba>{
+      for (final j in _partida.jugadores) ...j.capturadas,
+    };
+
     final resultado = await showDialog<_ForzarCartasResult>(
       context: context,
       barrierDismissible: false,
@@ -693,6 +706,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
         manoInicial: List.of(_manoVisible.mano),
         cupoMesa: cupoMesa,
         cupoMano: cupoMano,
+        excluidas: capturadas,
       ),
     );
     if (resultado == null || !mounted) return;
@@ -707,12 +721,12 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       final mesaFinal = completarCartasEscobaConAzar(
         mesaElegidas,
         cupoMesa,
-        ocupadas: {...manoElegidas},
+        ocupadas: {...manoElegidas, ...capturadas},
       );
       final manoFinal = completarCartasEscobaConAzar(
         manoElegidas,
         cupoMano,
-        ocupadas: {...mesaFinal},
+        ocupadas: {...mesaFinal, ...capturadas},
       );
 
       if (cupoMesa > 0) forzarMesaEscoba(_partida, mesaFinal);
@@ -914,7 +928,16 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                           ),
                         ),
                       ),
-                      if (widget.modoDios && !_esOnline)
+                      Text(
+                        'Mazo: ${_partida.mazo.length}',
+                        style: const TextStyle(
+                          color: AppColors.textoSuave,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (widget.modoDios && !_esOnline) ...[
+                        const SizedBox(width: 8),
                         Material(
                           color: AppColors.carta,
                           shape: const CircleBorder(),
@@ -943,6 +966,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                             ),
                           ),
                         ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -1002,6 +1026,34 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     ),
                   if (widget.contraPc || (_esOnline && !_esperandoMazoOnline))
                     const SizedBox(height: 8),
+                  Text(
+                    'TU MANO · ${mano.nombre}',
+                    style: const TextStyle(
+                      color: AppColors.mint,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    flex: 2,
+                    child: _ZonaCartas(
+                      cartas: mano.mano,
+                      seleccionadas: _bloquearHumano
+                          ? const []
+                          : [
+                              if (_cartaSeleccionada != null)
+                                _cartaSeleccionada!,
+                            ],
+                      onTap: (_bloquearHumano ||
+                              _partida.fase != FaseEscoba.jugando)
+                          ? null
+                          : (c) {
+                              unawaited(_seleccionarMano(c));
+                            },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   SizedBox(
                     height: 54,
                     child: Row(
@@ -1044,34 +1096,6 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'TU MANO · ${mano.nombre}',
-                    style: const TextStyle(
-                      color: AppColors.mint,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Expanded(
-                    flex: 2,
-                    child: _ZonaCartas(
-                      cartas: mano.mano,
-                      seleccionadas: _bloquearHumano
-                          ? const []
-                          : [
-                              if (_cartaSeleccionada != null)
-                                _cartaSeleccionada!,
-                            ],
-                      onTap: (_bloquearHumano ||
-                              _partida.fase != FaseEscoba.jugando)
-                          ? null
-                          : (c) {
-                              unawaited(_seleccionarMano(c));
-                            },
                     ),
                   ),
                 ],
@@ -1637,12 +1661,15 @@ class _DialogoForzarCartasEscoba extends StatefulWidget {
     required this.manoInicial,
     required this.cupoMesa,
     required this.cupoMano,
+    this.excluidas = const {},
   });
 
   final List<CartaEscoba> mesaInicial;
   final List<CartaEscoba> manoInicial;
   final int cupoMesa;
   final int cupoMano;
+  /// Cartas ya capturadas (fuera de juego): no se pueden volver a elegir.
+  final Set<CartaEscoba> excluidas;
 
   @override
   State<_DialogoForzarCartasEscoba> createState() =>
@@ -1661,14 +1688,22 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
   @override
   void initState() {
     super.initState();
-    _todas = crearMazoEscoba()
-      ..sort((a, b) {
+    _todas = [
+      for (final c in crearMazoEscoba())
+        if (!widget.excluidas.contains(c)) c,
+    ]..sort((a, b) {
         final p = a.palo.index.compareTo(b.palo.index);
         if (p != 0) return p;
         return a.numero.compareTo(b.numero);
       });
-    _mesa = List.of(widget.mesaInicial.take(_cupoMesa));
-    _mano = List.of(widget.manoInicial.take(_cupoMano));
+    _mesa = [
+      for (final c in widget.mesaInicial.take(_cupoMesa))
+        if (!widget.excluidas.contains(c)) c,
+    ];
+    _mano = [
+      for (final c in widget.manoInicial.take(_cupoMano))
+        if (!widget.excluidas.contains(c)) c,
+    ];
     _modo = _cupoMesa > 0
         ? _ModoForzarCartas.mesa
         : _ModoForzarCartas.mano;
@@ -1707,9 +1742,143 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
     return AppColors.textoSuave.withValues(alpha: 0.35);
   }
 
+  Color _colorPalo(PaloEscoba palo) => switch (palo) {
+        PaloEscoba.oro => const Color(0xFFFFC107),
+        PaloEscoba.copa => AppColors.rosa,
+        PaloEscoba.espada => AppColors.azul,
+        PaloEscoba.basto => AppColors.mint,
+      };
+
+  String _tituloPalo(PaloEscoba palo) => switch (palo) {
+        PaloEscoba.oro => 'Oros',
+        PaloEscoba.copa => 'Copas',
+        PaloEscoba.espada => 'Espadas',
+        PaloEscoba.basto => 'Bastos',
+      };
+
+  Widget _celdaCarta(CartaEscoba c) {
+    final sel = _enMesa(c) || _enMano(c);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _toggle(c),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.carta,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _bordeCarta(c),
+              width: sel ? 2.2 : 1.2,
+            ),
+            boxShadow: sel ? neonGlow(_bordeCarta(c), blur: 8) : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                c.etiqueta,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11,
+                ),
+              ),
+              Text(
+                'vale ${c.valorSuma}',
+                style: TextStyle(
+                  color: AppColors.textoSuave.withValues(alpha: 0.95),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 10,
+                ),
+              ),
+              if (_enMesa(c))
+                const Text(
+                  'MESA',
+                  style: TextStyle(
+                    color: AppColors.azul,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 9,
+                  ),
+                ),
+              if (_enMano(c))
+                const Text(
+                  'MANO',
+                  style: TextStyle(
+                    color: AppColors.mint,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 9,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _contenedorPalo(PaloEscoba palo, List<CartaEscoba> cartas) {
+    final color = _colorPalo(palo);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.65), width: 1.6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _tituloPalo(palo),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (cartas.isEmpty)
+            Text(
+              'Sin cartas disponibles',
+              style: TextStyle(
+                color: AppColors.textoSuave.withValues(alpha: 0.85),
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 110,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 1.35,
+              ),
+              itemCount: cartas.length,
+              itemBuilder: (context, i) => _celdaCarta(cartas[i]),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final maxH = MediaQuery.sizeOf(context).height * 0.88;
+    final porPalo = <PaloEscoba, List<CartaEscoba>>{
+      for (final palo in PaloEscoba.values)
+        palo: [for (final c in _todas) if (c.palo == palo) c],
+    };
+
     return Dialog(
       backgroundColor: AppColors.carta,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -1748,93 +1917,12 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: AppColors.textoSuave.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: GridView.builder(
-                          padding: const EdgeInsets.all(8),
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 110,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 1.35,
-                          ),
-                          itemCount: _todas.length,
-                          itemBuilder: (context, i) {
-                            final c = _todas[i];
-                            final sel = _enMesa(c) || _enMano(c);
-                            return Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => _toggle(c),
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.carta,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: _bordeCarta(c),
-                                      width: sel ? 2.2 : 1.2,
-                                    ),
-                                    boxShadow: sel
-                                        ? neonGlow(_bordeCarta(c), blur: 8)
-                                        : null,
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        c.etiqueta,
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppColors.texto,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                      Text(
-                                        'vale ${c.valorSuma}',
-                                        style: TextStyle(
-                                          color: AppColors.textoSuave
-                                              .withValues(alpha: 0.95),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                      if (_enMesa(c))
-                                        const Text(
-                                          'MESA',
-                                          style: TextStyle(
-                                            color: AppColors.azul,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 9,
-                                          ),
-                                        ),
-                                      if (_enMano(c))
-                                        const Text(
-                                          'MANO',
-                                          style: TextStyle(
-                                            color: AppColors.mint,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 9,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                      child: ListView(
+                        padding: const EdgeInsets.only(right: 4),
+                        children: [
+                          for (final palo in PaloEscoba.values)
+                            _contenedorPalo(palo, porPalo[palo]!),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 10),

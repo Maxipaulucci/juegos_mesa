@@ -64,9 +64,17 @@ class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
       lineas.add('7 de oro: ${r.detalles[r.idxSieteOro!].nombre} (+1)');
     }
     if (r.idxMasSietes != null) {
-      lineas.add('Más sietes: ${r.detalles[r.idxMasSietes!].nombre} (+1)');
+      final porDesempate = r.desempateSietesLineas.isNotEmpty;
+      lineas.add(
+        porDesempate
+            ? 'Más sietes: ${r.detalles[r.idxMasSietes!].nombre} (+1, por desempate)'
+            : 'Más sietes: ${r.detalles[r.idxMasSietes!].nombre} (+1)',
+      );
     } else if (r.empateMasSietes) {
       lineas.add('Más sietes: empate · nadie suma');
+    }
+    for (final d in r.desempateSietesLineas) {
+      lineas.add('Desempate sietes · $d');
     }
     for (var i = 0; i < r.puntosEscobas.length; i++) {
       if (r.puntosEscobas[i] > 0) {
@@ -75,12 +83,6 @@ class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
         );
       }
     }
-    if (r.idxLlevoPozo != null && r.cartasPozoFinal.isNotEmpty) {
-      lineas.add(
-        'Pozo final → ${r.detalles[r.idxLlevoPozo!].nombre}: '
-        '${r.cartasPozoFinal.map((c) => c.etiqueta).join(' · ')}',
-      );
-    }
     return lineas;
   }
 
@@ -88,6 +90,7 @@ class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
   Widget build(BuildContext context) {
     final maxH = MediaQuery.sizeOf(context).height * 0.88;
     final resultado = widget.resultado;
+    final hayExpandido = _expandidos.isNotEmpty;
 
     return Material(
       color: Colors.black.withValues(alpha: 0.78),
@@ -146,39 +149,48 @@ class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
                   ),
                   const SizedBox(height: 12),
                   Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.vertical,
-                      physics: const ClampingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (var i = 0; i < resultado.detalles.length; i++) ...[
-                            if (i > 0) const SizedBox(height: 10),
-                            _BotonJugadorExpandible(
-                              detalle: resultado.detalles[i],
-                              color: _colorJugador(i),
-                              puntosEstaRonda: _puntosEstaRonda(i),
-                              expandido: _expandidos.contains(i),
-                              onTap: () => setState(() {
-                                if (!_expandidos.remove(i)) {
-                                  _expandidos.add(i);
-                                }
-                              }),
-                              ganoMasCartas: resultado.idxMasCartas == i,
-                              ganoMasOros: resultado.idxMasOros == i,
-                              ganoSieteOro: resultado.idxSieteOro == i,
-                              ganoMasSietes: resultado.idxMasSietes == i,
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context).copyWith(
+                        scrollbars: hayExpandido,
+                      ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        physics: hayExpandido
+                            ? const ClampingScrollPhysics()
+                            : const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (var i = 0;
+                                i < resultado.detalles.length;
+                                i++) ...[
+                              if (i > 0) const SizedBox(height: 10),
+                              _BotonJugadorExpandible(
+                                detalle: resultado.detalles[i],
+                                color: _colorJugador(i),
+                                puntosEstaRonda: _puntosEstaRonda(i),
+                                expandido: _expandidos.contains(i),
+                                onTap: () => setState(() {
+                                  if (!_expandidos.remove(i)) {
+                                    _expandidos.add(i);
+                                  }
+                                }),
+                                ganoMasCartas: resultado.idxMasCartas == i,
+                                ganoMasOros: resultado.idxMasOros == i,
+                                ganoSieteOro: resultado.idxSieteOro == i,
+                                ganoMasSietes: resultado.idxMasSietes == i,
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(2, 2, 2, 10),
+                              child: _CartelPremiosRonda(
+                                premios: _premiosDeLaRonda(),
+                              ),
                             ),
                           ],
-                          const SizedBox(height: 14),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(2, 2, 2, 10),
-                            child: _CartelPremiosRonda(
-                              premios: _premiosDeLaRonda(),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -462,7 +474,8 @@ class _BotonJugadorExpandible extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           _MiniStat(
-                            emoji: '✨',
+                            icon: Icons.auto_awesome_rounded,
+                            iconColor: AppColors.acento,
                             titulo: 'Escobas',
                             valor: '${detalle.escobas}',
                             detalle: detalle.escobas == 0
@@ -472,7 +485,8 @@ class _BotonJugadorExpandible extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           _MiniStat(
-                            emoji: '🃏',
+                            icon: Icons.style_rounded,
+                            iconColor: AppColors.azul,
                             titulo: 'Cartas juntadas',
                             valor: '${detalle.cantidadCartas}',
                             detalle: detalle.cartas.isEmpty
@@ -485,7 +499,8 @@ class _BotonJugadorExpandible extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           _MiniStat(
-                            emoji: '🪙',
+                            icon: Icons.monetization_on_rounded,
+                            iconColor: const Color(0xFFFFC107),
                             titulo: 'Oros',
                             valor: '${detalle.cantidadOros}',
                             detalle: detalle.oros.isEmpty
@@ -498,7 +513,8 @@ class _BotonJugadorExpandible extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           _MiniStat(
-                            emoji: '7️⃣',
+                            icon: Icons.filter_7_rounded,
+                            iconColor: AppColors.mint,
                             titulo: 'Sietes',
                             valor: '${detalle.cantidadSietes}',
                             detalle: detalle.sietes.isEmpty
@@ -511,7 +527,8 @@ class _BotonJugadorExpandible extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           _MiniStat(
-                            emoji: '🥇',
+                            icon: Icons.workspace_premium_rounded,
+                            iconColor: const Color(0xFFFFD54F),
                             titulo: '7 de oro',
                             valor: ganoSieteOro ? '1' : '0',
                             detalle: ganoSieteOro || detalle.tieneSieteOro
@@ -534,7 +551,8 @@ class _BotonJugadorExpandible extends StatelessWidget {
 
 class _MiniStat extends StatelessWidget {
   const _MiniStat({
-    required this.emoji,
+    required this.icon,
+    required this.iconColor,
     required this.titulo,
     required this.valor,
     required this.detalle,
@@ -542,7 +560,8 @@ class _MiniStat extends StatelessWidget {
     this.badge,
   });
 
-  final String emoji;
+  final IconData icon;
+  final Color iconColor;
   final String titulo;
   final String valor;
   final String detalle;
@@ -568,7 +587,17 @@ class _MiniStat extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 22)),
+          Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: iconColor.withValues(alpha: 0.55)),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -597,7 +626,11 @@ class _MiniStat extends StatelessWidget {
                     if (destacado)
                       const Padding(
                         padding: EdgeInsets.only(left: 4),
-                        child: Text('⭐', style: TextStyle(fontSize: 14)),
+                        child: Icon(
+                          Icons.star_rounded,
+                          color: AppColors.mint,
+                          size: 16,
+                        ),
                       ),
                   ],
                 ),

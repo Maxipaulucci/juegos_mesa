@@ -144,13 +144,12 @@ PartidaEscoba nuevaPartidaEscoba({
   return p;
 }
 
-/// Quita [carta] de mazo, mesa, manos y capturadas (modo dios / testing).
+/// Quita [carta] de mazo, mesa y manos (no de capturadas: ya salieron de juego).
 bool extraerCartaEscoba(PartidaEscoba p, CartaEscoba carta) {
   if (p.mazo.remove(carta)) return true;
   if (p.mesa.remove(carta)) return true;
   for (final j in p.jugadores) {
     if (j.mano.remove(carta)) return true;
-    if (j.capturadas.remove(carta)) return true;
   }
   return false;
 }
@@ -457,6 +456,7 @@ class ResultadoRondaEscoba {
     this.empateMasCartas = false,
     this.empateMasOros = false,
     this.empateMasSietes = false,
+    this.desempateSietesLineas = const [],
     this.idxLlevoPozo,
     this.cartasPozoFinal = const [],
   });
@@ -470,6 +470,8 @@ class ResultadoRondaEscoba {
   final bool empateMasCartas;
   final bool empateMasOros;
   final bool empateMasSietes;
+  /// Texto del desempate de 7s (cartas ≤6 por palo del rival y suma).
+  final List<String> desempateSietesLineas;
   /// Quién se llevó las cartas que quedaban en el pozo al cerrar la ronda.
   final int? idxLlevoPozo;
   final List<CartaEscoba> cartasPozoFinal;
@@ -488,17 +490,17 @@ CartaEscoba? _mejorCartaBajoSiete(
   return mejor;
 }
 
-/// Desempate de 7s: sumá tu mejor carta ≤6 en cada palo de los 7 del rival.
-int _puntajeDesempateSietes(
+/// Cartas usadas en el desempate de 7s (mejor ≤6 por cada palo del rival).
+List<CartaEscoba> _cartasDesempateSietes(
   JugadorEscoba yo,
   Iterable<PaloEscoba> palosRivales,
 ) {
-  var suma = 0;
+  final out = <CartaEscoba>[];
   for (final palo in palosRivales) {
     final c = _mejorCartaBajoSiete(yo.capturadas, palo);
-    if (c != null) suma += c.valorSuma;
+    if (c != null) out.add(c);
   }
-  return suma;
+  return out;
 }
 
 Set<PaloEscoba> _palosDeSietes(List<CartaEscoba> capturadas) {
@@ -590,6 +592,7 @@ ResultadoRondaEscoba puntuarRondaEscoba(
     }
   }
   var empateMasSietes = false;
+  final desempateSietesLineas = <String>[];
   if (maxS <= 0) {
     idxMasSietes = null;
   } else if (empatadosS.length == 1) {
@@ -605,7 +608,14 @@ ResultadoRondaEscoba puntuarRondaEscoba(
         for (final j in empatadosS)
           if (j != i) ..._palosDeSietes(p.jugadores[j].capturadas),
       };
-      final score = _puntajeDesempateSietes(p.jugadores[i], palosRivales);
+      final cartas = _cartasDesempateSietes(p.jugadores[i], palosRivales);
+      final score = cartas.fold<int>(0, (a, c) => a + c.valorSuma);
+      final cartasTxt = cartas.isEmpty
+          ? 'sin cartas bajo 7'
+          : cartas.map((c) => c.etiqueta).join(' · ');
+      desempateSietesLineas.add(
+        '${p.jugadores[i].nombre}: $cartasTxt (suma $score)',
+      );
       if (score > mejorDes) {
         mejorDes = score;
         idxDes = i;
@@ -645,6 +655,7 @@ ResultadoRondaEscoba puntuarRondaEscoba(
     empateMasCartas: empateMasCartas,
     empateMasOros: empateMasOros,
     empateMasSietes: empateMasSietes,
+    desempateSietesLineas: desempateSietesLineas,
     idxLlevoPozo: idxLlevoPozo,
     cartasPozoFinal: cartasPozoFinal,
   );

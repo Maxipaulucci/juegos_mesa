@@ -73,6 +73,7 @@ Map<String, dynamic>? _encodeResultado(ResultadoRondaEscoba? r) {
     'empateMasCartas': r.empateMasCartas,
     'empateMasOros': r.empateMasOros,
     'empateMasSietes': r.empateMasSietes,
+    'desempateSietesLineas': List<String>.from(r.desempateSietesLineas),
     'idxLlevoPozo': r.idxLlevoPozo,
     'cartasPozoFinal': _encodeCartas(r.cartasPozoFinal),
     'detalles': [
@@ -123,6 +124,10 @@ ResultadoRondaEscoba? _decodeResultado(dynamic raw) {
     empateMasCartas: m['empateMasCartas'] == true,
     empateMasOros: m['empateMasOros'] == true,
     empateMasSietes: m['empateMasSietes'] == true,
+    desempateSietesLineas: [
+      for (final e in (m['desempateSietesLineas'] as List? ?? const []))
+        e.toString(),
+    ],
     idxLlevoPozo: (m['idxLlevoPozo'] as num?)?.toInt(),
     cartasPozoFinal: _decodeCartas(m['cartasPozoFinal']),
   );
