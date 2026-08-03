@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/laPapa/la_papa_online_codec.dart';
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
@@ -49,9 +50,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   final GlobalKey _hojaKey = GlobalKey();
   /// Posición de la lupa sin forzar rebuild de toda la pantalla.
   final ValueNotifier<Offset?> _lupaPunto = ValueNotifier<Offset?>(null);
-  /// Evita que la lupa “salte” de lado en cada frame cerca del borde.
-  double _lupaDx = _LupaTrazoPapa.offsetDedo.dx;
-  double _lupaDy = _LupaTrazoPapa.offsetDedo.dy;
+  /// Índice entre las 4 esquinas relativas al dedo (ver [_LupaTrazoPapa.posiciones]).
+  int _lupaPosicionIdx = 0;
+  double _lupaDx = _LupaTrazoPapa.posiciones.first.dx;
+  double _lupaDy = _LupaTrazoPapa.posiciones.first.dy;
   bool _dibujando = false;
   bool _inicioValido = false;
   bool _salioDelInicio = false;
@@ -86,6 +88,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_onTeclaLupa);
     final resume = widget.resume;
     if (resume != null) {
       _nombres = List.of(resume.nombres);
@@ -124,8 +127,18 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
   }
 
+  bool _onTeclaLupa(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.keyL) return false;
+    if (!mounted) return false;
+    if (_partida.fase != FasePapa.jugando || _partida.terminada) return false;
+    _rotarPosicionLupa();
+    return true;
+  }
+
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onTeclaLupa);
     _onlineSub?.cancel();
     _lupaPunto.dispose();
     super.dispose();
@@ -269,8 +282,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _mostrarMenu = false;
       _mostrarAjustes = false;
       _confirmarRendicion = false;
-      _lupaDx = _LupaTrazoPapa.offsetDedo.dx;
-      _lupaDy = _LupaTrazoPapa.offsetDedo.dy;
+      _aplicarPosicionLupa();
     });
   }
 
@@ -280,22 +292,27 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _inicioValido = false;
     _salioDelInicio = false;
     _lupaPunto.value = null;
-    _lupaDx = _LupaTrazoPapa.offsetDedo.dx;
-    _lupaDy = _LupaTrazoPapa.offsetDedo.dy;
+    _aplicarPosicionLupa();
   }
 
-  /// Elige el lado de la lupa una sola vez al empezar el trazo.
-  /// No se vuelve a cambiar a mitad de camino (eso provocaba falsas muertes).
+  void _aplicarPosicionLupa() {
+    final o = _LupaTrazoPapa.posiciones[
+        _lupaPosicionIdx % _LupaTrazoPapa.posiciones.length];
+    _lupaDx = o.dx;
+    _lupaDy = o.dy;
+  }
+
+  void _rotarPosicionLupa() {
+    setState(() {
+      _lupaPosicionIdx =
+          (_lupaPosicionIdx + 1) % _LupaTrazoPapa.posiciones.length;
+      _aplicarPosicionLupa();
+    });
+  }
+
+  /// Usa la esquina elegida por el jugador (tecla L / botón).
   void _fijarLadoLupa(Offset local, Size boardSize) {
-    const r = _LupaTrazoPapa.diametro / 2;
-    const preferido = _LupaTrazoPapa.offsetDedo;
-    // Preferido = izquierda; si se corta el borde izquierdo, pasa a la derecha.
-    _lupaDx = (local.dx + preferido.dx - r < 4)
-        ? -preferido.dx
-        : preferido.dx;
-    _lupaDy = (local.dy + preferido.dy - r < 4)
-        ? -preferido.dy
-        : preferido.dy;
+    _aplicarPosicionLupa();
   }
 
   void _actualizarLupa(Offset local) {
@@ -1094,54 +1111,93 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   Widget _botonTrazos() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-      child: SizedBox(
-        width: double.infinity,
-        height: 44,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: neonGlow(AppColors.mint, blur: 10),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: _dibujando ? null : _abrirSelectorTrazos,
-              child: Ink(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.mint.withValues(alpha: 0.95),
-                      AppColors.mint.withValues(alpha: 0.65),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.45),
-                  ),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.brush_rounded, color: Color(0xFF062018)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Trazos',
-                      style: TextStyle(
-                        color: Color(0xFF062018),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: neonGlow(AppColors.mint, blur: 10),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _dibujando ? null : _abrirSelectorTrazos,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.mint.withValues(alpha: 0.95),
+                    AppColors.mint.withValues(alpha: 0.65),
                   ],
                 ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.45),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.brush_rounded, color: Color(0xFF062018)),
+                  SizedBox(width: 8),
+                  Text(
+                    'Trazos',
+                    style: TextStyle(
+                      color: Color(0xFF062018),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  bool _esCelular(BuildContext context) {
+    final p = Theme.of(context).platform;
+    return p == TargetPlatform.android || p == TargetPlatform.iOS;
+  }
+
+  Widget _controlPosicionLupa(BuildContext context) {
+    if (_esCelular(context)) {
+      return SizedBox(
+        width: double.infinity,
+        height: 40,
+        child: OutlinedButton.icon(
+          onPressed: _rotarPosicionLupa,
+          icon: const Icon(Icons.zoom_in_map_rounded, size: 18),
+          label: const Text(
+            'Mover lupa',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.azul,
+            side: const BorderSide(color: AppColors.azul, width: 1.5),
+            backgroundColor: AppColors.carta,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
+      );
+    }
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Text(
+        'Tocá la tecla L para mover la posición de la lupa',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: AppColors.textoSuave,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
         ),
       ),
     );
@@ -1377,12 +1433,21 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                     ),
                   ),
                   SizedBox(
-                    height: 52,
+                    height: _partida.fase == FasePapa.jugando &&
+                            !_partida.terminada
+                        ? 96
+                        : 52,
                     child: _partida.fase == FasePapa.jugando &&
                             !_partida.terminada
-                        ? Align(
-                            alignment: Alignment.bottomCenter,
-                            child: _botonTrazos(),
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                            child: Column(
+                              children: [
+                                _controlPosicionLupa(context),
+                                const SizedBox(height: 6),
+                                _botonTrazos(),
+                              ],
+                            ),
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -1750,8 +1815,13 @@ class _LupaTrazoPapa extends StatelessWidget {
 
   static const diametro = 118.0;
   static const zoom = 2.35;
-  /// Desplazamiento del centro de la lupa respecto al dedo (arriba-izquierda).
-  static const offsetDedo = Offset(-52, -70);
+  /// Las 4 esquinas relativas al dedo/cursor (ciclo con L / botón).
+  static const posiciones = <Offset>[
+    Offset(-52, -70), // arriba-izquierda
+    Offset(52, -70), // arriba-derecha
+    Offset(-52, 70), // abajo-izquierda
+    Offset(52, 70), // abajo-derecha
+  ];
 
   final Offset focus;
   final Offset offsetLupa;
