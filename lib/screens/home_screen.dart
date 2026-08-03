@@ -75,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _ruedaAnimando = false;
 
   static const _juegos = <_JuegoHome>[
+    // Disponibles, en orden de salida (más viejo → más nuevo).
     _JuegoHome(
       tipo: _TipoJuegoHome.diezMil,
       titulo: 'Diez Mil',
@@ -97,12 +98,11 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.papel,
     ),
     _JuegoHome(
-      tipo: _TipoJuegoHome.culoSucio,
-      titulo: 'Culo sucio',
-      subtitulo: 'Próximamente',
-      accent: AppColors.peligro,
+      tipo: _TipoJuegoHome.escobaDel15,
+      titulo: 'Escoba del 15',
+      subtitulo: 'Cartas españolas · a 15',
+      accent: AppColors.azul,
       categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.laPapa,
@@ -118,12 +118,14 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
     ),
+    // Próximamente.
     _JuegoHome(
-      tipo: _TipoJuegoHome.escobaDel15,
-      titulo: 'Escoba del 15',
-      subtitulo: 'Cartas españolas · a 15',
-      accent: AppColors.azul,
+      tipo: _TipoJuegoHome.culoSucio,
+      titulo: 'Culo sucio',
+      subtitulo: 'Próximamente',
+      accent: AppColors.peligro,
       categoria: _CategoriaHome.cartasEspanolas,
+      enabled: false,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
@@ -529,11 +531,20 @@ class _BarraCategorias extends StatelessWidget {
 
     Widget chip(_CategoriaHome cat) {
       final activa = cat == seleccionada;
+      const radio = BorderRadius.all(Radius.circular(999));
       return Material(
         color: Colors.transparent,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => onSeleccionar(cat),
-          borderRadius: BorderRadius.circular(999),
+          customBorder: const StadiumBorder(),
+          borderRadius: radio,
+          splashColor: accentActiva.withValues(alpha: 0.2),
+          highlightColor: accentActiva.withValues(alpha: 0.08),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
@@ -542,7 +553,7 @@ class _BarraCategorias extends StatelessWidget {
               color: activa
                   ? accentActiva.withValues(alpha: 0.18)
                   : AppColors.carta.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: radio,
               border: Border.all(
                 color: activa
                     ? accentActiva
