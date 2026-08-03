@@ -14,6 +14,7 @@ import 'package:app_juegos_mesa/laPapa/victoria_la_papa_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class PartidaLaPapaScreen extends StatefulWidget {
@@ -1332,19 +1333,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(0, -0.3),
-                      radius: 1.1,
-                      colors: [
-                        Color(0xFF1A3D32),
-                        AppColors.fondo,
-                        Color(0xFF05020C),
-                      ],
-                    ),
-                  ),
-                ),
+                const Positioned.fill(child: EpicBackdrop()),
                 SafeArea(
                   child: Column(
                     children: [

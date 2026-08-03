@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/unoSolo/guia_modo_dios_uno_solo.dart';
 import 'package:app_juegos_mesa/unoSolo/motor_uno_solo.dart';
@@ -735,6 +736,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       backgroundColor: AppColors.fondo,
       body: Stack(
         children: [
+          const Positioned.fill(child: EpicBackdrop()),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/tutiFruti/motor_tuti_fruti.dart';
 import 'package:app_juegos_mesa/tutiFruti/tuti_fruti_online_codec.dart';
@@ -530,19 +531,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0, -0.25),
-                  radius: 1.15,
-                  colors: [
-                    Color(0xFF3A1450),
-                    AppColors.fondo,
-                    Color(0xFF05020C),
-                  ],
-                ),
-              ),
-            ),
+            const Positioned.fill(child: EpicBackdrop()),
             SafeArea(
               child: Column(
                 children: [
