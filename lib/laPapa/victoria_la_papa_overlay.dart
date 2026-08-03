@@ -166,6 +166,7 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
       partida: widget.partida,
       jugador: _statsJugador!,
       ganador: widget.ganador ?? _ganadorMostrado,
+      boardSizeTrazo: widget.boardSizeTrazo,
       onCerrar: () => setState(() => _statsJugador = null),
       onVerTablero: () => setState(() => _mostrarTablero = true),
     );
@@ -494,6 +495,7 @@ class _StatsBoardPanel extends StatelessWidget {
     required this.ganador,
     required this.onCerrar,
     required this.onVerTablero,
+    this.boardSizeTrazo,
   });
 
   final PartidaPapa partida;
@@ -501,6 +503,7 @@ class _StatsBoardPanel extends StatelessWidget {
   final String? ganador;
   final VoidCallback onCerrar;
   final VoidCallback onVerTablero;
+  final Size? boardSizeTrazo;
 
   @override
   Widget build(BuildContext context) {
@@ -593,6 +596,7 @@ class _StatsBoardPanel extends StatelessWidget {
                         numerosVisibles: numeros,
                         trazos: trazos,
                         colorTrazo: accent,
+                        boardSizeTrazo: boardSizeTrazo,
                       ),
                     ),
                   ),
@@ -786,17 +790,22 @@ class _HojaStatsPapaPainter extends CustomPainter {
     required this.numerosVisibles,
     required this.trazos,
     required this.colorTrazo,
+    this.boardSizeTrazo,
   });
 
   final PartidaPapa partida;
   final Set<int> numerosVisibles;
   final List<TrazoPapa> trazos;
   final Color colorTrazo;
+  final Size? boardSizeTrazo;
 
   @override
   void paint(Canvas canvas, Size size) {
     final cellW = size.width / columnasPapa;
     final cellH = size.height / filasPapa;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
 
     final gridPaint = Paint()
       ..color = const Color(0xFF2A1450).withValues(alpha: 0.55)
@@ -812,20 +821,42 @@ class _HojaStatsPapaPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
+    final origen = boardSizeTrazo;
+    final sx = (origen != null && origen.width > 1e-6)
+        ? size.width / origen.width
+        : 1.0;
+    final sy = (origen != null && origen.height > 1e-6)
+        ? size.height / origen.height
+        : 1.0;
+    final escalaGrosor = (origen != null &&
+            origen.width > 1e-6 &&
+            origen.height > 1e-6)
+        ? math.min(sx, sy)
+        : (math.min(cellW, cellH) / 36).clamp(0.35, 1.0);
+
     for (final t in trazos) {
-      final iDe = partida.indiceDeNumero(t.de);
-      final iA = partida.indiceDeNumero(t.a);
-      if (iDe == null || iA == null) continue;
-      final desde = centroCasillaPapa(iDe, size);
-      final hasta = centroCasillaPapa(iA, size);
-      final pts = alinearTrazoPapaACentros(t.puntos, desde, hasta);
-      final escala = (math.min(cellW, cellH) / 36).clamp(0.35, 1.0);
+      List<Offset> pts;
+      if (origen != null && origen.width > 1e-6 && origen.height > 1e-6) {
+        pts = [for (final p in t.puntos) Offset(p.dx * sx, p.dy * sy)];
+      } else {
+        final iDe = partida.indiceDeNumero(t.de);
+        final iA = partida.indiceDeNumero(t.a);
+        if (iDe == null || iA == null || t.puntos.length < 2) {
+          pts = t.puntos;
+        } else {
+          pts = alinearTrazoPapaACentros(
+            t.puntos,
+            centroCasillaPapa(iDe, size),
+            centroCasillaPapa(iA, size),
+          );
+        }
+      }
       dibujarPolylinePapa(
         canvas,
         pts,
         Paint()
           ..color = colorTrazo
-          ..strokeWidth = t.grosor.ancho * escala
+          ..strokeWidth = t.grosor.ancho * escalaGrosor
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round
           ..style = PaintingStyle.stroke,
@@ -874,6 +905,8 @@ class _HojaStatsPapaPainter extends CustomPainter {
       );
       tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
     }
+
+    canvas.restore();
   }
 
   @override
@@ -896,6 +929,9 @@ class _HojaTableroFinalPainter extends CustomPainter {
     final cellW = size.width / columnasPapa;
     final cellH = size.height / filasPapa;
 
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
     final gridPaint = Paint()
       ..color = const Color(0xFF2A1450).withValues(alpha: 0.45)
       ..strokeWidth = 1
@@ -910,23 +946,13 @@ class _HojaTableroFinalPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Trazos por jugador (mismo grosor que al dibujar, escalado al tamaño).
+    // Mismos trazos que en partida: solo reescalado proporcional.
+    // No realinear a centros (deformaba curvas y las sacaba del cuadro).
     final escala = _escalaTrazo(size);
     for (final t in partida.trazos) {
       final idx = partida.nombres.indexOf(t.jugador);
       final color = colorTrazoJugadorPapa(idx < 0 ? 0 : idx);
-      final iDe = partida.indiceDeNumero(t.de);
-      final iA = partida.indiceDeNumero(t.a);
-      List<Offset> pts;
-      if (iDe != null && iA != null && t.puntos.length >= 2) {
-        pts = alinearTrazoPapaACentros(
-          t.puntos,
-          centroCasillaPapa(iDe, size),
-          centroCasillaPapa(iA, size),
-        );
-      } else {
-        pts = _escalarPuntos(t.puntos, size);
-      }
+      final pts = _escalarPuntos(t.puntos, size);
       dibujarPolylinePapa(
         canvas,
         pts,
@@ -980,6 +1006,8 @@ class _HojaTableroFinalPainter extends CustomPainter {
       )..layout();
       tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
     }
+
+    canvas.restore();
   }
 
   List<Offset> _escalarPuntos(List<Offset> pts, Size size) {
