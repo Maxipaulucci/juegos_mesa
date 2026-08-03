@@ -98,18 +98,18 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.papel,
     ),
     _JuegoHome(
-      tipo: _TipoJuegoHome.escobaDel15,
-      titulo: 'Escoba del 15',
-      subtitulo: 'Cartas españolas · a 15',
-      accent: AppColors.azul,
-      categoria: _CategoriaHome.cartasEspanolas,
-    ),
-    _JuegoHome(
       tipo: _TipoJuegoHome.laPapa,
       titulo: 'La papa',
       subtitulo: 'Hoja · uní los números',
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.escobaDel15,
+      titulo: 'Escoba del 15',
+      subtitulo: 'Cartas españolas · a 15',
+      accent: AppColors.azul,
+      categoria: _CategoriaHome.cartasEspanolas,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.unoSolo,
