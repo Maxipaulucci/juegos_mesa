@@ -11,12 +11,18 @@ class VictoriaUnoSoloOverlay extends StatelessWidget {
     required this.onVolverAJugar,
     required this.onVolver,
     this.mostrarVolverAJugar = true,
+    this.onVerOrden,
+    this.onDeshacer,
   });
 
   final PartidaUnoSolo partida;
   final VoidCallback onVolverAJugar;
   final VoidCallback onVolver;
   final bool mostrarVolverAJugar;
+  /// Ver el tablero con el orden en que se eliminaron las fichas.
+  final VoidCallback? onVerOrden;
+  /// Solo si hay modo práctica y jugadas para deshacer.
+  final VoidCallback? onDeshacer;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +111,24 @@ class VictoriaUnoSoloOverlay extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  if (onVerOrden != null) ...[
+                    GlowButtonVictoria(
+                      label: 'VER ORDEN',
+                      icon: Icons.format_list_numbered_rounded,
+                      color: AppColors.acento,
+                      onPressed: onVerOrden!,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (onDeshacer != null) ...[
+                    GlowButtonVictoria(
+                      label: 'DESHACER ÚLTIMO',
+                      icon: Icons.undo_rounded,
+                      color: AppColors.rosa,
+                      onPressed: onDeshacer!,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   if (mostrarVolverAJugar) ...[
                     GlowButtonVictoria(
                       label: 'VOLVER A JUGAR',

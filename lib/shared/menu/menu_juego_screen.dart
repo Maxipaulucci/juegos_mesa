@@ -38,8 +38,12 @@ class MenuJuegoScreen extends StatefulWidget {
     required this.onVsPc,
     required this.onIniciarDesdeSala,
     this.mostrarDificultad = false,
-    /// Si true, la sección "vs PC" se muestra como "Jugar solo" (sin Modo Dios).
+    /// Si true, la sección "vs PC" se muestra como "Jugar solo".
     this.jugarSoloEnLugarDePc = false,
+    /// Si true (con [jugarSoloEnLugarDePc]), muestra Modo Dios al lado de "Jugar solo".
+    this.mostrarModoDiosEnSolo = false,
+    /// Texto del diálogo de ayuda de Modo Dios (si null, usa el genérico de dados).
+    this.textoInfoModoDios,
     /// Contenido extra debajo de Jugar solo / vs PC (p. ej. Modificar partida).
     this.extraTrasModoLocal,
   });
@@ -56,6 +60,8 @@ class MenuJuegoScreen extends StatefulWidget {
   final List<int> modosDados;
   final bool mostrarDificultad;
   final bool jugarSoloEnLugarDePc;
+  final bool mostrarModoDiosEnSolo;
+  final String? textoInfoModoDios;
   final Widget? extraTrasModoLocal;
 
   final Future<void> Function(
@@ -405,6 +411,13 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   }
 
   void _explicarModoDios() {
+    final texto = widget.textoInfoModoDios ??
+        'Es un modo de prueba. Durante la partida aparece un botón al lado '
+            'de los dados que te deja elegir a mano los valores de la próxima '
+            'tirada, en vez de dejarlos al azar.\n\n'
+            'Sirve para probar combos y situaciones puntuales sin depender de '
+            'la suerte. Solo está disponible al jugar contra la PC '
+            '(en tu turno).';
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -422,14 +435,9 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
             ),
           ],
         ),
-        content: const Text(
-          'Es un modo de prueba. Durante la partida aparece un botón al lado '
-          'de los dados que te deja elegir a mano los valores de la próxima '
-          'tirada, en vez de dejarlos al azar.\n\n'
-          'Sirve para probar combos y situaciones puntuales sin depender de '
-          'la suerte. Solo está disponible al jugar contra la PC '
-          '(en tu turno).',
-          style: TextStyle(color: AppColors.texto, height: 1.45),
+        content: Text(
+          texto,
+          style: const TextStyle(color: AppColors.texto, height: 1.45),
         ),
         actions: [
           ElevatedButton(
@@ -591,14 +599,23 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       const Divider(color: AppColors.fondoSuave),
                       const SizedBox(height: 12),
                       if (widget.jugarSoloEnLugarDePc) ...[
-                        const Text(
-                          'Jugar solo',
-                          style: TextStyle(
-                            color: AppColors.texto,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                        if (widget.mostrarModoDiosEnSolo)
+                          FilaOpcionToggle(
+                            etiqueta: 'Jugar solo',
+                            opcion: 'Modo Dios',
+                            activo: _modoDios,
+                            onChanged: (v) => setState(() => _modoDios = v),
+                            onInfo: _explicarModoDios,
+                          )
+                        else
+                          const Text(
+                            'Jugar solo',
+                            style: TextStyle(
+                              color: AppColors.texto,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 10),
                         OutlinedButton(
                           onPressed: () => widget.onVsPc(

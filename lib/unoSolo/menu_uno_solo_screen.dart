@@ -2,13 +2,47 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
+import 'package:app_juegos_mesa/unoSolo/opciones_uno_solo.dart';
 import 'package:app_juegos_mesa/unoSolo/partida_uno_solo_screen.dart';
 import 'package:app_juegos_mesa/unoSolo/standby_store.dart';
 
 /// Menú de Uno solo: mismo layout que La papa (solo / local / online).
-class MenuUnoSoloScreen extends StatelessWidget {
+class MenuUnoSoloScreen extends StatefulWidget {
   const MenuUnoSoloScreen({super.key});
+
+  @override
+  State<MenuUnoSoloScreen> createState() => _MenuUnoSoloScreenState();
+}
+
+class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
+  OpcionesUnoSolo _opciones = const OpcionesUnoSolo();
+
+  Future<void> _abrirCartelModificar() async {
+    var draft = _opciones;
+    final ok = await mostrarCartelModificarPartida(
+      context: context,
+      buildOpciones: (dialogContext, setDialogState) {
+        return FilaToggleModificarPartida(
+          titulo: 'Modo práctica',
+          activo: draft.modoPractica,
+          onChanged: (v) => setDialogState(
+            () => draft = draft.copyWith(modoPractica: v),
+          ),
+          info:
+              'Activado: durante la partida podés deshacer de a un salto '
+              'hacia atrás (botón de deshacer). Si lo seguís tocando, '
+              'volvés hasta el inicio del tablero.\n\n'
+              'Sirve para probar caminos y corregir errores sin reiniciar '
+              'toda la partida. No aplica en multijugador online.',
+        );
+      },
+    );
+    if (ok && mounted) {
+      setState(() => _opciones = draft);
+    }
+  }
 
   Future<void> _abrirPartida({
     required BuildContext ctx,
@@ -24,6 +58,8 @@ class MenuUnoSoloScreen extends StatelessWidget {
       builder: (_) => PartidaUnoSoloScreen(
         nombres: resume?.nombres ?? nombres,
         solo: solo,
+        modoDios: solo && (resume?.modoDios ?? estado.modoDios),
+        opciones: resume?.opciones ?? _opciones,
         ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
         resume: resume,
       ),
@@ -37,6 +73,16 @@ class MenuUnoSoloScreen extends StatelessWidget {
       juegoId: MenuJuegoScreen.juegoIdUnoSolo,
       modosDados: const [1],
       jugarSoloEnLugarDePc: true,
+      mostrarModoDiosEnSolo: true,
+      textoInfoModoDios:
+          'Solo aplica a “Jugar solo”.\n\n'
+          'Muestra en cada ficha el orden en que hay que eliminarla '
+          'según una solución ganadora (tutorial / ayuda).\n\n'
+          'Es una ayuda muy fuerte: si preferís el desafío limpio, '
+          'dejalo apagado.',
+      extraTrasModoLocal: BotonModificarPartida(
+        onPressed: _abrirCartelModificar,
+      ),
       onPartidaRapida: (ctx, estado, _) async {
         await _abrirPartida(
           ctx: ctx,

@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
+import 'package:app_juegos_mesa/unoSolo/guia_modo_dios_uno_solo.dart';
 import 'package:app_juegos_mesa/unoSolo/motor_uno_solo.dart';
+import 'package:app_juegos_mesa/unoSolo/opciones_uno_solo.dart';
 import 'package:app_juegos_mesa/unoSolo/standby_store.dart';
 import 'package:app_juegos_mesa/unoSolo/textos.dart';
+import 'package:app_juegos_mesa/unoSolo/tablero_uno_solo.dart';
 import 'package:app_juegos_mesa/unoSolo/uno_solo_online_codec.dart';
 import 'package:app_juegos_mesa/unoSolo/victoria_uno_solo_overlay.dart';
 
@@ -18,6 +22,8 @@ class PartidaUnoSoloScreen extends StatefulWidget {
     super.key,
     required this.nombres,
     this.solo = false,
+    this.modoDios = false,
+    this.opciones = const OpcionesUnoSolo(),
     this.salaCodigo,
     this.miNombre,
     this.ajustesIniciales,
@@ -26,6 +32,9 @@ class PartidaUnoSoloScreen extends StatefulWidget {
 
   final List<String> nombres;
   final bool solo;
+  /// Tutorial: números de orden de eliminación (solo en Jugar solo).
+  final bool modoDios;
+  final OpcionesUnoSolo opciones;
   final String? salaCodigo;
   final String? miNombre;
   final AjustesEstado? ajustesIniciales;
@@ -38,12 +47,36 @@ class PartidaUnoSoloScreen extends StatefulWidget {
 class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
   late PartidaUnoSolo _partida;
   late List<String> _nombres;
+  late OpcionesUnoSolo _opciones;
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
   int? _seleccion;
   String? _aviso;
+  Timer? _avisoTimer;
+  late final GuiaModoDiosUnoSolo? _guiaDios;
+  final List<MovimientoUnoSolo> _historial = [];
+  /// Tras ganar: muestra el tablero con el orden real de eliminación.
+  bool _verOrdenFinal = false;
+
+  bool get _modoDiosActivo =>
+      widget.modoDios &&
+      (widget.solo || _partida.solo) &&
+      !_esOnline &&
+      _guiaDios != null &&
+      !_verOrdenFinal;
+
+  bool get _modoPracticaActivo =>
+      _opciones.modoPractica && !_esOnline;
+
+  bool get _puedeDeshacer =>
+      _modoPracticaActivo && _historial.isNotEmpty;
+
+  bool get _esCelular {
+    final p = Theme.of(context).platform;
+    return p == TargetPlatform.android || p == TargetPlatform.iOS;
+  }
 
   StreamSubscription<Sala>? _onlineSub;
   int _onlineVersion = 0;
@@ -72,11 +105,18 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_onTeclaDeshacer);
     final resume = widget.resume;
+    final quiereGuia = widget.modoDios || (resume?.modoDios ?? false);
+    _guiaDios = quiereGuia ? GuiaModoDiosUnoSolo.estandar() : null;
+    _opciones = resume?.opciones ?? widget.opciones;
     if (resume != null) {
       _nombres = List.of(resume.nombres);
       _ajustes = resume.ajustesIniciales;
       _partida = resume.partida;
+      _historial
+        ..clear()
+        ..addAll(resume.historial);
       return;
     }
     _nombres = List.of(widget.nombres);
@@ -101,8 +141,38 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onTeclaDeshacer);
+    _avisoTimer?.cancel();
     _onlineSub?.cancel();
     super.dispose();
+  }
+
+  bool _onTeclaDeshacer(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (!_modoPracticaActivo) return false;
+    if (_mostrarMenu || _mostrarAjustes) return false;
+    final key = event.logicalKey;
+    if (key != LogicalKeyboardKey.arrowLeft &&
+        key != LogicalKeyboardKey.space) {
+      return false;
+    }
+    if (!mounted) return false;
+    _deshacer();
+    return true;
+  }
+
+  void _mostrarAviso(String mensaje) {
+    _avisoTimer?.cancel();
+    setState(() => _aviso = mensaje);
+    _avisoTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (!mounted) return;
+      setState(() => _aviso = null);
+    });
+  }
+
+  void _ocultarAviso() {
+    _avisoTimer?.cancel();
+    if (_aviso != null) setState(() => _aviso = null);
   }
 
   void _iniciarSincronizacionOnline() {
@@ -221,60 +291,89 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
 
     if (sel == null) {
       if (celda != CeldaUnoSolo.ocupada) {
-        setState(() => _aviso = 'Elegí una ficha para saltar.');
+        _mostrarAviso('Elegí una ficha para saltar.');
         return;
       }
       final movs = movimientosDesdeUnoSolo(_partida, index);
       if (movs.isEmpty) {
-        setState(() {
-          _seleccion = null;
-          _aviso = 'Esa ficha no tiene saltos posibles.';
-        });
+        setState(() => _seleccion = null);
+        _mostrarAviso('Esa ficha no tiene saltos posibles.');
         return;
       }
-      setState(() {
-        _seleccion = index;
-        _aviso = null;
-      });
+      setState(() => _seleccion = index);
+      _ocultarAviso();
       return;
     }
 
     if (sel == index) {
-      setState(() {
-        _seleccion = null;
-        _aviso = null;
-      });
+      setState(() => _seleccion = null);
+      _ocultarAviso();
       return;
     }
 
     if (celda == CeldaUnoSolo.ocupada) {
       final movs = movimientosDesdeUnoSolo(_partida, index);
-      setState(() {
-        _seleccion = movs.isEmpty ? null : index;
-        _aviso = movs.isEmpty ? 'Esa ficha no tiene saltos posibles.' : null;
-      });
+      setState(() => _seleccion = movs.isEmpty ? null : index);
+      if (movs.isEmpty) {
+        _mostrarAviso('Esa ficha no tiene saltos posibles.');
+      } else {
+        _ocultarAviso();
+      }
       return;
     }
 
     // Destino vacío: intentar salto.
-    final err = jugarSaltoUnoSolo(_partida, sel, index);
+    final mov = buscarSaltoUnoSolo(_partida, sel, index);
+    final err = mov == null
+        ? 'Ese salto no es válido.'
+        : jugarMovimientoUnoSolo(_partida, mov);
     setState(() {
-      _aviso = err;
       _seleccion = null;
+      if (err == null && mov != null) {
+        _historial.add(mov);
+      }
     });
-    if (err == null) unawaited(_publicarEstadoOnline());
+    if (err != null) {
+      _mostrarAviso(err);
+    } else {
+      _ocultarAviso();
+      unawaited(_publicarEstadoOnline());
+    }
+  }
+
+  void _deshacer() {
+    if (!_puedeDeshacer) {
+      _mostrarAviso('Ya estás al inicio de la partida.');
+      return;
+    }
+    final err = deshacerUltimoUnoSolo(_partida, _historial);
+    setState(() {
+      _seleccion = null;
+      _verOrdenFinal = false;
+    });
+    if (err != null) {
+      _mostrarAviso(err);
+    } else {
+      _ocultarAviso();
+    }
   }
 
   void _volverAJugar() {
     if (_esOnline) return;
     UnoSoloStandByStore.limpiar();
+    _avisoTimer?.cancel();
     setState(() {
       _partida = nuevaPartidaUnoSolo(
         nombres: _nombres,
         solo: widget.solo || _nombres.length == 1,
       );
+      _historial.clear();
       _seleccion = null;
       _aviso = null;
+      _verOrdenFinal = false;
+      _mostrarMenu = false;
+      _mostrarAjustes = false;
+      _confirmarRendicion = false;
     });
   }
 
@@ -292,6 +391,9 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
         partida: _partida,
         nombres: _nombres,
         ajustesIniciales: _ajustes,
+        modoDios: widget.modoDios,
+        opciones: _opciones,
+        historial: List.of(_historial),
       ),
     );
     _salirAlMenu();
@@ -358,7 +460,12 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
           ? 'Preparando tablero compartido…'
           : 'Esperando el tablero del anfitrión…';
     }
-    if (_partida.terminada) return _partida.mensajeFin ?? 'Fin';
+    if (_partida.terminada) {
+      if (_verOrdenFinal) {
+        return 'Orden de eliminación · tocá “Volver al resultado”';
+      }
+      return _partida.mensajeFin ?? 'Fin';
+    }
     if (_esOnline && !_esMiTurno) {
       return 'Turno de ${_partida.jugadorActual}…';
     }
@@ -366,6 +473,12 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       return 'Tocá el hueco vacío donde querés saltar';
     }
     if (_partida.solo) {
+      if (_modoDiosActivo) {
+        return 'Modo Dios · números = orden de eliminación';
+      }
+      if (_modoPracticaActivo) {
+        return 'Modo práctica · ${_partida.fichasRestantes} fichas';
+      }
       return 'Dejá una ficha en el centro · ${_partida.fichasRestantes} fichas';
     }
     return 'Turno de ${_partida.jugadorActual} · ${_partida.fichasRestantes} fichas';
@@ -397,13 +510,22 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                           'Uno solo',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: AppColors.mint,
+                            color: Color(0xFFFFB74D),
                             fontWeight: FontWeight.w900,
                             fontSize: 20,
                             letterSpacing: 0.6,
                           ),
                         ),
                       ),
+                      if ((widget.solo || _partida.solo) && !_esOnline)
+                        IconButton(
+                          tooltip: 'Reiniciar tablero',
+                          onPressed: _volverAJugar,
+                          icon: const Icon(
+                            Icons.refresh_rounded,
+                            color: AppColors.textoSuave,
+                          ),
+                        ),
                       IconButton(
                         onPressed: () =>
                             setState(() => _mostrarAjustes = true),
@@ -426,15 +548,58 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                       fontSize: 13,
                     ),
                   ),
-                  if (_aviso != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      _aviso!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.acento,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
+                  if (_modoPracticaActivo) ...[
+                    if (!_esCelular) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '← o Espacio: deshacer un movimiento',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.acento.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 40,
+                      child: OutlinedButton.icon(
+                        onPressed: _puedeDeshacer ? _deshacer : null,
+                        icon: const Icon(Icons.undo_rounded, size: 18),
+                        label: const Text(
+                          'Deshacer',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.acento,
+                          disabledForegroundColor:
+                              AppColors.textoSuave.withValues(alpha: 0.4),
+                          side: BorderSide(
+                            color: _puedeDeshacer
+                                ? AppColors.acento
+                                : AppColors.textoSuave.withValues(alpha: 0.35),
+                            width: 1.5,
+                          ),
+                          backgroundColor: AppColors.carta,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_verOrdenFinal) ...[
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            setState(() => _verOrdenFinal = false),
+                        icon: const Icon(Icons.emoji_events_rounded),
+                        label: const Text('Volver al resultado'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.acento,
+                        ),
                       ),
                     ),
                   ],
@@ -449,15 +614,30 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                               constraints.maxWidth,
                               constraints.maxHeight,
                             );
+                            final ordenReview = _verOrdenFinal
+                                ? ordenEliminacionDesdeHistorial(_historial)
+                                : null;
                             return SizedBox(
                               width: side,
                               height: side,
-                              child: _TableroUnoSolo(
+                              child: TableroUnoSolo(
                                 partida: _partida,
                                 seleccion: _seleccion,
                                 destinos: _destinosResaltados,
                                 medios: _mediosResaltados,
-                                onTap: _bloquearHumano ? null : _onTapCelda,
+                                ordenEliminacion: ordenReview ??
+                                    (_modoDiosActivo
+                                        ? _guiaDios!.ordenEliminacion
+                                        : null),
+                                mostrarOrdenEnVacias: ordenReview != null,
+                                proximoDesde: _modoDiosActivo
+                                    ? _guiaDios!
+                                        .proximoLegal(_partida)
+                                        ?.desde
+                                    : null,
+                                onTap: _bloquearHumano || _verOrdenFinal
+                                    ? null
+                                    : _onTapCelda,
                               ),
                             );
                           },
@@ -466,6 +646,83 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+          // Notificación superior (avisos de jugada inválida).
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: IgnorePointer(
+                ignoring: _aviso == null,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  offset: _aviso == null ? const Offset(0, -1.2) : Offset.zero,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _aviso == null ? 0 : 1,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.carta,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.acento,
+                              width: 1.8,
+                            ),
+                            boxShadow: [
+                              ...neonGlow(AppColors.acento, blur: 14),
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_rounded,
+                                  color: AppColors.acento,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _aviso ?? '',
+                                    style: const TextStyle(
+                                      color: AppColors.texto,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _ocultarAviso,
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: AppColors.textoSuave,
+                                    size: 20,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -533,12 +790,16 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                     setState(() => _confirmarRendicion = false),
               ),
             ),
-          if (_partida.terminada)
+          if (_partida.terminada && !_verOrdenFinal)
             Positioned.fill(
               child: VictoriaUnoSoloOverlay(
                 partida: _partida,
                 mostrarVolverAJugar: !_esOnline,
                 onVolverAJugar: _volverAJugar,
+                onVerOrden: _historial.isEmpty
+                    ? null
+                    : () => setState(() => _verOrdenFinal = true),
+                onDeshacer: _puedeDeshacer ? _deshacer : null,
                 onVolver: () {
                   UnoSoloStandByStore.limpiar();
                   _salirAlMenu();
@@ -549,148 +810,6 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       ),
     );
   }
-}
-
-class _TableroUnoSolo extends StatelessWidget {
-  const _TableroUnoSolo({
-    required this.partida,
-    required this.seleccion,
-    required this.destinos,
-    required this.medios,
-    required this.onTap,
-  });
-
-  final PartidaUnoSolo partida;
-  final int? seleccion;
-  final Set<int> destinos;
-  final Set<int> medios;
-  final ValueChanged<int>? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF4CAF50),
-            Color(0xFF2E7D32),
-            Color(0xFF1B5E20),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.mint, width: 2.4),
-        boxShadow: neonGlow(AppColors.mint, blur: 16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: CustomPaint(
-          painter: _MarcoCruzPainter(),
-          child: GridView.builder(
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: PartidaUnoSolo.columnas,
-            ),
-            itemCount: PartidaUnoSolo.total,
-            itemBuilder: (context, i) {
-              final celda = partida.celdas[i];
-              if (celda == CeldaUnoSolo.invalida) {
-                return const SizedBox.shrink();
-              }
-              final seleccionada = seleccion == i;
-              final destino = destinos.contains(i);
-              final medio = medios.contains(i);
-              return Padding(
-                padding: const EdgeInsets.all(3),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: onTap == null ? null : () => onTap!(i),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF1B5E20).withValues(alpha: 0.55),
-                        border: Border.all(
-                          color: seleccionada
-                              ? AppColors.acento
-                              : destino
-                                  ? AppColors.mint
-                                  : medio
-                                      ? AppColors.rosa.withValues(alpha: 0.7)
-                                      : Colors.white.withValues(alpha: 0.2),
-                          width: seleccionada || destino ? 2.4 : 1.2,
-                        ),
-                        boxShadow: seleccionada
-                            ? neonGlow(AppColors.acento, blur: 10)
-                            : destino
-                                ? neonGlow(AppColors.mint, blur: 8)
-                                : null,
-                      ),
-                      child: celda == CeldaUnoSolo.ocupada
-                          ? Center(
-                              child: Container(
-                                width: double.infinity,
-                                height: double.infinity,
-                                margin: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: seleccionada
-                                        ? const [
-                                            Color(0xFF82B1FF),
-                                            Color(0xFF1565C0),
-                                          ]
-                                        : const [
-                                            Color(0xFF5C6BC0),
-                                            Color(0xFF1A237E),
-                                          ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.35),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          : destino
-                              ? Center(
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppColors.mint.withValues(alpha: 0.85),
-                                    ),
-                                  ),
-                                )
-                              : null,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MarcoCruzPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Solo atmósfera: el grid ya dibuja la cruz con celdas vacías.
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MenuPartidaUnoSolo extends StatelessWidget {

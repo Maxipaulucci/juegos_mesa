@@ -227,10 +227,55 @@ String? jugarMovimientoUnoSolo(PartidaUnoSolo p, MovimientoUnoSolo m) {
   return null;
 }
 
-String? jugarSaltoUnoSolo(PartidaUnoSolo p, int desde, int hasta) {
-  final movs = movimientosDesdeUnoSolo(p, desde);
-  for (final m in movs) {
-    if (m.hasta == hasta) return jugarMovimientoUnoSolo(p, m);
+MovimientoUnoSolo? buscarSaltoUnoSolo(
+  PartidaUnoSolo p,
+  int desde,
+  int hasta,
+) {
+  for (final m in movimientosDesdeUnoSolo(p, desde)) {
+    if (m.hasta == hasta) return m;
   }
-  return 'Ese salto no es válido.';
+  return null;
+}
+
+String? jugarSaltoUnoSolo(PartidaUnoSolo p, int desde, int hasta) {
+  final m = buscarSaltoUnoSolo(p, desde, hasta);
+  if (m == null) return 'Ese salto no es válido.';
+  return jugarMovimientoUnoSolo(p, m);
+}
+
+/// Deshace el último salto del [historial] (vacío = ya estás al inicio).
+String? deshacerUltimoUnoSolo(
+  PartidaUnoSolo p,
+  List<MovimientoUnoSolo> historial,
+) {
+  if (historial.isEmpty) {
+    return 'Ya estás al inicio de la partida.';
+  }
+  final estabaTerminada = p.terminada;
+  final m = historial.removeLast();
+  p.celdas[m.hasta] = CeldaUnoSolo.vacia;
+  p.celdas[m.medio] = CeldaUnoSolo.ocupada;
+  p.celdas[m.desde] = CeldaUnoSolo.ocupada;
+  p.fase = FaseUnoSolo.jugando;
+  p.mensajeFin = null;
+  p.calificacion = null;
+  p.ganador = null;
+  // Solo se había pasado de turno si la partida seguía en juego.
+  if (!estabaTerminada && !p.solo && p.nombres.length >= 2) {
+    p.indiceTurno =
+        (p.indiceTurno - 1 + p.nombres.length) % p.nombres.length;
+  }
+  return null;
+}
+
+/// Índice de celda eliminada → orden (1 = primera ficha sacada).
+Map<int, int> ordenEliminacionDesdeHistorial(
+  List<MovimientoUnoSolo> historial,
+) {
+  final out = <int, int>{};
+  for (var i = 0; i < historial.length; i++) {
+    out[historial[i].medio] = i + 1;
+  }
+  return out;
 }
