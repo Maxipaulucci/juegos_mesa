@@ -57,6 +57,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   bool _dibujando = false;
   bool _inicioValido = false;
   bool _salioDelInicio = false;
+  /// Solo este pointer alimenta el trazo (evita que el dedo del botón de lupa mate).
+  int? _pointerDibujoId;
   Size? _boardSize;
   String? _avisoVida;
   GrosorTrazoPapa _grosor = GrosorTrazoPapa.normal;
@@ -291,6 +293,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _dibujando = false;
     _inicioValido = false;
     _salioDelInicio = false;
+    _pointerDibujoId = null;
     _lupaPunto.value = null;
     _aplicarPosicionLupa();
   }
@@ -303,6 +306,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _rotarPosicionLupa() {
+    // Solo cambia el offset visual: no toca el trazo ni evalúa choques.
     setState(() {
       _lupaPosicionIdx =
           (_lupaPosicionIdx + 1) % _LupaTrazoPapa.posiciones.length;
@@ -382,7 +386,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     }
   }
 
-  void _onPointerDown(Offset local, Size boardSize) {
+  void _onPointerDown(Offset local, Size boardSize, int pointerId) {
     if (_mostrarMenu || _mostrarAjustes) return;
     if (_esperandoTableroOnline) return;
     if (_partida.fase == FasePapa.colocando) {
@@ -391,6 +395,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     }
     if (_partida.terminada || _partida.fase != FasePapa.jugando) return;
     if (!_esMiTurno) return;
+    // Ya hay un dedo dibujando: ignorar otros (p. ej. tocar “Mover lupa”).
+    if (_dibujando) return;
     if (!_dentroHoja(local, boardSize)) return;
     final de = _partida.siguienteConectar;
     if (!cercaDeNumeroPapa(_partida, de, local, boardSize)) {
@@ -411,6 +417,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _dibujando = true;
       _inicioValido = true;
       _salioDelInicio = false;
+      _pointerDibujoId = pointerId;
       _avisoVida = null;
       _trazoFallido.clear();
       _trazoActual
@@ -421,10 +428,12 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _actualizarLupa(local);
   }
 
-  void _onPointerMoveGlobal(Offset global) {
+  void _onPointerMoveGlobal(Offset global, int pointerId) {
     if (_mostrarMenu || _mostrarAjustes) return;
     if (_partida.fase != FasePapa.jugando) return;
     if (!_dibujando || !_inicioValido || _partida.terminada) return;
+    // Ignorar moves de otros dedos (botón lupa, etc.).
+    if (_pointerDibujoId != null && pointerId != _pointerDibujoId) return;
     final boardSize = _boardSize;
     if (boardSize == null) return;
     final local = _localEnHoja(global);
@@ -444,7 +453,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     if (_trazoActual.isNotEmpty) {
       final dist = (_trazoActual.last - local).distance;
       if (dist < 2.5) return;
-      // Salto grande (lupa/layout): igual se evalúa choque en el segmento.
+      // Salto grande: no agregar el punto (evita “línea fantasma”); solo
+      // comprobar choque del segmento si el dedo de dibujo realmente saltó.
       final cell = math.min(
         boardSize.width / columnasPapa,
         boardSize.height / filasPapa,
@@ -564,8 +574,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     });
   }
 
-  void _onPointerUpOrCancel() {
+  void _onPointerUpOrCancel(int pointerId) {
     if (_partida.fase != FasePapa.jugando) return;
+    // Otro dedo (botón lupa, etc.): no corta el trazo en curso.
+    if (_pointerDibujoId != null && pointerId != _pointerDibujoId) return;
     if (!_dibujando || !_inicioValido) {
       setState(_limpiarTrazo);
       return;
@@ -575,6 +587,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _dibujando = false;
         _inicioValido = false;
         _salioDelInicio = false;
+        _pointerDibujoId = null;
         _lupaPunto.value = null;
         _trazoActual.clear();
       });
@@ -1216,9 +1229,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         children: [
           Listener(
             behavior: HitTestBehavior.translucent,
-            onPointerMove: (e) => _onPointerMoveGlobal(e.position),
-            onPointerUp: (_) => _onPointerUpOrCancel(),
-            onPointerCancel: (_) => _onPointerUpOrCancel(),
+            onPointerMove: (e) =>
+                _onPointerMoveGlobal(e.position, e.pointer),
+            onPointerUp: (e) => _onPointerUpOrCancel(e.pointer),
+            onPointerCancel: (e) => _onPointerUpOrCancel(e.pointer),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -1364,7 +1378,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                             final local = box
                                                 .globalToLocal(e.position);
                                             _onPointerDown(
-                                                local, boardSize);
+                                              local,
+                                              boardSize,
+                                              e.pointer,
+                                            );
                                           },
                                           child: CustomPaint(
                                             // Key solo sobre la hoja: la lupa
