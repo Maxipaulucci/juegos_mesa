@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -61,11 +62,20 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   int? _pointerDibujoId;
   Size? _boardSize;
   String? _avisoVida;
+  String? _avisoGrosor;
+  Timer? _avisoGrosorTimer;
   GrosorTrazoPapa _grosor = GrosorTrazoPapa.normal;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
   static const int _maxNombre = 15;
+
+  /// Ciclo al tocar “Trazos” mientras dibujás: grueso → fino → normal → …
+  static const _cicloGrosorAlDibujar = <GrosorTrazoPapa>[
+    GrosorTrazoPapa.grueso,
+    GrosorTrazoPapa.fino,
+    GrosorTrazoPapa.normal,
+  ];
 
   StreamSubscription<Sala>? _onlineSub;
   int _onlineVersion = 0;
@@ -90,14 +100,16 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   @override
   void initState() {
     super.initState();
-    HardwareKeyboard.instance.addHandler(_onTeclaLupa);
+    HardwareKeyboard.instance.addHandler(_onTeclaAtajos);
     final resume = widget.resume;
     if (resume != null) {
       _nombres = List.of(resume.nombres);
       _ajustes = resume.ajustesIniciales;
       _opciones = resume.opciones;
       _partida = resume.partida;
-      _grosor = resume.grosor;
+      _grosor = resume.opciones.modificarGrosorTrazoEfectivo
+          ? resume.grosor
+          : GrosorTrazoPapa.normal;
       _boardSize = resume.boardSize;
       _trazoFallido
         ..clear()
@@ -108,6 +120,9 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales;
     _opciones = widget.opciones;
+    if (!_opciones.modificarGrosorTrazoEfectivo) {
+      _grosor = GrosorTrazoPapa.normal;
+    }
     if (_esOnline) {
       // Placeholder hasta recibir / publicar el tablero compartido.
       _esperandoTableroOnline = true;
@@ -129,21 +144,64 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
   }
 
-  bool _onTeclaLupa(KeyEvent event) {
+  bool get _esCelularPlatform {
+    final p = defaultTargetPlatform;
+    return p == TargetPlatform.android || p == TargetPlatform.iOS;
+  }
+
+  bool _onTeclaAtajos(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
-    if (event.logicalKey != LogicalKeyboardKey.keyL) return false;
     if (!mounted) return false;
+    if (_mostrarMenu || _mostrarAjustes) return false;
     if (_partida.fase != FasePapa.jugando || _partida.terminada) return false;
-    _rotarPosicionLupa();
-    return true;
+
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.keyT) {
+      // Atajo de grosor solo en PC / escritorio.
+      if (_esCelularPlatform) return false;
+      if (!_opciones.modificarGrosorTrazoEfectivo) return false;
+      _ciclarGrosor();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.keyL) {
+      if (!_opciones.mostrarLupaEfectiva) return false;
+      _rotarPosicionLupa();
+      return true;
+    }
+    return false;
   }
 
   @override
   void dispose() {
-    HardwareKeyboard.instance.removeHandler(_onTeclaLupa);
+    HardwareKeyboard.instance.removeHandler(_onTeclaAtajos);
+    _avisoGrosorTimer?.cancel();
     _onlineSub?.cancel();
     _lupaPunto.dispose();
     super.dispose();
+  }
+
+  void _ciclarGrosor() {
+    if (!_opciones.modificarGrosorTrazoEfectivo) return;
+    final i = _cicloGrosorAlDibujar.indexOf(_grosor);
+    final next = _cicloGrosorAlDibujar[(i + 1) % _cicloGrosorAlDibujar.length];
+    _avisoGrosorTimer?.cancel();
+    setState(() {
+      _grosor = next;
+      _avisoGrosor = 'Grosor: ${next.etiqueta}';
+    });
+    _avisoGrosorTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (!mounted) return;
+      setState(() => _avisoGrosor = null);
+    });
+  }
+
+  void _onTrazosPressed() {
+    if (!_opciones.modificarGrosorTrazoEfectivo) return;
+    if (_dibujando) {
+      _ciclarGrosor();
+    } else {
+      _abrirSelectorTrazos();
+    }
   }
 
   void _iniciarSincronizacionOnline() {
@@ -320,6 +378,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _actualizarLupa(Offset local) {
+    if (!_opciones.mostrarLupaEfectiva) return;
     _lupaPunto.value = local;
   }
 
@@ -376,7 +435,11 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     if (!_esMiTurno) return;
     for (var i = 0; i < totalCasillasPapa; i++) {
       if (rectCasillaPapa(i, boardSize).contains(local)) {
-        final err = colocarNumeroEnCasillaPapa(_partida, i);
+        final err = colocarNumeroEnCasillaPapa(
+          _partida,
+          i,
+          excepcionGeneracion: _opciones.excepcionGeneracionNumeros,
+        );
         setState(() {
           _avisoVida = err;
         });
@@ -515,7 +578,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
         _salioDelInicio = true;
       }
 
-      if (!_opciones.permitirTrazoSobreNumeros &&
+      if (!_opciones.permitirTrazoSobreNumerosEfectivo &&
           trazoTocaNumeroProhibidoPapa(
             _partida,
             _trazoActual,
@@ -1010,6 +1073,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   Future<void> _abrirSelectorTrazos() async {
+    if (!_opciones.modificarGrosorTrazoEfectivo) return;
     if (_dibujando || _partida.terminada) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -1037,7 +1101,10 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Elegí el grosor del lápiz',
+                  'Elegí el grosor del lápiz.\n'
+                  'Mientras dibujás, tocá “Trazos” para ciclar '
+                  'Grueso → Fino → Normal.\n'
+                  'En PC también podés usar la tecla T.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.textoSuave,
@@ -1137,7 +1204,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: _dibujando ? null : _abrirSelectorTrazos,
+            onTap: _partida.terminada ? null : _onTrazosPressed,
             child: Ink(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -1151,14 +1218,14 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                   color: Colors.white.withValues(alpha: 0.45),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.brush_rounded, color: Color(0xFF062018)),
-                  SizedBox(width: 8),
+                  const Icon(Icons.brush_rounded, color: Color(0xFF062018)),
+                  const SizedBox(width: 8),
                   Text(
-                    'Trazos',
-                    style: TextStyle(
+                    _dibujando ? 'Trazos · ${_grosor.etiqueta}' : 'Trazos',
+                    style: const TextStyle(
                       color: Color(0xFF062018),
                       fontWeight: FontWeight.w900,
                       fontSize: 16,
@@ -1216,11 +1283,40 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
   }
 
+  Widget _ayudaTeclaTrazo(BuildContext context) {
+    if (!_opciones.modificarGrosorTrazoEfectivo) return const SizedBox.shrink();
+    if (_esCelular(context)) return const SizedBox.shrink();
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 6),
+      child: Text(
+        'Tocá la tecla T para cambiar el grosor del trazo',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: AppColors.textoSuave,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final de = _partida.siguienteConectar;
     final a = de < _partida.maxNumero ? de + 1 : null;
     final vidas = _partida.vidasDelActual();
+    final jugando =
+        _partida.fase == FasePapa.jugando && !_partida.terminada;
+    final esCelular = _esCelular(context);
+    final permitirGrosor = _opciones.modificarGrosorTrazoEfectivo;
+    final tieneControlesInferiores =
+        _opciones.mostrarLupaEfectiva || permitirGrosor;
+    final alturaControles = !jugando || !tieneControlesInferiores
+        ? 0.0
+        : (_opciones.mostrarLupaEfectiva ? 46.0 : 0.0) +
+            (permitirGrosor && !esCelular ? 22.0 : 0.0) +
+            (permitirGrosor ? 44.0 : 0.0) +
+            16.0;
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
@@ -1406,31 +1502,32 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                         ),
                                       ),
                                     ),
-                                    ValueListenableBuilder<Offset?>(
-                                      valueListenable: _lupaPunto,
-                                      builder: (context, foco, _) {
-                                        if (!_dibujando || foco == null) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        return _LupaTrazoPapa(
-                                          focus: foco,
-                                          offsetLupa:
-                                              Offset(_lupaDx, _lupaDy),
-                                          boardSize: boardSize,
-                                          partida: _partida,
-                                          trazoActual:
-                                              List.of(_trazoActual),
-                                          trazoFallido:
-                                              List.of(_trazoFallido),
-                                          numeroActual: de,
-                                          numeroSiguiente: a,
-                                          grosorActual: _grosor,
-                                          mostrarCuadricula: _opciones
-                                              .mostrarCuadriculaEfectiva,
-                                          miNombre: widget.miNombre,
-                                        );
-                                      },
-                                    ),
+                                    if (_opciones.mostrarLupaEfectiva)
+                                      ValueListenableBuilder<Offset?>(
+                                        valueListenable: _lupaPunto,
+                                        builder: (context, foco, _) {
+                                          if (!_dibujando || foco == null) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          return _LupaTrazoPapa(
+                                            focus: foco,
+                                            offsetLupa:
+                                                Offset(_lupaDx, _lupaDy),
+                                            boardSize: boardSize,
+                                            partida: _partida,
+                                            trazoActual:
+                                                List.of(_trazoActual),
+                                            trazoFallido:
+                                                List.of(_trazoFallido),
+                                            numeroActual: de,
+                                            numeroSiguiente: a,
+                                            grosorActual: _grosor,
+                                            mostrarCuadricula: _opciones
+                                                .mostrarCuadriculaEfectiva,
+                                            miNombre: widget.miNombre,
+                                          );
+                                        },
+                                      ),
                                     // Números objetivo por encima de la lupa.
                                     if (_dibujando &&
                                         _partida.fase == FasePapa.jugando &&
@@ -1450,19 +1547,20 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                     ),
                   ),
                   SizedBox(
-                    height: _partida.fase == FasePapa.jugando &&
-                            !_partida.terminada
-                        ? 96
-                        : 52,
-                    child: _partida.fase == FasePapa.jugando &&
-                            !_partida.terminada
+                    height: alturaControles,
+                    child: jugando
                         ? Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                             child: Column(
                               children: [
-                                _controlPosicionLupa(context),
-                                const SizedBox(height: 6),
-                                _botonTrazos(),
+                                if (_opciones.mostrarLupaEfectiva) ...[
+                                  _controlPosicionLupa(context),
+                                  const SizedBox(height: 6),
+                                ],
+                                if (_opciones.modificarGrosorTrazoEfectivo) ...[
+                                  _ayudaTeclaTrazo(context),
+                                  _botonTrazos(),
+                                ],
                               ],
                             ),
                           )
@@ -1502,6 +1600,76 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                 onCerrar: () => setState(() => _mostrarAjustes = false),
               ),
             ),
+          // Notificación superior de grosor al ciclar mientras dibujás.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: IgnorePointer(
+                ignoring: _avisoGrosor == null,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  offset: _avisoGrosor == null
+                      ? const Offset(0, -1.2)
+                      : Offset.zero,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _avisoGrosor == null ? 0 : 1,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.carta,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.mint,
+                              width: 1.8,
+                            ),
+                            boxShadow: [
+                              ...neonGlow(AppColors.mint, blur: 14),
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.brush_rounded,
+                                  color: AppColors.mint,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _avisoGrosor ?? '',
+                                    style: const TextStyle(
+                                      color: AppColors.texto,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           if (_partida.terminada)
             Positioned.fill(
               child: VictoriaLaPapaOverlay(

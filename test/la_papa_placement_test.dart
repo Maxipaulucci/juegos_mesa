@@ -3,11 +3,17 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
+import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 
 void main() {
-  test('consecutivos separados y fuera de misma fila/columna', () {
+  test('excepción: consecutivos separados y fuera de misma fila/columna', () {
+    const opc = OpcionesPapa(excepcionGeneracionNumeros: true);
     for (var i = 0; i < 30; i++) {
-      final p = nuevaPartidaPapa(nombres: const ['A'], semilla: i * 97 + 3);
+      final p = nuevaPartidaPapa(
+        nombres: const ['A'],
+        opciones: opc,
+        semilla: i * 97 + 3,
+      );
       expect(p.casillas.whereType<int>().length, maxNumeroPapa);
       for (var n = 1; n < maxNumeroPapa; n++) {
         final a = p.indiceDeNumero(n)!;
@@ -17,6 +23,22 @@ void main() {
           isTrue,
           reason: 'falla $n->$n+1 en semilla $i',
         );
+      }
+    }
+  });
+
+  test('sin excepción: genera al azar en casillas libres', () {
+    for (var i = 0; i < 20; i++) {
+      final p = nuevaPartidaPapa(
+        nombres: const ['A'],
+        opciones: const OpcionesPapa(excepcionGeneracionNumeros: false),
+        semilla: i * 41 + 7,
+      );
+      expect(p.casillas.whereType<int>().length, maxNumeroPapa);
+      final vistos = <int>{};
+      for (final n in p.casillas.whereType<int>()) {
+        expect(vistos.add(n), isTrue);
+        expect(n, inInclusiveRange(1, maxNumeroPapa));
       }
     }
   });

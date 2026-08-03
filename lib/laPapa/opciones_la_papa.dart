@@ -7,6 +7,9 @@ class OpcionesPapa {
     this.modoFantasma = false,
     this.mostrarCuadricula = true,
     this.permitirTrazoSobreNumeros = true,
+    this.mostrarLupa = true,
+    this.modificarGrosorTrazo = true,
+    this.excepcionGeneracionNumeros = false,
   });
 
   static const int maxNumeroPapaDefault = 30;
@@ -24,7 +27,8 @@ class OpcionesPapa {
   final int cantidadNumeros;
 
   /// Modo infernal: solo se ven líneas + número actual + siguiente.
-  /// Fuerza 50 números, aleatorios, sin vidas y sin cuadrícula.
+  /// Fuerza 50 números, aleatorios, sin vidas, sin cuadrícula,
+  /// sin lupa, sin cambiar grosor y sin trazar sobre números.
   final bool modoFantasma;
 
   /// Si true, se dibujan las líneas de la cuadrícula de la hoja.
@@ -33,6 +37,16 @@ class OpcionesPapa {
   /// Si true (default), el trazo puede pasar por encima de otros números.
   /// Si false, tocar la zona de otro número = pérdida.
   final bool permitirTrazoSobreNumeros;
+
+  /// Si true (default), al dibujar se muestra la lupa de ampliación.
+  final bool mostrarLupa;
+
+  /// Si true (default), se puede cambiar el grosor (botón Trazos / tecla T).
+  final bool modificarGrosorTrazo;
+
+  /// Si true, consecutivos no comparten fila/columna ni son vecinos.
+  /// Si false (default), la generación es aleatoria libre en las 50 casillas.
+  final bool excepcionGeneracionNumeros;
 
   /// Alias de UI: el modo fantasma se muestra como “Modo infernal”.
   bool get modoInfernal => modoFantasma;
@@ -43,6 +57,17 @@ class OpcionesPapa {
 
   bool get mostrarCuadriculaEfectiva => !modoFantasma && mostrarCuadricula;
 
+  /// En Modo infernal no se puede trazar sobre números.
+  bool get permitirTrazoSobreNumerosEfectivo =>
+      !modoFantasma && permitirTrazoSobreNumeros;
+
+  /// En Modo infernal no hay lupa.
+  bool get mostrarLupaEfectiva => !modoFantasma && mostrarLupa;
+
+  /// En Modo infernal no se puede cambiar el grosor.
+  bool get modificarGrosorTrazoEfectivo =>
+      !modoFantasma && modificarGrosorTrazo;
+
   OpcionesPapa copyWith({
     bool? conVidas,
     bool? numerosAleatorios,
@@ -50,6 +75,9 @@ class OpcionesPapa {
     bool? modoFantasma,
     bool? mostrarCuadricula,
     bool? permitirTrazoSobreNumeros,
+    bool? mostrarLupa,
+    bool? modificarGrosorTrazo,
+    bool? excepcionGeneracionNumeros,
   }) {
     return OpcionesPapa(
       conVidas: conVidas ?? this.conVidas,
@@ -59,6 +87,11 @@ class OpcionesPapa {
       mostrarCuadricula: mostrarCuadricula ?? this.mostrarCuadricula,
       permitirTrazoSobreNumeros:
           permitirTrazoSobreNumeros ?? this.permitirTrazoSobreNumeros,
+      mostrarLupa: mostrarLupa ?? this.mostrarLupa,
+      modificarGrosorTrazo:
+          modificarGrosorTrazo ?? this.modificarGrosorTrazo,
+      excepcionGeneracionNumeros:
+          excepcionGeneracionNumeros ?? this.excepcionGeneracionNumeros,
     );
   }
 
@@ -71,6 +104,9 @@ class OpcionesPapa {
       numerosAleatorios: true,
       cantidadNumeros: maxCantidadNumeros,
       mostrarCuadricula: false,
+      permitirTrazoSobreNumeros: false,
+      mostrarLupa: false,
+      modificarGrosorTrazo: false,
     );
   }
 

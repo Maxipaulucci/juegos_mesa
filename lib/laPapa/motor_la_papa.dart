@@ -23,8 +23,11 @@ enum GrosorTrazoPapa {
   final double ancho;
   final String etiqueta;
 
-  /// Radio efectivo para choques (~mitad del trazo).
-  double get radioChoque => math.max(1.2, ancho * 0.55);
+  /// Radio efectivo para choques.
+  ///
+  /// Usa ~48% del ancho (un poco menos que la mitad visual) para no marcar
+  /// roce cuando todavía se ve un hueco blanco entre las tintas.
+  double get radioChoque => math.max(0.85, ancho * 0.48);
 }
 
 class TrazoPapa {
@@ -116,7 +119,7 @@ bool posicionesConsecutivasValidasPapa(int a, int b) {
   return true;
 }
 
-List<int?>? _generarCasillasPapa(math.Random rng, int maxNumero) {
+List<int?>? _generarCasillasConExcepcionPapa(math.Random rng, int maxNumero) {
   final casillas = List<int?>.filled(totalCasillasPapa, null);
   final libres = List<int>.generate(totalCasillasPapa, (i) => i);
 
@@ -137,6 +140,20 @@ List<int?>? _generarCasillasPapa(math.Random rng, int maxNumero) {
   }
 
   if (!colocar(1, null)) return null;
+  return casillas;
+}
+
+/// Aleatorio libre: cualquier casilla vacía de las 50, sin restricciones.
+List<int?> _generarCasillasAleatoriasLibresPapa(
+  math.Random rng,
+  int maxNumero,
+) {
+  final casillas = List<int?>.filled(totalCasillasPapa, null);
+  final indices = List<int>.generate(totalCasillasPapa, (i) => i)..shuffle(rng);
+  final n = maxNumero.clamp(0, totalCasillasPapa);
+  for (var i = 0; i < n; i++) {
+    casillas[indices[i]] = i + 1;
+  }
   return casillas;
 }
 
@@ -169,20 +186,30 @@ PartidaPapa nuevaPartidaPapa({
   }
 
   final rng = math.Random(semilla);
-  List<int?>? casillas;
-  for (var intento = 0; intento < 80; intento++) {
-    casillas = _generarCasillasPapa(rng, maxN);
-    if (casillas != null) break;
-  }
-  if (casillas == null) {
-    for (var intento = 0; intento < 200; intento++) {
-      casillas = _generarCasillasPapa(math.Random(rng.nextInt(1 << 30)), maxN);
-      if (casillas != null) break;
+  late final List<int?> casillas;
+  if (opciones.excepcionGeneracionNumeros) {
+    List<int?>? generadas;
+    for (var intento = 0; intento < 80; intento++) {
+      generadas = _generarCasillasConExcepcionPapa(rng, maxN);
+      if (generadas != null) break;
     }
+    if (generadas == null) {
+      for (var intento = 0; intento < 200; intento++) {
+        generadas = _generarCasillasConExcepcionPapa(
+          math.Random(rng.nextInt(1 << 30)),
+          maxN,
+        );
+        if (generadas != null) break;
+      }
+    }
+    if (generadas == null) {
+      throw StateError('No se pudo armar una hoja válida de La papa.');
+    }
+    casillas = generadas;
+  } else {
+    casillas = _generarCasillasAleatoriasLibresPapa(rng, maxN);
   }
-  if (casillas == null) {
-    throw StateError('No se pudo armar una hoja válida de La papa.');
-  }
+
   return PartidaPapa(
     nombres: nombresCopy,
     casillas: casillas,
@@ -194,12 +221,16 @@ PartidaPapa nuevaPartidaPapa({
 }
 
 /// Coloca el siguiente número en [index]. Devuelve error o null si ok.
-String? colocarNumeroEnCasillaPapa(PartidaPapa p, int index) {
+String? colocarNumeroEnCasillaPapa(
+  PartidaPapa p,
+  int index, {
+  bool excepcionGeneracion = false,
+}) {
   if (p.fase != FasePapa.colocando) return 'La hoja ya está armada.';
   if (index < 0 || index >= p.casillas.length) return 'Casilla inválida.';
   if (p.casillas[index] != null) return 'Esa casilla ya tiene número.';
   final n = p.siguienteAColocar;
-  if (n > 1) {
+  if (excepcionGeneracion && n > 1) {
     final prev = p.indiceDeNumero(n - 1);
     if (prev == null) return 'Falta el número anterior.';
     if (!posicionesConsecutivasValidasPapa(prev, index)) {

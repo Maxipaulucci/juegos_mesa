@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/laPapa/la_papa_online_codec.dart';
@@ -75,7 +77,8 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
               onChanged: (v) => setOpc(draft.conModoInfernal(v)),
               info:
                   'Solo ves las líneas, el número actual y el siguiente.\n\n'
-                  'Fuerza 50 números al azar, sin cuadrícula y sin vidas. '
+                  'Fuerza 50 números al azar, sin cuadrícula, sin vidas, '
+                  'sin lupa, sin cambiar grosor y sin trazar sobre números.\n\n'
                   'Mientras esté activo no se pueden cambiar las demás opciones.',
             ),
             const SizedBox(height: 12),
@@ -94,14 +97,46 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
             const SizedBox(height: 12),
             FilaToggleModificarPartida(
               titulo: 'Trazo sobre números',
-              activo: draft.permitirTrazoSobreNumeros,
+              activo: draft.permitirTrazoSobreNumerosEfectivo,
+              habilitado: !infernal,
               onChanged: (v) =>
                   setOpc(draft.copyWith(permitirTrazoSobreNumeros: v)),
               info:
                   'Activado (por defecto): podés pasar el trazo por encima '
                   'de otros números sin perder.\n\n'
                   'Desactivado: si tu línea toca la zona de otro número '
-                  '(que no sea el de salida o el de llegada), perdés.',
+                  '(que no sea el de salida o el de llegada), perdés.\n\n'
+                  'En Modo infernal queda desactivado.',
+            ),
+            const SizedBox(height: 12),
+            FilaToggleModificarPartida(
+              titulo: 'Lupa',
+              activo: draft.mostrarLupaEfectiva,
+              habilitado: !infernal,
+              onChanged: (v) => setOpc(draft.copyWith(mostrarLupa: v)),
+              info:
+                  'Activado (por defecto): mientras dibujás aparece una lupa '
+                  'que amplía la zona del dedo o del cursor.\n\n'
+                  'En celular podés mover la lupa con el botón “Mover lupa”; '
+                  'en PC con la tecla L.\n\n'
+                  'Desactivado: dibujás sin ampliación.\n\n'
+                  'En Modo infernal queda desactivada.',
+            ),
+            const SizedBox(height: 12),
+            FilaToggleModificarPartida(
+              titulo: 'Modificar grosor del trazo',
+              activo: draft.modificarGrosorTrazoEfectivo,
+              habilitado: !infernal,
+              onChanged: (v) =>
+                  setOpc(draft.copyWith(modificarGrosorTrazo: v)),
+              info:
+                  'Activado (por defecto): podés cambiar el grosor del lápiz '
+                  '(fino / normal / grueso) con el botón “Trazos”.\n\n'
+                  'Mientras dibujás, tocá “Trazos” para ciclar '
+                  'Grueso → Fino → Normal. En PC también con la tecla T.\n\n'
+                  'Desactivado: no aparece ningún control de grosor; '
+                  'siempre se dibuja con el grosor normal.\n\n'
+                  'En Modo infernal queda desactivado.',
             ),
             const SizedBox(height: 12),
             FilaToggleModificarPartida(
@@ -116,6 +151,71 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
                   'los números por turnos (el 1er jugador / anfitrión '
                   'pone el 1, el otro el 2, y así sucesivamente).\n\n'
                   'En Modo infernal siempre es aleatorio.',
+            ),
+            const SizedBox(height: 12),
+            FilaToggleModificarPartida(
+              titulo: 'Para la generación de números añadir excepción',
+              activo: draft.excepcionGeneracionNumeros,
+              habilitado: !infernal,
+              onChanged: (v) =>
+                  setOpc(draft.copyWith(excepcionGeneracionNumeros: v)),
+              info:
+                  'La excepción hace que, al generar (o colocar) números '
+                  'consecutivos, no queden en la misma fila ni en la misma '
+                  'columna, y tampoco como vecinos.\n\n'
+                  'Desactivado (por defecto): los números se ubican al azar '
+                  'en cualquier casilla libre del tablero de 50.',
+              tituloWidget: Builder(
+                builder: (ctx) {
+                  const estilo = TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    height: 1.25,
+                  );
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Para la generación de números',
+                        style: estilo,
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('añadir excepción', style: estilo),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                            tooltip: 'Info',
+                            onPressed: () => mostrarInfoModificarPartida(
+                              ctx,
+                              titulo: 'Excepción en la generación',
+                              cuerpo:
+                                  'La excepción hace que, al generar (o colocar) '
+                                  'números consecutivos, no queden en la misma '
+                                  'fila ni en la misma columna, y tampoco como '
+                                  'vecinos.\n\n'
+                                  'Desactivado (por defecto): los números se '
+                                  'ubican al azar en cualquier casilla libre '
+                                  'del tablero de 50.',
+                            ),
+                            icon: const Icon(
+                              Icons.help,
+                              size: 18,
+                              color: AppColors.textoSuave,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 12),
             FilaCantidadModificarPartida(
@@ -204,84 +304,78 @@ class _FilaModoInfernal extends StatefulWidget {
   State<_FilaModoInfernal> createState() => _FilaModoInfernalState();
 }
 
-class _FilaModoInfernalState extends State<_FilaModoInfernal>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _parpadeo;
+class _FilaModoInfernalState extends State<_FilaModoInfernal> {
+  Timer? _parpadeo;
+  bool _invertido = false;
 
   @override
   void initState() {
     super.initState();
-    _parpadeo = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..repeat();
+    // Timer en vez de AnimationController: evita crashes de InheritedWidget
+    // (_dependents.isEmpty) al abrir diálogos anidados desde este cartel.
+    _parpadeo = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      if (!mounted) return;
+      setState(() => _invertido = !_invertido);
+    });
   }
 
   @override
   void dispose() {
-    _parpadeo.dispose();
+    _parpadeo?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _parpadeo,
-      builder: (context, _) {
-        // Cambia cada 1,5 s (mitad del ciclo de 3 s).
-        final invertido = _parpadeo.value >= 0.5;
-        final fondo = invertido ? AppColors.peligro : Colors.black;
-        final texto = invertido ? Colors.black : AppColors.peligro;
+    final fondo = _invertido ? AppColors.peligro : Colors.black;
+    final texto = _invertido ? Colors.black : AppColors.peligro;
 
-        return Row(
-          children: [
-            Expanded(
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: fondo,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.peligro, width: 1.6),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.peligro.withValues(alpha: 0.55),
-                      blurRadius: 10,
-                      spreadRadius: 0.5,
-                    ),
-                  ],
+    return Row(
+      children: [
+        Expanded(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: fondo,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.peligro, width: 1.6),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.peligro.withValues(alpha: 0.55),
+                  blurRadius: 10,
+                  spreadRadius: 0.5,
                 ),
-                child: Text(
-                  'Modo infernal',
-                  style: TextStyle(
-                    color: texto,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 14,
-                    letterSpacing: 0.4,
-                  ),
-                ),
+              ],
+            ),
+            child: Text(
+              'Modo infernal',
+              style: TextStyle(
+                color: texto,
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                letterSpacing: 0.4,
               ),
             ),
-            const SizedBox(width: 8),
-            SwitchNeon(activo: widget.activo, onChanged: widget.onChanged),
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: 'Info',
-              onPressed: () => mostrarInfoModificarPartida(
-                context,
-                titulo: 'Modo infernal',
-                cuerpo: widget.info,
-              ),
-              icon: Icon(
-                Icons.help,
-                size: 18,
-                color: AppColors.peligro.withValues(alpha: 0.85),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+        const SizedBox(width: 8),
+        SwitchNeon(activo: widget.activo, onChanged: widget.onChanged),
+        const SizedBox(width: 4),
+        IconButton(
+          tooltip: 'Info',
+          onPressed: () => mostrarInfoModificarPartida(
+            context,
+            titulo: 'Modo infernal',
+            cuerpo: widget.info,
+          ),
+          icon: Icon(
+            Icons.help,
+            size: 18,
+            color: AppColors.peligro.withValues(alpha: 0.85),
+          ),
+        ),
+      ],
     );
   }
 }

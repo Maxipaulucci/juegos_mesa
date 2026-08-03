@@ -36,6 +36,7 @@ Future<bool> mostrarCartelModificarPartida({
     StateSetter setDialogState,
   ) buildOpciones,
 }) async {
+  final maxAltura = MediaQuery.sizeOf(context).height * 0.72;
   final result = await showDialog<bool>(
     context: context,
     builder: (dialogContext) {
@@ -56,19 +57,26 @@ Future<bool> mostrarCartelModificarPartida({
             ),
             content: SizedBox(
               width: 340,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  buildOpciones(dialogContext, setDialogState),
-                  const SizedBox(height: 20),
-                  BotonListoModificarPartida(
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxAltura),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      buildOpciones(dialogContext, setDialogState),
+                      const SizedBox(height: 20),
+                      BotonListoModificarPartida(
+                        onPressed: () =>
+                            Navigator.of(dialogContext).pop(true),
+                      ),
+                      const SizedBox(height: 12),
+                      BotonCancelarModificarPartida(
+                        onPressed: () =>
+                            Navigator.of(dialogContext).pop(false),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  BotonCancelarModificarPartida(
-                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                  ),
-                ],
+                ),
               ),
             ),
           );
@@ -151,6 +159,7 @@ class FilaToggleModificarPartida extends StatelessWidget {
     required this.onChanged,
     required this.info,
     this.habilitado = true,
+    this.tituloWidget,
   });
 
   final String titulo;
@@ -158,6 +167,8 @@ class FilaToggleModificarPartida extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final String info;
   final bool habilitado;
+  /// Si se define, reemplaza el [Text] del título (p. ej. ayuda inline).
+  final Widget? tituloWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -167,30 +178,36 @@ class FilaToggleModificarPartida extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              titulo,
-              style: const TextStyle(
-                color: AppColors.texto,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
+            child: tituloWidget ??
+                Text(
+                  titulo,
+                  style: const TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
           ),
           SwitchNeon(
             activo: activo,
             onChanged: habilitado ? onChanged : (_) {},
           ),
-          const SizedBox(width: 4),
-          IconButton(
-            tooltip: 'Info',
-            onPressed: () => mostrarInfoModificarPartida(
-              context,
-              titulo: titulo,
-              cuerpo: info,
+          if (tituloWidget == null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: 'Info',
+              onPressed: () => mostrarInfoModificarPartida(
+                context,
+                titulo: titulo,
+                cuerpo: info,
+              ),
+              icon: const Icon(
+                Icons.help,
+                size: 18,
+                color: AppColors.textoSuave,
+              ),
             ),
-            icon:
-                const Icon(Icons.help, size: 18, color: AppColors.textoSuave),
-          ),
+          ],
         ],
       ),
     );
@@ -320,63 +337,65 @@ Future<int?> _editarCantidadDialog({
   required int max,
 }) async {
   final controller = TextEditingController(text: '$actual');
-  final valor = await showDialog<int>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: AppColors.carta,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text(
-        'Cantidad',
-        style: TextStyle(color: AppColors.mint, fontSize: 18),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            style: const TextStyle(color: AppColors.texto, fontSize: 18),
-            decoration: InputDecoration(
-              hintText: '$min–$max',
-              hintStyle: const TextStyle(color: AppColors.textoSuave),
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: AppColors.mint),
+  try {
+    return await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Cantidad',
+          style: TextStyle(color: AppColors.mint, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: const TextStyle(color: AppColors.texto, fontSize: 18),
+              decoration: InputDecoration(
+                hintText: '$min–$max',
+                hintStyle: const TextStyle(color: AppColors.textoSuave),
+                enabledBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.mint),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.mint, width: 2),
+                ),
               ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: AppColors.mint, width: 2),
-              ),
+              onSubmitted: (raw) {
+                final parsed = int.tryParse(raw.trim());
+                if (parsed == null) {
+                  Navigator.of(ctx).pop();
+                  return;
+                }
+                Navigator.of(ctx).pop(parsed.clamp(min, max));
+              },
             ),
-            onSubmitted: (raw) {
-              final parsed = int.tryParse(raw.trim());
-              if (parsed == null) {
-                Navigator.of(ctx).pop();
-                return;
-              }
-              Navigator.of(ctx).pop(parsed.clamp(min, max));
-            },
-          ),
-          const SizedBox(height: 20),
-          BotonListoModificarPartida(
-            etiqueta: 'OK',
-            onPressed: () {
-              final parsed = int.tryParse(controller.text.trim());
-              if (parsed == null) {
-                Navigator.of(ctx).pop();
-                return;
-              }
-              Navigator.of(ctx).pop(parsed.clamp(min, max));
-            },
-          ),
-          const SizedBox(height: 12),
-          BotonCancelarModificarPartida(
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
+            const SizedBox(height: 20),
+            BotonListoModificarPartida(
+              etiqueta: 'OK',
+              onPressed: () {
+                final parsed = int.tryParse(controller.text.trim());
+                if (parsed == null) {
+                  Navigator.of(ctx).pop();
+                  return;
+                }
+                Navigator.of(ctx).pop(parsed.clamp(min, max));
+              },
+            ),
+            const SizedBox(height: 12),
+            BotonCancelarModificarPartida(
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-  controller.dispose();
-  return valor;
+    );
+  } finally {
+    controller.dispose();
+  }
 }

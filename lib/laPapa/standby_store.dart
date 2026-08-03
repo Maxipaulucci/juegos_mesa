@@ -59,6 +59,9 @@ class PapaStandByStore {
         a.cantidadNumeros == b.cantidadNumeros &&
         a.modoFantasma == b.modoFantasma &&
         a.mostrarCuadricula == b.mostrarCuadricula &&
-        a.permitirTrazoSobreNumeros == b.permitirTrazoSobreNumeros;
+        a.permitirTrazoSobreNumeros == b.permitirTrazoSobreNumeros &&
+        a.mostrarLupa == b.mostrarLupa &&
+        a.modificarGrosorTrazo == b.modificarGrosorTrazo &&
+        a.excepcionGeneracionNumeros == b.excepcionGeneracionNumeros;
   }
 }
