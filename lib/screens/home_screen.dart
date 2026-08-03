@@ -447,6 +447,7 @@ class _HomeScreenState extends State<HomeScreen>
                             controller: _scrollController,
                             thumbVisibility: true,
                             child: Stack(
+                              clipBehavior: Clip.none,
                               children: [
                                 NotificationListener<ScrollNotification>(
                                   onNotification: (n) {
@@ -463,10 +464,15 @@ class _HomeScreenState extends State<HomeScreen>
                                   child: ListView.separated(
                                     key: ValueKey(_categoria),
                                     controller: _scrollController,
+                                    clipBehavior: Clip.none,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                      vertical: 6,
+                                    ),
                                     physics: const ClampingScrollPhysics(),
                                     itemCount: filtrados.length,
                                     separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 12),
+                                        const SizedBox(height: 14),
                                     itemBuilder: (context, index) {
                                       final juego = filtrados[index];
                                       return _tarjetaEntrada(
@@ -634,21 +640,35 @@ class _JuegoTileState extends State<_JuegoTile> {
         duration: const Duration(milliseconds: 160),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          boxShadow: activo && _presionado
-              ? neonGlow(widget.accent, blur: 14)
-              : (widget.enabled
-                  ? [
-                      BoxShadow(
-                        color: widget.accent.withValues(alpha: 0.18),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null),
+          boxShadow: !widget.enabled
+              ? null
+              : [
+                  BoxShadow(
+                    color: widget.accent.withValues(
+                      alpha: _presionado && activo ? 0.45 : 0.22,
+                    ),
+                    blurRadius: _presionado && activo ? 22 : 16,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: widget.accent.withValues(
+                      alpha: _presionado && activo ? 0.2 : 0.1,
+                    ),
+                    blurRadius: _presionado && activo ? 36 : 28,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
         ),
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: activo ? widget.onTap : null,
@@ -657,6 +677,9 @@ class _JuegoTileState extends State<_JuegoTile> {
             onTapCancel: () => setState(() => _presionado = false),
             onTapUp: (_) => setState(() => _presionado = false),
             borderRadius: BorderRadius.circular(18),
+            customBorder: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
             splashColor: widget.accent.withValues(alpha: 0.25),
             highlightColor: widget.accent.withValues(alpha: 0.12),
             child: Ink(
