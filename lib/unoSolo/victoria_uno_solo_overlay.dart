@@ -225,28 +225,54 @@ class _VictoriaUnoSoloOverlayState extends State<VictoriaUnoSoloOverlay>
             ? 'El juego exige que la última pieza esté en el centro para ganar.'
             : 'No quedan movimientos. Quedaron $n fichas.');
 
-    return Material(
-      color: Colors.black.withValues(alpha: 0.72),
-      child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: _CartelFinUnoSolo(
-              titulo: titulo,
-              color: AppColors.peligro,
-              subtitulo: sub,
-              fichas: n,
-              onVerOrden: _puedeVerOrden
-                  ? () => setState(() => _mostrarOrden = true)
-                  : null,
-              onDeshacer: widget.onDeshacer,
-              onVolverAJugar:
-                  widget.mostrarVolverAJugar ? widget.onVolverAJugar : null,
-              onVolver: widget.onVolver,
+    return Stack(
+      children: [
+        IgnorePointer(
+          ignoring: !_cartelVisible,
+          child: Material(
+            color: _cartelVisible
+                ? Colors.black.withValues(alpha: 0.72)
+                : Colors.transparent,
+            child: _cartelVisible
+                ? SafeArea(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: _CartelFinUnoSolo(
+                          titulo: titulo,
+                          color: AppColors.peligro,
+                          subtitulo: sub,
+                          fichas: n,
+                          onVerOrden: _puedeVerOrden
+                              ? () =>
+                                  setState(() => _mostrarOrden = true)
+                              : null,
+                          onDeshacer: widget.onDeshacer,
+                          onVolverAJugar: widget.mostrarVolverAJugar
+                              ? widget.onVolverAJugar
+                              : null,
+                          onVolver: widget.onVolver,
+                        ),
+                      ),
+                    ),
+                  )
+                : const SizedBox.expand(),
+          ),
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: BotonOjoVictoria(
+                cartelVisible: _cartelVisible,
+                onTap: () =>
+                    setState(() => _cartelVisible = !_cartelVisible),
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
