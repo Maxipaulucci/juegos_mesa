@@ -36,11 +36,8 @@ class VictoriaUnoSoloOverlay extends StatefulWidget {
   }
 
   static bool debeMostrar(PartidaUnoSolo p) {
-    if (victoriaPorAbandono(p) || p.fichaUnicaEnCentro) return true;
-    // Derrota / trabado: siempre cartel (incluye 2–5 fichas).
-    if (p.fase == FaseUnoSolo.perdido) return true;
-    final n = p.fichasRestantes;
-    return n <= 1 || n >= 6;
+    // Siempre cartel al terminar (victoria, derrota o trabado).
+    return p.terminada;
   }
 
   @override

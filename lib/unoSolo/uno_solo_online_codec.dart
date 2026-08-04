@@ -33,6 +33,7 @@ bool unoSoloPartidaGenerada(Map<String, dynamic>? raw) {
 Map<String, dynamic> encodeUnoSoloGameState({
   required PartidaUnoSolo partida,
   required int version,
+  List<MovimientoUnoSolo>? historial,
 }) {
   return {
     'version': version,
@@ -47,10 +48,18 @@ Map<String, dynamic> encodeUnoSoloGameState({
     'calificacion': partida.calificacion,
     'solo': partida.solo,
     'mostrarVictoria': partida.terminada,
+    'historial': [
+      for (final m in historial ?? const <MovimientoUnoSolo>[])
+        {'desde': m.desde, 'medio': m.medio, 'hasta': m.hasta},
+    ],
   };
 }
 
-void applyUnoSoloGameState(PartidaUnoSolo destino, Map<String, dynamic> raw) {
+void applyUnoSoloGameState(
+  PartidaUnoSolo destino,
+  Map<String, dynamic> raw, {
+  List<MovimientoUnoSolo>? historialOut,
+}) {
   destino.indiceTurno = (raw['indiceTurno'] as num?)?.toInt() ?? 0;
   destino.fase = _faseFromId(raw['fase']?.toString());
   destino.mensajeFin = raw['mensajeFin']?.toString();
@@ -70,6 +79,24 @@ void applyUnoSoloGameState(PartidaUnoSolo destino, Map<String, dynamic> raw) {
   if (celdasRaw is List && celdasRaw.length == PartidaUnoSolo.total) {
     for (var i = 0; i < PartidaUnoSolo.total; i++) {
       destino.celdas[i] = _celdaFromId(celdasRaw[i]?.toString());
+    }
+  }
+
+  if (historialOut != null) {
+    historialOut.clear();
+    final histRaw = raw['historial'];
+    if (histRaw is List) {
+      for (final item in histRaw) {
+        if (item is! Map) continue;
+        final m = Map<String, dynamic>.from(item);
+        final desde = (m['desde'] as num?)?.toInt();
+        final medio = (m['medio'] as num?)?.toInt();
+        final hasta = (m['hasta'] as num?)?.toInt();
+        if (desde == null || medio == null || hasta == null) continue;
+        historialOut.add(
+          MovimientoUnoSolo(desde: desde, medio: medio, hasta: hasta),
+        );
+      }
     }
   }
 }

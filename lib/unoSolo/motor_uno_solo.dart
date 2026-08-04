@@ -181,21 +181,12 @@ void _cerrarConPuntuacion(PartidaUnoSolo p) {
     return;
   }
 
-  // Sin movimientos y más de una ficha.
-  if (p.solo) {
-    p.fase = FaseUnoSolo.perdido;
-    p.ganador = null;
-    p.mensajeFin = cal == null
-        ? 'No quedan movimientos. Quedaron $n fichas.'
-        : 'No quedan movimientos. Quedaron $n fichas · $cal';
-  } else {
-    p.fase = FaseUnoSolo.ganado;
-    p.ganador = p.jugadorActual;
-    p.mensajeFin = cal == null
-        ? 'No quedan movimientos. $n fichas. Último turno: ${p.jugadorActual}'
-        : 'No quedan movimientos. $n fichas · $cal. '
-            'Último turno: ${p.jugadorActual}';
-  }
+  // Sin movimientos y más de una ficha: derrota (solo y multijugador).
+  p.fase = FaseUnoSolo.perdido;
+  p.ganador = null;
+  p.mensajeFin = cal == null
+      ? 'No quedan movimientos. Quedaron $n fichas.'
+      : 'No quedan movimientos. Quedaron $n fichas · $cal';
 }
 
 void _evaluarFinTrasJugada(PartidaUnoSolo p) {

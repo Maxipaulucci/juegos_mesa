@@ -231,11 +231,16 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     if (version <= _onlineVersion && !_esperandoTableroOnline) return;
 
     setState(() {
-      applyUnoSoloGameState(_partida, gameState);
+      applyUnoSoloGameState(
+        _partida,
+        gameState,
+        historialOut: _historial,
+      );
       _nombres = List.of(_partida.nombres);
       _onlineVersion = version;
       _esperandoTableroOnline = false;
       _tableroPublicado = true;
+      _rehacer.clear();
       if (!_esMiTurno) _seleccion = null;
     });
   }
@@ -245,6 +250,8 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     final generada = nuevaPartidaUnoSolo(nombres: _nombres, solo: false);
     setState(() {
       _partida = generada;
+      _historial.clear();
+      _rehacer.clear();
       _esperandoTableroOnline = false;
       _tableroPublicado = true;
     });
@@ -263,6 +270,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
         final gameState = encodeUnoSoloGameState(
           partida: _partida,
           version: _onlineVersion,
+          historial: _historial,
         );
         try {
           final res = await SalaService.instance.actualizarJuego(
@@ -351,7 +359,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       _mostrarAviso(err);
     } else {
       _ocultarAviso();
-      unawaited(_publicarEstadoOnline());
+      unawaited(_publicarEstadoOnline(forzar: _partida.terminada));
     }
   }
 

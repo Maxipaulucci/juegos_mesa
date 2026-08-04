@@ -22,5 +22,6 @@ El objetivo es dejar un solo botón exactamente en el centro del tablero.
 
 CONTRA OTRA PERSONA
 · Se turnan los saltos sobre el mismo tablero.
-· Quien logra la ficha única en el centro gana la partida.
+· Quien deja la ficha única en el centro gana.
+· Si se traban sin lograrlo, ambos pierden.
 ''';
