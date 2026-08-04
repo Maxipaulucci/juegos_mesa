@@ -8,8 +8,7 @@ import 'package:app_juegos_mesa/unoSolo/motor_uno_solo.dart';
 /// · 1 ficha en el centro → victoria con confeti y fuegos.
 /// · Rival se rinde (multijugador) → victoria con confeti y fuegos.
 /// · 1 ficha fuera del centro → derrota (exige centro).
-/// · ≥6 fichas → cartel “Seguí intentando” (sin celebración).
-/// · 2–5 fichas → no se muestra (la partida lo oculta).
+/// · Sin movimientos (≥2 fichas) → cartel de derrota / “Seguí intentando”.
 class VictoriaUnoSoloOverlay extends StatefulWidget {
   const VictoriaUnoSoloOverlay({
     super.key,
@@ -38,6 +37,8 @@ class VictoriaUnoSoloOverlay extends StatefulWidget {
 
   static bool debeMostrar(PartidaUnoSolo p) {
     if (victoriaPorAbandono(p) || p.fichaUnicaEnCentro) return true;
+    // Derrota / trabado: siempre cartel (incluye 2–5 fichas).
+    if (p.fase == FaseUnoSolo.perdido) return true;
     final n = p.fichasRestantes;
     return n <= 1 || n >= 6;
   }
@@ -206,11 +207,11 @@ class _VictoriaUnoSoloOverlayState extends State<VictoriaUnoSoloOverlay>
     final n = widget.partida.fichasRestantes;
     final unaFueraDeCentro = n <= 1 && !widget.partida.fichaUnicaEnCentro;
     final titulo = widget.partida.calificacion ??
-        (unaFueraDeCentro ? 'Derrota' : 'Seguí intentando');
+        (unaFueraDeCentro || n < 6 ? 'Derrota' : 'Seguí intentando');
     final sub = widget.partida.mensajeFin ??
         (unaFueraDeCentro
             ? 'El juego exige que la última pieza esté en el centro para ganar.'
-            : 'No quedan movimientos. Quedaron $n fichas · Seguí intentando');
+            : 'No quedan movimientos. Quedaron $n fichas.');
 
     return Material(
       color: Colors.black.withValues(alpha: 0.72),

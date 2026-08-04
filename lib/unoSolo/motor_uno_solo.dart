@@ -144,14 +144,14 @@ List<MovimientoUnoSolo> todosLosMovimientosUnoSolo(PartidaUnoSolo p) {
 bool hayMovimientosUnoSolo(PartidaUnoSolo p) =>
     todosLosMovimientosUnoSolo(p).isNotEmpty;
 
-/// Calificación al cerrar: victoria (1 en centro), derrota (1 fuera),
-/// “Seguí intentando” (≥6) o null (2–5).
+/// Calificación al cerrar: victoria (1 en centro), derrota (1 fuera o
+/// sin movimientos con 2–5), “Seguí intentando” (≥6).
 String? calificacionUnoSolo(int fichas, {required bool enCentro}) {
   if (fichas <= 1) {
     return enCentro ? '¡Perfecto!' : 'Derrota';
   }
   if (fichas >= 6) return 'Seguí intentando';
-  return null;
+  return 'Derrota';
 }
 
 void _cerrarConPuntuacion(PartidaUnoSolo p) {

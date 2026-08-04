@@ -17,7 +17,7 @@ El objetivo es dejar un solo botón exactamente en el centro del tablero.
 
 · 1 ficha en el centro: ¡ganaste!
 · 1 ficha fuera del centro: derrota (hay que dejarla en el centro).
-· Si te trabás con 6 o más fichas: seguí intentando.
+· Si te quedás sin movimientos: derrota (con 6 o más fichas: “seguí intentando”).
 · Con modo práctica podés deshacer y rehacer saltos para probar otro camino.
 
 CONTRA OTRA PERSONA
