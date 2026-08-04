@@ -62,15 +62,12 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
   final List<MovimientoUnoSolo> _historial = [];
   /// Movimientos deshechos que se pueden rehacer (modo práctica).
   final List<MovimientoUnoSolo> _rehacer = [];
-  /// Tras ganar: muestra el tablero con el orden real de eliminación.
-  bool _verOrdenFinal = false;
 
   bool get _modoDiosActivo =>
       widget.modoDios &&
       (widget.solo || _partida.solo) &&
       !_esOnline &&
-      _guiaDios != null &&
-      !_verOrdenFinal;
+      _guiaDios != null;
 
   bool get _modoPracticaActivo =>
       _opciones.modoPractica && !_esOnline;
@@ -372,7 +369,6 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     final err = deshacerUltimoUnoSolo(_partida, _historial);
     setState(() {
       _seleccion = null;
-      _verOrdenFinal = false;
       if (err == null) {
         _rehacer.add(mov);
       }
@@ -393,7 +389,6 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     final err = jugarMovimientoUnoSolo(_partida, mov);
     setState(() {
       _seleccion = null;
-      _verOrdenFinal = false;
       if (err == null) {
         _historial.add(mov);
       } else {
@@ -420,7 +415,6 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       _rehacer.clear();
       _seleccion = null;
       _aviso = null;
-      _verOrdenFinal = false;
       _mostrarMenu = false;
       _mostrarAjustes = false;
       _confirmarRendicion = false;
@@ -715,9 +709,6 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
           : 'Esperando el tablero del anfitrión…';
     }
     if (_partida.terminada) {
-      if (_verOrdenFinal) {
-        return 'Orden de eliminación · tocá “Volver al resultado”';
-      }
       return _partida.mensajeFin ?? 'Fin';
     }
     if (_esOnline && !_esMiTurno) {
@@ -845,20 +836,6 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                       ),
                     ),
                   ],
-                  if (_verOrdenFinal) ...[
-                    const SizedBox(height: 8),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () =>
-                            setState(() => _verOrdenFinal = false),
-                        icon: const Icon(Icons.emoji_events_rounded),
-                        label: const Text('Volver al resultado'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.acento,
-                        ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 10),
                   Expanded(
                     child: Center(
@@ -870,9 +847,6 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                               constraints.maxWidth,
                               constraints.maxHeight,
                             );
-                            final ordenReview = _verOrdenFinal
-                                ? ordenEliminacionDesdeHistorial(_historial)
-                                : null;
                             final ordenDios = _modoDiosActivo
                                 ? {
                                     for (final e
@@ -891,13 +865,11 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                                 seleccion: _seleccion,
                                 destinos: _destinosResaltados,
                                 medios: _mediosResaltados,
-                                ordenEliminacion: ordenReview ?? ordenDios,
-                                mostrarOrdenEnVacias: ordenReview != null,
+                                ordenEliminacion: ordenDios,
+                                mostrarOrdenEnVacias: false,
                                 proximoDesde: proxDios?.desde,
                                 proximoMedio: proxDios?.medio,
-                                onTap: _bloquearHumano || _verOrdenFinal
-                                    ? null
-                                    : _onTapCelda,
+                                onTap: _bloquearHumano ? null : _onTapCelda,
                               ),
                             );
                           },
@@ -1051,17 +1023,16 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
               ),
             ),
           if (_partida.terminada &&
-              !_verOrdenFinal &&
               VictoriaUnoSoloOverlay.debeMostrar(_partida))
             Positioned.fill(
               child: VictoriaUnoSoloOverlay(
                 partida: _partida,
                 animaciones: _ajustes.animaciones,
                 mostrarVolverAJugar: !_esOnline,
-                onVolverAJugar: _volverAJugar,
-                onVerOrden: _historial.isEmpty
+                ordenEliminacion: _historial.isEmpty
                     ? null
-                    : () => setState(() => _verOrdenFinal = true),
+                    : ordenEliminacionDesdeHistorial(_historial),
+                onVolverAJugar: _volverAJugar,
                 onDeshacer: _puedeDeshacer ? _deshacer : null,
                 onVolver: () {
                   UnoSoloStandByStore.limpiar();

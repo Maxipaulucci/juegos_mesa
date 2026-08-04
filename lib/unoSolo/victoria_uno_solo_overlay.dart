@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
 import 'package:app_juegos_mesa/unoSolo/motor_uno_solo.dart';
+import 'package:app_juegos_mesa/unoSolo/tablero_uno_solo.dart';
 
 /// Fin de Uno solo:
 /// · 1 ficha en el centro → victoria con confeti y fuegos.
@@ -16,7 +17,7 @@ class VictoriaUnoSoloOverlay extends StatefulWidget {
     required this.onVolverAJugar,
     required this.onVolver,
     this.mostrarVolverAJugar = true,
-    this.onVerOrden,
+    this.ordenEliminacion,
     this.onDeshacer,
     this.animaciones = true,
   });
@@ -25,7 +26,8 @@ class VictoriaUnoSoloOverlay extends StatefulWidget {
   final VoidCallback onVolverAJugar;
   final VoidCallback onVolver;
   final bool mostrarVolverAJugar;
-  final VoidCallback? onVerOrden;
+  /// Orden de piezas comidas (casilla → "1", "2", …). Si hay, se muestra VER ORDEN.
+  final Map<int, String>? ordenEliminacion;
   final VoidCallback? onDeshacer;
   final bool animaciones;
 
@@ -54,10 +56,14 @@ class _VictoriaUnoSoloOverlayState extends State<VictoriaUnoSoloOverlay>
   late final Animation<double> _escala;
   late final Animation<double> _opacidad;
   bool _cartelVisible = true;
+  bool _mostrarOrden = false;
 
   bool get _esVictoria =>
       widget.partida.fichaUnicaEnCentro ||
       VictoriaUnoSoloOverlay.victoriaPorAbandono(widget.partida);
+
+  bool get _puedeVerOrden =>
+      widget.ordenEliminacion != null && widget.ordenEliminacion!.isNotEmpty;
 
   @override
   void initState() {
@@ -106,6 +112,13 @@ class _VictoriaUnoSoloOverlayState extends State<VictoriaUnoSoloOverlay>
 
   @override
   Widget build(BuildContext context) {
+    if (_mostrarOrden && _puedeVerOrden) {
+      return _CartelOrdenUnoSolo(
+        partida: widget.partida,
+        ordenEliminacion: widget.ordenEliminacion!,
+        onVolver: () => setState(() => _mostrarOrden = false),
+      );
+    }
     if (_esVictoria) {
       return _buildVictoriaConCelebracion();
     }
@@ -162,7 +175,9 @@ class _VictoriaUnoSoloOverlayState extends State<VictoriaUnoSoloOverlay>
                                 subtitulo: sub,
                                 pulso: _pulso,
                                 animaciones: widget.animaciones,
-                                onVerOrden: widget.onVerOrden,
+                                onVerOrden: _puedeVerOrden
+                                    ? () => setState(() => _mostrarOrden = true)
+                                    : null,
                                 onDeshacer: widget.onDeshacer,
                                 onVolverAJugar: widget.mostrarVolverAJugar
                                     ? widget.onVolverAJugar
@@ -221,7 +236,9 @@ class _VictoriaUnoSoloOverlayState extends State<VictoriaUnoSoloOverlay>
               color: AppColors.peligro,
               subtitulo: sub,
               fichas: n,
-              onVerOrden: widget.onVerOrden,
+              onVerOrden: _puedeVerOrden
+                  ? () => setState(() => _mostrarOrden = true)
+                  : null,
               onDeshacer: widget.onDeshacer,
               onVolverAJugar:
                   widget.mostrarVolverAJugar ? widget.onVolverAJugar : null,
@@ -520,6 +537,98 @@ class _CartelFinUnoSolo extends StatelessWidget {
         final t = Curves.easeInOut.transform(pulso!.value);
         return card(14 + t * 10);
       },
+    );
+  }
+}
+
+/// Cartel de repaso: tablero con el orden de piezas comidas + VOLVER.
+class _CartelOrdenUnoSolo extends StatelessWidget {
+  const _CartelOrdenUnoSolo({
+    required this.partida,
+    required this.ordenEliminacion,
+    required this.onVolver,
+  });
+
+  final PartidaUnoSolo partida;
+  final Map<int, String> ordenEliminacion;
+  final VoidCallback onVolver;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(
+                maxWidth: 420,
+                maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+              ),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF2A1450), Color(0xFF12081F)],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.acento, width: 2),
+                boxShadow: neonGlow(AppColors.acento, blur: 18),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'ORDEN',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                      color: AppColors.acento,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Número = orden en que se comió la ficha',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textoSuave,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: TableroUnoSolo(
+                          partida: partida,
+                          seleccion: null,
+                          destinos: const {},
+                          medios: const {},
+                          ordenEliminacion: ordenEliminacion,
+                          mostrarOrdenEnVacias: true,
+                          onTap: null,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GlowButtonVictoria(
+                    label: 'VOLVER',
+                    color: AppColors.textoSuave,
+                    onPressed: onVolver,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
