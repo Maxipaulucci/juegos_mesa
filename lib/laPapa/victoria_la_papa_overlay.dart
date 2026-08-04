@@ -105,7 +105,6 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
         trazoFallido: widget.trazoFallido,
         boardSizeTrazo: widget.boardSizeTrazo,
         onCerrar: () => setState(() => _mostrarTablero = false),
-        onVolver: widget.onVolver,
       );
     }
 
@@ -168,7 +167,6 @@ class _VictoriaLaPapaOverlayState extends State<VictoriaLaPapaOverlay>
       ganador: widget.ganador ?? _ganadorMostrado,
       boardSizeTrazo: widget.boardSizeTrazo,
       onCerrar: () => setState(() => _statsJugador = null),
-      onVerTablero: () => setState(() => _mostrarTablero = true),
     );
   }
 
@@ -429,9 +427,15 @@ class _StatsSelectorPapa extends StatelessWidget {
         children: [
           Row(
             children: [
+              IconButton(
+                onPressed: onCerrar,
+                tooltip: 'Volver',
+                icon: const Icon(Icons.arrow_back, color: AppColors.texto),
+              ),
               const Expanded(
                 child: Text(
                   'ESTADÍSTICAS',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
@@ -440,10 +444,7 @@ class _StatsSelectorPapa extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: onCerrar,
-                icon: const Icon(Icons.close, color: AppColors.texto),
-              ),
+              const SizedBox(width: 48),
             ],
           ),
           const Text(
@@ -494,7 +495,6 @@ class _StatsBoardPanel extends StatelessWidget {
     required this.jugador,
     required this.ganador,
     required this.onCerrar,
-    required this.onVerTablero,
     this.boardSizeTrazo,
   });
 
@@ -502,7 +502,6 @@ class _StatsBoardPanel extends StatelessWidget {
   final String jugador;
   final String? ganador;
   final VoidCallback onCerrar;
-  final VoidCallback onVerTablero;
   final Size? boardSizeTrazo;
 
   @override
@@ -606,10 +605,9 @@ class _StatsBoardPanel extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           GlowButtonVictoria(
-            label: 'VER TABLERO',
-            icon: Icons.grid_on_rounded,
-            color: AppColors.mint,
-            onPressed: onVerTablero,
+            label: 'VOLVER',
+            color: AppColors.textoSuave,
+            onPressed: onCerrar,
           ),
         ],
       ),
@@ -630,7 +628,6 @@ class _TableroFinalPapa extends StatelessWidget {
     required this.partida,
     required this.trazoFallido,
     required this.onCerrar,
-    required this.onVolver,
     this.boardSizeTrazo,
   });
 
@@ -638,7 +635,6 @@ class _TableroFinalPapa extends StatelessWidget {
   final List<Offset> trazoFallido;
   final Size? boardSizeTrazo;
   final VoidCallback onCerrar;
-  final VoidCallback onVolver;
 
   @override
   Widget build(BuildContext context) {
@@ -754,15 +750,17 @@ class _TableroFinalPapa extends StatelessWidget {
               child: ColoredBox(
                 color: Colors.white,
                 child: InteractiveViewer(
-                  minScale: 0.8,
+                  minScale: 0.5,
                   maxScale: 4.5,
-                  child: AspectRatio(
-                    aspectRatio: columnasPapa / filasPapa,
-                    child: CustomPaint(
-                      painter: _HojaTableroFinalPainter(
-                        partida: partida,
-                        trazoFallido: trazoFallido,
-                        boardSizeTrazo: boardSizeTrazo,
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: columnasPapa / filasPapa,
+                      child: CustomPaint(
+                        painter: _HojaTableroFinalPainter(
+                          partida: partida,
+                          trazoFallido: trazoFallido,
+                          boardSizeTrazo: boardSizeTrazo,
+                        ),
                       ),
                     ),
                   ),
@@ -772,10 +770,9 @@ class _TableroFinalPapa extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           GlowButtonVictoria(
-            label: 'VOLVER AL MENÚ',
-            icon: Icons.home_rounded,
-            color: AppColors.violeta,
-            onPressed: onVolver,
+            label: 'VOLVER',
+            color: AppColors.textoSuave,
+            onPressed: onCerrar,
           ),
         ],
       ),
@@ -821,36 +818,16 @@ class _HojaStatsPapaPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    final origen = boardSizeTrazo;
-    final sx = (origen != null && origen.width > 1e-6)
-        ? size.width / origen.width
-        : 1.0;
-    final sy = (origen != null && origen.height > 1e-6)
-        ? size.height / origen.height
-        : 1.0;
-    final escalaGrosor = (origen != null &&
-            origen.width > 1e-6 &&
-            origen.height > 1e-6)
-        ? math.min(sx, sy)
-        : (math.min(cellW, cellH) / 36).clamp(0.35, 1.0);
+    final cell = math.min(cellW, cellH);
+    final escalaGrosor = (cell / 36).clamp(0.35, 1.2);
 
+    // Freehand exacto de cada conexión (coords normalizadas → esta hoja).
     for (final t in trazos) {
-      List<Offset> pts;
-      if (origen != null && origen.width > 1e-6 && origen.height > 1e-6) {
-        pts = [for (final p in t.puntos) Offset(p.dx * sx, p.dy * sy)];
-      } else {
-        final iDe = partida.indiceDeNumero(t.de);
-        final iA = partida.indiceDeNumero(t.a);
-        if (iDe == null || iA == null || t.puntos.length < 2) {
-          pts = t.puntos;
-        } else {
-          pts = alinearTrazoPapaACentros(
-            t.puntos,
-            centroCasillaPapa(iDe, size),
-            centroCasillaPapa(iA, size),
-          );
-        }
-      }
+      final pts = puntosTrazoEnHojaPapa(
+        t,
+        size,
+        origenLegacy: boardSizeTrazo,
+      );
       dibujarPolylinePapa(
         canvas,
         pts,
@@ -946,13 +923,16 @@ class _HojaTableroFinalPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Mismos trazos que en partida: solo reescalado proporcional.
-    // No realinear a centros (deformaba curvas y las sacaba del cuadro).
+    // Freehand exacto por trazo (cada conexión aparte).
     final escala = _escalaTrazo(size);
     for (final t in partida.trazos) {
       final idx = partida.nombres.indexOf(t.jugador);
       final color = colorTrazoJugadorPapa(idx < 0 ? 0 : idx);
-      final pts = _escalarPuntos(t.puntos, size);
+      final pts = puntosTrazoEnHojaPapa(
+        t,
+        size,
+        origenLegacy: boardSizeTrazo,
+      );
       dibujarPolylinePapa(
         canvas,
         pts,
@@ -965,8 +945,8 @@ class _HojaTableroFinalPainter extends CustomPainter {
       );
     }
 
-    // Último error en rojo.
-    final fallido = _escalarPuntos(trazoFallido, size);
+    // Último error en rojo (también normalizado si aplica).
+    final fallido = _escalarPuntosFallido(trazoFallido, size);
     final anchoFallido = GrosorTrazoPapa.normal.ancho * escala;
     if (fallido.length >= 2) {
       dibujarPolylinePapa(
@@ -1010,6 +990,14 @@ class _HojaTableroFinalPainter extends CustomPainter {
     canvas.restore();
   }
 
+  List<Offset> _escalarPuntosFallido(List<Offset> pts, Size size) {
+    if (pts.isEmpty) return pts;
+    if (puntosParecenNormalizadosPapa(pts)) {
+      return desnormalizarPuntosPapa(pts, size);
+    }
+    return _escalarPuntos(pts, size);
+  }
+
   List<Offset> _escalarPuntos(List<Offset> pts, Size size) {
     final origen = boardSizeTrazo;
     if (origen == null ||
@@ -1027,7 +1015,6 @@ class _HojaTableroFinalPainter extends CustomPainter {
   double _escalaTrazo(Size size) {
     final origen = boardSizeTrazo;
     if (origen == null || origen.width < 1e-6 || origen.height < 1e-6) {
-      // Sin tamaño original: aproximar a un lápiz fino sobre la celda.
       final cell = math.min(
         size.width / columnasPapa,
         size.height / filasPapa,

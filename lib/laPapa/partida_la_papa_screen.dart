@@ -384,6 +384,11 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   Size _sincronizarTamanoHoja(Size boardSize) {
+    // Con la partida terminada no reescalar: los píxeles del freehand
+    // (p. ej. trazo de error) deben coincidir con boardSizeTrazo del overlay.
+    if (_partida.terminada) {
+      return _boardSize ?? boardSize;
+    }
     final prev = _boardSize;
     if (prev != null &&
         ((prev.width - boardSize.width).abs() > 0.5 ||
@@ -416,9 +421,14 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   }
 
   void _fallar(String motivo) {
+    final board = _boardSize;
     _trazoFallido
       ..clear()
-      ..addAll(_trazoActual);
+      ..addAll(
+        board == null
+            ? _trazoActual
+            : normalizarPuntosPapa(_trazoActual, board),
+      );
     final termino = registrarFalloPapa(_partida, motivo: motivo);
     _limpiarTrazo();
     if (!termino) {
@@ -630,7 +640,12 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           );
           return;
         }
-        aceptarTrazoPapa(_partida, _trazoActual, grosor: _grosor);
+        aceptarTrazoPapa(
+          _partida,
+          _trazoActual,
+          boardSize: boardSize,
+          grosor: _grosor,
+        );
         _trazoFallido.clear();
         _limpiarTrazo();
         unawaited(_publicarEstadoOnline(forzar: true));
@@ -1132,65 +1147,6 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     );
   }
 
-  /// Fichas del número actual / siguiente por encima de la lupa.
-  List<Widget> _marcadoresNumerosSobreLupa({
-    required Size boardSize,
-    required int actual,
-    required int? siguiente,
-  }) {
-    final cell = math.min(
-      boardSize.width / columnasPapa,
-      boardSize.height / filasPapa,
-    );
-    final radio = cell * 0.30;
-
-    Widget? ficha(int numero, Color color) {
-      final idx = _partida.indiceDeNumero(numero);
-      if (idx == null) return null;
-      final c = centroCasillaPapa(idx, boardSize);
-      return Positioned(
-        left: c.dx - radio,
-        top: c.dy - radio,
-        width: radio * 2,
-        height: radio * 2,
-        child: IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.96),
-              border: Border.all(color: color, width: 2.4),
-              boxShadow: [
-                ...neonGlow(color, blur: 12),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                '$numero',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                  fontSize: cell * 0.30,
-                  height: 1,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return [
-      if (ficha(actual, const Color(0xFF0A7A4A)) case final w?) w,
-      if (siguiente != null)
-        if (ficha(siguiente, AppColors.peligro) case final w?) w,
-    ];
-  }
-
   Widget _botonTrazos() {
     return SizedBox(
       width: double.infinity,
@@ -1425,110 +1381,104 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                           padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
                           child: AspectRatio(
                             aspectRatio: columnasPapa / filasPapa,
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final boardSize = _sincronizarTamanoHoja(
-                                  Size(
-                                    constraints.maxWidth,
-                                    constraints.maxHeight,
-                                  ),
-                                );
-                                return Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: AppColors.mint,
-                                          width: 2,
-                                        ),
-                                        boxShadow: neonGlow(
-                                          AppColors.mint,
-                                          blur: 16,
-                                        ),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: AppColors.mint,
+                                  width: 2,
+                                ),
+                                boxShadow: neonGlow(
+                                  AppColors.mint,
+                                  blur: 16,
+                                ),
+                              ),
+                              // Tamaño real = área interna (sin borde),
+                              // misma coordenada que los trazos guardados.
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final boardSize = _sincronizarTamanoHoja(
+                                      Size(
+                                        constraints.maxWidth,
+                                        constraints.maxHeight,
                                       ),
-                                      child: ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(6),
-                                        child: Listener(
-                                          onPointerDown: (e) {
-                                            final box = _hojaKey
-                                                    .currentContext
-                                                    ?.findRenderObject()
-                                                as RenderBox?;
-                                            if (box == null) return;
-                                            final local = box
-                                                .globalToLocal(e.position);
-                                            _onPointerDown(
-                                              local,
-                                              boardSize,
-                                              e.pointer,
-                                            );
-                                          },
-                                          child: CustomPaint(
-                                            // Key solo sobre la hoja: la lupa
-                                            // no debe afectar globalToLocal.
-                                            key: _hojaKey,
-                                            size: boardSize,
-                                            painter: _HojaPapaPainter(
-                                              partida: _partida,
-                                              trazoActual:
-                                                  List.of(_trazoActual),
-                                              trazoFallido:
-                                                  List.of(_trazoFallido),
-                                              boardSize: boardSize,
-                                              numeroActual: de,
-                                              numeroSiguiente: a,
-                                              grosorActual: _grosor,
-                                              mostrarCuadricula: _opciones
-                                                  .mostrarCuadriculaEfectiva,
-                                              miNombre: widget.miNombre,
+                                    );
+                                    return Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        Positioned.fill(
+                                          child: Listener(
+                                            onPointerDown: (e) {
+                                              final box = _hojaKey
+                                                      .currentContext
+                                                      ?.findRenderObject()
+                                                  as RenderBox?;
+                                              if (box == null) return;
+                                              final local = box
+                                                  .globalToLocal(e.position);
+                                              _onPointerDown(
+                                                local,
+                                                boardSize,
+                                                e.pointer,
+                                              );
+                                            },
+                                            child: CustomPaint(
+                                              key: _hojaKey,
+                                              size: boardSize,
+                                              painter: _HojaPapaPainter(
+                                                partida: _partida,
+                                                trazoActual:
+                                                    List.of(_trazoActual),
+                                                trazoFallido:
+                                                    List.of(_trazoFallido),
+                                                boardSize: boardSize,
+                                                numeroActual: de,
+                                                numeroSiguiente: a,
+                                                grosorActual: _grosor,
+                                                mostrarCuadricula: _opciones
+                                                    .mostrarCuadriculaEfectiva,
+                                                miNombre: widget.miNombre,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                    if (_opciones.mostrarLupaEfectiva)
-                                      ValueListenableBuilder<Offset?>(
-                                        valueListenable: _lupaPunto,
-                                        builder: (context, foco, _) {
-                                          if (!_dibujando || foco == null) {
-                                            return const SizedBox.shrink();
-                                          }
-                                          return _LupaTrazoPapa(
-                                            focus: foco,
-                                            offsetLupa:
-                                                Offset(_lupaDx, _lupaDy),
-                                            boardSize: boardSize,
-                                            partida: _partida,
-                                            trazoActual:
-                                                List.of(_trazoActual),
-                                            trazoFallido:
-                                                List.of(_trazoFallido),
-                                            numeroActual: de,
-                                            numeroSiguiente: a,
-                                            grosorActual: _grosor,
-                                            mostrarCuadricula: _opciones
-                                                .mostrarCuadriculaEfectiva,
-                                            miNombre: widget.miNombre,
-                                          );
-                                        },
-                                      ),
-                                    // Números objetivo por encima de la lupa.
-                                    if (_dibujando &&
-                                        _partida.fase == FasePapa.jugando &&
-                                        !_partida.terminada)
-                                      ..._marcadoresNumerosSobreLupa(
-                                        boardSize: boardSize,
-                                        actual: de,
-                                        siguiente: a,
-                                      ),
-                                  ],
-                                );
-                              },
+                                        if (_opciones.mostrarLupaEfectiva)
+                                          ValueListenableBuilder<Offset?>(
+                                            valueListenable: _lupaPunto,
+                                            builder: (context, foco, _) {
+                                              if (!_dibujando ||
+                                                  foco == null) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return _LupaTrazoPapa(
+                                                focus: foco,
+                                                offsetLupa: Offset(
+                                                  _lupaDx,
+                                                  _lupaDy,
+                                                ),
+                                                boardSize: boardSize,
+                                                partida: _partida,
+                                                trazoActual:
+                                                    List.of(_trazoActual),
+                                                trazoFallido:
+                                                    List.of(_trazoFallido),
+                                                numeroActual: de,
+                                                numeroSiguiente: a,
+                                                grosorActual: _grosor,
+                                                mostrarCuadricula: _opciones
+                                                    .mostrarCuadriculaEfectiva,
+                                                miNombre: widget.miNombre,
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -2228,13 +2178,14 @@ class _HojaPapaPainter extends CustomPainter {
 
     final ultimo = partida.trazos.isEmpty ? null : partida.trazos.last;
     for (final t in partida.trazos) {
+      final pts = puntosTrazoEnHojaPapa(t, size);
       final esUltimoRival = miNombre != null &&
           identical(t, ultimo) &&
           t.jugador != miNombre;
       if (esUltimoRival) {
         _dibujarPolyline(
           canvas,
-          t.puntos,
+          pts,
           Paint()
             ..color = AppColors.mint.withValues(alpha: 0.45)
             ..strokeWidth = t.grosor.ancho + 4
@@ -2245,7 +2196,7 @@ class _HojaPapaPainter extends CustomPainter {
       }
       _dibujarPolyline(
         canvas,
-        t.puntos,
+        pts,
         Paint()
           ..color = esUltimoRival ? AppColors.mint : const Color(0xFF1A0A33)
           ..strokeWidth = t.grosor.ancho + (esUltimoRival ? 0.8 : 0)
@@ -2256,9 +2207,12 @@ class _HojaPapaPainter extends CustomPainter {
     }
 
     if (trazoFallido.length >= 2) {
+      final fallidoPts = puntosParecenNormalizadosPapa(trazoFallido)
+          ? desnormalizarPuntosPapa(trazoFallido, size)
+          : trazoFallido;
       _dibujarPolyline(
         canvas,
-        trazoFallido,
+        fallidoPts,
         Paint()
           ..color = AppColors.peligro
           ..strokeWidth = grosorActual.ancho + 0.3
@@ -2267,8 +2221,11 @@ class _HojaPapaPainter extends CustomPainter {
           ..style = PaintingStyle.stroke,
       );
     } else if (trazoFallido.length == 1) {
+      final p = puntosParecenNormalizadosPapa(trazoFallido)
+          ? desnormalizarPuntosPapa(trazoFallido, size).first
+          : trazoFallido.first;
       canvas.drawCircle(
-        trazoFallido.first,
+        p,
         math.max(2.5, grosorActual.ancho * 0.7),
         Paint()..color = AppColors.peligro,
       );

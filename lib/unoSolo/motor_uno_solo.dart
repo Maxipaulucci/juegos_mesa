@@ -269,16 +269,14 @@ String? deshacerUltimoUnoSolo(
   return null;
 }
 
-/// Casilla → etiqueta de orden de piezas comidas (1 = primera, etc.).
-/// Si la misma casilla se usó más de una vez, lista todos: "3·18".
+/// Casilla → orden en que se comió una ficha ahí (1 = primera comida).
+/// Una sola etiqueta por casilla (la primera vez que se come en ese hueco).
 Map<int, String> ordenEliminacionDesdeHistorial(
   List<MovimientoUnoSolo> historial,
 ) {
-  final porCelda = <int, List<int>>{};
+  final out = <int, String>{};
   for (var i = 0; i < historial.length; i++) {
-    porCelda.putIfAbsent(historial[i].medio, () => <int>[]).add(i + 1);
+    out.putIfAbsent(historial[i].medio, () => '${i + 1}');
   }
-  return {
-    for (final e in porCelda.entries) e.key: e.value.join('·'),
-  };
+  return out;
 }

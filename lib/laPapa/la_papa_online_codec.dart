@@ -35,6 +35,10 @@ OpcionesPapa decodePapaOpciones(Map? raw) {
 }
 
 List<Map<String, double>> _encodePuntos(List<Offset> pts, Size board) {
+  // Si ya están normalizados (0..1), se publican tal cual.
+  if (puntosParecenNormalizadosPapa(pts)) {
+    return [for (final p in pts) {'x': p.dx, 'y': p.dy}];
+  }
   final w = board.width <= 0 ? 1.0 : board.width;
   final h = board.height <= 0 ? 1.0 : board.height;
   return [
@@ -44,8 +48,7 @@ List<Map<String, double>> _encodePuntos(List<Offset> pts, Size board) {
 
 List<Offset> _decodePuntos(dynamic raw, Size board) {
   if (raw is! List) return [];
-  final w = board.width <= 0 ? 1.0 : board.width;
-  final h = board.height <= 0 ? 1.0 : board.height;
+  // Guardamos normalizado en PartidaPapa; [board] se ignora a propósito.
   final out = <Offset>[];
   for (final item in raw) {
     if (item is! Map) continue;
@@ -53,7 +56,7 @@ List<Offset> _decodePuntos(dynamic raw, Size board) {
     final x = (m['x'] as num?)?.toDouble();
     final y = (m['y'] as num?)?.toDouble();
     if (x == null || y == null) continue;
-    out.add(Offset(x * w, y * h));
+    out.add(Offset(x, y));
   }
   return out;
 }

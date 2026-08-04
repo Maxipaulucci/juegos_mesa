@@ -10,13 +10,13 @@ class GlowButtonVictoria extends StatelessWidget {
   const GlowButtonVictoria({
     super.key,
     required this.label,
-    required this.icon,
+    this.icon,
     required this.color,
     required this.onPressed,
   });
 
   final String label;
-  final IconData icon;
+  final IconData? icon;
   final Color color;
   final VoidCallback onPressed;
 
@@ -53,8 +53,10 @@ class GlowButtonVictoria extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, color: Colors.white, size: 22),
-                  const SizedBox(width: 8),
+                  if (icon != null) ...[
+                    Icon(icon, color: Colors.white, size: 22),
+                    const SizedBox(width: 8),
+                  ],
                   Text(
                     label,
                     style: const TextStyle(

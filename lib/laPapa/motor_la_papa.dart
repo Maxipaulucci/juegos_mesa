@@ -39,11 +39,53 @@ class TrazoPapa {
     this.grosor = GrosorTrazoPapa.normal,
   });
 
+  /// Puntos en coordenadas normalizadas (0..1 respecto de la hoja).
   final List<Offset> puntos;
   final int de;
   final int a;
   final String jugador;
   final GrosorTrazoPapa grosor;
+}
+
+/// Convierte puntos de píxeles de [board] a fracciones 0..1.
+List<Offset> normalizarPuntosPapa(List<Offset> pts, Size board) {
+  final w = board.width <= 1e-6 ? 1.0 : board.width;
+  final h = board.height <= 1e-6 ? 1.0 : board.height;
+  return [for (final p in pts) Offset(p.dx / w, p.dy / h)];
+}
+
+/// Convierte puntos normalizados (0..1) a píxeles de [board].
+List<Offset> desnormalizarPuntosPapa(List<Offset> pts, Size board) {
+  return [
+    for (final p in pts) Offset(p.dx * board.width, p.dy * board.height),
+  ];
+}
+
+/// Heurística: trazos nuevos están en 0..1; partidas viejas pueden traer píxeles.
+bool puntosParecenNormalizadosPapa(List<Offset> pts) {
+  if (pts.isEmpty) return true;
+  return pts.every(
+    (p) => p.dx >= -0.08 && p.dx <= 1.08 && p.dy >= -0.08 && p.dy <= 1.08,
+  );
+}
+
+/// Puntos del trazo en píxeles de [hoja] ( Tolera legacy absoluto + [origenLegacy] ).
+List<Offset> puntosTrazoEnHojaPapa(
+  TrazoPapa t,
+  Size hoja, {
+  Size? origenLegacy,
+}) {
+  if (puntosParecenNormalizadosPapa(t.puntos)) {
+    return desnormalizarPuntosPapa(t.puntos, hoja);
+  }
+  if (origenLegacy != null &&
+      origenLegacy.width > 1e-6 &&
+      origenLegacy.height > 1e-6) {
+    final sx = hoja.width / origenLegacy.width;
+    final sy = hoja.height / origenLegacy.height;
+    return [for (final p in t.puntos) Offset(p.dx * sx, p.dy * sy)];
+  }
+  return t.puntos;
 }
 
 class PartidaPapa {
@@ -352,10 +394,11 @@ bool chocaConTrazosPapa(
   List<TrazoPapa> trazos,
   Offset a,
   Offset b, {
+  required Size boardSize,
   double umbral = 7.0,
 }) {
   for (final t in trazos) {
-    final pts = t.puntos;
+    final pts = puntosTrazoEnHojaPapa(t, boardSize);
     for (var i = 1; i < pts.length; i++) {
       if (_segmentosCercanos(a, b, pts[i - 1], pts[i], umbral)) return true;
     }
@@ -363,9 +406,14 @@ bool chocaConTrazosPapa(
   return false;
 }
 
-bool _puntoCercaDeTrazos(Offset p, List<TrazoPapa> trazos, double umbral) {
+bool _puntoCercaDeTrazos(
+  Offset p,
+  List<TrazoPapa> trazos,
+  double umbral, {
+  required Size boardSize,
+}) {
   for (final t in trazos) {
-    final pts = t.puntos;
+    final pts = puntosTrazoEnHojaPapa(t, boardSize);
     for (var i = 1; i < pts.length; i++) {
       if (_distPuntoSegmento(p, pts[i - 1], pts[i]) <= umbral) return true;
     }
@@ -420,7 +468,7 @@ bool trazoChocaConPreviosPapa(
 
   final segsPrev = <(Offset, Offset, double)>[];
   for (final t in p.trazos) {
-    final pts = t.puntos;
+    final pts = puntosTrazoEnHojaPapa(t, boardSize);
     final umbral = math.max(
       2.0,
       grosorActual.radioChoque + t.grosor.radioChoque,
@@ -547,7 +595,7 @@ bool puntaSobreTintaPreviaPapa(
       2.0,
       grosorActual.radioChoque + t.grosor.radioChoque,
     );
-    final pts = t.puntos;
+    final pts = puntosTrazoEnHojaPapa(t, boardSize);
     for (var i = 1; i < pts.length; i++) {
       if (_distPuntoSegmento(pos, pts[i - 1], pts[i]) <= umbral) return true;
     }
@@ -759,13 +807,19 @@ bool llegadaPorLadoBloqueadoPapa(
   final entrada = puntoEntradaAlCirculoPapa(trazoActual, c, radio);
   if (entrada == null) return false;
 
-  return _puntoCercaDeTrazos(entrada, p.trazos, _umbralTintaPapa(p, cell));
+  return _puntoCercaDeTrazos(
+    entrada,
+    p.trazos,
+    _umbralTintaPapa(p, cell),
+    boardSize: boardSize,
+  );
 }
 
 /// Acepta el trazo si une el par actual y no chocó.
 void aceptarTrazoPapa(
   PartidaPapa p,
   List<Offset> puntos, {
+  required Size boardSize,
   GrosorTrazoPapa grosor = GrosorTrazoPapa.normal,
 }) {
   if (p.terminada || p.fase != FasePapa.jugando || puntos.length < 2) return;
@@ -773,7 +827,7 @@ void aceptarTrazoPapa(
   final a = de + 1;
   p.trazos.add(
     TrazoPapa(
-      puntos: List<Offset>.from(puntos),
+      puntos: normalizarPuntosPapa(puntos, boardSize),
       de: de,
       a: a,
       jugador: p.jugadorActual,
@@ -847,6 +901,7 @@ bool registrarFalloPapa(PartidaPapa p, {String? motivo}) {
 }
 
 /// Reescala trazos guardados en píxeles cuando cambia el tamaño de la hoja.
+/// Reescala trazos legacy en píxeles. Los normalizados (0..1) no cambian.
 void reescalarTrazosPapa(PartidaPapa p, Size desde, Size hacia) {
   if (desde.width < 1e-6 ||
       desde.height < 1e-6 ||
@@ -859,6 +914,7 @@ void reescalarTrazosPapa(PartidaPapa p, Size desde, Size hacia) {
   final sy = hacia.height / desde.height;
   for (var i = 0; i < p.trazos.length; i++) {
     final t = p.trazos[i];
+    if (puntosParecenNormalizadosPapa(t.puntos)) continue;
     p.trazos[i] = TrazoPapa(
       puntos: [
         for (final o in t.puntos) Offset(o.dx * sx, o.dy * sy),
@@ -877,7 +933,8 @@ List<Offset> reescalarPuntosPapa(List<Offset> pts, Size desde, Size hacia) {
       desde.height < 1e-6 ||
       hacia.width < 1e-6 ||
       hacia.height < 1e-6 ||
-      desde == hacia) {
+      desde == hacia ||
+      puntosParecenNormalizadosPapa(pts)) {
     return pts;
   }
   final sx = hacia.width / desde.width;

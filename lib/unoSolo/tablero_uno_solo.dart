@@ -25,7 +25,7 @@ class TableroUnoSolo extends StatelessWidget {
   final Set<int> destinos;
   final Set<int> medios;
   final ValueChanged<int>? onTap;
-  /// Casilla → texto del orden (p. ej. "3" o "3·18").
+  /// Casilla → texto del orden (p. ej. "3").
   final Map<int, String>? ordenEliminacion;
   /// Si true, muestra el orden en vacías y ocupadas (repaso tras la partida).
   /// Si false, solo sobre fichas (modo dios / tutorial).
@@ -169,10 +169,10 @@ class TableroUnoSolo extends StatelessWidget {
                 ),
                 child: Text(
                   nGuia,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.acento,
                     fontWeight: FontWeight.w900,
-                    fontSize: nGuia.length > 3 ? 8 : 10,
+                    fontSize: 11,
                     height: 1.1,
                   ),
                 ),
