@@ -5,7 +5,7 @@ import 'dart:math' as math;
 
 enum PaloCuloSucioV2 { oro, copa, espada, basto }
 
-enum FaseCuloSucioV2 { jugando, terminada }
+enum FaseCuloSucioV2 { descartandoPares, jugando, terminada }
 
 class CartaCuloSucioV2 {
   const CartaCuloSucioV2({required this.numero, required this.palo});
@@ -46,6 +46,8 @@ class JugadorCuloSucioV2 {
   final List<CartaCuloSucioV2> mano = [];
   /// Pares descartados (cartas sueltas, de a pares).
   final List<CartaCuloSucioV2> descartes = [];
+  /// Ya terminó de sacar pares al inicio.
+  bool paresInicialesListos = false;
 
   bool get sinCartas => mano.isEmpty;
 }
@@ -54,7 +56,7 @@ class PartidaCuloSucioV2 {
   PartidaCuloSucioV2({
     required this.jugadores,
     this.indiceTurno = 0,
-    this.fase = FaseCuloSucioV2.jugando,
+    this.fase = FaseCuloSucioV2.descartandoPares,
     this.perdedor,
     this.ganador,
     this.mensajeFin,
@@ -75,6 +77,8 @@ class PartidaCuloSucioV2 {
   List<CartaCuloSucioV2>? ultimoPar;
 
   bool get terminada => fase == FaseCuloSucioV2.terminada;
+  bool get descartandoPares => fase == FaseCuloSucioV2.descartandoPares;
+  bool get enJuego => fase == FaseCuloSucioV2.jugando;
 
   JugadorCuloSucioV2 get jugadorActual =>
       jugadores[indiceTurno % jugadores.length];
@@ -102,8 +106,15 @@ List<CartaCuloSucioV2> crearMazoCuloSucioV2([math.Random? rng]) {
   return mazo;
 }
 
+bool manoTieneParCuloSucioV2(List<CartaCuloSucioV2> mano) {
+  final vistos = <int>{};
+  for (final c in mano) {
+    if (!vistos.add(c.numero)) return true;
+  }
+  return false;
+}
+
 /// Descarta de [mano] todos los pares posibles (mismo número, distinto palo).
-/// Devuelve las cartas descartadas (ordenadas de a pares).
 List<CartaCuloSucioV2> descartarParesDeMano(List<CartaCuloSucioV2> mano) {
   final porNumero = <int, List<CartaCuloSucioV2>>{};
   for (final c in mano) {
@@ -126,7 +137,7 @@ List<CartaCuloSucioV2> descartarParesDeMano(List<CartaCuloSucioV2> mano) {
 }
 
 void _chequearFin(PartidaCuloSucioV2 p) {
-  if (p.terminada) return;
+  if (p.terminada || p.descartandoPares) return;
   final activos = [
     for (final j in p.jugadores)
       if (!j.sinCartas) j,
@@ -157,7 +168,6 @@ void _avanzarTurno(PartidaCuloSucioV2 p) {
     if (!p.jugadorActual.sinCartas && !p.rivalActual.sinCartas) {
       return;
     }
-    // Si el actual tiene cartas pero el “rival” no, igual hay fin.
     if (!p.jugadorActual.sinCartas) {
       final activos = p.jugadores.where((j) => !j.sinCartas).length;
       if (activos <= 1) {
@@ -167,6 +177,50 @@ void _avanzarTurno(PartidaCuloSucioV2 p) {
     }
   }
   _chequearFin(p);
+}
+
+void _iniciarFaseJuego(PartidaCuloSucioV2 p) {
+  p.fase = FaseCuloSucioV2.jugando;
+  var maxMano = -1;
+  var idxInicio = 0;
+  for (var k = 0; k < p.jugadores.length; k++) {
+    if (p.jugadores[k].mano.length > maxMano) {
+      maxMano = p.jugadores[k].mano.length;
+      idxInicio = k;
+    }
+  }
+  p.indiceTurno = idxInicio;
+  _chequearFin(p);
+}
+
+/// Avanza al siguiente que deba sacar pares, o arranca el juego.
+void _siguienteTrasParesIniciales(PartidaCuloSucioV2 p) {
+  final pendientes = [
+    for (final j in p.jugadores)
+      if (!j.paresInicialesListos) j,
+  ];
+  if (pendientes.isEmpty) {
+    _iniciarFaseJuego(p);
+    return;
+  }
+  // Preferir humanos antes que PC en vs PC.
+  JugadorCuloSucioV2? humano;
+  for (final j in pendientes) {
+    if (j.nombre != 'PC') {
+      humano = j;
+      break;
+    }
+  }
+  final siguiente = humano ?? pendientes.first;
+  p.indiceTurno = p.jugadores.indexOf(siguiente);
+
+  // Si es la PC, descarta sola y sigue.
+  if (siguiente.nombre == 'PC' && p.contraPc) {
+    siguiente.descartes.addAll(descartarParesDeMano(siguiente.mano));
+    siguiente.paresInicialesListos = true;
+    p.ultimoPar = null;
+    _siguienteTrasParesIniciales(p);
+  }
 }
 
 PartidaCuloSucioV2 nuevaPartidaCuloSucioV2({
@@ -180,34 +234,112 @@ PartidaCuloSucioV2 nuevaPartidaCuloSucioV2({
   while (lista.length < 2) {
     lista.add('Jugador ${lista.length + 1}');
   }
+  // Por ahora el UI está pensado para 2; si hay más nombres, todos juegan
+  // y el culo sucio se reparte con la misma chance para cada uno.
   final jugadores = [
-    for (final n in lista.take(2)) JugadorCuloSucioV2(n),
+    for (final n in lista) JugadorCuloSucioV2(n),
   ];
-  final mazo = crearMazoCuloSucioV2(rng);
+  final r = rng ?? math.Random();
+  final mazo = crearMazoCuloSucioV2(r);
+
+  // Separar el 1 de oro y asignarlo con probabilidad 1/N a cada jugador.
+  final idxCulo = mazo.indexWhere((c) => c.esCuloSucio);
+  assert(idxCulo >= 0, 'El mazo debe incluir el 1 de oro');
+  final culoSucio = mazo.removeAt(idxCulo);
+
   var i = 0;
   while (mazo.isNotEmpty) {
     jugadores[i % jugadores.length].mano.add(mazo.removeLast());
     i++;
   }
+
+  final duenoCulo = r.nextInt(jugadores.length);
+  jugadores[duenoCulo].mano.add(culoSucio);
   for (final j in jugadores) {
-    j.descartes.addAll(descartarParesDeMano(j.mano));
+    j.mano.shuffle(r);
   }
+
   final p = PartidaCuloSucioV2(
     jugadores: jugadores,
     contraPc: contraPc,
+    fase: FaseCuloSucioV2.descartandoPares,
   );
-  // Empieza el que tiene más cartas (o el índice 0 si empatan).
-  var maxMano = -1;
-  var idxInicio = 0;
-  for (var k = 0; k < jugadores.length; k++) {
-    if (jugadores[k].mano.length > maxMano) {
-      maxMano = jugadores[k].mano.length;
-      idxInicio = k;
-    }
+  // Empieza a descartar pares el humano (vs PC) o el jugador 0.
+  if (contraPc) {
+    final idxHumano = jugadores.indexWhere((j) => j.nombre != 'PC');
+    p.indiceTurno = idxHumano >= 0 ? idxHumano : 0;
+  } else {
+    p.indiceTurno = 0;
   }
-  p.indiceTurno = idxInicio;
-  _chequearFin(p);
   return p;
+}
+
+/// Descarta un par elegido a mano (misma fase inicial o tras robar no aplica).
+String? descartarParManualCuloSucioV2(
+  PartidaCuloSucioV2 p, {
+  required JugadorCuloSucioV2 jugador,
+  required int indiceA,
+  required int indiceB,
+}) {
+  if (p.fase != FaseCuloSucioV2.descartandoPares) {
+    return 'Ahora no se descartan pares iniciales.';
+  }
+  if (!identical(jugador, p.jugadorActual)) {
+    return 'No es el turno de ${jugador.nombre} para sacar pares.';
+  }
+  if (indiceA == indiceB) return 'Elegí dos cartas distintas.';
+  if (indiceA < 0 ||
+      indiceB < 0 ||
+      indiceA >= jugador.mano.length ||
+      indiceB >= jugador.mano.length) {
+    return 'Carta inválida.';
+  }
+  final a = jugador.mano[indiceA];
+  final b = jugador.mano[indiceB];
+  if (a.numero != b.numero) {
+    return 'Las cartas deben tener el mismo número.';
+  }
+  final hi = indiceA > indiceB ? indiceA : indiceB;
+  final lo = indiceA > indiceB ? indiceB : indiceA;
+  final c1 = jugador.mano.removeAt(hi);
+  final c2 = jugador.mano.removeAt(lo);
+  jugador.descartes.addAll([c1, c2]);
+  p.ultimoPar = [c1, c2];
+  p.ultimaRobada = null;
+  return null;
+}
+
+/// Descarta de golpe todos los pares de la mano del jugador actual (fase inicial).
+String? descartarTodosParesInicialesCuloSucioV2(PartidaCuloSucioV2 p) {
+  if (p.fase != FaseCuloSucioV2.descartandoPares) {
+    return 'Ahora no se descartan pares iniciales.';
+  }
+  final j = p.jugadorActual;
+  final sacadas = descartarParesDeMano(j.mano);
+  if (sacadas.isEmpty) {
+    return 'No hay pares para eliminar.';
+  }
+  j.descartes.addAll(sacadas);
+  p.ultimoPar = [
+    sacadas[sacadas.length - 2],
+    sacadas[sacadas.length - 1],
+  ];
+  p.ultimaRobada = null;
+  return null;
+}
+
+/// El jugador actual confirma que ya no tiene más pares iniciales.
+String? confirmarParesInicialesListos(PartidaCuloSucioV2 p) {
+  if (p.fase != FaseCuloSucioV2.descartandoPares) {
+    return 'La fase de pares ya terminó.';
+  }
+  final j = p.jugadorActual;
+  if (manoTieneParCuloSucioV2(j.mano)) {
+    return 'Todavía tenés pares. Tocá dos cartas del mismo número.';
+  }
+  j.paresInicialesListos = true;
+  _siguienteTrasParesIniciales(p);
+  return null;
 }
 
 /// [hacia] roba la carta en [indiceEnManoDe] de [de].
@@ -218,6 +350,9 @@ String? robarCartaCuloSucioV2(
   required JugadorCuloSucioV2 hacia,
 }) {
   if (p.terminada) return 'La partida ya terminó.';
+  if (p.fase != FaseCuloSucioV2.jugando) {
+    return 'Primero descartá los pares de tu mano.';
+  }
   if (hacia != p.jugadorActual) return 'No es el turno de ${hacia.nombre}.';
   if (de.sinCartas) return '${de.nombre} no tiene cartas.';
   if (indiceEnManoDe < 0 || indiceEnManoDe >= de.mano.length) {
@@ -230,13 +365,11 @@ String? robarCartaCuloSucioV2(
   p.ultimaRobada = carta;
   p.ultimoPar = null;
 
-  // ¿Forma par con alguna otra del mismo número?
   final mismoNumero = [
     for (var i = 0; i < hacia.mano.length; i++)
       if (hacia.mano[i].numero == carta.numero) i,
   ];
   if (mismoNumero.length >= 2) {
-    // Empareja la robada con otra (no la misma instancia).
     final idxRobada = hacia.mano.indexOf(carta);
     final idxPar = mismoNumero.firstWhere(
       (i) => i != idxRobada,
@@ -263,6 +396,7 @@ String? robarCartaCuloSucioV2(
 /// Jugada simple de PC: roba un índice al azar de la mano del rival.
 void jugarTurnoPcCuloSucioV2(PartidaCuloSucioV2 p, [math.Random? rng]) {
   if (p.terminada || !p.contraPc) return;
+  if (p.fase != FaseCuloSucioV2.jugando) return;
   if (p.jugadorActual.nombre != 'PC') return;
   final de = p.rivalActual;
   if (de.sinCartas) {
