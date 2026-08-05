@@ -718,24 +718,74 @@ class JugadaPcEscoba {
   }
 }
 
+/// Puntúa una captura para la IA: prioriza oros (sobre todo el 7 de oro),
+/// escobas, sietes y cantidad de cartas.
+int _puntajeCapturaPc(
+  CartaEscoba jugada,
+  List<CartaEscoba> tomadas,
+  List<CartaEscoba> mesa,
+) {
+  var score = 0;
+
+  void sumarCarta(CartaEscoba c) {
+    if (c.esOro) {
+      score += 100;
+      if (c.numero == 7) score += 500; // 7 de oro vale un punto fijo.
+    }
+    if (c.numero == 7) score += 50;
+    // Cartas de oro “buenas” (no solo el 7).
+    if (c.esOro && c.numero != 7) score += 20;
+  }
+
+  for (final c in tomadas) {
+    sumarCarta(c);
+  }
+  // La carta jugada también va a capturadas.
+  sumarCarta(jugada);
+
+  // Escoba: limpia la mesa.
+  if (tomadas.length == mesa.length) score += 200;
+
+  // Preferir llevarse más cartas (ayuda a “más cartas”).
+  score += tomadas.length * 10;
+
+  return score;
+}
+
 /// Elige qué haría la PC sin modificar la partida.
 JugadaPcEscoba? planificarTurnoPcEscoba(PartidaEscoba p) {
   if (p.fase != FaseEscoba.jugando) return null;
   final j = p.jugadorActual;
   if (j.mano.isEmpty) return null;
 
-  for (final carta in List.of(j.mano)) {
+  JugadaPcEscoba? mejor;
+  var mejorScore = -1;
+
+  for (final carta in j.mano) {
     final caps = capturasPosiblesEscoba(carta, p.mesa);
-    if (caps.isNotEmpty) {
-      return JugadaPcEscoba(carta: carta, mesaElegida: List.of(caps.first));
+    for (final cap in caps) {
+      final score = _puntajeCapturaPc(carta, cap, p.mesa);
+      if (mejor == null || score > mejorScore) {
+        mejorScore = score;
+        mejor = JugadaPcEscoba(carta: carta, mesaElegida: List.of(cap));
+      }
     }
   }
+  if (mejor != null) return mejor;
+
+  // Sin captura: tira la de menor valor, evitando soltar oros si puede.
   final orden = List.of(j.mano)
-    ..sort((a, b) => a.valorSuma.compareTo(b.valorSuma));
+    ..sort((a, b) {
+      final porOro = (a.esOro ? 1 : 0).compareTo(b.esOro ? 1 : 0);
+      if (porOro != 0) return porOro;
+      final porSiete = (a.numero == 7 ? 1 : 0).compareTo(b.numero == 7 ? 1 : 0);
+      if (porSiete != 0) return porSiete;
+      return a.valorSuma.compareTo(b.valorSuma);
+    });
   return JugadaPcEscoba(carta: orden.first);
 }
 
-/// Jugada simple de PC: primera captura posible o tira la carta de menor valor.
+/// Jugada de PC: mejor captura (prioriza oros) o tira la carta menos valiosa.
 void jugarTurnoPcEscoba(PartidaEscoba p) {
   final jugada = planificarTurnoPcEscoba(p);
   if (jugada == null) return;

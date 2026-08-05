@@ -29,6 +29,13 @@ class ResumenRondaEscobaOverlay extends StatefulWidget {
 
 class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
   final Set<int> _expandidos = {};
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   Color _colorJugador(int i) => switch (i % 4) {
         0 => AppColors.mint,
@@ -90,7 +97,6 @@ class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
   Widget build(BuildContext context) {
     final maxH = MediaQuery.sizeOf(context).height * 0.88;
     final resultado = widget.resultado;
-    final hayExpandido = _expandidos.isNotEmpty;
 
     return Material(
       color: Colors.black.withValues(alpha: 0.78),
@@ -121,105 +127,103 @@ class _ResumenRondaEscobaOverlayState extends State<ResumenRondaEscobaOverlay> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(25.5),
                 child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  const Text('🌟', style: TextStyle(fontSize: 36)),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '¡FIN DE RONDA!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.acento,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 26,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'Tocá un jugador para ver sus estadísticas',
+                  children: [
+                    const SizedBox(height: 16),
+                    const Text('🌟', style: TextStyle(fontSize: 36)),
+                    const SizedBox(height: 4),
+                    const Text(
+                      '¡FIN DE RONDA!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.textoSuave,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
+                        color: AppColors.acento,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 26,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: ScrollConfiguration(
-                      behavior: ScrollConfiguration.of(context).copyWith(
-                        scrollbars: hayExpandido,
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'Tocá un jugador para ver sus estadísticas',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textoSuave,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
                       ),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.vertical,
-                        physics: hayExpandido
-                            ? const ClampingScrollPhysics()
-                            : const NeverScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (var i = 0;
-                                i < resultado.detalles.length;
-                                i++) ...[
-                              if (i > 0) const SizedBox(height: 10),
-                              _BotonJugadorExpandible(
-                                detalle: resultado.detalles[i],
-                                color: _colorJugador(i),
-                                puntosEstaRonda: _puntosEstaRonda(i),
-                                expandido: _expandidos.contains(i),
-                                onTap: () => setState(() {
-                                  if (!_expandidos.remove(i)) {
-                                    _expandidos.add(i);
-                                  }
-                                }),
-                                ganoMasCartas: resultado.idxMasCartas == i,
-                                ganoMasOros: resultado.idxMasOros == i,
-                                ganoSieteOro: resultado.idxSieteOro == i,
-                                ganoMasSietes: resultado.idxMasSietes == i,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Scrollbar(
+                        controller: _scrollController,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          scrollDirection: Axis.vertical,
+                          physics: const ClampingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (var i = 0;
+                                  i < resultado.detalles.length;
+                                  i++) ...[
+                                if (i > 0) const SizedBox(height: 10),
+                                _BotonJugadorExpandible(
+                                  detalle: resultado.detalles[i],
+                                  color: _colorJugador(i),
+                                  puntosEstaRonda: _puntosEstaRonda(i),
+                                  expandido: _expandidos.contains(i),
+                                  onTap: () => setState(() {
+                                    if (!_expandidos.remove(i)) {
+                                      _expandidos.add(i);
+                                    }
+                                  }),
+                                  ganoMasCartas: resultado.idxMasCartas == i,
+                                  ganoMasOros: resultado.idxMasOros == i,
+                                  ganoSieteOro: resultado.idxSieteOro == i,
+                                  ganoMasSietes: resultado.idxMasSietes == i,
+                                ),
+                              ],
+                              const SizedBox(height: 14),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(2, 2, 2, 10),
+                                child: _CartelPremiosRonda(
+                                  premios: _premiosDeLaRonda(),
+                                ),
                               ),
                             ],
-                            const SizedBox(height: 14),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(2, 2, 2, 10),
-                              child: _CartelPremiosRonda(
-                                premios: _premiosDeLaRonda(),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    child: Opacity(
-                      opacity: widget.continuarHabilitado ? 1 : 0.55,
-                      child: IgnorePointer(
-                        ignoring: !widget.continuarHabilitado,
-                        child: GlowButtonVictoria(
-                          label: widget.labelContinuar ??
-                              (widget.esFinPartida
-                                  ? 'VER GANADOR'
-                                  : 'SIGUIENTE RONDA'),
-                          icon: widget.esFinPartida &&
-                                  widget.labelContinuar == null
-                              ? Icons.emoji_events_rounded
-                              : Icons.play_arrow_rounded,
-                          color: widget.esFinPartida &&
-                                  widget.labelContinuar == null
-                              ? AppColors.acento
-                              : AppColors.mint,
-                          onPressed: widget.onContinuar,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                      child: Opacity(
+                        opacity: widget.continuarHabilitado ? 1 : 0.55,
+                        child: IgnorePointer(
+                          ignoring: !widget.continuarHabilitado,
+                          child: GlowButtonVictoria(
+                            label: widget.labelContinuar ??
+                                (widget.esFinPartida
+                                    ? 'VER GANADOR'
+                                    : 'SIGUIENTE RONDA'),
+                            icon: widget.esFinPartida &&
+                                    widget.labelContinuar == null
+                                ? Icons.emoji_events_rounded
+                                : Icons.play_arrow_rounded,
+                            color: widget.esFinPartida &&
+                                    widget.labelContinuar == null
+                                ? AppColors.acento
+                                : AppColors.mint,
+                            onPressed: widget.onContinuar,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -429,49 +433,6 @@ class _BotonJugadorExpandible extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Divider(color: AppColors.textoSuave, height: 1),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: onTap,
-                                borderRadius: BorderRadius.circular(999),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.28),
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: color.withValues(alpha: 0.7),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.arrow_back_rounded,
-                                        color: color,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Volver',
-                                        style: TextStyle(
-                                          color: color,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
                           const SizedBox(height: 10),
                           _MiniStat(
                             icon: Icons.auto_awesome_rounded,
