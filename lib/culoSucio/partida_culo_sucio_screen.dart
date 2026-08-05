@@ -12,6 +12,7 @@ import 'package:app_juegos_mesa/culoSucio/textos.dart';
 import 'package:app_juegos_mesa/culoSucio/victoria_culo_sucio_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/shared/cartas/icono_espada.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
@@ -348,6 +349,21 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     };
   }
 
+  Widget _widgetIconoPalo(
+    PaloCuloSucio? palo, {
+    required bool comodin,
+    required double size,
+    required Color color,
+  }) {
+    if (comodin) {
+      return Icon(Icons.star_rounded, size: size, color: color);
+    }
+    if (palo == PaloCuloSucio.espada) {
+      return IconoEspadaOutlined(size: size, color: color);
+    }
+    return Icon(_iconoPalo(palo, comodin: false), size: size, color: color);
+  }
+
   @override
   Widget build(BuildContext context) {
     final carta = _partida.ultimaCarta;
@@ -509,9 +525,11 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                             etiqueta: carta.etiqueta,
                             esCuloSucio: carta.esCuloSucio,
                             color: _colorPalo(carta.palo),
-                            icono: _iconoPalo(
+                            icono: _widgetIconoPalo(
                               carta.palo,
                               comodin: carta.esComodin,
+                              size: 56,
+                              color: _colorPalo(carta.palo),
                             ),
                           ),
                         ],
@@ -759,7 +777,7 @@ class _CartaVista extends StatelessWidget {
   final String etiqueta;
   final bool esCuloSucio;
   final Color color;
-  final IconData icono;
+  final Widget icono;
 
   @override
   Widget build(BuildContext context) {
@@ -793,7 +811,7 @@ class _CartaVista extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icono, size: 56, color: color),
+          icono,
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),

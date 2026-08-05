@@ -4,6 +4,7 @@ import 'package:app_juegos_mesa/culoSucioV2/motor_culo_sucio_v2.dart';
 import 'package:app_juegos_mesa/culoSucioV2/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucioV2/textos.dart';
 import 'package:app_juegos_mesa/culoSucioV2/victoria_culo_sucio_v2_overlay.dart';
+import 'package:app_juegos_mesa/shared/cartas/icono_espada.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -1113,11 +1114,16 @@ class _CartaSkinV2 extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icono,
-              size: compacta ? 14 : 26,
-              color: color,
-            ),
+            carta.palo == PaloCuloSucioV2.espada
+                ? IconoEspadaOutlined(
+                    size: compacta ? 14 : 26,
+                    color: color,
+                  )
+                : Icon(
+                    icono,
+                    size: compacta ? 14 : 26,
+                    color: color,
+                  ),
             SizedBox(height: compacta ? 2 : 6),
             Text(
               compacta ? '${carta.numero}' : carta.etiqueta,
