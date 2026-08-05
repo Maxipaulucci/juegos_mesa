@@ -9,6 +9,7 @@ import '../shared/carga/pantalla_carga.dart';
 import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
 import '../culoSucio/menu_culo_sucio_screen.dart';
+import '../culoSucioV2/menu_culo_sucio_v2_screen.dart';
 import '../unoSolo/menu_uno_solo_screen.dart';
 
 enum _CategoriaHome {
@@ -123,14 +124,13 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
     ),
-    // Culo sucio v2 arriba de v1 (más llamativo; juego aún próximamente).
+    // Culo sucio v2 arriba de v1.
     _JuegoHome(
       tipo: _TipoJuegoHome.culoSucioV2,
       titulo: 'Culo sucio v2',
-      subtitulo: 'Próximamente · la versión picante',
+      subtitulo: 'Cartas · pares y el 1 de oro',
       accent: AppColors.acentoSuave,
       categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
       destacadoFuego: true,
     ),
     _JuegoHome(
@@ -324,6 +324,11 @@ class _HomeScreenState extends State<HomeScreen>
               mensaje: 'Culo sucio v1',
             );
       case _TipoJuegoHome.culoSucioV2:
+        return () => _abrirJuego(
+              menu: const MenuCuloSucioV2Screen(),
+              acento: AppColors.acentoSuave,
+              mensaje: 'Culo sucio v2',
+            );
       case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.casitaRobada:
       case _TipoJuegoHome.chanchoVa:
