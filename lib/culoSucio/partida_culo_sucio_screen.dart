@@ -4,6 +4,7 @@ import 'package:app_juegos_mesa/culoSucio/historial_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/modo_dios_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/motor_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/opciones_culo_sucio.dart';
+import 'package:app_juegos_mesa/culoSucio/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucio/textos.dart';
 import 'package:app_juegos_mesa/culoSucio/victoria_culo_sucio_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
@@ -18,12 +19,14 @@ class PartidaCuloSucioScreen extends StatefulWidget {
     this.contraPc = false,
     this.modoDios = false,
     this.opciones = const OpcionesCuloSucio(),
+    this.resume,
   });
 
   final List<String> nombres;
   final bool contraPc;
   final bool modoDios;
   final OpcionesCuloSucio opciones;
+  final PartidaCuloSucioResume? resume;
 
   @override
   State<PartidaCuloSucioScreen> createState() => _PartidaCuloSucioScreenState();
@@ -40,11 +43,16 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   @override
   void initState() {
     super.initState();
-    _partida = nuevaPartidaCuloSucio(
-      nombres: widget.nombres,
-      contraPc: widget.contraPc,
-      incluirComodines: widget.opciones.comodines,
-    );
+    final resume = widget.resume;
+    if (resume != null) {
+      _partida = resume.partida;
+    } else {
+      _partida = nuevaPartidaCuloSucio(
+        nombres: widget.nombres,
+        contraPc: widget.contraPc,
+        incluirComodines: widget.opciones.comodines,
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
   }
 
@@ -58,6 +66,34 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
       _partida.ganador != null &&
       _partida.perdedor != null &&
       _partida.ganador != TextosCuloSucio.vsPcNombre;
+
+  void _guardarResumeSiCorresponde() {
+    if (!widget.contraPc) return;
+    if (_partida.terminada) {
+      CuloSucioStandByStore.limpiar();
+      return;
+    }
+    CuloSucioStandByStore.guardar(
+      PartidaCuloSucioResume(
+        partida: _partida,
+        nombres: widget.nombres,
+        opciones: widget.opciones,
+        modoDios: widget.modoDios,
+      ),
+    );
+  }
+
+  void _salirAlMenu({required bool guardar}) {
+    _pcToken++;
+    if (guardar) {
+      _guardarResumeSiCorresponde();
+    } else {
+      CuloSucioStandByStore.limpiar();
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
 
   Future<void> _talVezTurnoPc() async {
     if (!_esTurnoPc || _sacando || _editandoMazo) return;
@@ -103,6 +139,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
 
   void _reiniciar() {
     _pcToken++;
+    CuloSucioStandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaCuloSucio(
         nombres: widget.nombres,
@@ -144,7 +181,14 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     final puedeSacar =
         !_partida.terminada && !_esTurnoPc && !_sacando && !_editandoMazo;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Vs PC sin terminar: guarda en memoria. Terminada o local: no resume.
+        _salirAlMenu(guardar: widget.contraPc && !_partida.terminada);
+      },
+      child: Scaffold(
       backgroundColor: AppColors.fondo,
       body: Stack(
         children: [
@@ -157,7 +201,9 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
+                        onPressed: () => _salirAlMenu(
+                          guardar: widget.contraPc && !_partida.terminada,
+                        ),
                         icon: const Icon(Icons.arrow_back_rounded),
                         color: AppColors.texto,
                       ),
@@ -368,7 +414,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                   ? VictoriaCuloSucioOverlay(
                       partida: _partida,
                       onVolverAJugar: _reiniciar,
-                      onVolver: () => Navigator.of(context).maybePop(),
+                      onVolver: () => _salirAlMenu(guardar: false),
                     )
                   : _OverlayFin(
                       partida: _partida,
@@ -377,11 +423,12 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                       perdedor: _partida.perdedor,
                       ganador: _partida.ganador,
                       onOtraVez: _reiniciar,
-                      onVolver: () => Navigator.of(context).maybePop(),
+                      onVolver: () => _salirAlMenu(guardar: false),
                     ),
             ),
         ],
       ),
+    ),
     );
   }
 }

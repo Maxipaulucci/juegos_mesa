@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/culoSucio/opciones_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/partida_culo_sucio_screen.dart';
+import 'package:app_juegos_mesa/culoSucio/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucio/textos.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -33,7 +34,9 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
           info:
               'Activado: el mazo lleva 50 cartas (48 + 2 comodines).\n\n'
               'Desactivado: mazo de 48 cartas, sin comodines.\n\n'
-              'Viene desactivado por defecto.',
+              'Viene desactivado por defecto.\n\n'
+              'Si cambiás esta opción, se descarta una partida vs PC '
+              'guardada en memoria.',
         );
       },
     );
@@ -47,18 +50,20 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
     required List<String> nombres,
     bool contraPc = false,
     bool modoDios = false,
+    PartidaCuloSucioResume? resume,
     bool replace = false,
   }) {
     return navegarConCarga<void>(
       ctx,
       replace: replace,
-      mensaje: 'Barajando el mazo',
+      mensaje: resume != null ? 'Reanudando partida' : 'Barajando el mazo',
       acento: AppColors.peligro,
       builder: (_) => PartidaCuloSucioScreen(
-        nombres: nombres,
+        nombres: resume?.nombres ?? nombres,
         contraPc: contraPc,
-        modoDios: contraPc && modoDios,
-        opciones: _opciones,
+        modoDios: contraPc && (resume?.modoDios ?? modoDios),
+        opciones: resume?.opciones ?? _opciones,
+        resume: resume,
       ),
     );
   }
@@ -78,14 +83,17 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
         await _abrir(ctx: ctx, nombres: estado.nombres);
       },
       onVsPc: (ctx, estado, _) {
-        final nombres = estado.nombres.length >= 2
-            ? [estado.nombres.first, TextosCuloSucio.vsPcNombre]
-            : const ['Jugador 1', TextosCuloSucio.vsPcNombre];
+        final resume = CuloSucioStandByStore.consumirSiCoincide(_opciones);
+        final nombres = resume?.nombres ??
+            (estado.nombres.length >= 2
+                ? [estado.nombres.first, TextosCuloSucio.vsPcNombre]
+                : const ['Jugador 1', TextosCuloSucio.vsPcNombre]);
         _abrir(
           ctx: ctx,
           nombres: nombres,
           contraPc: true,
-          modoDios: estado.modoDios,
+          modoDios: resume?.modoDios ?? estado.modoDios,
+          resume: resume,
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {
