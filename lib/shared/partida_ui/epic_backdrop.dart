@@ -6,25 +6,33 @@ import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Fondo épico: rayos láser diagonales + destellos + resplandor central.
 class EpicBackdrop extends StatelessWidget {
-  const EpicBackdrop({super.key});
+  const EpicBackdrop({
+    super.key,
+    /// Fracción vertical del origen de los rayos (0 = arriba, 1 = abajo).
+    this.centerY = 0.30,
+  });
+
+  final double centerY;
 
   @override
   Widget build(BuildContext context) {
+    // Alignment.y: -1 arriba, 1 abajo → misma posición que [centerY].
+    final alignmentY = (centerY * 2) - 1;
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
-          center: Alignment(0, -0.25),
+          center: Alignment(0, alignmentY),
           radius: 1.25,
-          colors: [
+          colors: const [
             Color(0xFF321A5E),
             Color(0xFF1B0D38),
             Color(0xFF0A0418),
           ],
-          stops: [0.0, 0.5, 1.0],
+          stops: const [0.0, 0.5, 1.0],
         ),
       ),
       child: CustomPaint(
-        painter: LasersPainter(),
+        painter: LasersPainter(centerY: centerY),
         size: Size.infinite,
       ),
     );
@@ -32,6 +40,10 @@ class EpicBackdrop extends StatelessWidget {
 }
 
 class LasersPainter extends CustomPainter {
+  LasersPainter({this.centerY = 0.30});
+
+  final double centerY;
+
   static const _colores = [
     AppColors.acento,
     AppColors.azul,
@@ -42,7 +54,7 @@ class LasersPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final centro = Offset(size.width / 2, size.height * 0.30);
+    final centro = Offset(size.width / 2, size.height * centerY);
     final rng = math.Random(11);
 
     // Rayos láser que salen del centro hacia afuera (siempre más allá del borde).
@@ -96,5 +108,6 @@ class LasersPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant LasersPainter oldDelegate) =>
+      oldDelegate.centerY != centerY;
 }

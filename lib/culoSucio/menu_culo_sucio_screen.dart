@@ -1,19 +1,52 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/culoSucio/opciones_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/partida_culo_sucio_screen.dart';
 import 'package:app_juegos_mesa/culoSucio/textos.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Culo sucio v1 (local / vs PC; online próximamente).
-class MenuCuloSucioScreen extends StatelessWidget {
+class MenuCuloSucioScreen extends StatefulWidget {
   const MenuCuloSucioScreen({super.key});
+
+  @override
+  State<MenuCuloSucioScreen> createState() => _MenuCuloSucioScreenState();
+}
+
+class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
+  OpcionesCuloSucio _opciones = const OpcionesCuloSucio();
+
+  Future<void> _abrirCartelModificar() async {
+    var draft = _opciones;
+    final ok = await mostrarCartelModificarPartida(
+      context: context,
+      buildOpciones: (dialogContext, setDialogState) {
+        return FilaToggleModificarPartida(
+          titulo: 'Comodines',
+          activo: draft.comodines,
+          onChanged: (v) => setDialogState(
+            () => draft = draft.copyWith(comodines: v),
+          ),
+          info:
+              'Activado: el mazo lleva 50 cartas (48 + 2 comodines).\n\n'
+              'Desactivado: mazo de 48 cartas, sin comodines.\n\n'
+              'Viene desactivado por defecto.',
+        );
+      },
+    );
+    if (ok && mounted) {
+      setState(() => _opciones = draft);
+    }
+  }
 
   Future<void> _abrir({
     required BuildContext ctx,
     required List<String> nombres,
     bool contraPc = false,
+    bool modoDios = false,
     bool replace = false,
   }) {
     return navegarConCarga<void>(
@@ -24,6 +57,8 @@ class MenuCuloSucioScreen extends StatelessWidget {
       builder: (_) => PartidaCuloSucioScreen(
         nombres: nombres,
         contraPc: contraPc,
+        modoDios: contraPc && modoDios,
+        opciones: _opciones,
       ),
     );
   }
@@ -35,6 +70,10 @@ class MenuCuloSucioScreen extends StatelessWidget {
       juegoId: MenuJuegoScreen.juegoIdCuloSucioV1,
       modosDados: const [1],
       mostrarDificultad: false,
+      textoInfoModoDios: TextosCuloSucio.infoModoDios,
+      extraTrasModoLocal: BotonModificarPartida(
+        onPressed: _abrirCartelModificar,
+      ),
       onPartidaRapida: (ctx, estado, _) async {
         await _abrir(ctx: ctx, nombres: estado.nombres);
       },
@@ -42,7 +81,12 @@ class MenuCuloSucioScreen extends StatelessWidget {
         final nombres = estado.nombres.length >= 2
             ? [estado.nombres.first, TextosCuloSucio.vsPcNombre]
             : const ['Jugador 1', TextosCuloSucio.vsPcNombre];
-        _abrir(ctx: ctx, nombres: nombres, contraPc: true);
+        _abrir(
+          ctx: ctx,
+          nombres: nombres,
+          contraPc: true,
+          modoDios: estado.modoDios,
+        );
       },
       onIniciarDesdeSala: (ctx, inicio) {
         ScaffoldMessenger.of(ctx).showSnackBar(

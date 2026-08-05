@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/culoSucio/historial_culo_sucio.dart';
+import 'package:app_juegos_mesa/culoSucio/modo_dios_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/motor_culo_sucio.dart';
+import 'package:app_juegos_mesa/culoSucio/opciones_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/textos.dart';
+import 'package:app_juegos_mesa/culoSucio/victoria_culo_sucio_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
+import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
 
 /// Partida local de Culo sucio v1.
 class PartidaCuloSucioScreen extends StatefulWidget {
@@ -11,10 +16,14 @@ class PartidaCuloSucioScreen extends StatefulWidget {
     super.key,
     required this.nombres,
     this.contraPc = false,
+    this.modoDios = false,
+    this.opciones = const OpcionesCuloSucio(),
   });
 
   final List<String> nombres;
   final bool contraPc;
+  final bool modoDios;
+  final OpcionesCuloSucio opciones;
 
   @override
   State<PartidaCuloSucioScreen> createState() => _PartidaCuloSucioScreenState();
@@ -23,6 +32,10 @@ class PartidaCuloSucioScreen extends StatefulWidget {
 class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   late PartidaCuloSucio _partida;
   bool _sacando = false;
+  bool _editandoMazo = false;
+  int _pcToken = 0;
+
+  bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
 
   @override
   void initState() {
@@ -30,6 +43,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     _partida = nuevaPartidaCuloSucio(
       nombres: widget.nombres,
       contraPc: widget.contraPc,
+      incluirComodines: widget.opciones.comodines,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
   }
@@ -39,15 +53,24 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
       !_partida.terminada &&
       _partida.jugadorActual == TextosCuloSucio.vsPcNombre;
 
+  /// Victoria con confeti si alguien ganó y no es la PC (p. ej. la PC sacó el 1 de oro).
+  bool get _debeMostrarVictoria =>
+      _partida.ganador != null &&
+      _partida.perdedor != null &&
+      _partida.ganador != TextosCuloSucio.vsPcNombre;
+
   Future<void> _talVezTurnoPc() async {
-    if (!_esTurnoPc || _sacando) return;
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted || !_esTurnoPc) return;
+    if (!_esTurnoPc || _sacando || _editandoMazo) return;
+    final token = ++_pcToken;
+    final espera = _modoDiosActivo ? 2200 : 700;
+    await Future<void>.delayed(Duration(milliseconds: espera));
+    if (!mounted || token != _pcToken) return;
+    if (!_esTurnoPc || _sacando || _editandoMazo) return;
     await _sacar();
   }
 
   Future<void> _sacar() async {
-    if (_partida.terminada || _sacando) return;
+    if (_partida.terminada || _sacando || _editandoMazo) return;
     setState(() => _sacando = true);
     sacarCartaCuloSucio(_partida);
     if (!mounted) return;
@@ -58,13 +81,36 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     }
   }
 
+  Future<void> _abrirEditarMazo() async {
+    if (!_modoDiosActivo || _partida.terminada || _partida.mazo.isEmpty) {
+      return;
+    }
+    _pcToken++; // cancela el auto-turno de la PC mientras editás
+    setState(() => _editandoMazo = true);
+    final nuevo = await mostrarEditarMazoCuloSucio(
+      context: context,
+      ordenDesdeProxima: ordenSalidaMazoCuloSucio(_partida),
+    );
+    if (!mounted) return;
+    setState(() {
+      _editandoMazo = false;
+      if (nuevo != null) {
+        forzarMazoCuloSucio(_partida, nuevo);
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
+  }
+
   void _reiniciar() {
+    _pcToken++;
     setState(() {
       _partida = nuevaPartidaCuloSucio(
         nombres: widget.nombres,
         contraPc: widget.contraPc,
+        incluirComodines: widget.opciones.comodines,
       );
       _sacando = false;
+      _editandoMazo = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
   }
@@ -93,14 +139,16 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   @override
   Widget build(BuildContext context) {
     final carta = _partida.ultimaCarta;
+    final proxima =
+        _modoDiosActivo ? proximaCartaCuloSucio(_partida) : null;
     final puedeSacar =
-        !_partida.terminada && !_esTurnoPc && !_sacando;
+        !_partida.terminada && !_esTurnoPc && !_sacando && !_editandoMazo;
 
     return Scaffold(
       backgroundColor: AppColors.fondo,
       body: Stack(
         children: [
-          const Positioned.fill(child: EpicBackdrop()),
+          const Positioned.fill(child: EpicBackdrop(centerY: 0.52)),
           SafeArea(
             child: Column(
               children: [
@@ -113,8 +161,8 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                         icon: const Icon(Icons.arrow_back_rounded),
                         color: AppColors.texto,
                       ),
-                      Expanded(
-                        child: const Text(
+                      const Expanded(
+                        child: Text(
                           TextosCuloSucio.titulo,
                           textAlign: TextAlign.center,
                           style: TextStyle(
@@ -128,12 +176,14 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                     ],
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    TextosCuloSucio.reglaCorta,
+                    TextosCuloSucio.reglaConOpciones(
+                      comodines: widget.opciones.comodines,
+                    ),
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.textoSuave,
                       fontSize: 13,
                       height: 1.35,
@@ -161,32 +211,118 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  '${TextosCuloSucio.cartasRestantes}: ${_partida.cartasRestantes}',
-                  style: const TextStyle(
-                    color: AppColors.textoSuave,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${TextosCuloSucio.cartasRestantes}: ${_partida.cartasRestantes}',
+                      style: const TextStyle(
+                        color: AppColors.textoSuave,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (_modoDiosActivo && proxima != null) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.carta.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: proxima.esCuloSucio
+                                ? AppColors.peligro
+                                : AppColors.acento,
+                          ),
+                        ),
+                        child: Text(
+                          'Próxima: ${proxima.etiqueta}',
+                          style: TextStyle(
+                            color: proxima.esCuloSucio
+                                ? AppColors.peligro
+                                : AppColors.acento,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const Spacer(),
-                if (carta == null)
-                  const Text(
-                    'Tocá “Sacar carta” para empezar',
-                    style: TextStyle(
-                      color: AppColors.textoSuave,
-                      fontSize: 15,
-                    ),
-                  )
-                else
-                  _CartaVista(
-                    etiqueta: carta.etiqueta,
-                    esCuloSucio: carta.esCuloSucio,
-                    color: _colorPalo(carta.palo),
-                    icono: _iconoPalo(
-                      carta.palo,
-                      comodin: carta.esComodin,
-                    ),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Compensa el botón a la derecha para que el mazo quede centrado.
+                    SizedBox(width: _modoDiosActivo ? 52 : 0),
+                    if (carta == null)
+                      const _CartaTapada()
+                    else
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (carta.esComodin) ...[
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: Text(
+                                'Esto no deberia estar aqui.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.acento,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          ],
+                          _CartaVista(
+                            etiqueta: carta.etiqueta,
+                            esCuloSucio: carta.esCuloSucio,
+                            color: _colorPalo(carta.palo),
+                            icono: _iconoPalo(
+                              carta.palo,
+                              comodin: carta.esComodin,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (_modoDiosActivo) ...[
+                      const SizedBox(width: 12),
+                      Material(
+                        color: AppColors.carta,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: (_partida.terminada ||
+                                  _partida.mazo.isEmpty ||
+                                  _sacando)
+                              ? null
+                              : _abrirEditarMazo,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.textoSuave
+                                    .withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.bug_report,
+                              size: 20,
+                              color: AppColors.textoSuave,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 const Spacer(),
                 if (!_partida.terminada) ...[
                   Text(
@@ -214,7 +350,9 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                         ),
                         child: Text(
                           _esTurnoPc
-                              ? 'La PC está sacando…'
+                              ? (_modoDiosActivo
+                                  ? 'La PC saca pronto…'
+                                  : 'La PC está sacando…')
                               : TextosCuloSucio.sacarCarta,
                         ),
                       ),
@@ -226,14 +364,21 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
           ),
           if (_partida.terminada)
             Positioned.fill(
-              child: _OverlayFin(
-                mensaje: _partida.mensajeFin ?? '',
-                esCuloSucio: _partida.perdedor != null,
-                perdedor: _partida.perdedor,
-                ganador: _partida.ganador,
-                onOtraVez: _reiniciar,
-                onVolver: () => Navigator.of(context).maybePop(),
-              ),
+              child: _debeMostrarVictoria
+                  ? VictoriaCuloSucioOverlay(
+                      partida: _partida,
+                      onVolverAJugar: _reiniciar,
+                      onVolver: () => Navigator.of(context).maybePop(),
+                    )
+                  : _OverlayFin(
+                      partida: _partida,
+                      mensaje: _partida.mensajeFin ?? '',
+                      esCuloSucio: _partida.perdedor != null,
+                      perdedor: _partida.perdedor,
+                      ganador: _partida.ganador,
+                      onOtraVez: _reiniciar,
+                      onVolver: () => Navigator.of(context).maybePop(),
+                    ),
             ),
         ],
       ),
@@ -269,7 +414,10 @@ class _ChipJugador extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.carta.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borde, width: activo || perdido || ganado ? 2 : 1),
+        border: Border.all(
+          color: borde,
+          width: activo || perdido || ganado ? 2 : 1,
+        ),
       ),
       child: Text(
         nombre,
@@ -285,6 +433,79 @@ class _ChipJugador extends StatelessWidget {
           fontWeight: FontWeight.w800,
           fontSize: 14,
         ),
+      ),
+    );
+  }
+}
+
+class _CartaTapada extends StatelessWidget {
+  const _CartaTapada();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 168,
+      height: 240,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF3B1D6E),
+            Color(0xFF1A0A33),
+            Color(0xFF2A1050),
+          ],
+        ),
+        border: Border.all(color: AppColors.acento, width: 2.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.acento.withValues(alpha: 0.35),
+            blurRadius: 22,
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Patrón sutil de dorso.
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.violeta.withValues(alpha: 0.55),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const Center(
+            child: Text(
+              '?',
+              style: TextStyle(
+                color: AppColors.acento,
+                fontSize: 92,
+                fontWeight: FontWeight.w900,
+                height: 1,
+                shadows: [
+                  Shadow(
+                    color: Color(0xAAFFC107),
+                    blurRadius: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -367,8 +588,9 @@ class _CartaVista extends StatelessWidget {
   }
 }
 
-class _OverlayFin extends StatelessWidget {
+class _OverlayFin extends StatefulWidget {
   const _OverlayFin({
+    required this.partida,
     required this.mensaje,
     required this.esCuloSucio,
     required this.perdedor,
@@ -377,6 +599,7 @@ class _OverlayFin extends StatelessWidget {
     required this.onVolver,
   });
 
+  final PartidaCuloSucio partida;
   final String mensaje;
   final bool esCuloSucio;
   final String? perdedor;
@@ -385,83 +608,150 @@ class _OverlayFin extends StatelessWidget {
   final VoidCallback onVolver;
 
   @override
+  State<_OverlayFin> createState() => _OverlayFinState();
+}
+
+class _OverlayFinState extends State<_OverlayFin> {
+  bool _cartelVisible = true;
+
+  @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Colors.black.withValues(alpha: 0.72),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
+    return Stack(
+      children: [
+        IgnorePointer(
+          ignoring: !_cartelVisible,
           child: Material(
-            color: AppColors.carta,
-            borderRadius: BorderRadius.circular(22),
+            color: _cartelVisible
+                ? Colors.black.withValues(alpha: 0.72)
+                : Colors.transparent,
+            child: _cartelVisible
+                ? Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      child: Material(
+                        color: AppColors.carta,
+                        borderRadius: BorderRadius.circular(22),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.esCuloSucio
+                                    ? Icons.sentiment_very_dissatisfied_rounded
+                                    : Icons.handshake_outlined,
+                                size: 52,
+                                color: widget.esCuloSucio
+                                    ? AppColors.peligro
+                                    : AppColors.acento,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                widget.esCuloSucio
+                                    ? TextosCuloSucio.culoSucio
+                                    : 'Fin',
+                                style: TextStyle(
+                                  color: widget.esCuloSucio
+                                      ? AppColors.peligro
+                                      : AppColors.texto,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                widget.mensaje,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.texto,
+                                  fontSize: 15,
+                                  height: 1.35,
+                                ),
+                              ),
+                              if (widget.ganador != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Gana ${widget.ganador}',
+                                  style: const TextStyle(
+                                    color: AppColors.mint,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                              if (widget.partida.cartasSacadas > 0) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Cartas sacadas: ${widget.partida.cartasSacadas}',
+                                  style: const TextStyle(
+                                    color: AppColors.textoSuave,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 22),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => mostrarHistorialCuloSucio(
+                                    context: context,
+                                    partida: widget.partida,
+                                  ),
+                                  icon: const Icon(Icons.history_rounded),
+                                  label: const Text('Historial'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.azul,
+                                    side: const BorderSide(
+                                      color: AppColors.azul,
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: widget.onOtraVez,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.peligro,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text(TextosCuloSucio.reiniciar),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: widget.onVolver,
+                                  child:
+                                      const Text(TextosCuloSucio.volverMenu),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : const SizedBox.expand(),
+          ),
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    esCuloSucio
-                        ? Icons.sentiment_very_dissatisfied_rounded
-                        : Icons.handshake_outlined,
-                    size: 52,
-                    color: esCuloSucio ? AppColors.peligro : AppColors.acento,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    esCuloSucio ? TextosCuloSucio.culoSucio : 'Fin',
-                    style: TextStyle(
-                      color:
-                          esCuloSucio ? AppColors.peligro : AppColors.texto,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    mensaje,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.texto,
-                      fontSize: 15,
-                      height: 1.35,
-                    ),
-                  ),
-                  if (ganador != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Gana $ganador',
-                      style: const TextStyle(
-                        color: AppColors.mint,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: onOtraVez,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.peligro,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text(TextosCuloSucio.reiniciar),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: onVolver,
-                      child: const Text(TextosCuloSucio.volverMenu),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.only(top: 4),
+              child: BotonOjoVictoria(
+                cartelVisible: _cartelVisible,
+                onTap: () =>
+                    setState(() => _cartelVisible = !_cartelVisible),
               ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
