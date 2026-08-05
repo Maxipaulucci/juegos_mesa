@@ -4,7 +4,7 @@ import 'package:app_juegos_mesa/culoSucioV2/motor_culo_sucio_v2.dart';
 import 'package:app_juegos_mesa/culoSucioV2/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucioV2/textos.dart';
 import 'package:app_juegos_mesa/culoSucioV2/victoria_culo_sucio_v2_overlay.dart';
-import 'package:app_juegos_mesa/shared/cartas/icono_espada.dart';
+import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -984,7 +984,7 @@ class _FilaCartas extends StatelessWidget {
   }
 }
 
-/// Misma skin visual que Culo sucio v1 (ícono, brillo, dorso).
+/// Misma skin visual compartida (CartaEspanolaSkin).
 class _CartaSkinV2 extends StatelessWidget {
   const _CartaSkinV2({
     required this.carta,
@@ -1008,151 +1008,21 @@ class _CartaSkinV2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radio = compacta ? 10.0 : 14.0;
-    if (!bocaArriba) {
-      return Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radio),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF3B1D6E),
-              Color(0xFF1A0A33),
-              Color(0xFF2A1050),
-            ],
-          ),
-          border: Border.all(
-            color: seleccionada ? AppColors.mint : AppColors.acento,
-            width: seleccionada ? 2.4 : 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: (seleccionada ? AppColors.mint : AppColors.acento)
-                  .withValues(alpha: 0.35),
-              blurRadius: compacta ? 8 : 14,
-              spreadRadius: 0.5,
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Padding(
-                padding: EdgeInsets.all(compacta ? 4 : 6),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(radio - 4),
-                    border: Border.all(
-                      color: AppColors.violeta.withValues(alpha: 0.55),
-                      width: 1.2,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Center(
-              child: Text(
-                '?',
-                style: TextStyle(
-                  color: AppColors.acento,
-                  fontSize: compacta ? 18 : 36,
-                  fontWeight: FontWeight.w900,
-                  height: 1,
-                  shadows: const [
-                    Shadow(color: Color(0xAAFFC107), blurRadius: 12),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final borde = seleccionada
-        ? AppColors.mint
-        : (carta.esCuloSucio ? AppColors.peligro : color);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
+    return CartaEspanolaSkin(
+      numero: carta.numero,
+      etiqueta: carta.etiqueta,
+      palo: switch (carta.palo) {
+        PaloCuloSucioV2.oro => PaloEspanolVisual.oro,
+        PaloCuloSucioV2.copa => PaloEspanolVisual.copa,
+        PaloCuloSucioV2.espada => PaloEspanolVisual.espada,
+        PaloCuloSucioV2.basto => PaloEspanolVisual.basto,
+      },
+      seleccionada: seleccionada,
+      compacta: compacta,
+      bocaArriba: bocaArriba,
+      resaltarPeligro: carta.esCuloSucio,
       width: width,
       height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radio),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.carta,
-            Color.lerp(AppColors.carta, color, 0.35)!,
-          ],
-        ),
-        border: Border.all(
-          color: borde,
-          width: seleccionada || carta.esCuloSucio ? 2.4 : 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: borde.withValues(alpha: 0.45),
-            blurRadius: compacta ? 8 : 14,
-            spreadRadius: 0.5,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: compacta ? 2 : 4,
-          vertical: compacta ? 2 : 6,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            carta.palo == PaloCuloSucioV2.espada
-                ? IconoEspadaOutlined(
-                    size: compacta ? 14 : 26,
-                    color: color,
-                  )
-                : Icon(
-                    icono,
-                    size: compacta ? 14 : 26,
-                    color: color,
-                  ),
-            SizedBox(height: compacta ? 2 : 6),
-            Text(
-              compacta ? '${carta.numero}' : carta.etiqueta,
-              textAlign: TextAlign.center,
-              maxLines: compacta ? 1 : 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: carta.esCuloSucio ? AppColors.peligro : AppColors.texto,
-                fontSize: compacta ? 11 : 11,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
-              ),
-            ),
-            if (carta.esCuloSucio && !compacta) ...[
-              const SizedBox(height: 4),
-              const Text(
-                TextosCuloSucioV2.culoSucio,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.peligro,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 7,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

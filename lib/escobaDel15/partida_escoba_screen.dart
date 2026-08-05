@@ -13,9 +13,10 @@ import 'package:app_juegos_mesa/escobaDel15/victoria_escoba_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Partida de Escoba del 15 (cartas en texto crudo, sin skin).
+/// Partida de Escoba del 15.
 class PartidaEscobaScreen extends StatefulWidget {
   const PartidaEscobaScreen({
     super.key,
@@ -1589,59 +1590,34 @@ class _CartaTexto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = carta.esOro ? AppColors.acento : AppColors.azul;
-    final padH = compacta ? 10.0 : 12.0;
-    final padV = compacta ? 8.0 : 14.0;
+    final skin = CartaEspanolaSkin(
+      numero: carta.numero,
+      etiqueta: carta.etiqueta,
+      palo: paloEspanolDeEscoba(carta.palo),
+      seleccionada: seleccionada,
+      compacta: compacta,
+      subtitulo: 'vale ${carta.valorSuma}',
+      width: compacta ? 56 : 72,
+      height: compacta ? 84 : 112,
+    );
+    if (onTap == null) return skin;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
-          constraints: BoxConstraints(
-            minWidth: compacta ? 84 : 96,
-            minHeight: compacta ? 44 : 56,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.carta,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: seleccionada ? AppColors.mint : accent,
-              width: seleccionada ? 2.4 : 1.4,
-            ),
-            boxShadow: seleccionada ? neonGlow(AppColors.mint, blur: 10) : null,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                carta.etiqueta,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.texto,
-                  fontWeight: FontWeight.w900,
-                  fontSize: compacta ? 12 : 13,
-                ),
-              ),
-              SizedBox(height: compacta ? 1 : 2),
-              Text(
-                'vale ${carta.valorSuma}',
-                style: TextStyle(
-                  color: accent.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w700,
-                  fontSize: compacta ? 10 : 11,
-                ),
-              ),
-            ],
-          ),
-        ),
+        borderRadius: BorderRadius.circular(14),
+        child: skin,
       ),
     );
   }
 }
+
+PaloEspanolVisual paloEspanolDeEscoba(PaloEscoba palo) => switch (palo) {
+      PaloEscoba.oro => PaloEspanolVisual.oro,
+      PaloEscoba.copa => PaloEspanolVisual.copa,
+      PaloEscoba.espada => PaloEspanolVisual.espada,
+      PaloEscoba.basto => PaloEspanolVisual.basto,
+    };
 
 class _ForzarCartasResult {
   const _ForzarCartasResult({
@@ -1736,18 +1712,8 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
     });
   }
 
-  Color _bordeCarta(CartaEscoba c) {
-    if (_enMesa(c)) return AppColors.azul;
-    if (_enMano(c)) return AppColors.mint;
-    return AppColors.textoSuave.withValues(alpha: 0.35);
-  }
-
-  Color _colorPalo(PaloEscoba palo) => switch (palo) {
-        PaloEscoba.oro => const Color(0xFFFFC107),
-        PaloEscoba.copa => AppColors.rosa,
-        PaloEscoba.espada => AppColors.azul,
-        PaloEscoba.basto => AppColors.mint,
-      };
+  Color _colorPalo(PaloEscoba palo) =>
+      colorPaloEspanol(paloEspanolDeEscoba(palo));
 
   String _tituloPalo(PaloEscoba palo) => switch (palo) {
         PaloEscoba.oro => 'Oros',
@@ -1758,64 +1724,38 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
 
   Widget _celdaCarta(CartaEscoba c) {
     final sel = _enMesa(c) || _enMano(c);
+    final zona = _enMesa(c)
+        ? 'MESA'
+        : (_enMano(c) ? 'MANO' : null);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _toggle(c),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: AppColors.carta,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: _bordeCarta(c),
-              width: sel ? 2.2 : 1.2,
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CartaEspanolaSkin(
+              numero: c.numero,
+              etiqueta: c.etiqueta,
+              palo: paloEspanolDeEscoba(c.palo),
+              seleccionada: sel,
+              subtitulo: 'vale ${c.valorSuma}',
+              width: 64,
+              height: 100,
             ),
-            boxShadow: sel ? neonGlow(_bordeCarta(c), blur: 8) : null,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+            if (zona != null) ...[
+              const SizedBox(height: 2),
               Text(
-                c.etiqueta,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.texto,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 11,
-                ),
-              ),
-              Text(
-                'vale ${c.valorSuma}',
+                zona,
                 style: TextStyle(
-                  color: AppColors.textoSuave.withValues(alpha: 0.95),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 10,
+                  color: _enMesa(c) ? AppColors.azul : AppColors.mint,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 9,
                 ),
               ),
-              if (_enMesa(c))
-                const Text(
-                  'MESA',
-                  style: TextStyle(
-                    color: AppColors.azul,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 9,
-                  ),
-                ),
-              if (_enMano(c))
-                const Text(
-                  'MANO',
-                  style: TextStyle(
-                    color: AppColors.mint,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 9,
-                  ),
-                ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -1858,10 +1798,10 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 110,
+                maxCrossAxisExtent: 78,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
-                childAspectRatio: 1.35,
+                childAspectRatio: 0.55,
               ),
               itemCount: cartas.length,
               itemBuilder: (context, i) => _celdaCarta(cartas[i]),
