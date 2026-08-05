@@ -436,6 +436,25 @@ export default async (req) => {
           solo: false,
           mostrarVictoria: false,
         }
+      } else if (sala.juegoId === 'culoSucioV1') {
+        // El anfitrión publica el mazo barajado al entrar a la partida.
+        sala.gameState = {
+          version: 1,
+          juego: 'culoSucioV1',
+          pendienteMazo: true,
+          comodines: false,
+          nombres,
+          indiceTurno: 0,
+          fase: 'jugando',
+          mazo: [],
+          ultimaCarta: null,
+          cartasSacadas: 0,
+          perdedor: null,
+          ganador: null,
+          mensajeFin: null,
+          historial: [],
+          mostrarVictoria: false,
+        }
       } else {
         sala.gameState = {
           version: 1,

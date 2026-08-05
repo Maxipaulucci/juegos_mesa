@@ -129,7 +129,7 @@ PartidaCuloSucio nuevaPartidaCuloSucio({
     lista.add('Jugador ${lista.length + 1}');
   }
   return PartidaCuloSucio(
-    nombres: lista.take(2).toList(),
+    nombres: contraPc ? lista.take(2).toList() : lista,
     mazo: crearMazoCuloSucio(
       rng: rng,
       incluirComodines: incluirComodines,

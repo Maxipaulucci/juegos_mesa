@@ -9,7 +9,7 @@ import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Menú de Culo sucio v1 (local / vs PC; online próximamente).
+/// Menú de Culo sucio v1 (local / vs PC / online).
 class MenuCuloSucioScreen extends StatefulWidget {
   const MenuCuloSucioScreen({super.key});
 
@@ -35,7 +35,8 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
               'Activado: el mazo lleva 50 cartas (48 + 2 comodines).\n\n'
               'Desactivado: mazo de 48 cartas, sin comodines.\n\n'
               'Viene desactivado por defecto.\n\n'
-              'Si cambiás esta opción, se descarta una partida vs PC '
+              'En online, el anfitrión define esta opción al iniciar. '
+              'Si cambiás Comodines, se descarta una partida vs PC '
               'guardada en memoria.',
         );
       },
@@ -51,12 +52,18 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
     bool contraPc = false,
     bool modoDios = false,
     PartidaCuloSucioResume? resume,
+    String? salaCodigo,
+    String? miNombre,
     bool replace = false,
   }) {
     return navegarConCarga<void>(
       ctx,
       replace: replace,
-      mensaje: resume != null ? 'Reanudando partida' : 'Barajando el mazo',
+      mensaje: salaCodigo != null
+          ? 'Conectando partida'
+          : resume != null
+              ? 'Reanudando partida'
+              : 'Barajando el mazo',
       acento: AppColors.peligro,
       builder: (_) => PartidaCuloSucioScreen(
         nombres: resume?.nombres ?? nombres,
@@ -64,6 +71,8 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
         modoDios: contraPc && (resume?.modoDios ?? modoDios),
         opciones: resume?.opciones ?? _opciones,
         resume: resume,
+        salaCodigo: salaCodigo,
+        miNombre: miNombre,
       ),
     );
   }
@@ -97,10 +106,12 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          const SnackBar(
-            content: Text('Online de Culo sucio v1 próximamente'),
-          ),
+        _abrir(
+          ctx: ctx,
+          nombres: inicio.nombres,
+          salaCodigo: inicio.salaCodigo,
+          miNombre: inicio.miNombre,
+          replace: true,
         );
       },
     );

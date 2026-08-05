@@ -13,11 +13,13 @@ class VictoriaCuloSucioOverlay extends StatefulWidget {
     required this.partida,
     required this.onVolverAJugar,
     required this.onVolver,
+    this.mostrarVolverAJugar = true,
   });
 
   final PartidaCuloSucio partida;
   final VoidCallback onVolverAJugar;
   final VoidCallback onVolver;
+  final bool mostrarVolverAJugar;
 
   @override
   State<VictoriaCuloSucioOverlay> createState() =>
@@ -223,13 +225,15 @@ class _VictoriaCuloSucioOverlayState extends State<VictoriaCuloSucioOverlay>
                                             partida: widget.partida,
                                           ),
                                         ),
-                                        const SizedBox(height: 10),
-                                        GlowButtonVictoria(
-                                          label: 'VOLVER A JUGAR',
-                                          icon: Icons.replay_rounded,
-                                          color: AppColors.mint,
-                                          onPressed: widget.onVolverAJugar,
-                                        ),
+                                        if (widget.mostrarVolverAJugar) ...[
+                                          const SizedBox(height: 10),
+                                          GlowButtonVictoria(
+                                            label: 'VOLVER A JUGAR',
+                                            icon: Icons.replay_rounded,
+                                            color: AppColors.mint,
+                                            onPressed: widget.onVolverAJugar,
+                                          ),
+                                        ],
                                         const SizedBox(height: 10),
                                         GlowButtonVictoria(
                                           label: 'VOLVER AL MENÚ',

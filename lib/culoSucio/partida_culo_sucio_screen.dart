@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/culoSucio/culo_sucio_online_codec.dart';
 import 'package:app_juegos_mesa/culoSucio/historial_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/modo_dios_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/motor_culo_sucio.dart';
@@ -7,11 +10,13 @@ import 'package:app_juegos_mesa/culoSucio/opciones_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucio/textos.dart';
 import 'package:app_juegos_mesa/culoSucio/victoria_culo_sucio_overlay.dart';
+import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
 
-/// Partida local de Culo sucio v1.
+/// Partida de Culo sucio v1 (local, vs PC u online).
 class PartidaCuloSucioScreen extends StatefulWidget {
   const PartidaCuloSucioScreen({
     super.key,
@@ -20,6 +25,8 @@ class PartidaCuloSucioScreen extends StatefulWidget {
     this.modoDios = false,
     this.opciones = const OpcionesCuloSucio(),
     this.resume,
+    this.salaCodigo,
+    this.miNombre,
   });
 
   final List<String> nombres;
@@ -27,6 +34,8 @@ class PartidaCuloSucioScreen extends StatefulWidget {
   final bool modoDios;
   final OpcionesCuloSucio opciones;
   final PartidaCuloSucioResume? resume;
+  final String? salaCodigo;
+  final String? miNombre;
 
   @override
   State<PartidaCuloSucioScreen> createState() => _PartidaCuloSucioScreenState();
@@ -34,41 +43,199 @@ class PartidaCuloSucioScreen extends StatefulWidget {
 
 class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   late PartidaCuloSucio _partida;
+  late OpcionesCuloSucio _opciones;
   bool _sacando = false;
   bool _editandoMazo = false;
   int _pcToken = 0;
 
-  bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
+  StreamSubscription<Sala>? _onlineSub;
+  int _onlineVersion = 0;
+  bool _publicandoOnline = false;
+  bool _esperandoMazoOnline = false;
+  bool _mazoPublicado = false;
+
+  bool get _esOnline =>
+      widget.salaCodigo != null &&
+      widget.salaCodigo!.isNotEmpty &&
+      widget.miNombre != null &&
+      widget.miNombre!.isNotEmpty;
+
+  bool get _soyAnfitrionOnline =>
+      _esOnline &&
+      widget.miNombre != null &&
+      (widget.nombres.isNotEmpty
+          ? widget.nombres.first == widget.miNombre
+          : (_partida.nombres.isNotEmpty &&
+              _partida.nombres.first == widget.miNombre));
+
+  bool get _esMiTurno =>
+      !_esOnline || _partida.jugadorActual == widget.miNombre;
+
+  bool get _bloquearHumano =>
+      _sacando ||
+      _editandoMazo ||
+      (_esOnline && (_esperandoMazoOnline || !_esMiTurno));
+
+  bool get _modoDiosActivo =>
+      widget.modoDios && widget.contraPc && !_esOnline;
 
   @override
   void initState() {
     super.initState();
+    _opciones = widget.opciones;
     final resume = widget.resume;
-    if (resume != null) {
+    if (_esOnline) {
+      _partida = PartidaCuloSucio(
+        nombres: List.of(widget.nombres),
+        mazo: [],
+      );
+      _esperandoMazoOnline = true;
+      _iniciarSincronizacionOnline();
+    } else if (resume != null) {
       _partida = resume.partida;
+      _opciones = resume.opciones;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
     } else {
       _partida = nuevaPartidaCuloSucio(
         nombres: widget.nombres,
         contraPc: widget.contraPc,
-        incluirComodines: widget.opciones.comodines,
+        incluirComodines: _opciones.comodines,
       );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
+  }
+
+  @override
+  void dispose() {
+    _onlineSub?.cancel();
+    super.dispose();
   }
 
   bool get _esTurnoPc =>
+      !_esOnline &&
       _partida.contraPc &&
       !_partida.terminada &&
       _partida.jugadorActual == TextosCuloSucio.vsPcNombre;
 
-  /// Victoria con confeti si alguien ganó y no es la PC (p. ej. la PC sacó el 1 de oro).
-  bool get _debeMostrarVictoria =>
-      _partida.ganador != null &&
-      _partida.perdedor != null &&
-      _partida.ganador != TextosCuloSucio.vsPcNombre;
+  /// Victoria con confeti: ganador local / vs PC, o yo gané online.
+  bool get _debeMostrarVictoria {
+    if (_partida.ganador == null || _partida.perdedor == null) return false;
+    if (_esOnline) return widget.miNombre == _partida.ganador;
+    return _partida.ganador != TextosCuloSucio.vsPcNombre;
+  }
+
+  void _iniciarSincronizacionOnline() {
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+    if (_onlineVersion < 1) _onlineVersion = 1;
+    unawaited(() async {
+      try {
+        final sala = await SalaService.instance.obtener(codigo);
+        if (mounted) _onSalaOnlineActualizada(sala);
+      } catch (_) {}
+    }());
+    _onlineSub = SalaService.instance
+        .watch(codigo, intervalo: const Duration(milliseconds: 400))
+        .listen(_onSalaOnlineActualizada);
+  }
+
+  void _onSalaOnlineActualizada(Sala sala) {
+    if (!mounted || !_esOnline) return;
+    final gameState = sala.gameState;
+    if (gameState == null) return;
+
+    final juego = gameState['juego']?.toString();
+    if (juego != 'culoSucioV1') {
+      if (_soyAnfitrionOnline && !_mazoPublicado) {
+        unawaited(_publicarMazoInicialOnline());
+      }
+      return;
+    }
+
+    final version = (gameState['version'] as num?)?.toInt() ?? 0;
+    if (version < _onlineVersion) return;
+    if (_publicandoOnline && version <= _onlineVersion) return;
+
+    final tiene = culoSucioPartidaGenerada(gameState);
+    if (!tiene) {
+      if (_soyAnfitrionOnline && !_mazoPublicado) {
+        unawaited(_publicarMazoInicialOnline());
+      }
+      return;
+    }
+
+    if (version <= _onlineVersion && !_esperandoMazoOnline) return;
+
+    final comodines = gameState['comodines'] == true;
+    setState(() {
+      applyCuloSucioGameState(_partida, gameState);
+      _opciones = _opciones.copyWith(comodines: comodines);
+      _onlineVersion = version;
+      _esperandoMazoOnline = false;
+      _mazoPublicado = true;
+    });
+  }
+
+  Future<void> _publicarMazoInicialOnline() async {
+    if (!_esOnline || _mazoPublicado || _publicandoOnline) return;
+    final generada = nuevaPartidaCuloSucio(
+      nombres: widget.nombres,
+      incluirComodines: _opciones.comodines,
+    );
+    setState(() {
+      _partida = generada;
+      _esperandoMazoOnline = false;
+      _mazoPublicado = true;
+    });
+    await _publicarEstadoOnline(forzar: true);
+  }
+
+  Future<void> _publicarEstadoOnline({bool forzar = false}) async {
+    if (!_esOnline) return;
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+
+    _publicandoOnline = true;
+    try {
+      for (var intento = 0; intento < 4; intento++) {
+        _onlineVersion++;
+        final gameState = encodeCuloSucioGameState(
+          partida: _partida,
+          version: _onlineVersion,
+          comodines: _opciones.comodines,
+        );
+        try {
+          final res = await SalaService.instance.actualizarJuego(
+            codigo: codigo,
+            gameState: gameState,
+          );
+          if (!res.ignored) {
+            final v = (res.sala.gameState?['version'] as num?)?.toInt() ??
+                _onlineVersion;
+            _onlineVersion = v;
+            return;
+          }
+          final remoteV = res.sala.gameVersion;
+          if (remoteV >= _onlineVersion) {
+            _onlineVersion = remoteV;
+            if (!forzar) return;
+          }
+          await Future<void>.delayed(
+            Duration(milliseconds: 60 * (intento + 1)),
+          );
+        } catch (_) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 100 * (intento + 1)),
+          );
+        }
+      }
+    } finally {
+      _publicandoOnline = false;
+    }
+  }
 
   void _guardarResumeSiCorresponde() {
-    if (!widget.contraPc) return;
+    if (!widget.contraPc || _esOnline) return;
     if (_partida.terminada) {
       CuloSucioStandByStore.limpiar();
       return;
@@ -77,7 +244,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
       PartidaCuloSucioResume(
         partida: _partida,
         nombres: widget.nombres,
-        opciones: widget.opciones,
+        opciones: _opciones,
         modoDios: widget.modoDios,
       ),
     );
@@ -96,6 +263,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   }
 
   Future<void> _talVezTurnoPc() async {
+    if (_esOnline) return;
     if (!_esTurnoPc || _sacando || _editandoMazo) return;
     final token = ++_pcToken;
     final espera = _modoDiosActivo ? 2200 : 700;
@@ -107,10 +275,16 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
 
   Future<void> _sacar() async {
     if (_partida.terminada || _sacando || _editandoMazo) return;
+    if (_esOnline && !_esMiTurno) return;
+    if (_esOnline && _esperandoMazoOnline) return;
     setState(() => _sacando = true);
     sacarCartaCuloSucio(_partida);
     if (!mounted) return;
     setState(() => _sacando = false);
+    if (_esOnline) {
+      unawaited(_publicarEstadoOnline(forzar: _partida.terminada));
+      return;
+    }
     if (!_partida.terminada) {
       await Future<void>.delayed(const Duration(milliseconds: 280));
       if (mounted) _talVezTurnoPc();
@@ -121,7 +295,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     if (!_modoDiosActivo || _partida.terminada || _partida.mazo.isEmpty) {
       return;
     }
-    _pcToken++; // cancela el auto-turno de la PC mientras editás
+    _pcToken++;
     setState(() => _editandoMazo = true);
     final nuevo = await mostrarEditarMazoCuloSucio(
       context: context,
@@ -138,13 +312,14 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   }
 
   void _reiniciar() {
+    if (_esOnline) return;
     _pcToken++;
     CuloSucioStandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaCuloSucio(
         nombres: widget.nombres,
         contraPc: widget.contraPc,
-        incluirComodines: widget.opciones.comodines,
+        incluirComodines: _opciones.comodines,
       );
       _sacando = false;
       _editandoMazo = false;
@@ -178,15 +353,18 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     final carta = _partida.ultimaCarta;
     final proxima =
         _modoDiosActivo ? proximaCartaCuloSucio(_partida) : null;
-    final puedeSacar =
-        !_partida.terminada && !_esTurnoPc && !_sacando && !_editandoMazo;
+    final puedeSacar = !_partida.terminada &&
+        !_esTurnoPc &&
+        !_bloquearHumano &&
+        !_esperandoMazoOnline;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        // Vs PC sin terminar: guarda en memoria. Terminada o local: no resume.
-        _salirAlMenu(guardar: widget.contraPc && !_partida.terminada);
+        _salirAlMenu(
+          guardar: !_esOnline && widget.contraPc && !_partida.terminada,
+        );
       },
       child: Scaffold(
       backgroundColor: AppColors.fondo,
@@ -202,7 +380,9 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                     children: [
                       IconButton(
                         onPressed: () => _salirAlMenu(
-                          guardar: widget.contraPc && !_partida.terminada,
+                          guardar: !_esOnline &&
+                              widget.contraPc &&
+                              !_partida.terminada,
                         ),
                         icon: const Icon(Icons.arrow_back_rounded),
                         color: AppColors.texto,
@@ -226,7 +406,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
                     TextosCuloSucio.reglaConOpciones(
-                      comodines: widget.opciones.comodines,
+                      comodines: _opciones.comodines,
                     ),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
@@ -372,9 +552,13 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                 const Spacer(),
                 if (!_partida.terminada) ...[
                   Text(
-                    '${TextosCuloSucio.turnoDe} ${_partida.jugadorActual}',
+                    _esperandoMazoOnline
+                        ? 'Esperando mazo del anfitrión…'
+                        : (_esOnline && !_esMiTurno)
+                            ? 'Turno de ${_partida.jugadorActual}'
+                            : '${TextosCuloSucio.turnoDe} ${_partida.jugadorActual}',
                     style: TextStyle(
-                      color: _esTurnoPc
+                      color: (_esTurnoPc || (_esOnline && !_esMiTurno))
                           ? AppColors.textoSuave
                           : AppColors.acento,
                       fontSize: 16,
@@ -395,11 +579,15 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                               AppColors.carta.withValues(alpha: 0.7),
                         ),
                         child: Text(
-                          _esTurnoPc
-                              ? (_modoDiosActivo
-                                  ? 'La PC saca pronto…'
-                                  : 'La PC está sacando…')
-                              : TextosCuloSucio.sacarCarta,
+                          _esperandoMazoOnline
+                              ? 'Preparando mazo…'
+                              : _esTurnoPc
+                                  ? (_modoDiosActivo
+                                      ? 'La PC saca pronto…'
+                                      : 'La PC está sacando…')
+                                  : (_esOnline && !_esMiTurno)
+                                      ? 'Esperando al rival…'
+                                      : TextosCuloSucio.sacarCarta,
                         ),
                       ),
                     ),
@@ -413,6 +601,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
               child: _debeMostrarVictoria
                   ? VictoriaCuloSucioOverlay(
                       partida: _partida,
+                      mostrarVolverAJugar: !_esOnline,
                       onVolverAJugar: _reiniciar,
                       onVolver: () => _salirAlMenu(guardar: false),
                     )
@@ -422,6 +611,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                       esCuloSucio: _partida.perdedor != null,
                       perdedor: _partida.perdedor,
                       ganador: _partida.ganador,
+                      mostrarOtraVez: !_esOnline,
                       onOtraVez: _reiniciar,
                       onVolver: () => _salirAlMenu(guardar: false),
                     ),
@@ -644,6 +834,7 @@ class _OverlayFin extends StatefulWidget {
     required this.ganador,
     required this.onOtraVez,
     required this.onVolver,
+    this.mostrarOtraVez = true,
   });
 
   final PartidaCuloSucio partida;
@@ -653,6 +844,7 @@ class _OverlayFin extends StatefulWidget {
   final String? ganador;
   final VoidCallback onOtraVez;
   final VoidCallback onVolver;
+  final bool mostrarOtraVez;
 
   @override
   State<_OverlayFin> createState() => _OverlayFinState();
@@ -756,18 +948,21 @@ class _OverlayFinState extends State<_OverlayFin> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: widget.onOtraVez,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.peligro,
-                                    foregroundColor: Colors.white,
+                              if (widget.mostrarOtraVez) ...[
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: widget.onOtraVez,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.peligro,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child:
+                                        const Text(TextosCuloSucio.reiniciar),
                                   ),
-                                  child: const Text(TextosCuloSucio.reiniciar),
                                 ),
-                              ),
-                              const SizedBox(height: 10),
+                                const SizedBox(height: 10),
+                              ],
                               SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton(
