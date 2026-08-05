@@ -8,6 +8,7 @@ import '../laPapa/menu_la_papa_screen.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
+import '../culoSucio/menu_culo_sucio_screen.dart';
 import '../unoSolo/menu_uno_solo_screen.dart';
 
 enum _CategoriaHome {
@@ -25,7 +26,8 @@ enum _TipoJuegoHome {
   diezMil,
   generala,
   tuttiFrutti,
-  culoSucio,
+  culoSucioV1,
+  culoSucioV2,
   laPapa,
   unoSolo,
   escobaDel15,
@@ -44,6 +46,7 @@ class _JuegoHome {
     required this.accent,
     required this.categoria,
     this.enabled = true,
+    this.destacadoFuego = false,
   });
 
   final _TipoJuegoHome tipo;
@@ -52,6 +55,8 @@ class _JuegoHome {
   final Color accent;
   final _CategoriaHome categoria;
   final bool enabled;
+  /// Resalta la tarjeta (fuego / más divertido), p. ej. Culo sucio v2.
+  final bool destacadoFuego;
 }
 
 class HomeScreen extends StatefulWidget {
@@ -118,15 +123,24 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
     ),
-    // Próximamente.
+    // Culo sucio v2 arriba de v1 (más llamativo; juego aún próximamente).
     _JuegoHome(
-      tipo: _TipoJuegoHome.culoSucio,
-      titulo: 'Culo sucio',
-      subtitulo: 'Próximamente',
-      accent: AppColors.peligro,
+      tipo: _TipoJuegoHome.culoSucioV2,
+      titulo: 'Culo sucio v2',
+      subtitulo: 'Próximamente · la versión picante',
+      accent: AppColors.acentoSuave,
       categoria: _CategoriaHome.cartasEspanolas,
       enabled: false,
+      destacadoFuego: true,
     ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.culoSucioV1,
+      titulo: 'Culo sucio v1',
+      subtitulo: 'Cartas españolas · el 1 de oro pierde',
+      accent: AppColors.peligro,
+      categoria: _CategoriaHome.cartasEspanolas,
+    ),
+    // Próximamente.
     _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
       titulo: 'Canasta',
@@ -303,7 +317,13 @@ class _HomeScreenState extends State<HomeScreen>
               acento: AppColors.azul,
               mensaje: 'Escoba del 15',
             );
-      case _TipoJuegoHome.culoSucio:
+      case _TipoJuegoHome.culoSucioV1:
+        return () => _abrirJuego(
+              menu: const MenuCuloSucioScreen(),
+              acento: AppColors.peligro,
+              mensaje: 'Culo sucio v1',
+            );
+      case _TipoJuegoHome.culoSucioV2:
       case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.casitaRobada:
       case _TipoJuegoHome.chanchoVa:
@@ -481,6 +501,7 @@ class _HomeScreenState extends State<HomeScreen>
                                             subtitulo: juego.subtitulo,
                                             accent: juego.accent,
                                             enabled: juego.enabled,
+                                            destacadoFuego: juego.destacadoFuego,
                                             onTap: _onTapDe(juego),
                                           ),
                                         );
@@ -614,6 +635,7 @@ class _JuegoTile extends StatefulWidget {
     required this.accent,
     this.onTap,
     this.enabled = true,
+    this.destacadoFuego = false,
   });
 
   final String titulo;
@@ -621,46 +643,103 @@ class _JuegoTile extends StatefulWidget {
   final Color accent;
   final VoidCallback? onTap;
   final bool enabled;
+  final bool destacadoFuego;
 
   @override
   State<_JuegoTile> createState() => _JuegoTileState();
 }
 
-class _JuegoTileState extends State<_JuegoTile> {
+class _JuegoTileState extends State<_JuegoTile>
+    with SingleTickerProviderStateMixin {
   bool _presionado = false;
+  late final AnimationController _fuego;
+
+  @override
+  void initState() {
+    super.initState();
+    _fuego = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    if (widget.destacadoFuego) {
+      _fuego.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _JuegoTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.destacadoFuego && !_fuego.isAnimating) {
+      _fuego.repeat(reverse: true);
+    } else if (!widget.destacadoFuego && _fuego.isAnimating) {
+      _fuego.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fuego.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final activo = widget.enabled && widget.onTap != null;
-    return AnimatedScale(
+    final fuego = widget.destacadoFuego;
+
+    Widget tile = AnimatedScale(
       scale: _presionado && activo ? 0.97 : 1,
       duration: const Duration(milliseconds: 120),
       curve: Curves.easeOut,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: !widget.enabled
-              ? null
-              : [
-                  BoxShadow(
-                    color: widget.accent.withValues(
-                      alpha: _presionado && activo ? 0.4 : 0.2,
-                    ),
-                    blurRadius: _presionado && activo ? 18 : 12,
-                    spreadRadius: -1,
-                    offset: Offset.zero,
-                  ),
-                  BoxShadow(
-                    color: widget.accent.withValues(
-                      alpha: _presionado && activo ? 0.18 : 0.08,
-                    ),
-                    blurRadius: _presionado && activo ? 28 : 20,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-        ),
+      child: AnimatedBuilder(
+        animation: _fuego,
+        builder: (context, child) {
+          final t = fuego ? _fuego.value : 0.0;
+          final glow = fuego ? (0.28 + t * 0.35) : null;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: fuego
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFFF6D00)
+                            .withValues(alpha: glow!),
+                        blurRadius: 18 + t * 10,
+                        spreadRadius: 0,
+                        offset: Offset.zero,
+                      ),
+                      BoxShadow(
+                        color: AppColors.acento.withValues(alpha: 0.22 + t * 0.2),
+                        blurRadius: 28,
+                        spreadRadius: -2,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : !widget.enabled
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: widget.accent.withValues(
+                              alpha: _presionado && activo ? 0.4 : 0.2,
+                            ),
+                            blurRadius: _presionado && activo ? 18 : 12,
+                            spreadRadius: -1,
+                            offset: Offset.zero,
+                          ),
+                          BoxShadow(
+                            color: widget.accent.withValues(
+                              alpha: _presionado && activo ? 0.18 : 0.08,
+                            ),
+                            blurRadius: _presionado && activo ? 28 : 20,
+                            spreadRadius: 0,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+            ),
+            child: child,
+          );
+        },
         child: Material(
           color: Colors.transparent,
           elevation: 0,
@@ -686,14 +765,33 @@ class _JuegoTileState extends State<_JuegoTile> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
               decoration: BoxDecoration(
-                color: AppColors.carta
-                    .withValues(alpha: widget.enabled ? 0.95 : 0.45),
+                gradient: fuego
+                    ? const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF3A1810),
+                          Color(0xFF2A1230),
+                          Color(0xFF24143F),
+                        ],
+                      )
+                    : null,
+                color: fuego
+                    ? null
+                    : AppColors.carta
+                        .withValues(alpha: widget.enabled ? 0.95 : 0.45),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: widget.enabled
-                      ? widget.accent
-                      : widget.accent.withValues(alpha: 0.25),
-                  width: widget.enabled ? 1.6 : 1,
+                  color: fuego
+                      ? Color.lerp(
+                          const Color(0xFFFF6D00),
+                          AppColors.acento,
+                          0.35,
+                        )!
+                      : widget.enabled
+                          ? widget.accent
+                          : widget.accent.withValues(alpha: 0.25),
+                  width: fuego ? 2.2 : (widget.enabled ? 1.6 : 1),
                 ),
               ),
               child: Row(
@@ -702,23 +800,41 @@ class _JuegoTileState extends State<_JuegoTile> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.titulo,
-                          style: TextStyle(
-                            color: widget.enabled
-                                ? AppColors.texto
-                                : AppColors.textoSuave,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        Row(
+                          children: [
+                            if (fuego) ...[
+                              const Icon(
+                                Icons.local_fire_department_rounded,
+                                color: Color(0xFFFF6D00),
+                                size: 22,
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Expanded(
+                              child: Text(
+                                widget.titulo,
+                                style: TextStyle(
+                                  color: fuego
+                                      ? AppColors.texto
+                                      : widget.enabled
+                                          ? AppColors.texto
+                                          : AppColors.textoSuave,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 3),
                         Text(
                           widget.subtitulo,
                           style: TextStyle(
-                            color: widget.enabled
-                                ? widget.accent
-                                : AppColors.textoSuave,
+                            color: fuego
+                                ? AppColors.acento
+                                : widget.enabled
+                                    ? widget.accent
+                                    : AppColors.textoSuave,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -726,6 +842,19 @@ class _JuegoTileState extends State<_JuegoTile> {
                       ],
                     ),
                   ),
+                  if (fuego)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(
+                        Icons.whatshot_rounded,
+                        color: Color.lerp(
+                          const Color(0xFFFF6D00),
+                          AppColors.acento,
+                          _fuego.value,
+                        ),
+                        size: 28,
+                      ),
+                    ),
                   AnimatedSlide(
                     duration: const Duration(milliseconds: 160),
                     offset: _presionado && activo
@@ -736,9 +865,11 @@ class _JuegoTileState extends State<_JuegoTile> {
                       widget.enabled
                           ? Icons.chevron_right
                           : Icons.lock_outline,
-                      color: widget.enabled
-                          ? widget.accent
-                          : AppColors.textoSuave,
+                      color: fuego
+                          ? const Color(0xFFFFAB40)
+                          : widget.enabled
+                              ? widget.accent
+                              : AppColors.textoSuave,
                     ),
                   ),
                 ],
@@ -747,6 +878,34 @@ class _JuegoTileState extends State<_JuegoTile> {
           ),
         ),
       ),
+    );
+
+    if (!fuego) return tile;
+
+    // Flama pequeña en la esquina superior derecha.
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        tile,
+        Positioned(
+          top: -8,
+          right: 10,
+          child: AnimatedBuilder(
+            animation: _fuego,
+            builder: (context, _) {
+              final s = 0.9 + _fuego.value * 0.18;
+              return Transform.scale(
+                scale: s,
+                child: const Icon(
+                  Icons.local_fire_department_rounded,
+                  color: Color(0xFFFF9100),
+                  size: 30,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
