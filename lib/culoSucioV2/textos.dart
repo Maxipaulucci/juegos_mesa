@@ -18,10 +18,16 @@ abstract final class TextosCuloSucioV2 {
       'Tocá dos cartas del mismo número: se sacan solas';
   static const listoPares = 'Listo · sin más pares';
   static const eliminarParesAuto = 'Eliminar pares automáticamente';
+  static const infoEliminarParesAuto =
+      'Si no querés este botón, desactivalo desde '
+      '“Modificar partida” en el menú del juego.';
   static const esperandoPc = 'La PC está eligiendo…';
   static const pcSeLleva = 'LA PC SE LLEVA';
   static const pcEligioCarta = '¡La PC eligió una de tus cartas!';
   static const esperandoRivalPares = 'Esperando que el rival saque sus pares…';
+  static const esperandoMazoOnline = 'Esperando el mazo…';
+  static const esperandoTuTurno = 'Esperando al rival…';
+  static const rivalTeSaco = 'TE SACARON ESTA CARTA';
   static const culoSucio = '¡CULO SUCIO!';
   static const reiniciar = 'Otra vez';
   static const volverMenu = 'Volver al menú';

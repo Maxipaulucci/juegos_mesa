@@ -62,6 +62,8 @@ class PartidaCuloSucioV2 {
     this.mensajeFin,
     this.contraPc = false,
     this.ultimaRobada,
+    this.ultimaRobadaDe,
+    this.ultimaRobadaPor,
     this.ultimoPar,
   });
 
@@ -73,6 +75,10 @@ class PartidaCuloSucioV2 {
   String? mensajeFin;
   final bool contraPc;
   CartaCuloSucioV2? ultimaRobada;
+  /// De quién se robó [ultimaRobada] (nombre).
+  String? ultimaRobadaDe;
+  /// Quién robó [ultimaRobada] (nombre).
+  String? ultimaRobadaPor;
   /// Último par descartado (2 cartas), si hubo.
   List<CartaCuloSucioV2>? ultimoPar;
 
@@ -282,6 +288,17 @@ PartidaCuloSucioV2 nuevaPartidaCuloSucioV2({
   return p;
 }
 
+bool _jugadorPuedeDescartarParesIniciales(
+  PartidaCuloSucioV2 p,
+  JugadorCuloSucioV2 jugador,
+) {
+  if (p.fase != FaseCuloSucioV2.descartandoPares) return false;
+  if (jugador.paresInicialesListos) return false;
+  // Vs PC: solo el turno actual. Online / local humano: cada uno en paralelo.
+  if (p.contraPc) return identical(jugador, p.jugadorActual);
+  return true;
+}
+
 /// Descarta un par elegido a mano (misma fase inicial o tras robar no aplica).
 String? descartarParManualCuloSucioV2(
   PartidaCuloSucioV2 p, {
@@ -292,8 +309,10 @@ String? descartarParManualCuloSucioV2(
   if (p.fase != FaseCuloSucioV2.descartandoPares) {
     return 'Ahora no se descartan pares iniciales.';
   }
-  if (!identical(jugador, p.jugadorActual)) {
-    return 'No es el turno de ${jugador.nombre} para sacar pares.';
+  if (!_jugadorPuedeDescartarParesIniciales(p, jugador)) {
+    return jugador.paresInicialesListos
+        ? 'Ya confirmaste tus pares.'
+        : 'No es el turno de ${jugador.nombre} para sacar pares.';
   }
   if (indiceA == indiceB) return 'Elegí dos cartas distintas.';
   if (indiceA < 0 ||
@@ -314,15 +333,25 @@ String? descartarParManualCuloSucioV2(
   jugador.descartes.addAll([c1, c2]);
   p.ultimoPar = [c1, c2];
   p.ultimaRobada = null;
+  p.ultimaRobadaDe = null;
+  p.ultimaRobadaPor = null;
   return null;
 }
 
-/// Descarta de golpe todos los pares de la mano del jugador actual (fase inicial).
-String? descartarTodosParesInicialesCuloSucioV2(PartidaCuloSucioV2 p) {
+/// Descarta de golpe todos los pares de la mano (fase inicial).
+String? descartarTodosParesInicialesCuloSucioV2(
+  PartidaCuloSucioV2 p, {
+  JugadorCuloSucioV2? jugador,
+}) {
   if (p.fase != FaseCuloSucioV2.descartandoPares) {
     return 'Ahora no se descartan pares iniciales.';
   }
-  final j = p.jugadorActual;
+  final j = jugador ?? p.jugadorActual;
+  if (!_jugadorPuedeDescartarParesIniciales(p, j)) {
+    return j.paresInicialesListos
+        ? 'Ya confirmaste tus pares.'
+        : 'No es el turno de ${j.nombre} para sacar pares.';
+  }
   final sacadas = descartarParesDeMano(j.mano);
   if (sacadas.isEmpty) {
     return 'No hay pares para eliminar.';
@@ -333,15 +362,25 @@ String? descartarTodosParesInicialesCuloSucioV2(PartidaCuloSucioV2 p) {
     sacadas[sacadas.length - 1],
   ];
   p.ultimaRobada = null;
+  p.ultimaRobadaDe = null;
+  p.ultimaRobadaPor = null;
   return null;
 }
 
-/// El jugador actual confirma que ya no tiene más pares iniciales.
-String? confirmarParesInicialesListos(PartidaCuloSucioV2 p) {
+/// Confirma que el jugador ya no tiene más pares iniciales.
+String? confirmarParesInicialesListos(
+  PartidaCuloSucioV2 p, {
+  JugadorCuloSucioV2? jugador,
+}) {
   if (p.fase != FaseCuloSucioV2.descartandoPares) {
     return 'La fase de pares ya terminó.';
   }
-  final j = p.jugadorActual;
+  final j = jugador ?? p.jugadorActual;
+  if (!_jugadorPuedeDescartarParesIniciales(p, j)) {
+    return j.paresInicialesListos
+        ? 'Ya confirmaste tus pares.'
+        : 'No es el turno de ${j.nombre} para confirmar pares.';
+  }
   if (manoTieneParCuloSucioV2(j.mano)) {
     return 'Todavía tenés pares. Tocá dos cartas del mismo número.';
   }
@@ -375,6 +414,8 @@ String? robarCartaCuloSucioV2(
   final carta = de.mano.removeAt(indiceEnManoDe);
   hacia.mano.add(carta);
   p.ultimaRobada = carta;
+  p.ultimaRobadaDe = de.nombre;
+  p.ultimaRobadaPor = hacia.nombre;
   p.ultimoPar = null;
 
   final mismoNumero = [
@@ -446,6 +487,8 @@ String? descartarParTrasRoboCuloSucioV2(
   jugador.descartes.addAll([c1, c2]);
   p.ultimoPar = [c1, c2];
   p.ultimaRobada = null;
+  p.ultimaRobadaDe = null;
+  p.ultimaRobadaPor = null;
 
   _chequearFin(p);
   if (!p.terminada) {

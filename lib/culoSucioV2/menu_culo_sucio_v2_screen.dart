@@ -9,7 +9,7 @@ import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Menú de Culo sucio v2 (vs PC; online próximamente).
+/// Menú de Culo sucio v2 (vs PC / online).
 class MenuCuloSucioV2Screen extends StatefulWidget {
   const MenuCuloSucioV2Screen({super.key});
 
@@ -48,19 +48,30 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
   Future<void> _abrir({
     required BuildContext ctx,
     required List<String> nombres,
+    bool contraPc = false,
     bool modoDios = false,
     PartidaCuloSucioV2Resume? resume,
+    String? salaCodigo,
+    String? miNombre,
+    bool replace = false,
   }) {
     return navegarConCarga<void>(
       ctx,
-      mensaje: resume != null ? 'Reanudando partida' : 'Repartiendo cartas',
+      replace: replace,
+      mensaje: salaCodigo != null
+          ? 'Conectando partida'
+          : resume != null
+              ? 'Reanudando partida'
+              : 'Repartiendo cartas',
       acento: AppColors.acentoSuave,
       builder: (_) => PartidaCuloSucioV2Screen(
         nombres: resume?.nombres ?? nombres,
-        contraPc: true,
-        modoDios: resume?.modoDios ?? modoDios,
+        contraPc: contraPc,
+        modoDios: contraPc && (resume?.modoDios ?? modoDios),
         opciones: resume?.opciones ?? _opciones,
         resume: resume,
+        salaCodigo: salaCodigo,
+        miNombre: miNombre,
       ),
     );
   }
@@ -87,15 +98,18 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
         _abrir(
           ctx: ctx,
           nombres: nombres,
+          contraPc: true,
           modoDios: resume?.modoDios ?? estado.modoDios,
           resume: resume,
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          const SnackBar(
-            content: Text('Online de Culo sucio v2 próximamente'),
-          ),
+        _abrir(
+          ctx: ctx,
+          nombres: inicio.nombres,
+          salaCodigo: inicio.salaCodigo,
+          miNombre: inicio.miNombre,
+          replace: true,
         );
       },
     );

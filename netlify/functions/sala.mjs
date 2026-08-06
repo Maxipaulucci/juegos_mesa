@@ -455,6 +455,30 @@ export default async (req) => {
           historial: [],
           mostrarVictoria: false,
         }
+      } else if (sala.juegoId === 'culoSucioV2') {
+        // El anfitrión publica el mazo repartido al entrar a la partida.
+        sala.gameState = {
+          version: 1,
+          juego: 'culoSucioV2',
+          pendienteMazo: true,
+          indiceTurno: 0,
+          fase: 'descartandoPares',
+          perdedor: null,
+          ganador: null,
+          mensajeFin: null,
+          ultimaRobada: null,
+          ultimaRobadaDe: null,
+          ultimaRobadaPor: null,
+          ultimoPar: null,
+          eliminarParesAuto: true,
+          jugadores: nombres.map((n) => ({
+            nombre: n,
+            mano: [],
+            descartes: [],
+            paresInicialesListos: false,
+          })),
+          mostrarVictoria: false,
+        }
       } else {
         sala.gameState = {
           version: 1,
