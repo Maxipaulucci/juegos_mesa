@@ -5,6 +5,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/culoSucioV2/culo_sucio_v2_online_codec.dart';
+import 'package:app_juegos_mesa/culoSucioV2/menu_partida_culo_sucio_v2.dart';
 import 'package:app_juegos_mesa/culoSucioV2/motor_culo_sucio_v2.dart';
 import 'package:app_juegos_mesa/culoSucioV2/opciones_culo_sucio_v2.dart';
 import 'package:app_juegos_mesa/culoSucioV2/standby_store.dart';
@@ -12,6 +13,7 @@ import 'package:app_juegos_mesa/culoSucioV2/textos.dart';
 import 'package:app_juegos_mesa/culoSucioV2/victoria_culo_sucio_v2_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
@@ -28,6 +30,7 @@ class PartidaCuloSucioV2Screen extends StatefulWidget {
     this.resume,
     this.salaCodigo,
     this.miNombre,
+    this.ajustesIniciales,
   });
 
   final List<String> nombres;
@@ -37,6 +40,7 @@ class PartidaCuloSucioV2Screen extends StatefulWidget {
   final PartidaCuloSucioV2Resume? resume;
   final String? salaCodigo;
   final String? miNombre;
+  final AjustesEstado? ajustesIniciales;
 
   @override
   State<PartidaCuloSucioV2Screen> createState() =>
@@ -46,6 +50,9 @@ class PartidaCuloSucioV2Screen extends StatefulWidget {
 class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   late PartidaCuloSucioV2 _partida;
   late OpcionesCuloSucioV2 _opciones;
+  AjustesEstado _ajustes = const AjustesEstado();
+  bool _mostrarMenu = false;
+  bool _mostrarAjustes = false;
   bool _robando = false;
   int _pcToken = 0;
   /// Índices seleccionados en la mano para formar un par inicial.
@@ -54,6 +61,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   int? _indiceRevelando;
   /// Tras un robo, hay que confirmar el par tocando las cartas marcadas.
   bool _esperandoDescartarPar = false;
+  /// Índice del 1 de oro seleccionado para reordenarlo en la mano.
+  int? _indiceCuloMoviendo;
   /// Índice en la mano del humano que la PC está por robar.
   int? _indiceRobadaPorPc;
   /// Carta que la PC está por llevarse (para mostrarla grande).
@@ -167,6 +176,16 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   bool get _puedoDescartarPares =>
       _fasePares && _esTurnoHumano && !_robando && !_esperandoMazoOnline;
 
+  bool get _puedoMoverCulo =>
+      _opciones.moverCuloSucio &&
+      _partida.enJuego &&
+      _esTurnoHumano &&
+      !_robando &&
+      !_esperandoDescartarPar &&
+      !_esperandoMazoOnline &&
+      !_cambioJugadorPendiente &&
+      _yo.mano.any((c) => c.esCuloSucio);
+
   bool get _debeMostrarVictoria {
     if (_partida.ganador == null || _partida.perdedor == null) return false;
     if (_esOnline) return _partida.ganador == widget.miNombre;
@@ -191,6 +210,9 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       return TextosCuloSucioV2.sacandoPares;
     }
     if (_esperandoDescartarPar) return '';
+    if (_indiceCuloMoviendo != null) {
+      return TextosCuloSucioV2.culoSeleccionado;
+    }
     if (_cartaQueSeLlevaPc != null || _cartaQueTeSacaron != null) {
       return _cartaQueTeSacaron != null
           ? TextosCuloSucioV2.rivalTeSaco
@@ -200,7 +222,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_esOnline && !_esMiTurnoOnline) {
       return TextosCuloSucioV2.esperandoTuTurno;
     }
-    if (_esTurnoHumano) return TextosCuloSucioV2.robaUna;
+    if (_esTurnoHumano) {
+      if (_puedoMoverCulo) {
+        return '${TextosCuloSucioV2.robaUna}\n${TextosCuloSucioV2.moverCulo}';
+      }
+      return TextosCuloSucioV2.robaUna;
+    }
     return 'Turno de ${_partida.jugadorActual.nombre}';
   }
 
@@ -210,6 +237,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _cambioJugadorPendiente = true;
       _seleccionPar.clear();
       _esperandoDescartarPar = false;
+      _indiceCuloMoviendo = null;
       _limpiarAvisoJugada();
     });
   }
@@ -227,6 +255,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _cambioJugadorPendiente = false;
       _nombreVistaLocal = _partida.jugadorActual.nombre;
       _seleccionPar.clear();
+      _indiceCuloMoviendo = null;
     });
   }
 
@@ -237,10 +266,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (resume != null && !_esOnline) {
       _partida = resume.partida;
       _opciones = resume.opciones;
+      _ajustes = resume.ajustesIniciales;
       WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
       return;
     }
     _opciones = widget.opciones;
+    _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
     if (_esOnline) {
       _esperandoMazoOnline = true;
       _partida = nuevaPartidaCuloSucioV2(
@@ -328,6 +359,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         _esperandoDescartarPar = false;
         _seleccionPar.clear();
         _indiceRevelando = null;
+        _indiceCuloMoviendo = null;
       }
       _talVezMostrarRoboDelRival(version);
     });
@@ -421,6 +453,35 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         nombres: widget.nombres,
         modoDios: widget.modoDios,
         opciones: _opciones,
+        ajustesIniciales: _ajustes,
+      ),
+    );
+  }
+
+  void _mostrarDialogoReglas() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        title: const Text(
+          'Reglas',
+          style: TextStyle(
+            color: AppColors.mint,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Text(
+            TextosCuloSucioV2.reglasCompletas(),
+            style: const TextStyle(color: AppColors.texto, height: 1.35),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
       ),
     );
   }
@@ -516,6 +577,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _limpiarAvisoJugada();
       _robando = true;
       _indiceRevelando = indice;
+      _indiceCuloMoviendo = null;
     });
     // Mostrar la carta boca arriba un momento antes de llevarla a la mano.
     await Future<void>.delayed(const Duration(milliseconds: 950));
@@ -612,6 +674,39 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       }
       _talVezTurnoPc();
     });
+  }
+
+  void _tocarManoParaMoverCulo(int indice) {
+    if (!_puedoMoverCulo) return;
+    final mano = _yo.mano;
+    if (indice < 0 || indice >= mano.length) return;
+
+    final seleccionado = _indiceCuloMoviendo;
+    if (seleccionado == null) {
+      if (!mano[indice].esCuloSucio) return;
+      setState(() => _indiceCuloMoviendo = indice);
+      return;
+    }
+
+    if (seleccionado == indice) {
+      setState(() => _indiceCuloMoviendo = null);
+      return;
+    }
+
+    final err = moverCuloSucioEnManoCuloSucioV2(
+      _partida,
+      jugador: _yo,
+      desde: seleccionado,
+      hacia: indice,
+    );
+    setState(() => _indiceCuloMoviendo = null);
+    if (err != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    if (_esOnline) {
+      unawaited(_publicarEstadoOnline());
+    }
   }
 
   void _tocarCartaManoParaPar(int indice) {
@@ -719,6 +814,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _indiceRobadaPorPc = null;
       _cartaQueSeLlevaPc = null;
       _cartaQueTeSacaron = null;
+      _indiceCuloMoviendo = null;
       _nombreVistaLocal = _esLocalHotSeat ? _partida.jugadorActual.nombre : null;
       _cambioJugadorPendiente = _esLocalHotSeat;
     });
@@ -756,9 +852,18 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _salirAlMenu(
-          guardar: !_esOnline && widget.contraPc && !_partida.terminada,
-        );
+        if (_mostrarAjustes) {
+          setState(() => _mostrarAjustes = false);
+          return;
+        }
+        if (_mostrarMenu) {
+          setState(() => _mostrarMenu = false);
+          return;
+        }
+        setState(() {
+          _mostrarMenu = true;
+          _mostrarAjustes = false;
+        });
       },
       child: Scaffold(
         backgroundColor: AppColors.fondo,
@@ -771,17 +876,15 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 4, 12, 0),
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
                     child: Row(
                       children: [
                         IconButton(
-                          onPressed: () => _salirAlMenu(
-                            guardar: !_esOnline &&
-                                widget.contraPc &&
-                                !_partida.terminada,
-                          ),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          color: AppColors.texto,
+                          onPressed: () => setState(() {
+                            _mostrarMenu = true;
+                            _mostrarAjustes = false;
+                          }),
+                          icon: const Icon(Icons.menu, color: AppColors.texto),
                         ),
                         const Expanded(
                           child: Text(
@@ -794,7 +897,16 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 48),
+                        IconButton(
+                          onPressed: () => setState(() {
+                            _mostrarAjustes = true;
+                            _mostrarMenu = false;
+                          }),
+                          icon: const Icon(
+                            Icons.settings,
+                            color: AppColors.texto,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -904,12 +1016,16 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                             iconoPalo: _iconoPalo,
                             seleccionados: _esperandoDescartarPar
                                 ? _seleccionPar
-                                : (_indiceRobadaPorPc != null
-                                    ? [_indiceRobadaPorPc!]
-                                    : const []),
+                                : (_indiceCuloMoviendo != null
+                                    ? [_indiceCuloMoviendo!]
+                                    : (_indiceRobadaPorPc != null
+                                        ? [_indiceRobadaPorPc!]
+                                        : const [])),
                             onTapIndex: _esperandoDescartarPar
                                 ? (i) async => _tocarParTrasRobo(i)
-                                : null,
+                                : (_puedoMoverCulo
+                                    ? (i) async => _tocarManoParaMoverCulo(i)
+                                    : null),
                           ),
                         ),
                       ),
@@ -1228,6 +1344,38 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                   titulo: TextosCuloSucioV2.cambioDeJugador,
                   botonLabel: TextosCuloSucioV2.aceptarCambioJugador,
                   onAceptar: _aceptarCambioJugador,
+                ),
+              ),
+            if (_mostrarAjustes)
+              Positioned.fill(
+                child: AjustesOverlay(
+                  ajustes: _ajustes,
+                  onChanged: (a) => setState(() => _ajustes = a),
+                  onCerrar: () => setState(() => _mostrarAjustes = false),
+                ),
+              ),
+            if (_mostrarMenu)
+              Positioned.fill(
+                child: MenuPartidaCuloSucioV2(
+                  jugador: _esOnline
+                      ? (widget.miNombre ?? _yo.nombre)
+                      : (widget.contraPc
+                          ? _yo.nombre
+                          : _partida.jugadorActual.nombre),
+                  partidaTerminada: _partida.terminada,
+                  onCerrar: () => setState(() => _mostrarMenu = false),
+                  onReglas: () {
+                    setState(() => _mostrarMenu = false);
+                    _mostrarDialogoReglas();
+                  },
+                  onSalir: () {
+                    setState(() => _mostrarMenu = false);
+                    _salirAlMenu(
+                      guardar: !_esOnline &&
+                          widget.contraPc &&
+                          !_partida.terminada,
+                    );
+                  },
                 ),
               ),
             if (_partida.terminada)

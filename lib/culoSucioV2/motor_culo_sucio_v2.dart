@@ -467,6 +467,36 @@ String? robarCartaCuloSucioV2(
   return null;
 }
 
+/// Mueve el 1 de oro dentro de la mano del jugador de turno (sin avanzar turno).
+/// [hacia] es el índice destino en la mano actual (antes de quitar [desde]).
+String? moverCuloSucioEnManoCuloSucioV2(
+  PartidaCuloSucioV2 p, {
+  required JugadorCuloSucioV2 jugador,
+  required int desde,
+  required int hacia,
+}) {
+  if (p.terminada) return 'La partida ya terminó.';
+  if (p.fase != FaseCuloSucioV2.jugando) {
+    return 'Solo podés mover el 1 de oro durante el juego.';
+  }
+  if (!identical(jugador, p.jugadorActual)) {
+    return 'No es el turno de ${jugador.nombre}.';
+  }
+  final n = jugador.mano.length;
+  if (desde < 0 || desde >= n) return 'Carta inválida.';
+  if (!jugador.mano[desde].esCuloSucio) {
+    return 'Solo podés mover el 1 de oro.';
+  }
+  if (hacia < 0 || hacia >= n) return 'Posición inválida.';
+  if (desde == hacia) return null;
+
+  final carta = jugador.mano.removeAt(desde);
+  var insertAt = hacia;
+  if (insertAt > desde) insertAt -= 1;
+  jugador.mano.insert(insertAt, carta);
+  return null;
+}
+
 /// Descarta un par tras un robo (fase de juego) y avanza el turno.
 String? descartarParTrasRoboCuloSucioV2(
   PartidaCuloSucioV2 p, {

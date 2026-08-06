@@ -4,6 +4,7 @@ import 'package:app_juegos_mesa/culoSucioV2/opciones_culo_sucio_v2.dart';
 import 'package:app_juegos_mesa/culoSucioV2/partida_culo_sucio_v2_screen.dart';
 import 'package:app_juegos_mesa/culoSucioV2/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucioV2/textos.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
@@ -50,6 +51,15 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
               ),
               info: TextosCuloSucioV2.infoDetectarParTrasRobo,
             ),
+            const SizedBox(height: 12),
+            FilaToggleModificarPartida(
+              titulo: TextosCuloSucioV2.moverCuloSucio,
+              activo: draft.moverCuloSucio,
+              onChanged: (v) => setDialogState(
+                () => draft = draft.copyWith(moverCuloSucio: v),
+              ),
+              info: TextosCuloSucioV2.infoMoverCuloSucio,
+            ),
           ],
         );
       },
@@ -68,6 +78,7 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
     String? salaCodigo,
     String? miNombre,
     bool replace = false,
+    AjustesEstado? ajustes,
   }) {
     return navegarConCarga<void>(
       ctx,
@@ -86,6 +97,7 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
         resume: resume,
         salaCodigo: salaCodigo,
         miNombre: miNombre,
+        ajustesIniciales: resume?.ajustesIniciales ?? ajustes,
       ),
     );
   }
@@ -105,7 +117,11 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
         final nombres = estado.nombres.length >= 2
             ? estado.nombres.take(2).toList()
             : const ['Jugador 1', 'Jugador 2'];
-        await _abrir(ctx: ctx, nombres: nombres);
+        await _abrir(
+          ctx: ctx,
+          nombres: nombres,
+          ajustes: estado.ajustes,
+        );
       },
       onVsPc: (ctx, estado, _) {
         final resume = CuloSucioV2StandByStore.consumir();
@@ -119,6 +135,7 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
           contraPc: true,
           modoDios: resume?.modoDios ?? estado.modoDios,
           resume: resume,
+          ajustes: resume?.ajustesIniciales ?? estado.ajustes,
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {

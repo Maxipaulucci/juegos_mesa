@@ -95,6 +95,7 @@ Map<String, dynamic> encodeCuloSucioV2GameState({
         : _encodeCartas(partida.ultimoPar!),
     'eliminarParesAuto': opciones.eliminarParesAuto,
     'detectarParTrasRobo': opciones.detectarParTrasRobo,
+    'moverCuloSucio': opciones.moverCuloSucio,
     'jugadores': [
       for (final j in partida.jugadores)
         {
@@ -164,7 +165,8 @@ OpcionesCuloSucioV2 opcionesDesdeCuloSucioV2GameState(
   OpcionesCuloSucioV2 fallback,
 ) {
   if (!raw.containsKey('eliminarParesAuto') &&
-      !raw.containsKey('detectarParTrasRobo')) {
+      !raw.containsKey('detectarParTrasRobo') &&
+      !raw.containsKey('moverCuloSucio')) {
     return fallback;
   }
   return fallback.copyWith(
@@ -173,6 +175,9 @@ OpcionesCuloSucioV2 opcionesDesdeCuloSucioV2GameState(
         : null,
     detectarParTrasRobo: raw.containsKey('detectarParTrasRobo')
         ? raw['detectarParTrasRobo'] == true
+        : null,
+    moverCuloSucio: raw.containsKey('moverCuloSucio')
+        ? raw['moverCuloSucio'] == true
         : null,
   );
 }
