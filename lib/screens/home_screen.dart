@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
 import '../culoSucio/menu_culo_sucio_screen.dart';
 import '../culoSucioV2/menu_culo_sucio_v2_screen.dart';
+import '../casitaRobada/menu_casita_robada_screen.dart';
 import '../unoSolo/menu_uno_solo_screen.dart';
 
 enum _CategoriaHome {
@@ -152,10 +153,9 @@ class _HomeScreenState extends State<HomeScreen>
     _JuegoHome(
       tipo: _TipoJuegoHome.casitaRobada,
       titulo: 'Casita robada',
-      subtitulo: 'Próximamente',
+      subtitulo: 'Cartas · pares y casitas',
       accent: AppColors.mint,
       categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.chanchoVa,
@@ -329,8 +329,13 @@ class _HomeScreenState extends State<HomeScreen>
               acento: AppColors.acentoSuave,
               mensaje: 'Culo sucio v2',
             );
-      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.casitaRobada:
+        return () => _abrirJuego(
+              menu: const MenuCasitaRobadaScreen(),
+              acento: AppColors.mint,
+              mensaje: 'Casita robada',
+            );
+      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.chanchoVa:
       case _TipoJuegoHome.desconfio:
       case _TipoJuegoHome.jodete:

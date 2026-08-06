@@ -479,6 +479,24 @@ export default async (req) => {
           })),
           mostrarVictoria: false,
         }
+      } else if (sala.juegoId === 'casitaRobada') {
+        sala.gameState = {
+          version: 1,
+          juego: 'casitaRobada',
+          pendienteMazo: true,
+          indiceTurno: 0,
+          fase: 'jugando',
+          ganador: null,
+          mensajeFin: null,
+          mazo: [],
+          mesa: [],
+          jugadores: nombres.map((n) => ({
+            nombre: n,
+            mano: [],
+            pozo: [],
+          })),
+          mostrarVictoria: false,
+        }
       } else {
         sala.gameState = {
           version: 1,
