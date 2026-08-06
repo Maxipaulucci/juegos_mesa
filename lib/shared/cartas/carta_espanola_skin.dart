@@ -13,6 +13,9 @@ Color colorPaloEspanol(PaloEspanolVisual palo) => switch (palo) {
       PaloEspanolVisual.basto => const Color(0xFF69F0AE),
     };
 
+/// Borde/glow al seleccionar (violeta, para no confundirse con basto).
+const Color colorSeleccionCartaEspanola = Color(0xFFB388FF);
+
 Widget iconoPaloEspanol(
   PaloEspanolVisual palo, {
   required double size,
@@ -81,12 +84,12 @@ class CartaEspanolaSkin extends StatelessWidget {
             ],
           ),
           border: Border.all(
-            color: seleccionada ? AppColors.mint : AppColors.acento,
+            color: seleccionada ? colorSeleccionCartaEspanola : AppColors.acento,
             width: seleccionada ? 2.4 : 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: (seleccionada ? AppColors.mint : AppColors.acento)
+              color: (seleccionada ? colorSeleccionCartaEspanola : AppColors.acento)
                   .withValues(alpha: 0.35),
               blurRadius: compacta ? 8 : 14,
               spreadRadius: 0.5,
@@ -134,7 +137,7 @@ class CartaEspanolaSkin extends StatelessWidget {
     }
 
     final borde = seleccionada
-        ? AppColors.mint
+        ? colorSeleccionCartaEspanola
         : (resaltarPeligro ? AppColors.peligro : color);
 
     return AnimatedContainer(

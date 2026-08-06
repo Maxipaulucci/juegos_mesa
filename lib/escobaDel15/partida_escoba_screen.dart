@@ -985,7 +985,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                   const SizedBox(height: 8),
                   if (widget.contraPc || (_esOnline && !_esperandoMazoOnline))
                     SizedBox(
-                      height: 72,
+                      height: 126,
                       child: _pcMostrandoJugada && _cartaSeleccionada != null
                           ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -1003,7 +1003,6 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                 _CartaTexto(
                                   carta: _cartaSeleccionada!,
                                   seleccionada: true,
-                                  compacta: true,
                                 ),
                               ],
                             )
@@ -1559,7 +1558,7 @@ class _ZonaCartas extends StatelessWidget {
         alignment: Alignment.center,
         child: Wrap(
           spacing: 8,
-          runSpacing: 8,
+          runSpacing: 12,
           alignment: WrapAlignment.center,
           children: [
             for (final c in cartas)
@@ -1588,8 +1587,12 @@ class _CartaTexto extends StatelessWidget {
   final VoidCallback? onTap;
   final bool compacta;
 
+  static const double _deslizamiento = 14;
+
   @override
   Widget build(BuildContext context) {
+    final cardW = compacta ? 56.0 : 72.0;
+    final cardH = compacta ? 84.0 : 112.0;
     final skin = CartaEspanolaSkin(
       numero: carta.numero,
       etiqueta: carta.etiqueta,
@@ -1597,16 +1600,41 @@ class _CartaTexto extends StatelessWidget {
       seleccionada: seleccionada,
       compacta: compacta,
       subtitulo: 'vale ${carta.valorSuma}',
-      width: compacta ? 56 : 72,
-      height: compacta ? 84 : 112,
+      width: cardW,
+      height: cardH,
     );
-    if (onTap == null) return skin;
+    // Slot fijo: al seleccionar, la carta queda arriba (deslizada).
+    final tarjeta = SizedBox(
+      width: cardW,
+      height: cardH + _deslizamiento,
+      child: AnimatedAlign(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        alignment:
+            seleccionada ? Alignment.topCenter : Alignment.bottomCenter,
+        child: skin,
+      ),
+    );
+    if (onTap == null) return tarjeta;
+    // Sin hover en cartas sin seleccionar (evita el rectángulo feo).
+    // Con selección, el InkWell pinta el resaltado en el hueco de abajo.
+    if (!seleccionada) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: tarjeta,
+      );
+    }
     return Material(
       color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        child: skin,
+        splashColor: colorSeleccionCartaEspanola.withValues(alpha: 0.25),
+        highlightColor: colorSeleccionCartaEspanola.withValues(alpha: 0.18),
+        hoverColor: colorSeleccionCartaEspanola.withValues(alpha: 0.22),
+        child: tarjeta,
       ),
     );
   }
