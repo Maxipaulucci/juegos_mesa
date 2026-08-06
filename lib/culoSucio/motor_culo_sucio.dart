@@ -102,6 +102,7 @@ List<CartaCuloSucio> crearMazoCuloSucio({
   math.Random? rng,
   bool incluirComodines = false,
 }) {
+  final r = rng ?? math.Random();
   final mazo = <CartaCuloSucio>[
     for (final palo in PaloCuloSucio.values)
       for (var n = 1; n <= 12; n++)
@@ -112,7 +113,12 @@ List<CartaCuloSucio> crearMazoCuloSucio({
       CartaCuloSucio(numero: null, palo: null, esComodin: true),
     ],
   ];
-  mazo.shuffle(rng ?? math.Random());
+  // Mezclar y ubicar el 1 de oro en un índice al azar del mazo.
+  final idxCulo = mazo.indexWhere((c) => c.esCuloSucio);
+  assert(idxCulo >= 0, 'El mazo debe incluir el 1 de oro');
+  final culoSucio = mazo.removeAt(idxCulo);
+  mazo.shuffle(r);
+  mazo.insert(r.nextInt(mazo.length + 1), culoSucio);
   return mazo;
 }
 

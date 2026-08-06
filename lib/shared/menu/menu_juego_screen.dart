@@ -46,6 +46,8 @@ class MenuJuegoScreen extends StatefulWidget {
     this.textoInfoModoDios,
     /// Contenido extra debajo de Jugar solo / vs PC (p. ej. Modificar partida).
     this.extraTrasModoLocal,
+    /// Si false, oculta Multijugador local (decidir orden, partida rápida, nombres).
+    this.mostrarMultijugadorLocal = true,
   });
 
   static const juegoIdDiezMil = 'diezMil';
@@ -65,6 +67,7 @@ class MenuJuegoScreen extends StatefulWidget {
   final bool mostrarModoDiosEnSolo;
   final String? textoInfoModoDios;
   final Widget? extraTrasModoLocal;
+  final bool mostrarMultijugadorLocal;
 
   final Future<void> Function(
     BuildContext context,
@@ -540,66 +543,68 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       const SizedBox(height: 16),
                       const Divider(color: AppColors.fondoSuave),
                       const SizedBox(height: 12),
-                      FilaOpcionToggle(
-                        etiqueta: 'Multijugador local',
-                        opcion: 'Decidir orden',
-                        activo: _decidirOrden,
-                        onChanged: (v) => setState(() => _decidirOrden = v),
-                        onInfo: _explicarDecidirOrden,
-                      ),
-                      const SizedBox(height: 10),
-                      for (var i = 0; i < widget.modosDados.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 8),
-                        OutlinedButton(
-                          onPressed: () =>
-                              _abrirPartidaRapida(widget.modosDados[i]),
-                          child: Text(
-                            _etiquetaDados(
-                              widget.modosDados[i],
-                              prefijo: 'Partida rápida',
-                            ),
-                          ),
+                      if (widget.mostrarMultijugadorLocal) ...[
+                        FilaOpcionToggle(
+                          etiqueta: 'Multijugador local',
+                          opcion: 'Decidir orden',
+                          activo: _decidirOrden,
+                          onChanged: (v) => setState(() => _decidirOrden = v),
+                          onInfo: _explicarDecidirOrden,
                         ),
-                      ],
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _elegirCantidadJugadores,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.texto,
-                                backgroundColor: const Color(0xFF6B6578),
-                                side: const BorderSide(
-                                  color: Color(0xFF8A8498),
-                                  width: 1.5,
-                                ),
+                        const SizedBox(height: 10),
+                        for (var i = 0; i < widget.modosDados.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () =>
+                                _abrirPartidaRapida(widget.modosDados[i]),
+                            child: Text(
+                              _etiquetaDados(
+                                widget.modosDados[i],
+                                prefijo: 'Partida rápida',
                               ),
-                              child: Text(
-                                'Jugadores · $_cantidadJugadores',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _editarNombres,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.texto,
-                                backgroundColor: const Color(0xFF6B6578),
-                                side: const BorderSide(
-                                  color: Color(0xFF8A8498),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: const Text('Nombres'),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 16),
-                      const Divider(color: AppColors.fondoSuave),
-                      const SizedBox(height: 12),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _elegirCantidadJugadores,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.texto,
+                                  backgroundColor: const Color(0xFF6B6578),
+                                  side: const BorderSide(
+                                    color: Color(0xFF8A8498),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Jugadores · $_cantidadJugadores',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _editarNombres,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.texto,
+                                  backgroundColor: const Color(0xFF6B6578),
+                                  side: const BorderSide(
+                                    color: Color(0xFF8A8498),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: const Text('Nombres'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(color: AppColors.fondoSuave),
+                        const SizedBox(height: 12),
+                      ],
                       if (widget.jugarSoloEnLugarDePc) ...[
                         if (widget.mostrarModoDiosEnSolo)
                           FilaOpcionToggle(

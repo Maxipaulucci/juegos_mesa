@@ -10,11 +10,17 @@ abstract final class TextosCuloSucioV2 {
   static const manoRival = 'Mano del rival';
   static const paresDescartados = 'Pares descartados';
   static const robaUna = 'Tocá una carta tapada del rival';
+  static const tocaParParaSacar =
+      'Formaste un par: tocá una de las cartas marcadas para sacarlo';
+  static const notifPuedeEliminarPar =
+      'Podés eliminar un par de tu mano. Tocá una de las cartas marcadas.';
   static const sacandoPares =
       'Tocá dos cartas del mismo número: se sacan solas';
   static const listoPares = 'Listo · sin más pares';
   static const eliminarParesAuto = 'Eliminar pares automáticamente';
   static const esperandoPc = 'La PC está eligiendo…';
+  static const pcSeLleva = 'LA PC SE LLEVA';
+  static const pcEligioCarta = '¡La PC eligió una de tus cartas!';
   static const esperandoRivalPares = 'Esperando que el rival saque sus pares…';
   static const culoSucio = '¡CULO SUCIO!';
   static const reiniciar = 'Otra vez';

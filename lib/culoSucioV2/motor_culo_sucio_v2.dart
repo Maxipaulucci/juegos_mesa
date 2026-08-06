@@ -95,6 +95,7 @@ class PartidaCuloSucioV2 {
 
 /// 12×4 − 1 de copa/espada/basto = 45.
 List<CartaCuloSucioV2> crearMazoCuloSucioV2([math.Random? rng]) {
+  final r = rng ?? math.Random();
   final mazo = <CartaCuloSucioV2>[
     for (final palo in PaloCuloSucioV2.values)
       for (var n = 1; n <= 12; n++)
@@ -102,7 +103,12 @@ List<CartaCuloSucioV2> crearMazoCuloSucioV2([math.Random? rng]) {
           CartaCuloSucioV2(numero: n, palo: palo),
   ];
   assert(mazo.length == 45, 'Mazo v2 debe tener 45 cartas, tiene ${mazo.length}');
-  mazo.shuffle(rng ?? math.Random());
+  // Mezclar y ubicar el 1 de oro en un índice al azar.
+  final idxCulo = mazo.indexWhere((c) => c.esCuloSucio);
+  assert(idxCulo >= 0, 'El mazo debe incluir el 1 de oro');
+  final culoSucio = mazo.removeAt(idxCulo);
+  mazo.shuffle(r);
+  mazo.insert(r.nextInt(mazo.length + 1), culoSucio);
   return mazo;
 }
 
@@ -254,7 +260,9 @@ PartidaCuloSucioV2 nuevaPartidaCuloSucioV2({
   }
 
   final duenoCulo = r.nextInt(jugadores.length);
-  jugadores[duenoCulo].mano.add(culoSucio);
+  final manoDueno = jugadores[duenoCulo].mano;
+  // Insertar en posición aleatoria (no siempre al final).
+  manoDueno.insert(r.nextInt(manoDueno.length + 1), culoSucio);
   for (final j in jugadores) {
     j.mano.shuffle(r);
   }
@@ -343,11 +351,15 @@ String? confirmarParesInicialesListos(PartidaCuloSucioV2 p) {
 }
 
 /// [hacia] roba la carta en [indiceEnManoDe] de [de].
+/// Si [autoDescartarPar] es false y se forma un par, no lo saca ni avanza turno;
+/// escribe los índices del par en [parPendienteOut] para que el jugador lo confirme.
 String? robarCartaCuloSucioV2(
   PartidaCuloSucioV2 p, {
   required JugadorCuloSucioV2 de,
   required int indiceEnManoDe,
   required JugadorCuloSucioV2 hacia,
+  bool autoDescartarPar = true,
+  List<int>? parPendienteOut,
 }) {
   if (p.terminada) return 'La partida ya terminó.';
   if (p.fase != FaseCuloSucioV2.jugando) {
@@ -376,6 +388,14 @@ String? robarCartaCuloSucioV2(
       orElse: () => -1,
     );
     if (idxPar >= 0) {
+      if (!autoDescartarPar) {
+        parPendienteOut
+          ?..clear()
+          ..add(idxRobada)
+          ..add(idxPar);
+        _chequearFin(p);
+        return null;
+      }
       final a = idxRobada > idxPar ? idxRobada : idxPar;
       final b = idxRobada > idxPar ? idxPar : idxRobada;
       final c1 = hacia.mano.removeAt(a);
@@ -384,6 +404,48 @@ String? robarCartaCuloSucioV2(
       p.ultimoPar = [c1, c2];
     }
   }
+
+  _chequearFin(p);
+  if (!p.terminada) {
+    _avanzarTurno(p);
+    _chequearFin(p);
+  }
+  return null;
+}
+
+/// Descarta un par tras un robo (fase de juego) y avanza el turno.
+String? descartarParTrasRoboCuloSucioV2(
+  PartidaCuloSucioV2 p, {
+  required JugadorCuloSucioV2 jugador,
+  required int indiceA,
+  required int indiceB,
+}) {
+  if (p.terminada) return 'La partida ya terminó.';
+  if (p.fase != FaseCuloSucioV2.jugando) {
+    return 'Ahora no se descarta un par de robo.';
+  }
+  if (!identical(jugador, p.jugadorActual)) {
+    return 'No es el turno de ${jugador.nombre}.';
+  }
+  if (indiceA == indiceB) return 'Elegí dos cartas distintas.';
+  if (indiceA < 0 ||
+      indiceB < 0 ||
+      indiceA >= jugador.mano.length ||
+      indiceB >= jugador.mano.length) {
+    return 'Carta inválida.';
+  }
+  final a = jugador.mano[indiceA];
+  final b = jugador.mano[indiceB];
+  if (a.numero != b.numero) {
+    return 'Las cartas deben tener el mismo número.';
+  }
+  final hi = indiceA > indiceB ? indiceA : indiceB;
+  final lo = indiceA > indiceB ? indiceB : indiceA;
+  final c1 = jugador.mano.removeAt(hi);
+  final c2 = jugador.mano.removeAt(lo);
+  jugador.descartes.addAll([c1, c2]);
+  p.ultimoPar = [c1, c2];
+  p.ultimaRobada = null;
 
   _chequearFin(p);
   if (!p.terminada) {

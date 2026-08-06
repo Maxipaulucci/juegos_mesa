@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/culoSucioV2/motor_culo_sucio_v2.dart';
+import 'package:app_juegos_mesa/culoSucioV2/opciones_culo_sucio_v2.dart';
 import 'package:app_juegos_mesa/culoSucioV2/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucioV2/textos.dart';
 import 'package:app_juegos_mesa/culoSucioV2/victoria_culo_sucio_v2_overlay.dart';
@@ -15,12 +18,14 @@ class PartidaCuloSucioV2Screen extends StatefulWidget {
     required this.nombres,
     this.contraPc = false,
     this.modoDios = false,
+    this.opciones = const OpcionesCuloSucioV2(),
     this.resume,
   });
 
   final List<String> nombres;
   final bool contraPc;
   final bool modoDios;
+  final OpcionesCuloSucioV2 opciones;
   final PartidaCuloSucioV2Resume? resume;
 
   @override
@@ -30,10 +35,19 @@ class PartidaCuloSucioV2Screen extends StatefulWidget {
 
 class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   late PartidaCuloSucioV2 _partida;
+  late OpcionesCuloSucioV2 _opciones;
   bool _robando = false;
   int _pcToken = 0;
   /// Índices seleccionados en la mano para formar un par inicial.
   final List<int> _seleccionPar = [];
+  /// Carta del rival revelada antes de robarla.
+  int? _indiceRevelando;
+  /// Tras un robo, hay que confirmar el par tocando las cartas marcadas.
+  bool _esperandoDescartarPar = false;
+  /// Índice en la mano del humano que la PC está por robar.
+  int? _indiceRobadaPorPc;
+  /// Carta que la PC está por llevarse (para mostrarla grande).
+  CartaCuloSucioV2? _cartaQueSeLlevaPc;
 
   bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
 
@@ -60,6 +74,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
 
   bool get _esTurnoHumano {
     if (_partida.terminada) return false;
+    if (_esperandoDescartarPar) return true;
     if (!widget.contraPc) return true;
     return _partida.jugadorActual.nombre != TextosCuloSucioV2.vsPcNombre;
   }
@@ -68,6 +83,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       widget.contraPc &&
       !_partida.terminada &&
       _partida.enJuego &&
+      !_esperandoDescartarPar &&
       _partida.jugadorActual.nombre == TextosCuloSucioV2.vsPcNombre;
 
   bool get _fasePares => _partida.descartandoPares;
@@ -88,6 +104,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       }
       return TextosCuloSucioV2.sacandoPares;
     }
+    if (_esperandoDescartarPar) return '';
+    if (_cartaQueSeLlevaPc != null) {
+      return TextosCuloSucioV2.pcEligioCarta;
+    }
     if (_esTurnoPc) return TextosCuloSucioV2.esperandoPc;
     if (_esTurnoHumano) return TextosCuloSucioV2.robaUna;
     return 'Turno de ${_partida.jugadorActual.nombre}';
@@ -99,7 +119,9 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     final resume = widget.resume;
     if (resume != null) {
       _partida = resume.partida;
+      _opciones = resume.opciones;
     } else {
+      _opciones = widget.opciones;
       _partida = nuevaPartidaCuloSucioV2(
         nombres: widget.nombres,
         contraPc: widget.contraPc,
@@ -119,6 +141,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         partida: _partida,
         nombres: widget.nombres,
         modoDios: widget.modoDios,
+        opciones: _opciones,
       ),
     );
   }
@@ -135,45 +158,144 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     }
   }
 
+  void _limpiarAvisoJugada() {
+    _partida.ultimaRobada = null;
+    _partida.ultimoPar = null;
+  }
+
   Future<void> _talVezTurnoPc() async {
     if (!_esTurnoPc || _robando) return;
     final token = ++_pcToken;
+    setState(_limpiarAvisoJugada);
     await Future<void>.delayed(const Duration(milliseconds: 750));
     if (!mounted || token != _pcToken) return;
     if (!_esTurnoPc) return;
-    setState(() => _robando = true);
-    jugarTurnoPcCuloSucioV2(_partida);
+
+    final de = _humano;
+    final hacia = _rivalVista;
+    if (de.sinCartas || hacia.nombre != TextosCuloSucioV2.vsPcNombre) {
+      return;
+    }
+    final idx = math.Random().nextInt(de.mano.length);
+    final cartaElegida = de.mano[idx];
+
+    setState(() {
+      _robando = true;
+      _indiceRobadaPorPc = idx;
+      _cartaQueSeLlevaPc = cartaElegida;
+    });
+    // Tiempo para que el usuario vea qué carta se lleva la PC.
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    if (!mounted || token != _pcToken) return;
+
+    robarCartaCuloSucioV2(
+      _partida,
+      de: de,
+      indiceEnManoDe: idx,
+      hacia: hacia,
+    );
     if (!mounted) return;
-    setState(() => _robando = false);
+    setState(() {
+      _indiceRobadaPorPc = null;
+      _cartaQueSeLlevaPc = null;
+      _robando = false;
+    });
+    // Deja ver el aviso de robada / par.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted || token != _pcToken) return;
+    setState(_limpiarAvisoJugada);
     if (!_partida.terminada) {
-      await Future<void>.delayed(const Duration(milliseconds: 280));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
       if (mounted) _talVezTurnoPc();
     }
   }
 
   Future<void> _robarDeRival(int indice) async {
-    if (!_partida.enJuego || _robando || !_esTurnoHumano) return;
+    if (!_partida.enJuego ||
+        _robando ||
+        _esperandoDescartarPar ||
+        !_esTurnoHumano) {
+      return;
+    }
     final hacia = widget.contraPc ? _humano : _partida.jugadorActual;
     final de = widget.contraPc ? _rivalVista : _partida.rivalActual;
     if (hacia.nombre != _partida.jugadorActual.nombre) return;
+    if (indice < 0 || indice >= de.mano.length) return;
 
-    setState(() => _robando = true);
+    setState(() {
+      _limpiarAvisoJugada();
+      _robando = true;
+      _indiceRevelando = indice;
+    });
+    // Mostrar la carta boca arriba un momento antes de llevarla a la mano.
+    await Future<void>.delayed(const Duration(milliseconds: 950));
+    if (!mounted) return;
+
+    final parPendiente = <int>[];
     final err = robarCartaCuloSucioV2(
       _partida,
       de: de,
       indiceEnManoDe: indice,
       hacia: hacia,
+      autoDescartarPar: false,
+      parPendienteOut: parPendiente,
     );
     if (!mounted) return;
-    setState(() => _robando = false);
+    setState(() {
+      _indiceRevelando = null;
+      _robando = false;
+      if (err == null && parPendiente.length >= 2) {
+        _esperandoDescartarPar = true;
+        _seleccionPar
+          ..clear()
+          ..addAll(parPendiente);
+      } else {
+        _esperandoDescartarPar = false;
+        _seleccionPar.clear();
+      }
+    });
     if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
+    if (_esperandoDescartarPar) return;
+    // Mostrar aviso un momento y luego limpiarlo al pasar el turno.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    setState(_limpiarAvisoJugada);
     if (!_partida.terminada) {
-      await Future<void>.delayed(const Duration(milliseconds: 280));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
       if (mounted) _talVezTurnoPc();
     }
+  }
+
+  void _tocarParTrasRobo(int indice) {
+    if (!_esperandoDescartarPar || _seleccionPar.length < 2) return;
+    if (!_seleccionPar.contains(indice)) return;
+    final jugador = widget.contraPc ? _humano : _partida.jugadorActual;
+    final err = descartarParTrasRoboCuloSucioV2(
+      _partida,
+      jugador: jugador,
+      indiceA: _seleccionPar[0],
+      indiceB: _seleccionPar[1],
+    );
+    setState(() {
+      _esperandoDescartarPar = false;
+      _seleccionPar.clear();
+    });
+    if (err != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    // Deja ver el ¡Par! y luego lo limpia al completar el turno.
+    Future<void>(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      setState(_limpiarAvisoJugada);
+      if (!_partida.terminada) {
+        _talVezTurnoPc();
+      }
+    });
   }
 
   void _tocarCartaManoParaPar(int indice) {
@@ -254,6 +376,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       );
       _robando = false;
       _seleccionPar.clear();
+      _indiceRevelando = null;
+      _esperandoDescartarPar = false;
+      _indiceRobadaPorPc = null;
+      _cartaQueSeLlevaPc = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
   }
@@ -347,20 +473,22 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _textoEstado,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _esTurnoHumano
-                          ? AppColors.acento
-                          : AppColors.textoSuave,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
+                  if (_textoEstado.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _textoEstado,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _esTurnoHumano
+                            ? AppColors.acento
+                            : AppColors.textoSuave,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
+                  ],
                   if (!_fasePares) ...[
-                    const Spacer(flex: 3),
+                    const SizedBox(height: 14),
                     Text(
                       '${TextosCuloSucioV2.manoRival}: ${manoArriba.nombre}',
                       textAlign: TextAlign.center,
@@ -377,48 +505,29 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                       child: _FilaCartas(
                         cartas: manoArriba.mano,
                         bocaArriba: _modoDiosActivo,
+                        indiceRevelado: _indiceRevelando,
                         colorPalo: _colorPalo,
                         iconoPalo: _iconoPalo,
                         onTapIndex: (_esTurnoHumano &&
                                 !_robando &&
+                                !_esperandoDescartarPar &&
                                 identical(manoArriba, rivalParaRobar))
                             ? _robarDeRival
                             : null,
                       ),
                     ),
-                    if (_partida.ultimaRobada != null ||
-                        _partida.ultimoPar != null) ...[
-                      const SizedBox(height: 10),
-                      Center(
-                        child: _AvisoJugada(
-                          robada: _partida.ultimaRobada,
-                          par: _partida.ultimoPar,
-                        ),
-                      ),
-                    ],
-                    const Spacer(flex: 1),
-                    Text(
-                      '${TextosCuloSucioV2.paresDescartados} (${yoTurno.descartes.length ~/ 2})',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textoSuave,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
+                    Expanded(
+                      child: Center(
+                        child: (_cartaQueSeLlevaPc == null &&
+                                (_partida.ultimaRobada != null ||
+                                    _partida.ultimoPar != null))
+                            ? _AvisoJugada(
+                                robada: _partida.ultimaRobada,
+                                par: _partida.ultimoPar,
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 52,
-                      width: double.infinity,
-                      child: _FilaCartas(
-                        cartas: yoTurno.descartes,
-                        bocaArriba: true,
-                        compacta: true,
-                        colorPalo: _colorPalo,
-                        iconoPalo: _iconoPalo,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
                     Text(
                       '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
                       textAlign: TextAlign.center,
@@ -437,9 +546,17 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                         bocaArriba: true,
                         colorPalo: _colorPalo,
                         iconoPalo: _iconoPalo,
+                        seleccionados: _esperandoDescartarPar
+                            ? _seleccionPar
+                            : (_indiceRobadaPorPc != null
+                                ? [_indiceRobadaPorPc!]
+                                : const []),
+                        onTapIndex: _esperandoDescartarPar
+                            ? (i) async => _tocarParTrasRobo(i)
+                            : null,
                       ),
                     ),
-                    const Spacer(flex: 1),
+                    const SizedBox(height: 12),
                   ] else ...[
                     Expanded(
                       child: _ZonaParesDescartados(
@@ -477,7 +594,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                                     ),
                                   ),
                                 ),
-                                if (_puedoDescartarPares)
+                                if (_puedoDescartarPares &&
+                                    _opciones.eliminarParesAuto)
                                   Material(
                                     color: Colors.transparent,
                                     child: InkWell(
@@ -553,6 +671,93 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                 ],
               ),
             ),
+            if (_cartaQueSeLlevaPc != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            TextosCuloSucioV2.pcSeLleva,
+                            style: TextStyle(
+                              color: AppColors.rosa,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          CartaEspanolaSkin(
+                            numero: _cartaQueSeLlevaPc!.numero,
+                            etiqueta: _cartaQueSeLlevaPc!.etiqueta,
+                            palo: switch (_cartaQueSeLlevaPc!.palo) {
+                              PaloCuloSucioV2.oro => PaloEspanolVisual.oro,
+                              PaloCuloSucioV2.copa => PaloEspanolVisual.copa,
+                              PaloCuloSucioV2.espada =>
+                                PaloEspanolVisual.espada,
+                              PaloCuloSucioV2.basto => PaloEspanolVisual.basto,
+                            },
+                            seleccionada: true,
+                            width: 92,
+                            height: 138,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (_esperandoDescartarPar)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: IgnorePointer(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                        child: Material(
+                          elevation: 16,
+                          borderRadius: BorderRadius.circular(14),
+                          color: const Color(0xF01A0A33),
+                          shadowColor: Colors.black,
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 340),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: colorSeleccionCartaEspanola
+                                    .withValues(alpha: 0.85),
+                                width: 1.2,
+                              ),
+                            ),
+                            child: const Text(
+                              TextosCuloSucioV2.notifPuedeEliminarPar,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.texto,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (_partida.terminada)
               Positioned.fill(
                 child: _debeMostrarVictoria
@@ -907,6 +1112,7 @@ class _FilaCartas extends StatelessWidget {
     this.compacta = false,
     this.seleccionados = const [],
     this.indiceBase = 0,
+    this.indiceRevelado,
   });
 
   final List<CartaCuloSucioV2> cartas;
@@ -918,6 +1124,8 @@ class _FilaCartas extends StatelessWidget {
   final List<int> seleccionados;
   /// Índice real de la primera carta de esta fila (para manos partidas).
   final int indiceBase;
+  /// Carta que se está revelando (boca arriba) antes de robarla.
+  final int? indiceRevelado;
 
   @override
   Widget build(BuildContext context) {
@@ -948,26 +1156,61 @@ class _FilaCartas extends StatelessWidget {
                       final indiceReal = indiceBase + index;
                       final color = colorPalo(c.palo);
                       final seleccionada = seleccionados.contains(indiceReal);
-                      final card = _CartaSkinV2(
-                        carta: c,
-                        bocaArriba: bocaArriba,
-                        compacta: compacta,
-                        seleccionada: seleccionada,
-                        color: color,
-                        icono: iconoPalo(c.palo),
-                        width: w,
-                        height: h,
+                      final visible =
+                          bocaArriba || indiceRevelado == indiceReal;
+                      final card = AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 320),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, animation) {
+                          return AnimatedBuilder(
+                            animation: animation,
+                            child: child,
+                            builder: (context, child) {
+                              final angle = (1 - animation.value) * 1.5708;
+                              return Transform(
+                                alignment: Alignment.center,
+                                transform: Matrix4.identity()
+                                  ..setEntry(3, 2, 0.0015)
+                                  ..rotateY(angle),
+                                child: child,
+                              );
+                            },
+                          );
+                        },
+                        child: _CartaSkinV2(
+                          key: ValueKey<String>(
+                            visible
+                                ? '${indiceReal}_up'
+                                : '${indiceReal}_down',
+                          ),
+                          carta: c,
+                          bocaArriba: visible,
+                          compacta: compacta,
+                          seleccionada: seleccionada ||
+                              indiceRevelado == indiceReal,
+                          color: color,
+                          icono: iconoPalo(c.palo),
+                          width: w,
+                          height: h,
+                        ),
                       );
                       final child = AnimatedPadding(
                         duration: const Duration(milliseconds: 120),
-                        padding: EdgeInsets.only(bottom: seleccionada ? 8 : 0),
+                        padding: EdgeInsets.only(
+                          bottom: (seleccionada ||
+                                  indiceRevelado == indiceReal)
+                              ? 8
+                              : 0,
+                        ),
                         child: card,
                       );
                       if (onTapIndex == null) return child;
                       return Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(compacta ? 10 : 14),
+                          borderRadius:
+                              BorderRadius.circular(compacta ? 10 : 14),
                           onTap: () => onTapIndex!(indiceReal),
                           child: child,
                         ),
@@ -987,6 +1230,7 @@ class _FilaCartas extends StatelessWidget {
 /// Misma skin visual compartida (CartaEspanolaSkin).
 class _CartaSkinV2 extends StatelessWidget {
   const _CartaSkinV2({
+    super.key,
     required this.carta,
     required this.bocaArriba,
     required this.compacta,
