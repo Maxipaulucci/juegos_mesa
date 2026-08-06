@@ -1,15 +1,45 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/escobaDel15/opciones_escoba.dart';
 import 'package:app_juegos_mesa/escobaDel15/partida_escoba_screen.dart';
 import 'package:app_juegos_mesa/escobaDel15/standby_store.dart';
+import 'package:app_juegos_mesa/escobaDel15/textos.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Escoba del 15 (sin selector de dificultad: una sola IA).
-class MenuEscobaScreen extends StatelessWidget {
+class MenuEscobaScreen extends StatefulWidget {
   const MenuEscobaScreen({super.key});
+
+  @override
+  State<MenuEscobaScreen> createState() => _MenuEscobaScreenState();
+}
+
+class _MenuEscobaScreenState extends State<MenuEscobaScreen> {
+  OpcionesEscoba _opciones = const OpcionesEscoba();
+
+  Future<void> _abrirCartelModificar() async {
+    var draft = _opciones;
+    final ok = await mostrarCartelModificarPartida(
+      context: context,
+      buildOpciones: (dialogContext, setDialogState) {
+        return FilaToggleModificarPartida(
+          titulo: TextosEscoba.escobasAutomaticasInicio,
+          activo: draft.escobasAutomaticasInicio,
+          onChanged: (v) => setDialogState(
+            () => draft = draft.copyWith(escobasAutomaticasInicio: v),
+          ),
+          info: TextosEscoba.infoEscobasAutomaticasInicio,
+        );
+      },
+    );
+    if (ok && mounted) {
+      setState(() => _opciones = draft);
+    }
+  }
 
   Future<void> _abrir({
     required BuildContext ctx,
@@ -35,6 +65,7 @@ class MenuEscobaScreen extends StatelessWidget {
         ajustesIniciales: ajustes,
         resume: resume,
         modoDios: resume?.modoDios ?? modoDios,
+        opciones: resume?.opciones ?? _opciones,
       ),
     );
   }
@@ -46,6 +77,9 @@ class MenuEscobaScreen extends StatelessWidget {
       juegoId: MenuJuegoScreen.juegoIdEscobaDel15,
       modosDados: const [1],
       mostrarDificultad: false,
+      extraTrasModoLocal: BotonModificarPartida(
+        onPressed: _abrirCartelModificar,
+      ),
       onPartidaRapida: (ctx, estado, _) async {
         await _abrir(
           ctx: ctx,

@@ -1,4 +1,5 @@
 import 'package:app_juegos_mesa/escobaDel15/motor_escoba.dart';
+import 'package:app_juegos_mesa/escobaDel15/opciones_escoba.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 
 /// Resume en memoria para partidas vs PC (se pierde al cerrar/reiniciar la app).
@@ -8,12 +9,14 @@ class PartidaEscobaResume {
     required this.nombres,
     required this.ajustesIniciales,
     this.modoDios = false,
+    this.opciones = const OpcionesEscoba(),
   });
 
   final PartidaEscoba partida;
   final List<String> nombres;
   final AjustesEstado ajustesIniciales;
   final bool modoDios;
+  final OpcionesEscoba opciones;
 }
 
 class EscobaStandByStore {

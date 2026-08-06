@@ -6,6 +6,7 @@ import 'package:app_juegos_mesa/escobaDel15/escoba_online_codec.dart';
 import 'package:app_juegos_mesa/escobaDel15/marcador_palitos.dart';
 import 'package:app_juegos_mesa/escobaDel15/menu_partida_escoba.dart';
 import 'package:app_juegos_mesa/escobaDel15/motor_escoba.dart';
+import 'package:app_juegos_mesa/escobaDel15/opciones_escoba.dart';
 import 'package:app_juegos_mesa/escobaDel15/resumen_ronda_escoba_overlay.dart';
 import 'package:app_juegos_mesa/escobaDel15/standby_store.dart';
 import 'package:app_juegos_mesa/escobaDel15/textos.dart';
@@ -14,6 +15,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida de Escoba del 15.
@@ -27,6 +29,7 @@ class PartidaEscobaScreen extends StatefulWidget {
     this.ajustesIniciales,
     this.resume,
     this.modoDios = false,
+    this.opciones = const OpcionesEscoba(),
   });
 
   final List<String> nombres;
@@ -36,6 +39,7 @@ class PartidaEscobaScreen extends StatefulWidget {
   final AjustesEstado? ajustesIniciales;
   final PartidaEscobaResume? resume;
   final bool modoDios;
+  final OpcionesEscoba opciones;
 
   @override
   State<PartidaEscobaScreen> createState() => _PartidaEscobaScreenState();
@@ -44,6 +48,7 @@ class PartidaEscobaScreen extends StatefulWidget {
 class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   late PartidaEscoba _partida;
   late List<String> _nombres;
+  late OpcionesEscoba _opciones;
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
@@ -54,6 +59,10 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   bool _pcMostrandoJugada = false;
   String? _mensajePc;
   int _pcToken = 0;
+  /// Cuántas cartas de mesa se muestran (revelado izq→der).
+  int _mesaReveladas = 4;
+  bool _revelandoMesa = false;
+  int _reveladoToken = 0;
 
   StreamSubscription<Sala>? _onlineSub;
   int _onlineVersion = 0;
@@ -94,7 +103,16 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       _esPcTurno ||
       _pcMostrandoJugada ||
       _esperandoRivalOnline ||
+      _revelandoMesa ||
       (_esOnline && !_esMiTurno);
+
+  List<CartaEscoba> get _mesaParaMostrar {
+    if (!_opciones.escobasAutomaticasInicio ||
+        _mesaReveladas >= _partida.mesa.length) {
+      return _partida.mesa;
+    }
+    return _partida.mesa.take(_mesaReveladas).toList();
+  }
 
   JugadorEscoba get _manoVisible {
     if (_esOnline) {
@@ -285,6 +303,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
           ? 'Preparando mazo compartido…'
           : 'Esperando el mazo del anfitrión…';
     }
+    if (_revelandoMesa) return 'Revelando la mesa…';
     if (_partida.fase == FaseEscoba.finRonda) return 'Fin de ronda';
     if (_pcMostrandoJugada) return '¡Mirá la jugada de la PC!';
     if (_esPcTurno) return 'Turno de la PC…';
@@ -307,7 +326,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     if (resume != null) {
       _nombres = List.of(resume.nombres);
       _ajustes = resume.ajustesIniciales;
+      _opciones = resume.opciones;
       _partida = resume.partida;
+      _mesaReveladas = _partida.mesa.length;
       _limpiarSeleccion();
       _mensajePc = null;
       _pcMostrandoJugada = false;
@@ -316,6 +337,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     }
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
+    _opciones = widget.opciones;
     if (_esOnline) {
       _esperandoMazoOnline = true;
       _partida = nuevaPartidaEscoba(nombres: _nombres);
@@ -327,11 +349,87 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
         j.capturadas.clear();
         j.combos.clear();
       }
+      _mesaReveladas = 0;
       _iniciarSincronizacionOnline();
       return;
     }
     _partida = nuevaPartidaEscoba(nombres: _nombres);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_revelarMesaYEscobasAuto(luegoPc: true));
+    });
+  }
+
+  /// Revela la mesa de izquierda a derecha si la opción está activa;
+  /// aplica escobas automáticas al terminar.
+  Future<void> _revelarMesaYEscobasAuto({bool luegoPc = false}) async {
+    if (!mounted) return;
+    if (!_opciones.escobasAutomaticasInicio || _partida.mesa.length < 4) {
+      setState(() {
+        _mesaReveladas = _partida.mesa.length;
+        _revelandoMesa = false;
+      });
+      if (luegoPc) _talVezPc();
+      return;
+    }
+
+    final token = ++_reveladoToken;
+    _pcToken++; // cancela PC a mitad de revelado
+    setState(() {
+      _revelandoMesa = true;
+      _mesaReveladas = 0;
+      _limpiarSeleccion();
+      _aviso = null;
+    });
+
+    for (var i = 1; i <= 4; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 480));
+      if (!mounted || token != _reveladoToken) return;
+      setState(() => _mesaReveladas = i);
+
+      // Tras el par izquierdo: si suma 15, lo marca seleccionado.
+      if (i == 2 && mesaParIzquierdoEsEscoba(_partida.mesa)) {
+        setState(() {
+          _mesaSeleccion
+            ..clear()
+            ..addAll(_partida.mesa.take(2));
+        });
+      }
+    }
+    if (!mounted || token != _reveladoToken) return;
+
+    final ambosEscoba = mesaParIzquierdoEsEscoba(_partida.mesa) &&
+        mesaParDerechoEsEscoba(_partida.mesa);
+
+    if (ambosEscoba) {
+      // Selecciona las 2 escobas un momento y luego las adjudica.
+      setState(() {
+        _mesaSeleccion
+          ..clear()
+          ..addAll(_partida.mesa);
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (!mounted || token != _reveladoToken) return;
+    }
+
+    final resultado = aplicarEscobasAutomaticasInicio(_partida);
+    if (!mounted || token != _reveladoToken) return;
+
+    setState(() {
+      _revelandoMesa = false;
+      _mesaReveladas = _partida.mesa.length;
+      _limpiarSeleccion();
+      if (resultado == null) {
+        _aviso = null;
+      } else if (resultado.dosParesEscoba) {
+        _aviso =
+            '¡2 escobas al repartir! → ${resultado.nombreBeneficiario}';
+      } else if (resultado.mesaSuma15) {
+        _aviso =
+            'Mesa = 15 → ${resultado.nombreBeneficiario} suma 1 escoba';
+      }
+    });
+
+    if (luegoPc && mounted) _talVezPc();
   }
 
   @override
@@ -417,10 +515,14 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   Future<void> _publicarMazoInicialOnline() async {
     if (!_esOnline || _mazoPublicado || _publicandoOnline) return;
     final generada = nuevaPartidaEscoba(nombres: _nombres);
+    if (_opciones.escobasAutomaticasInicio) {
+      aplicarEscobasAutomaticasInicio(generada);
+    }
     setState(() {
       _partida = generada;
       _esperandoMazoOnline = false;
       _mazoPublicado = true;
+      _mesaReveladas = generada.mesa.length;
     });
     await _publicarEstadoOnline(forzar: true);
   }
@@ -438,6 +540,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
           partida: _partida,
           version: _onlineVersion,
           ultimaJugada: _ultimaJugadaParaPublicar,
+          opciones: _opciones,
         );
         try {
           final res = await SalaService.instance.actualizarJuego(
@@ -634,9 +737,30 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       _limpiarSeleccion();
       _mensajePc = null;
       _aviso = avisoPozo;
+      _mesaReveladas = _opciones.escobasAutomaticasInicio ? 0 : _partida.mesa.length;
     });
+    if (_esOnline) {
+      // Online: aplicar al toque (sin animación) para sincronizar estado.
+      if (_opciones.escobasAutomaticasInicio) {
+        final res = aplicarEscobasAutomaticasInicio(_partida);
+        setState(() {
+          _mesaReveladas = _partida.mesa.length;
+          if (res?.dosParesEscoba == true) {
+            _aviso =
+                '¡2 escobas al repartir! → ${res!.nombreBeneficiario}';
+          } else if (res?.mesaSuma15 == true) {
+            _aviso =
+                'Mesa = 15 → ${res!.nombreBeneficiario} suma 1 escoba';
+          }
+        });
+      }
+      unawaited(_publicarEstadoOnline());
+      return;
+    }
     unawaited(_publicarEstadoOnline());
-    if (_partida.fase == FaseEscoba.jugando) _talVezPc();
+    if (_partida.fase == FaseEscoba.jugando) {
+      unawaited(_revelarMesaYEscobasAuto(luegoPc: true));
+    }
   }
 
   void _volverAJugar() {
@@ -647,8 +771,11 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       _limpiarSeleccion();
       _mensajePc = null;
       _pcMostrandoJugada = false;
+      _mesaReveladas = _opciones.escobasAutomaticasInicio ? 0 : _partida.mesa.length;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_revelarMesaYEscobasAuto(luegoPc: true));
+    });
   }
 
   void _salirAlMenu() {
@@ -670,6 +797,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
         nombres: _nombres,
         ajustesIniciales: _ajustes,
         modoDios: widget.modoDios,
+        opciones: _opciones,
       ),
     );
     _pcToken++;
@@ -735,7 +863,22 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
         final idx = _idxManoForzar;
         if (idx >= 0) forzarManoEscoba(_partida, idx, manoFinal);
       }
-      _aviso = 'Cartas forzadas aplicadas.';
+
+      // Con escobas automáticas: si la mesa forzada tiene 2 pares de 15
+      // (o suma 15), se adjudican al jugador de turno.
+      String aviso = 'Cartas forzadas aplicadas.';
+      if (_opciones.escobasAutomaticasInicio && _partida.mesa.length == 4) {
+        final auto = aplicarEscobasAutomaticasInicio(_partida);
+        _mesaReveladas = _partida.mesa.length;
+        if (auto?.dosParesEscoba == true) {
+          aviso =
+              '¡2 escobas al repartir! → ${auto!.nombreBeneficiario}';
+        } else if (auto?.mesaSuma15 == true) {
+          aviso =
+              'Mesa = 15 → ${auto!.nombreBeneficiario} suma 1 escoba';
+        }
+      }
+      _aviso = aviso;
     });
   }
 
@@ -794,6 +937,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       backgroundColor: AppColors.fondo,
       body: Stack(
         children: [
+          const Positioned.fill(
+            child: EpicBackdrop(centerY: 0.45, fadeRayosAlCentro: true),
+          ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -974,7 +1120,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                   Expanded(
                     flex: 2,
                     child: _ZonaCartas(
-                      cartas: _partida.mesa,
+                      cartas: _mesaParaMostrar,
                       seleccionadas: _mesaSeleccion,
                       onTap: (_bloquearHumano ||
                               _partida.fase != FaseEscoba.jugando)
@@ -1718,23 +1864,22 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
 
   void _toggle(CartaEscoba c) {
     setState(() {
+      // Si ya está elegida (mesa o mano), solo deseleccionar.
+      // No moverla a la otra categoría aunque haya cupo libre.
+      if (_enMesa(c)) {
+        _mesa.remove(c);
+        return;
+      }
+      if (_enMano(c)) {
+        _mano.remove(c);
+        return;
+      }
+      // Carta libre → agregar a la categoría activa si hay lugar.
       if (_modo == _ModoForzarCartas.mesa) {
-        if (_cupoMesa <= 0) return;
-        if (_enMesa(c)) {
-          _mesa.remove(c);
-          return;
-        }
-        if (_enMano(c)) _mano.remove(c);
-        if (_mesa.length >= _cupoMesa) return;
+        if (_cupoMesa <= 0 || _mesa.length >= _cupoMesa) return;
         _mesa.add(c);
       } else {
-        if (_cupoMano <= 0) return;
-        if (_enMano(c)) {
-          _mano.remove(c);
-          return;
-        }
-        if (_enMesa(c)) _mesa.remove(c);
-        if (_mano.length >= _cupoMano) return;
+        if (_cupoMano <= 0 || _mano.length >= _cupoMano) return;
         _mano.add(c);
       }
     });

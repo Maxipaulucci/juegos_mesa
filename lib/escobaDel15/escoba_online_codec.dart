@@ -2,6 +2,7 @@
 library;
 
 import 'package:app_juegos_mesa/escobaDel15/motor_escoba.dart';
+import 'package:app_juegos_mesa/escobaDel15/opciones_escoba.dart';
 
 Map<String, dynamic> _encodeCarta(CartaEscoba c) => {
       'numero': c.numero,
@@ -146,6 +147,7 @@ Map<String, dynamic> encodeEscobaGameState({
   required PartidaEscoba partida,
   required int version,
   Map<String, dynamic>? ultimaJugada,
+  OpcionesEscoba? opciones,
 }) {
   return {
     'version': version,
@@ -158,6 +160,8 @@ Map<String, dynamic> encodeEscobaGameState({
     'mensajeFin': partida.mensajeFin,
     'ganador': partida.ganador,
     'reiniciarCombosEnProximaJugada': partida.reiniciarCombosEnProximaJugada,
+    'escobasAutomaticasInicio':
+        opciones?.escobasAutomaticasInicio ?? false,
     'mazo': _encodeCartas(partida.mazo),
     'mesa': _encodeCartas(partida.mesa),
     'jugadores': [

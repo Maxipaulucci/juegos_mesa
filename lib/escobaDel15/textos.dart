@@ -30,3 +30,15 @@ String reglasEscobaDel15() => '''
 · Gana el primero que llegue a 15 puntos (anotación con palitos,
   como en el truco: cuadrado y diagonal al 5).
 '''.trim();
+
+/// Textos de opciones / UI de Escoba del 15.
+abstract final class TextosEscoba {
+  static const escobasAutomaticasInicio = 'Escobas automáticas al repartir';
+  static const infoEscobasAutomaticasInicio =
+      'Activado: al poner las 4 cartas de la mesa se revelan de izquierda '
+      'a derecha. Si el par de la izquierda suma 15 y el de la derecha '
+      'también, se toman las 2 escobas automáticamente. Si las 4 cartas '
+      'suman 15, el jugador que tiene el turno suma 1 escoba.\n\n'
+      'Desactivado (por defecto): las 4 cartas salen juntas y no hay '
+      'escobas automáticas al repartir.';
+}

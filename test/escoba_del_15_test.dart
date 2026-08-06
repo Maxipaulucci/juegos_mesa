@@ -116,5 +116,47 @@ void main() {
       isTrue,
     );
   });
+
+  test('escobas automáticas: dos pares de 15', () {
+    final p = PartidaEscoba(
+      jugadores: [JugadorEscoba('A'), JugadorEscoba('B')],
+      indiceTurno: 0,
+    );
+    // 5+12(10)=15 y 6+11(9)=15
+    p.mesa.addAll(const [
+      CartaEscoba(numero: 5, palo: PaloEscoba.oro),
+      CartaEscoba(numero: 12, palo: PaloEscoba.espada),
+      CartaEscoba(numero: 6, palo: PaloEscoba.copa),
+      CartaEscoba(numero: 11, palo: PaloEscoba.basto),
+    ]);
+    final r = aplicarEscobasAutomaticasInicio(p);
+    expect(r, isNotNull);
+    expect(r!.dosParesEscoba, isTrue);
+    expect(r.escobasOtorgadas, 2);
+    expect(p.jugadores[0].escobasRonda, 2);
+    expect(p.mesa, isEmpty);
+    expect(p.jugadores[0].capturadas.length, 4);
+  });
+
+  test('escobas automáticas: mesa suma 15', () {
+    final p = PartidaEscoba(
+      jugadores: [JugadorEscoba('A'), JugadorEscoba('B')],
+      indiceTurno: 1,
+    );
+    // 1+2+3+11(9)=15
+    p.mesa.addAll(const [
+      CartaEscoba(numero: 1, palo: PaloEscoba.oro),
+      CartaEscoba(numero: 2, palo: PaloEscoba.copa),
+      CartaEscoba(numero: 3, palo: PaloEscoba.espada),
+      CartaEscoba(numero: 11, palo: PaloEscoba.basto),
+    ]);
+    final r = aplicarEscobasAutomaticasInicio(p);
+    expect(r, isNotNull);
+    expect(r!.mesaSuma15, isTrue);
+    expect(r.escobasOtorgadas, 1);
+    expect(r.nombreBeneficiario, 'B');
+    expect(p.jugadores[1].escobasRonda, 1);
+    expect(p.mesa.length, 4);
+  });
 }
 

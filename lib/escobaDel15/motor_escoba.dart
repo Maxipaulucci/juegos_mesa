@@ -236,6 +236,77 @@ void _repartirInicio(PartidaEscoba p) {
   p.fase = FaseEscoba.jugando;
 }
 
+/// Resultado de las escobas automáticas al revelar la mesa inicial.
+class ResultadoEscobasInicioEscoba {
+  const ResultadoEscobasInicioEscoba({
+    required this.dosParesEscoba,
+    required this.mesaSuma15,
+    required this.nombreBeneficiario,
+    required this.escobasOtorgadas,
+  });
+
+  /// Par izquierdo y par derecho suman 15 cada uno → 2 escobas y mesa vacía.
+  final bool dosParesEscoba;
+
+  /// Las 4 cartas suman 15 → +1 escoba (quedan en la mesa).
+  final bool mesaSuma15;
+  final String nombreBeneficiario;
+  final int escobasOtorgadas;
+}
+
+/// Aplica escobas automáticas sobre la mesa ya repartida (4 cartas).
+///
+/// - Izquierda (0+1) y derecha (2+3) = 15 → el jugador de turno se lleva
+///   ambos pares como escobas.
+/// - Las 4 suman 15 → ese jugador suma 1 escoba (cartas quedan).
+ResultadoEscobasInicioEscoba? aplicarEscobasAutomaticasInicio(PartidaEscoba p) {
+  if (p.mesa.length != 4) return null;
+  final m = List<CartaEscoba>.from(p.mesa);
+  final izq = m[0].valorSuma + m[1].valorSuma;
+  final der = m[2].valorSuma + m[3].valorSuma;
+  final total = m.fold<int>(0, (s, c) => s + c.valorSuma);
+  final idx = p.indiceTurno % p.jugadores.length;
+  final j = p.jugadores[idx];
+
+  if (izq == 15 && der == 15) {
+    j.capturadas.addAll(m);
+    j.combos.add(ComboCapturaEscoba(cartas: [m[0], m[1]], escoba: true));
+    j.combos.add(ComboCapturaEscoba(cartas: [m[2], m[3]], escoba: true));
+    j.escobasRonda += 2;
+    p.mesa.clear();
+    p.ultimaCapturaIdx = idx;
+    return ResultadoEscobasInicioEscoba(
+      dosParesEscoba: true,
+      mesaSuma15: false,
+      nombreBeneficiario: j.nombre,
+      escobasOtorgadas: 2,
+    );
+  }
+
+  if (total == 15) {
+    j.escobasRonda += 1;
+    return ResultadoEscobasInicioEscoba(
+      dosParesEscoba: false,
+      mesaSuma15: true,
+      nombreBeneficiario: j.nombre,
+      escobasOtorgadas: 1,
+    );
+  }
+
+  return null;
+}
+
+/// Indica si el par izquierdo / derecho de la mesa suma 15 (con 4 cartas).
+bool mesaParIzquierdoEsEscoba(List<CartaEscoba> mesa) {
+  if (mesa.length < 2) return false;
+  return mesa[0].valorSuma + mesa[1].valorSuma == 15;
+}
+
+bool mesaParDerechoEsEscoba(List<CartaEscoba> mesa) {
+  if (mesa.length < 4) return false;
+  return mesa[2].valorSuma + mesa[3].valorSuma == 15;
+}
+
 /// Subconjuntos de [mesa] que, sumados a [jugada], dan 15.
 List<List<CartaEscoba>> capturasPosiblesEscoba(
   CartaEscoba jugada,
