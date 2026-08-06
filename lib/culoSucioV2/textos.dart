@@ -21,6 +21,14 @@ abstract final class TextosCuloSucioV2 {
   static const infoEliminarParesAuto =
       'Si no querés este botón, desactivalo desde '
       '“Modificar partida” en el menú del juego.';
+  static const detectarParTrasRobo = 'Autodetectar par al robar';
+  static const infoDetectarParTrasRobo =
+      'Activado: si al robar formás un par, se marcan las dos cartas '
+      'y tocás una para sacarlo.\n\n'
+      'Desactivado: la carta robada solo se agrega a tu mano '
+      '(sin aviso ni selección). El rival espera 2 segundos antes '
+      'de robarte.\n\n'
+      'Viene activado por defecto.';
   static const esperandoPc = 'La PC está eligiendo…';
   static const pcSeLleva = 'LA PC SE LLEVA';
   static const pcEligioCarta = '¡La PC eligió una de tus cartas!';
@@ -28,6 +36,8 @@ abstract final class TextosCuloSucioV2 {
   static const esperandoMazoOnline = 'Esperando el mazo…';
   static const esperandoTuTurno = 'Esperando al rival…';
   static const rivalTeSaco = 'TE SACARON ESTA CARTA';
+  static const cambioDeJugador = 'Cambio de jugador';
+  static const aceptarCambioJugador = 'Aceptar';
   static const culoSucio = '¡CULO SUCIO!';
   static const reiniciar = 'Otra vez';
   static const volverMenu = 'Volver al menú';

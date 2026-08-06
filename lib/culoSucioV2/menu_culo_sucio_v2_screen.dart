@@ -25,18 +25,32 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
     final ok = await mostrarCartelModificarPartida(
       context: context,
       buildOpciones: (dialogContext, setDialogState) {
-        return FilaToggleModificarPartida(
-          titulo: 'Eliminar pares automáticamente',
-          activo: draft.eliminarParesAuto,
-          onChanged: (v) => setDialogState(
-            () => draft = draft.copyWith(eliminarParesAuto: v),
-          ),
-          info:
-              'Activado: en la fase inicial aparece el botón para '
-              'sacar de golpe todos los pares de tu mano.\n\n'
-              'Desactivado: solo podés sacar pares tocando de a dos cartas '
-              'del mismo número.\n\n'
-              'Viene activado por defecto.',
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilaToggleModificarPartida(
+              titulo: TextosCuloSucioV2.eliminarParesAuto,
+              activo: draft.eliminarParesAuto,
+              onChanged: (v) => setDialogState(
+                () => draft = draft.copyWith(eliminarParesAuto: v),
+              ),
+              info:
+                  'Activado: en la fase inicial aparece el botón para '
+                  'sacar de golpe todos los pares de tu mano.\n\n'
+                  'Desactivado: solo podés sacar pares tocando de a dos cartas '
+                  'del mismo número.\n\n'
+                  'Viene activado por defecto.',
+            ),
+            const SizedBox(height: 12),
+            FilaToggleModificarPartida(
+              titulo: TextosCuloSucioV2.detectarParTrasRobo,
+              activo: draft.detectarParTrasRobo,
+              onChanged: (v) => setDialogState(
+                () => draft = draft.copyWith(detectarParTrasRobo: v),
+              ),
+              info: TextosCuloSucioV2.infoDetectarParTrasRobo,
+            ),
+          ],
         );
       },
     );
@@ -83,12 +97,16 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
       juegoId: MenuJuegoScreen.juegoIdCuloSucioV2,
       modosDados: const [1],
       mostrarDificultad: false,
-      mostrarMultijugadorLocal: false,
       textoInfoModoDios: TextosCuloSucioV2.infoModoDios,
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),
-      onPartidaRapida: (_, __, ___) async {},
+      onPartidaRapida: (ctx, estado, _) async {
+        final nombres = estado.nombres.length >= 2
+            ? estado.nombres.take(2).toList()
+            : const ['Jugador 1', 'Jugador 2'];
+        await _abrir(ctx: ctx, nombres: nombres);
+      },
       onVsPc: (ctx, estado, _) {
         final resume = CuloSucioV2StandByStore.consumir();
         final nombres = resume?.nombres ??

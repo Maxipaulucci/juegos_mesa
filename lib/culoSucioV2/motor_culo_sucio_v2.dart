@@ -61,6 +61,7 @@ class PartidaCuloSucioV2 {
     this.ganador,
     this.mensajeFin,
     this.contraPc = false,
+    this.online = false,
     this.ultimaRobada,
     this.ultimaRobadaDe,
     this.ultimaRobadaPor,
@@ -74,6 +75,8 @@ class PartidaCuloSucioV2 {
   String? ganador;
   String? mensajeFin;
   final bool contraPc;
+  /// Online: los pares iniciales se sacan en paralelo (cada uno en su dispositivo).
+  final bool online;
   CartaCuloSucioV2? ultimaRobada;
   /// De quién se robó [ultimaRobada] (nombre).
   String? ultimaRobadaDe;
@@ -238,6 +241,7 @@ void _siguienteTrasParesIniciales(PartidaCuloSucioV2 p) {
 PartidaCuloSucioV2 nuevaPartidaCuloSucioV2({
   required List<String> nombres,
   bool contraPc = false,
+  bool online = false,
   math.Random? rng,
 }) {
   final lista = nombres.isEmpty
@@ -276,6 +280,7 @@ PartidaCuloSucioV2 nuevaPartidaCuloSucioV2({
   final p = PartidaCuloSucioV2(
     jugadores: jugadores,
     contraPc: contraPc,
+    online: online,
     fase: FaseCuloSucioV2.descartandoPares,
   );
   // Empieza a descartar pares el humano (vs PC) o el jugador 0.
@@ -294,9 +299,10 @@ bool _jugadorPuedeDescartarParesIniciales(
 ) {
   if (p.fase != FaseCuloSucioV2.descartandoPares) return false;
   if (jugador.paresInicialesListos) return false;
-  // Vs PC: solo el turno actual. Online / local humano: cada uno en paralelo.
-  if (p.contraPc) return identical(jugador, p.jugadorActual);
-  return true;
+  // Online: cada uno en su dispositivo, en paralelo.
+  if (p.online) return true;
+  // Vs PC y local hot-seat: solo el turno actual.
+  return identical(jugador, p.jugadorActual);
 }
 
 /// Descarta un par elegido a mano (misma fase inicial o tras robar no aplica).
@@ -390,14 +396,19 @@ String? confirmarParesInicialesListos(
 }
 
 /// [hacia] roba la carta en [indiceEnManoDe] de [de].
+///
 /// Si [autoDescartarPar] es false y se forma un par, no lo saca ni avanza turno;
 /// escribe los índices del par en [parPendienteOut] para que el jugador lo confirme.
+///
+/// Si [dejarParEnMano] es true, no descarta ni pausa por par: la carta queda
+/// en la mano y el turno avanza.
 String? robarCartaCuloSucioV2(
   PartidaCuloSucioV2 p, {
   required JugadorCuloSucioV2 de,
   required int indiceEnManoDe,
   required JugadorCuloSucioV2 hacia,
   bool autoDescartarPar = true,
+  bool dejarParEnMano = false,
   List<int>? parPendienteOut,
 }) {
   if (p.terminada) return 'La partida ya terminó.';
@@ -418,31 +429,33 @@ String? robarCartaCuloSucioV2(
   p.ultimaRobadaPor = hacia.nombre;
   p.ultimoPar = null;
 
-  final mismoNumero = [
-    for (var i = 0; i < hacia.mano.length; i++)
-      if (hacia.mano[i].numero == carta.numero) i,
-  ];
-  if (mismoNumero.length >= 2) {
-    final idxRobada = hacia.mano.indexOf(carta);
-    final idxPar = mismoNumero.firstWhere(
-      (i) => i != idxRobada,
-      orElse: () => -1,
-    );
-    if (idxPar >= 0) {
-      if (!autoDescartarPar) {
-        parPendienteOut
-          ?..clear()
-          ..add(idxRobada)
-          ..add(idxPar);
-        _chequearFin(p);
-        return null;
+  if (!dejarParEnMano) {
+    final mismoNumero = [
+      for (var i = 0; i < hacia.mano.length; i++)
+        if (hacia.mano[i].numero == carta.numero) i,
+    ];
+    if (mismoNumero.length >= 2) {
+      final idxRobada = hacia.mano.indexOf(carta);
+      final idxPar = mismoNumero.firstWhere(
+        (i) => i != idxRobada,
+        orElse: () => -1,
+      );
+      if (idxPar >= 0) {
+        if (!autoDescartarPar) {
+          parPendienteOut
+            ?..clear()
+            ..add(idxRobada)
+            ..add(idxPar);
+          _chequearFin(p);
+          return null;
+        }
+        final a = idxRobada > idxPar ? idxRobada : idxPar;
+        final b = idxRobada > idxPar ? idxPar : idxRobada;
+        final c1 = hacia.mano.removeAt(a);
+        final c2 = hacia.mano.removeAt(b);
+        hacia.descartes.addAll([c1, c2]);
+        p.ultimoPar = [c1, c2];
       }
-      final a = idxRobada > idxPar ? idxRobada : idxPar;
-      final b = idxRobada > idxPar ? idxPar : idxRobada;
-      final c1 = hacia.mano.removeAt(a);
-      final c2 = hacia.mano.removeAt(b);
-      hacia.descartes.addAll([c1, c2]);
-      p.ultimoPar = [c1, c2];
     }
   }
 

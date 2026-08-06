@@ -94,6 +94,7 @@ Map<String, dynamic> encodeCuloSucioV2GameState({
         ? null
         : _encodeCartas(partida.ultimoPar!),
     'eliminarParesAuto': opciones.eliminarParesAuto,
+    'detectarParTrasRobo': opciones.detectarParTrasRobo,
     'jugadores': [
       for (final j in partida.jugadores)
         {
@@ -162,8 +163,16 @@ OpcionesCuloSucioV2 opcionesDesdeCuloSucioV2GameState(
   Map<String, dynamic> raw,
   OpcionesCuloSucioV2 fallback,
 ) {
-  if (!raw.containsKey('eliminarParesAuto')) return fallback;
+  if (!raw.containsKey('eliminarParesAuto') &&
+      !raw.containsKey('detectarParTrasRobo')) {
+    return fallback;
+  }
   return fallback.copyWith(
-    eliminarParesAuto: raw['eliminarParesAuto'] == true,
+    eliminarParesAuto: raw.containsKey('eliminarParesAuto')
+        ? raw['eliminarParesAuto'] == true
+        : null,
+    detectarParTrasRobo: raw.containsKey('detectarParTrasRobo')
+        ? raw['detectarParTrasRobo'] == true
+        : null,
   );
 }

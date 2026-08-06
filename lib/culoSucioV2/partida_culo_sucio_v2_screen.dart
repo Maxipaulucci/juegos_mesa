@@ -13,6 +13,7 @@ import 'package:app_juegos_mesa/culoSucioV2/victoria_culo_sucio_v2_overlay.dart'
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -61,6 +62,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   CartaCuloSucioV2? _cartaQueTeSacaron;
   int _roboRivalToken = 0;
   int? _roboRivalVersionMostrada;
+  /// Multijugador local: hay que aceptar el cambio antes de ver la mano.
+  bool _cambioJugadorPendiente = false;
+  /// Quién está mirando el dispositivo (mano de abajo) en hot-seat.
+  String? _nombreVistaLocal;
 
   StreamSubscription<Sala>? _onlineSub;
   int _onlineVersion = 0;
@@ -82,6 +87,16 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   bool get _modoDiosActivo =>
       widget.modoDios && widget.contraPc && !_esOnline;
 
+  bool get _esLocalHotSeat => !_esOnline && !widget.contraPc;
+
+  JugadorCuloSucioV2 get _jugadorVistaLocal {
+    final nombre = _nombreVistaLocal ?? _partida.jugadores.first.nombre;
+    return _partida.jugadores.firstWhere(
+      (j) => j.nombre == nombre,
+      orElse: () => _partida.jugadores.first,
+    );
+  }
+
   /// Mano propia (abajo).
   JugadorCuloSucioV2 get _yo {
     if (_esOnline) {
@@ -90,7 +105,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         orElse: () => _partida.jugadores.first,
       );
     }
-    if (!widget.contraPc) return _partida.jugadorActual;
+    if (_esLocalHotSeat) return _jugadorVistaLocal;
     return _partida.jugadores.firstWhere(
       (j) => j.nombre != TextosCuloSucioV2.vsPcNombre,
       orElse: () => _partida.jugadores.first,
@@ -111,7 +126,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         orElse: () => _partida.jugadores.last,
       );
     }
-    return _partida.rivalActual;
+    return _partida.jugadores.firstWhere(
+      (j) => j.nombre != _jugadorVistaLocal.nombre,
+      orElse: () => _partida.jugadores.last,
+    );
   }
 
   bool get _esMiTurnoOnline =>
@@ -120,14 +138,19 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   bool get _esTurnoHumano {
     if (_partida.terminada) return false;
     if (_esperandoMazoOnline) return false;
+    if (_esLocalHotSeat && _cambioJugadorPendiente) return false;
     if (_esperandoDescartarPar) return true;
     if (_fasePares) {
       if (_esOnline) return !_yo.paresInicialesListos;
-      if (!widget.contraPc) return true;
-      return _partida.jugadorActual.nombre != TextosCuloSucioV2.vsPcNombre;
+      if (widget.contraPc) {
+        return _partida.jugadorActual.nombre != TextosCuloSucioV2.vsPcNombre;
+      }
+      return _jugadorVistaLocal.nombre == _partida.jugadorActual.nombre;
     }
     if (_esOnline) return _esMiTurnoOnline;
-    if (!widget.contraPc) return true;
+    if (_esLocalHotSeat) {
+      return _jugadorVistaLocal.nombre == _partida.jugadorActual.nombre;
+    }
     return _partida.jugadorActual.nombre != TextosCuloSucioV2.vsPcNombre;
   }
 
@@ -147,11 +170,13 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   bool get _debeMostrarVictoria {
     if (_partida.ganador == null || _partida.perdedor == null) return false;
     if (_esOnline) return _partida.ganador == widget.miNombre;
+    if (_esLocalHotSeat) return true;
     return _partida.ganador != TextosCuloSucioV2.vsPcNombre;
   }
 
   String get _textoEstado {
     if (_partida.terminada) return '';
+    if (_esLocalHotSeat && _cambioJugadorPendiente) return '';
     if (_esperandoMazoOnline) return TextosCuloSucioV2.esperandoMazoOnline;
     if (_fasePares) {
       if (_esOnline) {
@@ -179,6 +204,32 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     return 'Turno de ${_partida.jugadorActual.nombre}';
   }
 
+  void _pedirCambioJugador() {
+    if (!_esLocalHotSeat || _partida.terminada) return;
+    setState(() {
+      _cambioJugadorPendiente = true;
+      _seleccionPar.clear();
+      _esperandoDescartarPar = false;
+      _limpiarAvisoJugada();
+    });
+  }
+
+  /// Pide cambio solo si el turno pasó a otro jugador.
+  void _pedirCambioJugadorSiCorresponde() {
+    if (!_esLocalHotSeat || _partida.terminada) return;
+    if (_partida.jugadorActual.nombre == _nombreVistaLocal) return;
+    _pedirCambioJugador();
+  }
+
+  void _aceptarCambioJugador() {
+    if (!_cambioJugadorPendiente) return;
+    setState(() {
+      _cambioJugadorPendiente = false;
+      _nombreVistaLocal = _partida.jugadorActual.nombre;
+      _seleccionPar.clear();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -195,6 +246,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _partida = nuevaPartidaCuloSucioV2(
         nombres: widget.nombres,
         contraPc: false,
+        online: true,
       );
       for (final j in _partida.jugadores) {
         j.mano.clear();
@@ -208,7 +260,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       nombres: widget.nombres,
       contraPc: widget.contraPc,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
+    if (_esLocalHotSeat) {
+      _nombreVistaLocal = _partida.jugadorActual.nombre;
+      _cambioJugadorPendiente = true;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
+    }
   }
 
   @override
@@ -298,6 +355,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     final generada = nuevaPartidaCuloSucioV2(
       nombres: widget.nombres,
       contraPc: false,
+      online: true,
     );
     setState(() {
       _partida = generada;
@@ -393,7 +451,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (!_esTurnoPc || _robando) return;
     final token = ++_pcToken;
     setState(_limpiarAvisoJugada);
-    await Future<void>.delayed(const Duration(milliseconds: 750));
+    // Si no hay autodetección de par, la espera de 2 s ya ocurrió tras el robo.
+    await Future<void>.delayed(
+      _opciones.detectarParTrasRobo
+          ? const Duration(milliseconds: 750)
+          : const Duration(milliseconds: 200),
+    );
     if (!mounted || token != _pcToken) return;
     if (!_esTurnoPc) return;
 
@@ -458,6 +521,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     await Future<void>.delayed(const Duration(milliseconds: 950));
     if (!mounted) return;
 
+    final detectarPar = _opciones.detectarParTrasRobo;
     final parPendiente = <int>[];
     final err = robarCartaCuloSucioV2(
       _partida,
@@ -465,13 +529,14 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       indiceEnManoDe: indice,
       hacia: hacia,
       autoDescartarPar: false,
-      parPendienteOut: parPendiente,
+      dejarParEnMano: !detectarPar,
+      parPendienteOut: detectarPar ? parPendiente : null,
     );
     if (!mounted) return;
     setState(() {
       _indiceRevelando = null;
       _robando = false;
-      if (err == null && parPendiente.length >= 2) {
+      if (detectarPar && err == null && parPendiente.length >= 2) {
         _esperandoDescartarPar = true;
         _seleccionPar
           ..clear()
@@ -491,14 +556,26 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       return;
     }
     if (_esperandoDescartarPar) return;
-    // Mostrar aviso un momento y luego limpiarlo al pasar el turno.
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    // Con autodetección: aviso breve. Sin ella: 2 s antes de que robe el rival.
+    // En local: breve pausa y cartel de cambio de jugador.
+    await Future<void>.delayed(
+      _esLocalHotSeat
+          ? const Duration(milliseconds: 700)
+          : (detectarPar
+              ? const Duration(milliseconds: 700)
+              : const Duration(seconds: 2)),
+    );
     if (!mounted) return;
     setState(_limpiarAvisoJugada);
-    if (!_partida.terminada) {
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      if (mounted) _talVezTurnoPc();
+    if (_partida.terminada) return;
+    if (_esLocalHotSeat) {
+      _pedirCambioJugadorSiCorresponde();
+      return;
     }
+    if (detectarPar) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    if (mounted) _talVezTurnoPc();
   }
 
   void _tocarParTrasRobo(int indice) {
@@ -528,9 +605,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       await Future<void>.delayed(const Duration(milliseconds: 700));
       if (!mounted) return;
       setState(_limpiarAvisoJugada);
-      if (!_partida.terminada) {
-        _talVezTurnoPc();
+      if (_partida.terminada) return;
+      if (_esLocalHotSeat) {
+        _pedirCambioJugadorSiCorresponde();
+        return;
       }
+      _talVezTurnoPc();
     });
   }
 
@@ -595,6 +675,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_esOnline) {
       unawaited(_publicarEstadoOnline(forzar: true));
     }
+    if (_esLocalHotSeat && !_partida.terminada) {
+      _pedirCambioJugadorSiCorresponde();
+      return;
+    }
     if (_partida.enJuego) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
     }
@@ -635,8 +719,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _indiceRobadaPorPc = null;
       _cartaQueSeLlevaPc = null;
       _cartaQueTeSacaron = null;
+      _nombreVistaLocal = _esLocalHotSeat ? _partida.jugadorActual.nombre : null;
+      _cambioJugadorPendiente = _esLocalHotSeat;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
+    if (!_esLocalHotSeat) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
+    }
   }
 
   Color _colorPalo(PaloCuloSucioV2 palo) => switch (palo) {
@@ -655,8 +743,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
 
   @override
   Widget build(BuildContext context) {
-    final manoAbajo = (_esOnline || widget.contraPc) ? _yo : _partida.jugadorActual;
-    final manoArriba = (_esOnline || widget.contraPc) ? _rival : _partida.rivalActual;
+    final manoAbajo = (_esOnline || widget.contraPc || _esLocalHotSeat)
+        ? _yo
+        : _partida.jugadorActual;
+    final manoArriba = (_esOnline || widget.contraPc || _esLocalHotSeat)
+        ? _rival
+        : _partida.rivalActual;
     final rivalParaRobar = manoArriba;
     final yoTurno = manoAbajo;
 
@@ -807,7 +899,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                           ignoring: _esperandoDescartarPar,
                           child: _FilaCartas(
                             cartas: manoAbajo.mano,
-                            bocaArriba: true,
+                            bocaArriba: !_cambioJugadorPendiente,
                             colorPalo: _colorPalo,
                             iconoPalo: _iconoPalo,
                             seleccionados: _esperandoDescartarPar
@@ -1127,6 +1219,17 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                 ),
               ),
             ],
+            if (_esLocalHotSeat &&
+                _cambioJugadorPendiente &&
+                !_partida.terminada)
+              Positioned.fill(
+                child: CambioJugadorOverlay(
+                  nombreJugador: _partida.jugadorActual.nombre,
+                  titulo: TextosCuloSucioV2.cambioDeJugador,
+                  botonLabel: TextosCuloSucioV2.aceptarCambioJugador,
+                  onAceptar: _aceptarCambioJugador,
+                ),
+              ),
             if (_partida.terminada)
               Positioned.fill(
                 child: _debeMostrarVictoria
