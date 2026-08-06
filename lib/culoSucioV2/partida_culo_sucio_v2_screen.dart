@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
@@ -671,7 +672,9 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         backgroundColor: AppColors.fondo,
         body: Stack(
           children: [
-            const Positioned.fill(child: EpicBackdrop(centerY: 0.45)),
+            const Positioned.fill(
+              child: EpicBackdrop(centerY: 0.45, fadeRayosAlCentro: true),
+            ),
             SafeArea(
               child: Column(
                 children: [
@@ -787,8 +790,9 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                     Text(
                       '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.mint,
+                      style: TextStyle(
+                        color: AppColors.mint
+                            .withValues(alpha: _esperandoDescartarPar ? 0 : 1),
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
                       ),
@@ -797,19 +801,25 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                     SizedBox(
                       height: 118,
                       width: double.infinity,
-                      child: _FilaCartas(
-                        cartas: manoAbajo.mano,
-                        bocaArriba: true,
-                        colorPalo: _colorPalo,
-                        iconoPalo: _iconoPalo,
-                        seleccionados: _esperandoDescartarPar
-                            ? _seleccionPar
-                            : (_indiceRobadaPorPc != null
-                                ? [_indiceRobadaPorPc!]
-                                : const []),
-                        onTapIndex: _esperandoDescartarPar
-                            ? (i) async => _tocarParTrasRobo(i)
-                            : null,
+                      child: Opacity(
+                        opacity: _esperandoDescartarPar ? 0 : 1,
+                        child: IgnorePointer(
+                          ignoring: _esperandoDescartarPar,
+                          child: _FilaCartas(
+                            cartas: manoAbajo.mano,
+                            bocaArriba: true,
+                            colorPalo: _colorPalo,
+                            iconoPalo: _iconoPalo,
+                            seleccionados: _esperandoDescartarPar
+                                ? _seleccionPar
+                                : (_indiceRobadaPorPc != null
+                                    ? [_indiceRobadaPorPc!]
+                                    : const []),
+                            onTapIndex: _esperandoDescartarPar
+                                ? (i) async => _tocarParTrasRobo(i)
+                                : null,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1023,7 +1033,52 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                   ),
                 ),
               ),
-            if (_esperandoDescartarPar)
+            if (_esperandoDescartarPar) ...[
+              Positioned.fill(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.mint,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 118,
+                        width: double.infinity,
+                        child: _FilaCartas(
+                          cartas: manoAbajo.mano,
+                          bocaArriba: true,
+                          colorPalo: _colorPalo,
+                          iconoPalo: _iconoPalo,
+                          seleccionados: _seleccionPar,
+                          atenuarNoSeleccionados: true,
+                          onTapIndex: (i) async => _tocarParTrasRobo(i),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
+              ),
               Positioned(
                 top: 0,
                 left: 0,
@@ -1071,6 +1126,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                   ),
                 ),
               ),
+            ],
             if (_partida.terminada)
               Positioned.fill(
                 child: _debeMostrarVictoria
@@ -1424,6 +1480,7 @@ class _FilaCartas extends StatelessWidget {
     this.onTapIndex,
     this.compacta = false,
     this.seleccionados = const [],
+    this.atenuarNoSeleccionados = false,
     this.indiceBase = 0,
     this.indiceRevelado,
   });
@@ -1435,6 +1492,8 @@ class _FilaCartas extends StatelessWidget {
   final Future<void> Function(int index)? onTapIndex;
   final bool compacta;
   final List<int> seleccionados;
+  /// Si true, las cartas no seleccionadas quedan semitransparentes.
+  final bool atenuarNoSeleccionados;
   /// Índice real de la primera carta de esta fila (para manos partidas).
   final int indiceBase;
   /// Carta que se está revelando (boca arriba) antes de robarla.
@@ -1508,17 +1567,30 @@ class _FilaCartas extends StatelessWidget {
                           height: h,
                         ),
                       );
-                      final child = AnimatedPadding(
-                        duration: const Duration(milliseconds: 120),
-                        padding: EdgeInsets.only(
-                          bottom: (seleccionada ||
-                                  indiceRevelado == indiceReal)
-                              ? 8
-                              : 0,
+                      final child = AnimatedOpacity(
+                        duration: const Duration(milliseconds: 180),
+                        opacity: atenuarNoSeleccionados &&
+                                seleccionados.isNotEmpty &&
+                                !seleccionada
+                            ? 0.28
+                            : 1,
+                        child: AnimatedPadding(
+                          duration: const Duration(milliseconds: 120),
+                          padding: EdgeInsets.only(
+                            bottom: (seleccionada ||
+                                    indiceRevelado == indiceReal)
+                                ? 8
+                                : 0,
+                          ),
+                          child: card,
                         ),
-                        child: card,
                       );
                       if (onTapIndex == null) return child;
+                      if (atenuarNoSeleccionados &&
+                          seleccionados.isNotEmpty &&
+                          !seleccionada) {
+                        return IgnorePointer(child: child);
+                      }
                       return Material(
                         color: Colors.transparent,
                         child: InkWell(

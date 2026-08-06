@@ -146,7 +146,7 @@ class _CartelHistorialCuloSucio extends StatelessWidget {
                                 ),
                                 if (j.carta.esCuloSucio)
                                   const Text(
-                                    'CULO',
+                                    'CULO SUCIO',
                                     style: TextStyle(
                                       color: AppColors.peligro,
                                       fontWeight: FontWeight.w900,
