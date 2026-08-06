@@ -239,10 +239,16 @@ bool puedeCapturarMesa(CartaCasita carta, List<CartaCasita> mesa) {
 }
 
 /// Juega la carta en [indiceEnMano] del jugador actual.
-/// Prioridad: robo de casita rival → captura en mesa → deja en mesa.
+///
+/// - [forzarTirar]: deja la carta en la mesa.
+/// - [robarCasita]: roba la casita del rival (la cima debe coincidir).
+/// - [mesaElegida]: captura esas cartas de la mesa (mismo número).
 String? jugarCartaCasita(
   PartidaCasita p, {
   required int indiceEnMano,
+  List<CartaCasita>? mesaElegida,
+  bool robarCasita = false,
+  bool forzarTirar = false,
 }) {
   if (p.terminada) return 'La partida ya terminó.';
   if (p.fase != FaseCasita.jugando) return 'No se puede jugar ahora.';
@@ -251,11 +257,27 @@ String? jugarCartaCasita(
     return 'Carta inválida.';
   }
 
-  final carta = yo.mano.removeAt(indiceEnMano);
+  final carta = yo.mano[indiceEnMano];
   final rival = p.rivalActual;
 
-  // 1) Robar casita del rival.
-  if (puedeRobarCasita(carta, rival)) {
+  if (forzarTirar) {
+    yo.mano.removeAt(indiceEnMano);
+    p.mesa.add(carta);
+    p.ultimaJugada = UltimaJugadaCasita(
+      jugador: yo.nombre,
+      carta: carta,
+      tipo: TipoJugadaCasita.mesa,
+    );
+    _avanzarTurno(p);
+    _repartirManosSiCorresponde(p);
+    return null;
+  }
+
+  if (robarCasita) {
+    if (!puedeRobarCasita(carta, rival)) {
+      return 'No podés robar esa casita con esta carta.';
+    }
+    yo.mano.removeAt(indiceEnMano);
     final robadas = List<CartaCasita>.from(rival.pozo);
     rival.pozo.clear();
     yo.pozo.addAll(robadas);
@@ -273,73 +295,104 @@ String? jugarCartaCasita(
     return null;
   }
 
-  // 2) Capturar pares de la mesa.
-  final capturadas = <CartaCasita>[
-    for (final c in p.mesa)
-      if (c.numero == carta.numero) c,
-  ];
-  if (capturadas.isNotEmpty) {
-    p.mesa.removeWhere((c) => c.numero == carta.numero);
-    yo.pozo.addAll(capturadas);
-    yo.pozo.add(carta);
-    p.ultimoQueCapturo = yo.nombre;
-    p.ultimaJugada = UltimaJugadaCasita(
-      jugador: yo.nombre,
-      carta: carta,
-      tipo: TipoJugadaCasita.capturaMesa,
-      cartasCapturadas: capturadas,
-    );
-    _avanzarTurno(p);
-    _repartirManosSiCorresponde(p);
-    return null;
+  final elegidas = mesaElegida ?? const <CartaCasita>[];
+  if (elegidas.isEmpty) {
+    return 'Elegí carta(s) de la mesa del mismo número, o tirala.';
+  }
+  for (final c in elegidas) {
+    if (c.numero != carta.numero) {
+      return 'Las cartas a capturar deben tener el mismo número.';
+    }
+    if (!p.mesa.contains(c)) {
+      return 'Esa carta ya no está en la mesa.';
+    }
   }
 
-  // 3) Dejar en la mesa.
-  p.mesa.add(carta);
+  yo.mano.removeAt(indiceEnMano);
+  for (final c in elegidas) {
+    p.mesa.remove(c);
+  }
+  yo.pozo.addAll(elegidas);
+  yo.pozo.add(carta);
+  p.ultimoQueCapturo = yo.nombre;
   p.ultimaJugada = UltimaJugadaCasita(
     jugador: yo.nombre,
     carta: carta,
-    tipo: TipoJugadaCasita.mesa,
+    tipo: TipoJugadaCasita.capturaMesa,
+    cartasCapturadas: List.of(elegidas),
   );
   _avanzarTurno(p);
   _repartirManosSiCorresponde(p);
   return null;
 }
 
-/// IA simple: prioriza robo de casita, luego captura, luego carta “segura”.
-int elegirJugadaPcCasita(PartidaCasita p, [math.Random? rng]) {
+/// Plan de jugada de la PC (sin ejecutar).
+class JugadaPcCasita {
+  const JugadaPcCasita({
+    required this.indiceMano,
+    this.mesaElegida = const [],
+    this.robarCasita = false,
+    this.tirar = false,
+  });
+
+  final int indiceMano;
+  final List<CartaCasita> mesaElegida;
+  final bool robarCasita;
+  final bool tirar;
+
+  bool get esCaptura => !tirar;
+}
+
+/// Elige qué haría la PC sin mutar la partida.
+JugadaPcCasita? planificarJugadaPcCasita(PartidaCasita p, [math.Random? rng]) {
+  if (p.terminada || !p.contraPc) return null;
+  if (p.jugadorActual.nombre != 'PC') return null;
   final r = rng ?? math.Random();
   final yo = p.jugadorActual;
   final rival = p.rivalActual;
-  if (yo.mano.isEmpty) return -1;
+  if (yo.mano.isEmpty) return null;
 
   for (var i = 0; i < yo.mano.length; i++) {
-    if (puedeRobarCasita(yo.mano[i], rival)) return i;
-  }
-  var mejorIdx = -1;
-  var mejorCant = 0;
-  for (var i = 0; i < yo.mano.length; i++) {
-    final n = yo.mano[i].numero;
-    final cant = p.mesa.where((c) => c.numero == n).length;
-    if (cant > mejorCant) {
-      mejorCant = cant;
-      mejorIdx = i;
+    if (puedeRobarCasita(yo.mano[i], rival)) {
+      return JugadaPcCasita(indiceMano: i, robarCasita: true);
     }
   }
-  if (mejorIdx >= 0) return mejorIdx;
 
-  // Evitar dejar una cima que el rival pueda robar fácil si puede.
-  final candidatos = <int>[
-    for (var i = 0; i < yo.mano.length; i++) i,
-  ];
-  candidatos.shuffle(r);
-  return candidatos.first;
+  var mejorIdx = -1;
+  var mejorCant = 0;
+  List<CartaCasita> mejores = const [];
+  for (var i = 0; i < yo.mano.length; i++) {
+    final n = yo.mano[i].numero;
+    final match = [for (final c in p.mesa) if (c.numero == n) c];
+    if (match.length > mejorCant) {
+      mejorCant = match.length;
+      mejorIdx = i;
+      mejores = match;
+    }
+  }
+  if (mejorIdx >= 0) {
+    return JugadaPcCasita(indiceMano: mejorIdx, mesaElegida: mejores);
+  }
+
+  return JugadaPcCasita(
+    indiceMano: r.nextInt(yo.mano.length),
+    tirar: true,
+  );
 }
 
+/// IA simple: prioriza robo de casita, luego captura, luego tira.
 void jugarTurnoPcCasita(PartidaCasita p, [math.Random? rng]) {
-  if (p.terminada || !p.contraPc) return;
-  if (p.jugadorActual.nombre != 'PC') return;
-  final idx = elegirJugadaPcCasita(p, rng);
-  if (idx < 0) return;
-  jugarCartaCasita(p, indiceEnMano: idx);
+  final plan = planificarJugadaPcCasita(p, rng);
+  if (plan == null) return;
+  if (plan.tirar) {
+    jugarCartaCasita(p, indiceEnMano: plan.indiceMano, forzarTirar: true);
+  } else if (plan.robarCasita) {
+    jugarCartaCasita(p, indiceEnMano: plan.indiceMano, robarCasita: true);
+  } else {
+    jugarCartaCasita(
+      p,
+      indiceEnMano: plan.indiceMano,
+      mesaElegida: plan.mesaElegida,
+    );
+  }
 }

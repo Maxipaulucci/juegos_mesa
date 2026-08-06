@@ -88,17 +88,19 @@ class CartaEspanolaSkin extends StatelessWidget {
             width: seleccionada ? 2.4 : 2,
           ),
           boxShadow: [
-            BoxShadow(
-              color: (seleccionada ? colorSeleccionCartaEspanola : AppColors.acento)
-                  .withValues(alpha: 0.35),
-              blurRadius: compacta ? 8 : 14,
-              spreadRadius: 0.5,
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
+            if (seleccionada)
+              BoxShadow(
+                color: colorSeleccionCartaEspanola.withValues(alpha: 0.5),
+                blurRadius: compacta ? 8 : 12,
+                spreadRadius: 0,
+                offset: const Offset(0, 6),
+              )
+            else
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
           ],
         ),
         child: Stack(
@@ -159,11 +161,20 @@ class CartaEspanolaSkin extends StatelessWidget {
           width: seleccionada || resaltarPeligro ? 2.4 : 2,
         ),
         boxShadow: [
-          BoxShadow(
-            color: borde.withValues(alpha: 0.45),
-            blurRadius: compacta ? 8 : 14,
-            spreadRadius: 0.5,
-          ),
+          if (seleccionada)
+            BoxShadow(
+              color: borde.withValues(alpha: 0.55),
+              blurRadius: compacta ? 8 : 12,
+              spreadRadius: 0,
+              offset: const Offset(0, 6),
+            )
+          else
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.28),
+              blurRadius: 8,
+              spreadRadius: 0,
+              offset: const Offset(0, 3),
+            ),
         ],
       ),
       child: Padding(

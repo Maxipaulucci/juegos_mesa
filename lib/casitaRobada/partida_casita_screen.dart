@@ -33,6 +33,8 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   late PartidaCasita _partida;
   int _pcToken = 0;
   int? _cartaSeleccionada;
+  final List<CartaCasita> _mesaSeleccion = [];
+  bool _roboCasitaSeleccionado = false;
   bool _jugando = false;
 
   bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
@@ -68,11 +70,53 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
       !_partida.terminada &&
       _partida.jugadorActual.nombre == TextosCasita.vsPcNombre;
 
+  bool get _bloquearHumano => !_esTurnoHumano || _jugando || _partida.terminada;
+
+  CartaCasita? get _cartaManoSel {
+    final i = _cartaSeleccionada;
+    if (i == null) return null;
+    final mano = widget.contraPc ? _yo.mano : _partida.jugadorActual.mano;
+    if (i < 0 || i >= mano.length) return null;
+    return mano[i];
+  }
+
+  bool get _puedeCapturar {
+    if (_bloquearHumano) return false;
+    final carta = _cartaManoSel;
+    if (carta == null) return false;
+    if (_roboCasitaSeleccionado) {
+      return puedeRobarCasita(carta, _rival);
+    }
+    if (_mesaSeleccion.isEmpty) return false;
+    return _mesaSeleccion.every((c) => c.numero == carta.numero);
+  }
+
+  bool get _puedeTirar {
+    if (_bloquearHumano) return false;
+    if (_cartaManoSel == null) return false;
+    return !_puedeCapturar;
+  }
+
   String get _textoEstado {
     if (_partida.terminada) return '';
     if (_esTurnoPc) return TextosCasita.esperandoPc;
-    if (_esTurnoHumano) return TextosCasita.juegaUna;
-    return 'Turno de ${_partida.jugadorActual.nombre}';
+    if (!_esTurnoHumano) {
+      return 'Turno de ${_partida.jugadorActual.nombre}';
+    }
+    if (_cartaSeleccionada == null) return TextosCasita.juegaUna;
+    if (_puedeCapturar) {
+      return 'Listo${TextosCasita.listoCapturar}';
+    }
+    if (_mesaSeleccion.isEmpty && !_roboCasitaSeleccionado) {
+      return 'Carta elegida${TextosCasita.faltaMesaOCasita}';
+    }
+    return TextosCasita.juegaUna;
+  }
+
+  void _limpiarSeleccion() {
+    _cartaSeleccionada = null;
+    _mesaSeleccion.clear();
+    _roboCasitaSeleccionado = false;
   }
 
   @override
@@ -120,37 +164,136 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   Future<void> _talVezTurnoPc() async {
     if (!_esTurnoPc || _jugando) return;
     final token = ++_pcToken;
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    await Future<void>.delayed(const Duration(milliseconds: 550));
     if (!mounted || token != _pcToken || !_esTurnoPc) return;
+
+    final plan = planificarJugadaPcCasita(_partida);
+    if (plan == null) return;
+
+    // Preview de selección (captura o tiro) como si jugara el humano.
     setState(() {
-      jugarTurnoPcCasita(_partida);
-      _cartaSeleccionada = null;
+      _cartaSeleccionada = plan.indiceMano;
+      _mesaSeleccion
+        ..clear()
+        ..addAll(plan.mesaElegida);
+      _roboCasitaSeleccionado = plan.robarCasita;
     });
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    if (!mounted || token != _pcToken || !_esTurnoPc) return;
+
+    setState(() {
+      if (plan.tirar) {
+        jugarCartaCasita(
+          _partida,
+          indiceEnMano: plan.indiceMano,
+          forzarTirar: true,
+        );
+      } else if (plan.robarCasita) {
+        jugarCartaCasita(
+          _partida,
+          indiceEnMano: plan.indiceMano,
+          robarCasita: true,
+        );
+      } else {
+        jugarCartaCasita(
+          _partida,
+          indiceEnMano: plan.indiceMano,
+          mesaElegida: plan.mesaElegida,
+        );
+      }
+      _limpiarSeleccion();
+    });
+
     if (!_partida.terminada) {
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (mounted) _talVezTurnoPc();
     }
   }
 
-  Future<void> _jugarCarta(int indice) async {
-    if (!_esTurnoHumano || _jugando || _partida.terminada) return;
-    if (!widget.contraPc &&
-        _partida.jugadorActual.nombre != _yo.nombre) {
-      return;
-    }
+  void _seleccionarMano(int indice) {
+    if (_bloquearHumano) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     setState(() {
-      _jugando = true;
+      if (_cartaSeleccionada == indice) {
+        _limpiarSeleccion();
+        return;
+      }
       _cartaSeleccionada = indice;
+      _mesaSeleccion.clear();
+      _roboCasitaSeleccionado = false;
     });
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    if (!mounted) return;
-    final err = jugarCartaCasita(_partida, indiceEnMano: indice);
+  }
+
+  void _seleccionarMesa(CartaCasita carta) {
+    if (_bloquearHumano) return;
+    final mano = _cartaManoSel;
+    if (mano == null) return;
+    if (carta.numero != mano.numero) return;
+    setState(() {
+      _roboCasitaSeleccionado = false;
+      if (_mesaSeleccion.contains(carta)) {
+        _mesaSeleccion.remove(carta);
+      } else {
+        _mesaSeleccion.add(carta);
+      }
+    });
+  }
+
+  void _tocarCasitaRival() {
+    if (_bloquearHumano) return;
+    final mano = _cartaManoSel;
+    if (mano == null) return;
+    if (!puedeRobarCasita(mano, _rival)) return;
+    setState(() {
+      _mesaSeleccion.clear();
+      _roboCasitaSeleccionado = !_roboCasitaSeleccionado;
+    });
+  }
+
+  Future<void> _tirarAMesa() async {
+    if (!_puedeTirar) return;
+    final idx = _cartaSeleccionada;
+    if (idx == null) return;
+    setState(() => _jugando = true);
+    final err = jugarCartaCasita(
+      _partida,
+      indiceEnMano: idx,
+      forzarTirar: true,
+    );
     setState(() {
       _jugando = false;
-      _cartaSeleccionada = null;
+      _limpiarSeleccion();
     });
     if (err != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    if (!_partida.terminada) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (mounted) _talVezTurnoPc();
+    }
+  }
+
+  Future<void> _confirmarCaptura() async {
+    if (!_puedeCapturar) return;
+    final idx = _cartaSeleccionada;
+    if (idx == null) return;
+    setState(() => _jugando = true);
+    final err = jugarCartaCasita(
+      _partida,
+      indiceEnMano: idx,
+      mesaElegida: _roboCasitaSeleccionado ? null : List.of(_mesaSeleccion),
+      robarCasita: _roboCasitaSeleccionado,
+    );
+    setState(() {
+      _jugando = false;
+      _limpiarSeleccion();
+    });
+    if (err != null && mounted) {
+      // Mensajes de guía no se muestran como cartel; solo errores reales.
+      if (!err.startsWith('Elegí carta')) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      }
       return;
     }
     if (!_partida.terminada) {
@@ -167,7 +310,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
         nombres: widget.nombres,
         contraPc: widget.contraPc,
       );
-      _cartaSeleccionada = null;
+      _limpiarSeleccion();
       _jugando = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
@@ -270,44 +413,58 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                     ),
                   ],
                   const SizedBox(height: 10),
-                  // Rival: mano centrada + casita a la derecha
+                  // Rival: mano centrada; casita a la izquierda (no desplaza el centro)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: SizedBox(
-                      height: 140,
+                      height: 148,
                       width: double.infinity,
                       child: Stack(
-                        alignment: Alignment.topCenter,
+                        clipBehavior: Clip.none,
                         children: [
-                          Column(
-                            children: [
-                              Text(
-                                '${TextosCasita.manoRival}: ${manoArriba.nombre}',
-                                style: const TextStyle(
-                                  color: AppColors.textoSuave,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${TextosCasita.manoRival}: ${manoArriba.nombre}',
+                                  style: const TextStyle(
+                                    color: AppColors.textoSuave,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              SizedBox(
-                                height: 100,
-                                width: double.infinity,
-                                child: _FilaCartas(
-                                  cartas: manoArriba.mano,
-                                  bocaArriba: _modoDiosActivo,
-                                  paloVisual: _paloVisual,
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  height: 116,
+                                  width: double.infinity,
+                                  child: _FilaCartas(
+                                    cartas: manoArriba.mano,
+                                    bocaArriba: _modoDiosActivo,
+                                    paloVisual: _paloVisual,
+                                    seleccionIndex:
+                                        _esTurnoPc ? _cartaSeleccionada : null,
+                                    indiceRevelado:
+                                        _esTurnoPc ? _cartaSeleccionada : null,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           Positioned(
-                            right: 0,
-                            top: 0,
+                            left: 0,
+                            top: 18,
                             child: _PozoCasita(
                               titulo: TextosCasita.casitaRival,
                               jugador: pozoArriba,
                               paloVisual: _paloVisual,
+                              // El humano selecciona la casita rival para robar.
+                              seleccionada: _roboCasitaSeleccionado &&
+                                  _esTurnoHumano,
+                              onTap: _esTurnoHumano && !_jugando
+                                  ? _tocarCasitaRival
+                                  : null,
                             ),
                           ),
                         ],
@@ -325,12 +482,16 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                   ),
                   const SizedBox(height: 6),
                   SizedBox(
-                    height: 108,
+                    height: 116,
                     width: double.infinity,
                     child: _FilaCartas(
                       cartas: _partida.mesa,
                       bocaArriba: true,
                       paloVisual: _paloVisual,
+                      cartasSeleccionadas: _mesaSeleccion,
+                      onTapCarta: _esTurnoHumano && !_jugando
+                          ? _seleccionarMesa
+                          : null,
                     ),
                   ),
                   if (_partida.ultimaJugada != null) ...[
@@ -349,50 +510,108 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                     ),
                   ],
                   const Spacer(),
-                  // Yo: mano centrada + casita a la derecha
+                  // Yo: mano centrada; casita a la izquierda (no desplaza el centro)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: SizedBox(
-                      height: 158,
+                      height: 160,
                       width: double.infinity,
                       child: Stack(
-                        alignment: Alignment.bottomCenter,
+                        clipBehavior: Clip.none,
                         children: [
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text(
-                                '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
-                                style: const TextStyle(
-                                  color: AppColors.mint,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
+                                  style: const TextStyle(
+                                    color: AppColors.mint,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              SizedBox(
-                                height: 118,
-                                width: double.infinity,
-                                child: _FilaCartas(
-                                  cartas: manoAbajo.mano,
-                                  bocaArriba: true,
-                                  paloVisual: _paloVisual,
-                                  seleccionIndex: _cartaSeleccionada,
-                                  onTapIndex: _esTurnoHumano && !_jugando
-                                      ? _jugarCarta
-                                      : null,
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  height: 116,
+                                  width: double.infinity,
+                                  child: _FilaCartas(
+                                    cartas: manoAbajo.mano,
+                                    bocaArriba: true,
+                                    paloVisual: _paloVisual,
+                                    seleccionIndex: _esTurnoHumano
+                                        ? _cartaSeleccionada
+                                        : null,
+                                    onTapIndex: _esTurnoHumano && !_jugando
+                                        ? (i) async => _seleccionarMano(i)
+                                        : null,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           Positioned(
-                            right: 0,
+                            left: 0,
                             bottom: 0,
                             child: _PozoCasita(
                               titulo: TextosCasita.tuCasita,
                               jugador: pozoAbajo,
                               paloVisual: _paloVisual,
                               resaltar: true,
+                              // La PC selecciona tu casita cuando te la va a robar.
+                              seleccionada: _roboCasitaSeleccionado &&
+                                  _esTurnoPc,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SizedBox(
+                      height: 54,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _puedeTirar ? _tirarAMesa : null,
+                              child: Text(
+                                _cartaSeleccionada == null || _bloquearHumano
+                                    ? 'Tirar'
+                                    : _puedeCapturar
+                                        ? 'Tirar (bloqueado)'
+                                        : 'Tirar (${_cartaManoSel!.numero})',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.mint,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor:
+                                    AppColors.mint.withValues(alpha: 0.38),
+                                disabledForegroundColor:
+                                    Colors.white.withValues(alpha: 0.78),
+                                textStyle: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              onPressed:
+                                  _puedeCapturar ? _confirmarCaptura : null,
+                              child: Text(
+                                _puedeCapturar
+                                    ? (_roboCasitaSeleccionado
+                                        ? 'Capturar (casita)'
+                                        : 'Capturar (${_mesaSeleccion.length + 1})')
+                                    : 'Capturar',
+                              ),
                             ),
                           ),
                         ],
@@ -478,22 +697,63 @@ class _PozoCasita extends StatelessWidget {
     required this.jugador,
     required this.paloVisual,
     this.resaltar = false,
+    this.seleccionada = false,
+    this.onTap,
   });
 
   final String titulo;
   final JugadorCasita jugador;
   final PaloEspanolVisual Function(PaloCasita) paloVisual;
   final bool resaltar;
+  final bool seleccionada;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final cima = jugador.cimaPozo;
-    return Column(
+    final borde = seleccionada
+        ? colorSeleccionCartaEspanola
+        : (resaltar ? AppColors.mint.withValues(alpha: 0.55) : AppColors.cartaBorde);
+
+    Widget cartaWidget;
+    if (cima == null) {
+      cartaWidget = Container(
+        width: 68,
+        height: 102,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A0A33),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: borde,
+            width: seleccionada ? 2.4 : 1.5,
+          ),
+        ),
+        child: const Text(
+          '—',
+          style: TextStyle(color: AppColors.textoSuave),
+        ),
+      );
+    } else {
+      cartaWidget = CartaEspanolaSkin(
+        numero: cima.numero,
+        etiqueta: cima.etiqueta,
+        palo: paloVisual(cima.palo),
+        seleccionada: seleccionada,
+        width: 68,
+        height: 102,
+      );
+    }
+
+    final cuerpo = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           titulo,
           style: TextStyle(
-            color: resaltar ? AppColors.mint : AppColors.textoSuave,
+            color: seleccionada
+                ? colorSeleccionCartaEspanola
+                : (resaltar ? AppColors.mint : AppColors.textoSuave),
             fontWeight: FontWeight.w800,
             fontSize: 11,
           ),
@@ -508,32 +768,18 @@ class _PozoCasita extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        if (cima == null)
-          Container(
-            width: 68,
-            height: 102,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A0A33),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cartaBorde),
-            ),
-            child: const Center(
-              child: Text(
-                '—',
-                style: TextStyle(color: AppColors.textoSuave),
-              ),
-            ),
-          )
-        else
-          CartaEspanolaSkin(
-            numero: cima.numero,
-            etiqueta: cima.etiqueta,
-            palo: paloVisual(cima.palo),
-            seleccionada: false,
-            width: 68,
-            height: 102,
-          ),
+        cartaWidget,
       ],
+    );
+
+    if (onTap == null) return cuerpo;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: cuerpo,
+      ),
     );
   }
 }
@@ -544,14 +790,21 @@ class _FilaCartas extends StatelessWidget {
     required this.bocaArriba,
     required this.paloVisual,
     this.onTapIndex,
+    this.onTapCarta,
     this.seleccionIndex,
+    this.indiceRevelado,
+    this.cartasSeleccionadas = const [],
   });
 
   final List<CartaCasita> cartas;
   final bool bocaArriba;
   final PaloEspanolVisual Function(PaloCasita) paloVisual;
   final Future<void> Function(int index)? onTapIndex;
+  final void Function(CartaCasita carta)? onTapCarta;
   final int? seleccionIndex;
+  /// Carta tapada que se muestra boca arriba (preview de la PC).
+  final int? indiceRevelado;
+  final List<CartaCasita> cartasSeleccionadas;
 
   @override
   Widget build(BuildContext context) {
@@ -562,30 +815,42 @@ class _FilaCartas extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
+        final anchoFila = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : (cartas.length * 74.0).clamp(68.0, 900.0);
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            constraints: BoxConstraints(minWidth: anchoFila),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 for (var i = 0; i < cartas.length; i++) ...[
                   if (i > 0) const SizedBox(width: 6),
                   Builder(
                     builder: (context) {
                       final c = cartas[i];
-                      final seleccionada = seleccionIndex == i;
+                      final seleccionada = seleccionIndex == i ||
+                          cartasSeleccionadas.contains(c);
+                      final visible =
+                          bocaArriba || indiceRevelado == i;
+                      const deslizamiento = 14.0;
+                      const cardW = 68.0;
+                      const cardH = 102.0;
                       Widget card;
-                      if (!bocaArriba) {
+                      if (!visible) {
                         card = Container(
-                          width: 68,
-                          height: 102,
+                          width: cardW,
+                          height: cardH,
                           decoration: BoxDecoration(
                             color: const Color(0xFF1A0A33),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppColors.acento,
-                              width: 2,
+                              color: seleccionada
+                                  ? colorSeleccionCartaEspanola
+                                  : AppColors.acento,
+                              width: seleccionada ? 2.4 : 2,
                             ),
                           ),
                           child: const Center(
@@ -605,22 +870,53 @@ class _FilaCartas extends StatelessWidget {
                           etiqueta: c.etiqueta,
                           palo: paloVisual(c.palo),
                           seleccionada: seleccionada,
-                          width: 68,
-                          height: 102,
+                          width: cardW,
+                          height: cardH,
                         );
                       }
-                      final child = AnimatedPadding(
-                        duration: const Duration(milliseconds: 120),
-                        padding: EdgeInsets.only(bottom: seleccionada ? 8 : 0),
-                        child: card,
+                      final tarjeta = SizedBox(
+                        width: cardW,
+                        height: cardH + deslizamiento,
+                        child: AnimatedAlign(
+                          duration: const Duration(milliseconds: 160),
+                          curve: Curves.easeOutCubic,
+                          alignment: seleccionada
+                              ? Alignment.topCenter
+                              : Alignment.bottomCenter,
+                          child: card,
+                        ),
                       );
-                      if (onTapIndex == null) return child;
+                      if (onTapIndex == null && onTapCarta == null) {
+                        return tarjeta;
+                      }
+                      void onTap() {
+                        if (onTapIndex != null) {
+                          onTapIndex!(i);
+                        } else if (onTapCarta != null) {
+                          onTapCarta!(c);
+                        }
+                      }
+                      // Sin hover si no está seleccionada (evita sombra/rectángulo arriba).
+                      if (!seleccionada) {
+                        return GestureDetector(
+                          onTap: onTap,
+                          behavior: HitTestBehavior.opaque,
+                          child: tarjeta,
+                        );
+                      }
                       return Material(
                         color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
                         child: InkWell(
+                          onTap: onTap,
                           borderRadius: BorderRadius.circular(14),
-                          onTap: () => onTapIndex!(i),
-                          child: child,
+                          splashColor: colorSeleccionCartaEspanola
+                              .withValues(alpha: 0.25),
+                          highlightColor: colorSeleccionCartaEspanola
+                              .withValues(alpha: 0.18),
+                          hoverColor: colorSeleccionCartaEspanola
+                              .withValues(alpha: 0.22),
+                          child: tarjeta,
                         ),
                       );
                     },
