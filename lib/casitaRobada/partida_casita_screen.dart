@@ -33,6 +33,7 @@ class PartidaCasitaScreen extends StatefulWidget {
 
 class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   late PartidaCasita _partida;
+  late List<String> _nombres;
   int _pcToken = 0;
   int? _cartaSeleccionada;
   final List<CartaCasita> _mesaSeleccion = [];
@@ -128,13 +129,18 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   void initState() {
     super.initState();
     final resume = widget.resume;
+    _nombres = List.of(resume?.nombres ?? widget.nombres);
     if (resume != null) {
       _partida = resume.partida;
+      _nombres = List.of(resume.nombres);
     } else {
       _partida = nuevaPartidaCasita(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: widget.contraPc,
       );
+      _nombres = [
+        for (final j in _partida.jugadores) j.nombre,
+      ];
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
   }
@@ -148,7 +154,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     CasitaStandByStore.guardar(
       PartidaCasitaResume(
         partida: _partida,
-        nombres: widget.nombres,
+        nombres: _nombres,
         modoDios: widget.modoDios,
       ),
     );
@@ -164,6 +170,128 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
+  }
+
+  static const int _maxNombre = 15;
+
+  bool _esPcNombre(String nombre) =>
+      nombre == TextosCasita.vsPcNombre ||
+      (nombre.startsWith('PC ') && nombre.length > 3);
+
+  bool _puedeRenombrar(int index) {
+    if (_partida.terminada) return false;
+    if (index < 0 || index >= _partida.jugadores.length) return false;
+    return !_esPcNombre(_partida.jugadores[index].nombre);
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    if (_esPcNombre(nombre)) {
+      return 'Ese nombre está reservado para la PC.';
+    }
+    final ocupado = _partida.jugadores.asMap().entries.any(
+          (e) => e.key != index && e.value.nombre == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarJugador(int index) async {
+    if (!_puedeRenombrar(index)) return;
+    final actual = _partida.jugadores[index].nombre;
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle: const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+                child: const Text('Guardar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+
+    setState(() {
+      _partida.jugadores[index].nombre = nuevo;
+      if (index < _nombres.length) _nombres[index] = nuevo;
+      if (_partida.ganador == actual) _partida.ganador = nuevo;
+      if (_partida.ultimoQueCapturo == actual) {
+        _partida.ultimoQueCapturo = nuevo;
+      }
+      final uj = _partida.ultimaJugada;
+      if (uj != null) {
+        if (uj.jugador == actual) uj.jugador = nuevo;
+        if (uj.robadoDe == actual) uj.robadoDe = nuevo;
+      }
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
+    });
   }
 
   void _mostrarReglas() {
@@ -343,7 +471,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     CasitaStandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaCasita(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: widget.contraPc,
       );
       _limpiarSeleccion();
@@ -445,6 +573,10 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                                   _partida.jugadores[i].cartasPozo,
                               activo: !_partida.terminada &&
                                   _partida.indiceTurno == i,
+                              puedeRenombrar: _puedeRenombrar(i),
+                              onRenombrar: _puedeRenombrar(i)
+                                  ? () => _renombrarJugador(i)
+                                  : null,
                             ),
                           ),
                         ],
@@ -727,36 +859,63 @@ class _ChipJugador extends StatelessWidget {
     required this.cartasMano,
     required this.cartasPozo,
     required this.activo,
+    this.puedeRenombrar = false,
+    this.onRenombrar,
   });
 
   final String nombre;
   final int cartasMano;
   final int cartasPozo;
   final bool activo;
+  final bool puedeRenombrar;
+  final VoidCallback? onRenombrar;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    final borde = activo ? AppColors.mint : AppColors.violeta;
+    final chip = Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: puedeRenombrar ? 8 : 10,
+        vertical: 8,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.carta.withValues(alpha: 0.92),
+        color: AppColors.violeta.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: activo ? AppColors.mint : AppColors.cartaBorde,
-          width: activo ? 2 : 1,
+          color: borde,
+          width: activo || puedeRenombrar ? 2 : 1.2,
         ),
+        boxShadow: puedeRenombrar
+            ? neonGlow(AppColors.violeta, blur: 10)
+            : null,
       ),
       child: Column(
         children: [
-          Text(
-            nombre,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.texto,
-              fontWeight: FontWeight.w800,
-              fontSize: 13,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              if (puedeRenombrar) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.edit_rounded,
+                  size: 13,
+                  color: AppColors.acento,
+                ),
+              ],
+            ],
           ),
           Text(
             'mano $cartasMano · casita $cartasPozo',
@@ -767,6 +926,16 @@ class _ChipJugador extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    if (!puedeRenombrar || onRenombrar == null) return chip;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onRenombrar,
+        borderRadius: BorderRadius.circular(14),
+        child: chip,
       ),
     );
   }

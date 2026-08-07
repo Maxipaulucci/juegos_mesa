@@ -37,7 +37,7 @@ class CartaCasita {
 class JugadorCasita {
   JugadorCasita(this.nombre);
 
-  final String nombre;
+  String nombre;
   final List<CartaCasita> mano = [];
   /// Casita / pozo: la última carta es la cima (visible).
   final List<CartaCasita> pozo = [];
@@ -50,7 +50,7 @@ class JugadorCasita {
 enum TipoJugadaCasita { mesa, capturaMesa, roboCasita }
 
 class UltimaJugadaCasita {
-  const UltimaJugadaCasita({
+  UltimaJugadaCasita({
     required this.jugador,
     required this.carta,
     required this.tipo,
@@ -58,11 +58,11 @@ class UltimaJugadaCasita {
     this.robadoDe,
   });
 
-  final String jugador;
+  String jugador;
   final CartaCasita carta;
   final TipoJugadaCasita tipo;
   final List<CartaCasita> cartasCapturadas;
-  final String? robadoDe;
+  String? robadoDe;
 
   String get descripcion => switch (tipo) {
         TipoJugadaCasita.mesa => '$jugador dejó ${carta.etiqueta} en la mesa',
