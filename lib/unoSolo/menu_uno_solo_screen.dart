@@ -31,11 +31,12 @@ class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
             () => draft = draft.copyWith(modoPractica: v),
           ),
           info:
-              'Activado: durante la partida podés deshacer de a un salto '
-              'hacia atrás (botón de deshacer). Si lo seguís tocando, '
-              'volvés hasta el inicio del tablero.\n\n'
+              'Activado por defecto: durante la partida podés deshacer de a '
+              'un salto hacia atrás (botón de deshacer). Si lo seguís '
+              'tocando, volvés hasta el inicio del tablero.\n\n'
               'Sirve para probar caminos y corregir errores sin reiniciar '
-              'toda la partida. No aplica en multijugador online.',
+              'toda la partida. Podés desactivarlo acá. No aplica en '
+              'multijugador online.',
         );
       },
     );
