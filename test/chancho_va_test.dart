@@ -290,4 +290,33 @@ void main() {
     expect(p.perdedor, 'A');
     expect(p.jugadoresActivos, hasLength(2));
   });
+
+  test('chancha solo una vez por jugador hasta nueva ronda', () {
+    final p = nuevaPartidaChancho(nombres: const ['Yo', 'PC 1', 'PC 2']);
+    aplicarNumerosElegidosChancho(p, const [4, 5, 6], math.Random(3));
+
+    expect(puedeLanzarChanchaRonda(p, 'Yo'), isTrue);
+    expect(puedeLanzarChanchaRonda(p, 'PC 1'), isTrue);
+
+    marcarChanchaUsadaEnRonda(p, 'Yo');
+    marcarChanchaUsadaEnRonda(p, 'PC 1');
+    expect(puedeLanzarChanchaRonda(p, 'Yo'), isFalse);
+    expect(puedeLanzarChanchaRonda(p, 'PC 1'), isFalse);
+    expect(puedeLanzarChanchaRonda(p, 'PC 2'), isTrue);
+
+    penalizarJugadorChancho(
+      p,
+      p.jugadores[0],
+      motivo: MotivoPenalizacionChancho.ultimoEnChancho,
+    );
+    expect(p.fase, FaseChancho.finRonda);
+    // Sigue bloqueado hasta continuar (nueva ronda).
+    expect(puedeLanzarChanchaRonda(p, 'Yo'), isFalse);
+
+    continuarTrasFinRondaChancho(p, math.Random(4));
+    expect(p.fase, FaseChancho.anunciando);
+    expect(puedeLanzarChanchaRonda(p, 'Yo'), isTrue);
+    expect(puedeLanzarChanchaRonda(p, 'PC 1'), isTrue);
+    expect(puedeLanzarChanchaRonda(p, 'PC 2'), isTrue);
+  });
 }

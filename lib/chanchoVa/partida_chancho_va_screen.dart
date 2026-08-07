@@ -171,7 +171,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
 
   bool get _hayDesafioChancha => _quienLanzoChancha != null;
 
-  /// El humano puede lanzar CHANCHA en cualquier momento de la partida.
+  /// El humano puede lanzar CHANCHA una vez por ronda (hasta el próximo Chancho).
   bool get _puedeLanzarChancha {
     if (!_opciones.chancha || !_humanoActivo) return false;
     if (!widget.contraPc || _partida.terminada || _partida.enFinRonda) {
@@ -180,6 +180,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     if (_hayDesafioChancha) return false;
     if (_partida.fase == FaseChancho.eligiendoNumeros) return false;
     if (_pcs.isEmpty) return false;
+    if (!puedeLanzarChanchaRonda(_partida, _yo.nombre)) return false;
     return true;
   }
 
@@ -420,6 +421,9 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         if (_partida.ordenChancho[i] == actual) {
           _partida.ordenChancho[i] = nuevo;
         }
+      }
+      if (_partida.yaDijeronChanchaRonda.remove(actual)) {
+        _partida.yaDijeronChanchaRonda.add(nuevo);
       }
       if (_partida.perdedor == actual) _partida.perdedor = nuevo;
       if (_partida.ganador == actual) _partida.ganador = nuevo;
@@ -1027,6 +1031,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     if (!_puedeLanzarChancha) return;
     final pcs = _pcs;
     if (pcs.isEmpty) return;
+    marcarChanchaUsadaEnRonda(_partida, _yo.nombre);
     final pcCae = _rng.nextDouble() < 0.5;
     if (pcCae) {
       final pc = pcs[_rng.nextInt(pcs.length)];
@@ -1094,7 +1099,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     _despuesDeChancha();
   }
 
-  /// 10% de chance de que alguna PC te tire CHANCHA (en cualquier momento).
+  /// 10% de chance de que alguna PC te tire CHANCHA (una vez por PC y ronda).
   bool _intentarChanchaPc() {
     if (_esOnline && !_soyAnfitrionOnline) return false;
     if (!_opciones.chancha) return false;
@@ -1103,14 +1108,18 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     if (_hayDesafioChancha) return false;
     if (_partida.fase == FaseChancho.eligiendoNumeros) return false;
     if (_cronoChancho.isAnimating) return false;
-    if (_pcs.isEmpty) return false;
+    final pcsDisponibles = _pcs
+        .where((pc) => puedeLanzarChanchaRonda(_partida, pc.nombre))
+        .toList(growable: false);
+    if (pcsDisponibles.isEmpty) return false;
     if (_rng.nextDouble() >= 0.10) return false;
     final humanos = _partida.jugadores
         .where((j) => !_esPc(j) && !j.eliminado)
         .toList(growable: false);
     if (humanos.isEmpty) return false;
     final objetivo = humanos[_rng.nextInt(humanos.length)];
-    final pc = _pcs[_rng.nextInt(_pcs.length)];
+    final pc = pcsDisponibles[_rng.nextInt(pcsDisponibles.length)];
+    marcarChanchaUsadaEnRonda(_partida, pc.nombre);
     _quienLanzoChancha = pc.nombre;
     _objetivoChancha = objetivo.nombre;
     if (_soyObjetivoChancha) {

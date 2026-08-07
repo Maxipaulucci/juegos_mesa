@@ -174,6 +174,7 @@ Map<String, dynamic> seedChanchoGameState({
       'ultimoAnuncio': null,
       'quienAbrioChancho': null,
       'ordenChancho': <String>[],
+      'yaDijeronChanchaRonda': <String>[],
       'historialLetras': <Map<String, dynamic>>[],
       'ultimoResumenRonda': null,
       'perdedor': null,
@@ -230,6 +231,8 @@ Map<String, dynamic> encodeChanchoGameState({
       'ultimoAnuncio': _encodeAnuncio(partida.ultimoAnuncio),
       'quienAbrioChancho': partida.quienAbrioChancho,
       'ordenChancho': List<String>.from(partida.ordenChancho),
+      'yaDijeronChanchaRonda':
+          List<String>.from(partida.yaDijeronChanchaRonda),
       'historialLetras': [
         for (final e in partida.historialLetras) _encodeEvento(e),
       ],
@@ -299,6 +302,12 @@ void applyChanchoGameState(PartidaChancho destino, Map<String, dynamic> raw) {
     ..clear()
     ..addAll([
       for (final n in (raw['ordenChancho'] as List? ?? const []))
+        if (n != null) n.toString(),
+    ]);
+  destino.yaDijeronChanchaRonda
+    ..clear()
+    ..addAll([
+      for (final n in (raw['yaDijeronChanchaRonda'] as List? ?? const []))
         if (n != null) n.toString(),
     ]);
   destino.historialLetras

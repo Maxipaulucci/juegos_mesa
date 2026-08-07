@@ -202,6 +202,8 @@ class PartidaChancho {
   String? quienAbrioChancho;
   /// Orden en que dijeron Chancho en la carrera actual.
   final List<String> ordenChancho = [];
+  /// Quiénes ya lanzaron CHANCHA en esta ronda (hasta el próximo Chancho).
+  final Set<String> yaDijeronChanchaRonda = {};
   /// Historial de letras anotadas (motivo + progreso).
   final List<EventoHistorialChancho> historialLetras = [];
   /// Datos del cartel tras anotar una letra (mientras [fase] == finRonda).
@@ -682,9 +684,19 @@ void _iniciarNuevaRondaTrasChancho(PartidaChancho p, [math.Random? rng]) {
     i++;
   }
   _limpiarCarreraChancho(p);
+  p.yaDijeronChanchaRonda.clear();
   p.anuncioActual = null;
   p.fase = FaseChancho.anunciando;
   _avanzarAnunciante(p);
+}
+
+/// True si [nombre] todavía puede lanzar CHANCHA en la ronda actual.
+bool puedeLanzarChanchaRonda(PartidaChancho p, String nombre) =>
+    !p.yaDijeronChanchaRonda.contains(nombre);
+
+/// Registra que [nombre] ya usó su CHANCHA de la ronda.
+void marcarChanchaUsadaEnRonda(PartidaChancho p, String nombre) {
+  p.yaDijeronChanchaRonda.add(nombre);
 }
 
 bool pcDeberiaDecirChancho(PartidaChancho p, JugadorChancho pc) {

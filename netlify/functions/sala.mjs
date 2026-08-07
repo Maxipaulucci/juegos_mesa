@@ -516,6 +516,7 @@ export default async (req) => {
           ultimoAnuncio: null,
           quienAbrioChancho: null,
           ordenChancho: [],
+          yaDijeronChanchaRonda: [],
           historialLetras: [],
           ultimoResumenRonda: null,
           perdedor: null,

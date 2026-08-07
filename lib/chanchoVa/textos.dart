@@ -44,7 +44,8 @@ abstract final class TextosChancho {
 
   static const infoOpcionChancha =
       'Activado (por defecto): aparece el botón CHANCHA y las PCs también '
-      'pueden lanzarla.\n\n'
+      'pueden lanzarla. Cada jugador (humano o PC) solo puede decir CHANCHA '
+      'una vez por ronda, hasta que alguien saque Chancho y empiece otra.\n\n'
       'Desactivado: no hay botón CHANCHA y las PCs no pueden usarla.';
 
   static const infoOpcionSinEspacio =
@@ -76,5 +77,8 @@ abstract final class TextosChancho {
   decirlo suma una letra del tablero. Quien completa la palabra queda
   fuera; la partida sigue hasta que quede un solo jugador (salvo que
   actives “Fin al primer perdedor” en Modificar partida).
+
+· CHANCHA (si está activa): cada jugador o PC solo puede lanzarla una
+  vez por ronda, hasta que alguien saque Chancho y empiece otra.
 '''.trim();
 }
