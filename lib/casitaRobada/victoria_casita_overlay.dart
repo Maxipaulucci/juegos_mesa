@@ -60,7 +60,10 @@ class _VictoriaCasitaOverlayState extends State<VictoriaCasitaOverlay>
       color: Colors.black.withValues(alpha: 0.72),
       child: Stack(
         children: [
-          if (widget.gane && !empate)
+          if (widget.gane && !empate) ...[
+            const Positioned.fill(
+              child: IgnorePointer(child: FuegosArtificialesCapa()),
+            ),
             Positioned.fill(
               child: IgnorePointer(
                 child: AnimatedBuilder(
@@ -71,6 +74,7 @@ class _VictoriaCasitaOverlayState extends State<VictoriaCasitaOverlay>
                 ),
               ),
             ),
+          ],
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),

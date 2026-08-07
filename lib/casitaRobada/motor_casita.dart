@@ -41,6 +41,8 @@ class JugadorCasita {
   final List<CartaCasita> mano = [];
   /// Casita / pozo: la última carta es la cima (visible).
   final List<CartaCasita> pozo = [];
+  /// Se rindió (multijugador local): queda fuera de la partida.
+  bool rendido = false;
 
   CartaCasita? get cimaPozo => pozo.isEmpty ? null : pozo.last;
 
@@ -100,11 +102,20 @@ class PartidaCasita {
   bool get terminada => fase == FaseCasita.terminada;
   bool get enJuego => fase == FaseCasita.jugando;
 
+  List<JugadorCasita> get jugadoresActivos => [
+        for (final j in jugadores)
+          if (!j.rendido) j,
+      ];
+
   JugadorCasita get jugadorActual =>
       jugadores[indiceTurno % jugadores.length];
 
   JugadorCasita get rivalActual {
     final yo = indiceTurno % jugadores.length;
+    for (var i = 1; i < jugadores.length; i++) {
+      final j = jugadores[(yo + i) % jugadores.length];
+      if (!j.rendido) return j;
+    }
     return jugadores[(yo + 1) % jugadores.length];
   }
 }
@@ -165,12 +176,18 @@ PartidaCasita nuevaPartidaCasita({
 
 void _avanzarTurno(PartidaCasita p) {
   if (p.terminada) return;
-  p.indiceTurno = (p.indiceTurno + 1) % p.jugadores.length;
+  final n = p.jugadores.length;
+  for (var i = 0; i < n; i++) {
+    p.indiceTurno = (p.indiceTurno + 1) % n;
+    if (!p.jugadorActual.rendido) return;
+  }
 }
 
 void _repartirManosSiCorresponde(PartidaCasita p) {
   if (p.terminada) return;
-  final todosVacios = p.jugadores.every((j) => j.mano.isEmpty);
+  final activos = p.jugadoresActivos;
+  if (activos.isEmpty) return;
+  final todosVacios = activos.every((j) => j.mano.isEmpty);
   if (!todosVacios) return;
 
   if (p.mazo.isEmpty) {
@@ -178,9 +195,9 @@ void _repartirManosSiCorresponde(PartidaCasita p) {
     return;
   }
 
-  // Reparte hasta 3 por jugador mientras haya mazo.
+  // Reparte hasta 3 por jugador activo mientras haya mazo.
   for (var ronda = 0; ronda < 3; ronda++) {
-    for (final j in p.jugadores) {
+    for (final j in activos) {
       if (p.mazo.isEmpty) return;
       j.mano.add(p.mazo.removeLast());
     }
@@ -188,10 +205,10 @@ void _repartirManosSiCorresponde(PartidaCasita p) {
 }
 
 void _finalizar(PartidaCasita p) {
-  // Cartas que quedan en mesa → último que capturó (si hay).
+  // Cartas que quedan en mesa → último que capturó (si hay y sigue en pie).
   if (p.mesa.isNotEmpty && p.ultimoQueCapturo != null) {
     JugadorCasita? dueno;
-    for (final j in p.jugadores) {
+    for (final j in p.jugadoresActivos) {
       if (j.nombre == p.ultimoQueCapturo) {
         dueno = j;
         break;
@@ -206,7 +223,7 @@ void _finalizar(PartidaCasita p) {
   p.fase = FaseCasita.terminada;
   var maxCartas = -1;
   final empatados = <String>[];
-  for (final j in p.jugadores) {
+  for (final j in p.jugadoresActivos) {
     if (j.cartasPozo > maxCartas) {
       maxCartas = j.cartasPozo;
       empatados
@@ -220,11 +237,47 @@ void _finalizar(PartidaCasita p) {
     p.ganador = empatados.first;
     p.mensajeFin =
         '¡${p.ganador} gana con $maxCartas cartas en la casita!';
+  } else if (empatados.isEmpty) {
+    p.ganador = null;
+    p.mensajeFin = 'Nadie quedó en pie.';
   } else {
     p.ganador = null;
     p.mensajeFin =
         'Empate a $maxCartas cartas: ${empatados.join(' y ')}.';
   }
+}
+
+/// Marca [nombre] como rendido. Si queda uno en pie, gana por abandono.
+String? rendirseCasita(PartidaCasita p, String nombre) {
+  final idx = p.jugadores.indexWhere(
+    (j) => j.nombre == nombre && !j.rendido,
+  );
+  if (idx < 0 || p.terminada) return null;
+
+  final j = p.jugadores[idx];
+  j.rendido = true;
+  j.mano.clear();
+  // Su casita queda fuera de juego.
+  j.pozo.clear();
+
+  final activos = p.jugadoresActivos;
+  if (activos.length <= 1) {
+    p.fase = FaseCasita.terminada;
+    if (activos.isEmpty) {
+      p.ganador = null;
+      p.mensajeFin = '$nombre se rindió.';
+      return null;
+    }
+    final ganador = activos.first.nombre;
+    p.ganador = ganador;
+    p.mensajeFin = '$nombre se rindió. ¡$ganador gana por abandono!';
+    return ganador;
+  }
+
+  if (p.jugadorActual.rendido || p.jugadorActual.nombre == nombre) {
+    _avanzarTurno(p);
+  }
+  return null;
 }
 
 /// True si [carta] puede robar la casita de [rival].
@@ -253,6 +306,7 @@ String? jugarCartaCasita(
   if (p.terminada) return 'La partida ya terminó.';
   if (p.fase != FaseCasita.jugando) return 'No se puede jugar ahora.';
   final yo = p.jugadorActual;
+  if (yo.rendido) return '${yo.nombre} ya se rindió.';
   if (indiceEnMano < 0 || indiceEnMano >= yo.mano.length) {
     return 'Carta inválida.';
   }

@@ -42,7 +42,10 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   bool _jugando = false;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
+  bool _confirmarRendicion = false;
   AjustesEstado _ajustes = const AjustesEstado();
+
+  bool get _esLocalHotSeat => !widget.contraPc;
 
   bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
 
@@ -182,7 +185,22 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   bool _puedeRenombrar(int index) {
     if (_partida.terminada) return false;
     if (index < 0 || index >= _partida.jugadores.length) return false;
-    return !_esPcNombre(_partida.jugadores[index].nombre);
+    final j = _partida.jugadores[index];
+    if (j.rendido) return false;
+    return !_esPcNombre(j.nombre);
+  }
+
+  void _rendirse() {
+    if (_partida.terminada || !_esLocalHotSeat) return;
+    final yo = _partida.jugadorActual;
+    if (yo.rendido) return;
+
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+      _limpiarSeleccion();
+      rendirseCasita(_partida, yo.nombre);
+    });
   }
 
   String? _validarNombre(String nombre, int index) {
@@ -477,6 +495,8 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
       );
       _limpiarSeleccion();
       _jugando = false;
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
   }
@@ -504,11 +524,15 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
           return;
         }
         if (_mostrarMenu) {
-          setState(() => _mostrarMenu = false);
+          setState(() {
+            _mostrarMenu = false;
+            _confirmarRendicion = false;
+          });
           return;
         }
         setState(() {
           _mostrarMenu = true;
+          _confirmarRendicion = false;
           _mostrarAjustes = false;
         });
       },
@@ -529,6 +553,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                         IconButton(
                           onPressed: () => setState(() {
                             _mostrarMenu = true;
+                            _confirmarRendicion = false;
                             _mostrarAjustes = false;
                           }),
                           icon: const Icon(Icons.menu, color: AppColors.texto),
@@ -567,13 +592,17 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                           if (i > 0) const SizedBox(width: 8),
                           Expanded(
                             child: _ChipJugador(
-                              nombre: _partida.jugadores[i].nombre,
+                              nombre: _partida.jugadores[i].rendido
+                                  ? '${_partida.jugadores[i].nombre} (fuera)'
+                                  : _partida.jugadores[i].nombre,
                               cartasMano:
                                   _partida.jugadores[i].mano.length,
                               cartasPozo:
                                   _partida.jugadores[i].cartasPozo,
                               activo: !_partida.terminada &&
+                                  !_partida.jugadores[i].rendido &&
                                   _partida.indiceTurno == i,
+                              rendido: _partida.jugadores[i].rendido,
                               puedeRenombrar: _puedeRenombrar(i),
                               onRenombrar: _puedeRenombrar(i)
                                   ? () => _renombrarJugador(i)
@@ -823,17 +852,35 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                       ? _yo.nombre
                       : _partida.jugadorActual.nombre,
                   partidaTerminada: _partida.terminada,
-                  onCerrar: () => setState(() => _mostrarMenu = false),
+                  permitirRendirse: _esLocalHotSeat,
+                  confirmarRendicion:
+                      _confirmarRendicion && _esLocalHotSeat,
+                  onCerrar: () => setState(() {
+                    _mostrarMenu = false;
+                    _confirmarRendicion = false;
+                  }),
                   onReglas: () {
-                    setState(() => _mostrarMenu = false);
+                    setState(() {
+                      _mostrarMenu = false;
+                      _confirmarRendicion = false;
+                    });
                     _mostrarReglas();
                   },
-                  onSalir: () {
-                    setState(() => _mostrarMenu = false);
-                    _salirAlMenu(
-                      guardar: widget.contraPc && !_partida.terminada,
-                    );
-                  },
+                  onSalirORendirse: _partida.terminada || !_esLocalHotSeat
+                      ? () {
+                          setState(() {
+                            _mostrarMenu = false;
+                            _confirmarRendicion = false;
+                          });
+                          _salirAlMenu(
+                            guardar:
+                                widget.contraPc && !_partida.terminada,
+                          );
+                        }
+                      : () => setState(() => _confirmarRendicion = true),
+                  onConfirmarRendicion: _rendirse,
+                  onCancelarRendicion: () =>
+                      setState(() => _confirmarRendicion = false),
                 ),
               ),
             if (_partida.terminada)
@@ -860,6 +907,7 @@ class _ChipJugador extends StatelessWidget {
     required this.cartasMano,
     required this.cartasPozo,
     required this.activo,
+    this.rendido = false,
     this.puedeRenombrar = false,
     this.onRenombrar,
   });
@@ -868,6 +916,7 @@ class _ChipJugador extends StatelessWidget {
   final int cartasMano;
   final int cartasPozo;
   final bool activo;
+  final bool rendido;
   final bool puedeRenombrar;
   final VoidCallback? onRenombrar;
 
@@ -890,9 +939,13 @@ class _ChipJugador extends StatelessWidget {
             puedeRenombrar: puedeRenombrar,
             onRenombrar: onRenombrar,
             fontSize: 13,
+            tachado: rendido,
+            colorTexto: rendido ? AppColors.textoSuave : AppColors.texto,
           ),
           Text(
-            'mano $cartasMano · casita $cartasPozo',
+            rendido
+                ? 'rendido'
+                : 'mano $cartasMano · casita $cartasPozo',
             style: const TextStyle(
               color: AppColors.textoSuave,
               fontWeight: FontWeight.w700,
