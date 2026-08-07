@@ -6,6 +6,7 @@ import 'package:app_juegos_mesa/culoSucioV2/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucioV2/textos.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -109,26 +110,29 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
       juegoId: MenuJuegoScreen.juegoIdCuloSucioV2,
       modosDados: const [1],
       mostrarDificultad: false,
+      mostrarJugadoresVsPc: true,
+      opcionesCantidadJugadores: const [2, 3, 4],
       textoInfoModoDios: TextosCuloSucioV2.infoModoDios,
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),
       onPartidaRapida: (ctx, estado, _) async {
-        final nombres = estado.nombres.length >= 2
-            ? estado.nombres.take(2).toList()
-            : const ['Jugador 1', 'Jugador 2'];
         await _abrir(
           ctx: ctx,
-          nombres: nombres,
+          nombres: estado.nombres,
           ajustes: estado.ajustes,
         );
       },
       onVsPc: (ctx, estado, _) {
         final resume = CuloSucioV2StandByStore.consumir();
+        final humano = estado.nombres.isNotEmpty
+            ? estado.nombres.first
+            : 'Jugador 1';
         final nombres = resume?.nombres ??
-            (estado.nombres.length >= 2
-                ? [estado.nombres.first, TextosCuloSucioV2.vsPcNombre]
-                : const ['Jugador 1', TextosCuloSucioV2.vsPcNombre]);
+            nombresPartidaVsPc(
+              humano: humano,
+              total: estado.cantidadJugadores,
+            );
         _abrir(
           ctx: ctx,
           nombres: nombres,

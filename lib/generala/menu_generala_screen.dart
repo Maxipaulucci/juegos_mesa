@@ -4,6 +4,7 @@ import 'package:app_juegos_mesa/generala/opciones_generala.dart';
 import 'package:app_juegos_mesa/generala/partida_generala_screen.dart';
 import 'package:app_juegos_mesa/generala/standby_store.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -49,6 +50,8 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
       juegoId: MenuJuegoScreen.juegoIdGenerala,
       modosDados: const [5],
       mostrarDificultad: false,
+      mostrarJugadoresVsPc: true,
+      opcionesCantidadJugadores: const [2, 3, 4],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),
@@ -68,7 +71,14 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
       onVsPc: (ctx, estado, dados) {
         final resume =
             GeneralaStandByStore.consumirSiCoincide(estado.dificultad);
-        final nombres = resume?.nombres ?? const ['Jugador 1', 'PC'];
+        final humano = estado.nombres.isNotEmpty
+            ? estado.nombres.first
+            : 'Jugador 1';
+        final nombres = resume?.nombres ??
+            nombresPartidaVsPc(
+              humano: humano,
+              total: estado.cantidadJugadores,
+            );
         navegarConCarga<void>(
           ctx,
           mensaje: 'Iniciando partida',

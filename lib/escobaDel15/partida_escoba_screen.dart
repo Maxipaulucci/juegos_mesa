@@ -15,6 +15,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -97,7 +98,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
 
   bool get _esPcTurno {
     if (!widget.contraPc) return false;
-    return _partida.jugadorActual.nombre == 'PC';
+    return esNombrePc(_partida.jugadorActual.nombre);
   }
 
   bool get _bloquearHumano =>
@@ -124,7 +125,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     }
     if (!widget.contraPc) return _partida.jugadorActual;
     return _partida.jugadores.firstWhere(
-      (j) => j.nombre != 'PC',
+      (j) => !esNombrePc(j.nombre),
       orElse: () => _partida.jugadores.first,
     );
   }
@@ -134,7 +135,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   bool _puedeRenombrar(int index) {
     if (_partida.terminada || _esOnline) return false;
     if (index < 0 || index >= _partida.jugadores.length) return false;
-    return _partida.jugadores[index].nombre != 'PC';
+    return !esNombrePc(_partida.jugadores[index].nombre);
   }
 
   String? _validarNombre(String nombre, int index) {
@@ -142,7 +143,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     if (nombre.length > _maxNombre) {
       return 'Máximo $_maxNombre caracteres.';
     }
-    if (nombre == 'PC') return 'Ese nombre está reservado.';
+    if (esNombrePc(nombre)) return 'Ese nombre está reservado.';
     final ocupado = _partida.jugadores.asMap().entries.any(
           (e) => e.key != index && e.value.nombre == nombre,
         );
@@ -801,7 +802,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
 
   int get _idxManoForzar {
     if (widget.contraPc) {
-      return _partida.jugadores.indexWhere((j) => j.nombre != 'PC');
+      return _partida.jugadores.indexWhere((j) => !esNombrePc(j.nombre));
     }
     return _partida.indiceTurno % _partida.jugadores.length;
   }

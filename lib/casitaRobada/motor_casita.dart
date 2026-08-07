@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+
 /// Casita robada — mazo español de 48 (1–12 en 4 palos; sin comodines).
 /// Pares por número: mesa o robo de casita (cima del pozo rival).
 
@@ -141,9 +143,9 @@ PartidaCasita nuevaPartidaCasita({
   while (lista.length < 2) {
     lista.add('Jugador ${lista.length + 1}');
   }
-  // Por ahora UI pensada para 2.
+  // Por ahora UI pensada para 2–4.
   final jugadores = [
-    for (final n in lista.take(2)) JugadorCasita(n),
+    for (final n in lista.take(4)) JugadorCasita(n),
   ];
   final r = rng ?? math.Random();
   final mazo = crearMazoCasita(r);
@@ -166,7 +168,7 @@ PartidaCasita nuevaPartidaCasita({
   }
 
   if (contraPc) {
-    final idxHumano = p.jugadores.indexWhere((j) => j.nombre != 'PC');
+    final idxHumano = p.jugadores.indexWhere((j) => !esNombrePc(j.nombre));
     p.indiceTurno = idxHumano >= 0 ? idxHumano : 0;
   } else {
     p.indiceTurno = r.nextInt(p.jugadores.length);
@@ -400,7 +402,7 @@ class JugadaPcCasita {
 /// Elige qué haría la PC sin mutar la partida.
 JugadaPcCasita? planificarJugadaPcCasita(PartidaCasita p, [math.Random? rng]) {
   if (p.terminada || !p.contraPc) return null;
-  if (p.jugadorActual.nombre != 'PC') return null;
+  if (!esNombrePc(p.jugadorActual.nombre)) return null;
   final r = rng ?? math.Random();
   final yo = p.jugadorActual;
   final rival = p.rivalActual;

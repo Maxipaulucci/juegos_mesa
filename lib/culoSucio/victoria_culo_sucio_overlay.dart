@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/culoSucio/historial_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/motor_culo_sucio.dart';
-import 'package:app_juegos_mesa/culoSucio/textos.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
 
@@ -72,8 +72,8 @@ class _VictoriaCuloSucioOverlayState extends State<VictoriaCuloSucioOverlay>
   Widget build(BuildContext context) {
     final ganador = widget.partida.ganador ?? 'Alguien';
     final perdedor = widget.partida.perdedor;
-    final subtitulo = perdedor == TextosCuloSucio.vsPcNombre
-        ? 'La PC sacó el 1 de oro. ¡Es el culo sucio!'
+    final subtitulo = perdedor != null && esNombrePc(perdedor)
+        ? '$perdedor sacó el 1 de oro. ¡Es el culo sucio!'
         : (widget.partida.mensajeFin ??
             '¡${perdedor ?? "Alguien"} sacó el 1 de oro!');
 

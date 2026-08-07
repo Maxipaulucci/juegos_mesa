@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+
 /// Culo sucio v2 — mazo de 45 (sin comodines; solo el 1 de oro entre los ases).
 /// Se descartan pares del mismo número; quien se queda con el 1 de oro pierde.
 
@@ -300,7 +302,7 @@ void _siguienteTrasParesIniciales(PartidaCuloSucioV2 p) {
   // Preferir humanos antes que PC en vs PC.
   JugadorCuloSucioV2? humano;
   for (final j in pendientes) {
-    if (j.nombre != 'PC') {
+    if (!esNombrePc(j.nombre)) {
       humano = j;
       break;
     }
@@ -309,7 +311,7 @@ void _siguienteTrasParesIniciales(PartidaCuloSucioV2 p) {
   p.indiceTurno = p.jugadores.indexOf(siguiente);
 
   // Si es la PC, descarta sola y sigue.
-  if (siguiente.nombre == 'PC' && p.contraPc) {
+  if (esNombrePc(siguiente.nombre) && p.contraPc) {
     siguiente.descartes.addAll(descartarParesDeMano(siguiente.mano));
     siguiente.paresInicialesListos = true;
     p.ultimoPar = null;
@@ -364,7 +366,7 @@ PartidaCuloSucioV2 nuevaPartidaCuloSucioV2({
   );
   // Empieza a descartar pares el humano (vs PC) o el jugador 0.
   if (contraPc) {
-    final idxHumano = jugadores.indexWhere((j) => j.nombre != 'PC');
+    final idxHumano = jugadores.indexWhere((j) => !esNombrePc(j.nombre));
     p.indiceTurno = idxHumano >= 0 ? idxHumano : 0;
   } else {
     p.indiceTurno = 0;
@@ -627,7 +629,7 @@ String? descartarParTrasRoboCuloSucioV2(
 void jugarTurnoPcCuloSucioV2(PartidaCuloSucioV2 p, [math.Random? rng]) {
   if (p.terminada || !p.contraPc) return;
   if (p.fase != FaseCuloSucioV2.jugando) return;
-  if (p.jugadorActual.nombre != 'PC') return;
+  if (!esNombrePc(p.jugadorActual.nombre)) return;
   final de = p.rivalActual;
   if (de.sinCartas) {
     _chequearFin(p);

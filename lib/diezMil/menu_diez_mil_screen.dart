@@ -4,6 +4,7 @@ import 'package:app_juegos_mesa/diezMil/motor.dart';
 import 'package:app_juegos_mesa/diezMil/partida_diez_mil_screen.dart';
 import 'package:app_juegos_mesa/diezMil/standby_store.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -23,6 +24,8 @@ class MenuDiezMilScreen extends StatelessWidget {
       juegoId: MenuJuegoScreen.juegoIdDiezMil,
       modosDados: const [5, 6],
       mostrarDificultad: true,
+      mostrarJugadoresVsPc: true,
+      opcionesCantidadJugadores: const [2, 3, 4],
       onPartidaRapida: (ctx, estado, dados) async {
         await navegarConCarga<void>(
           ctx,
@@ -40,7 +43,14 @@ class MenuDiezMilScreen extends StatelessWidget {
         final modo = _modoDeDados(dados);
         final resume =
             DiezMilStandByStore.consumirSiCoincide(modo, estado.dificultad);
-        final nombres = resume?.nombres ?? const ['Jugador 1', 'PC'];
+        final humano = estado.nombres.isNotEmpty
+            ? estado.nombres.first
+            : 'Jugador 1';
+        final nombres = resume?.nombres ??
+            nombresPartidaVsPc(
+              humano: humano,
+              total: estado.cantidadJugadores,
+            );
         navegarConCarga<void>(
           ctx,
           mensaje: 'Iniciando partida',

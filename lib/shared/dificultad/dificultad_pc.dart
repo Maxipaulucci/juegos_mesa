@@ -3,6 +3,26 @@ library;
 
 const String nombreJugadorPc = 'PC';
 
+/// True para `"PC"`, `"PC 1"`, `"PC 2"`, …
+bool esNombrePc(String nombre) =>
+    nombre == nombreJugadorPc ||
+    (nombre.startsWith('PC ') && nombre.length > 3);
+
+/// 1 humano + (total−1) PCs. Con 2 jugadores el rival se llama [nombreJugadorPc].
+List<String> nombresPartidaVsPc({
+  required String humano,
+  required int total,
+  int min = 2,
+  int max = 4,
+}) {
+  final n = total.clamp(min, max);
+  if (n <= 2) return [humano, nombreJugadorPc];
+  return [
+    humano,
+    for (var i = 1; i < n; i++) 'PC $i',
+  ];
+}
+
 /// Dificultades disponibles para jugar contra la PC.
 enum DificultadPc {
   /// Temeraria: casi siempre sigue tirando. 20% de errores.

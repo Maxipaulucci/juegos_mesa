@@ -15,6 +15,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/icono_espada.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -129,14 +130,14 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
       !_esOnline &&
       _partida.contraPc &&
       !_partida.terminada &&
-      _partida.jugadorActual == TextosCuloSucio.vsPcNombre;
+      esNombrePc(_partida.jugadorActual);
 
   /// Victoria con confeti: ganador local / vs PC, o yo gané online.
   bool get _debeMostrarVictoria {
     if (_partida.ganador == null || _partida.perdedor == null) return false;
     if (_esOnline) return widget.miNombre == _partida.ganador;
     if (_esLocalHotSeat) return true;
-    return _partida.ganador != TextosCuloSucio.vsPcNombre;
+    return !esNombrePc(_partida.ganador!);
   }
 
   void _iniciarSincronizacionOnline() {
@@ -279,9 +280,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
 
   static const int _maxNombre = 15;
 
-  bool _esPcNombre(String nombre) =>
-      nombre == TextosCuloSucio.vsPcNombre ||
-      (nombre.startsWith('PC ') && nombre.length > 3);
+  bool _esPcNombre(String nombre) => esNombrePc(nombre);
 
   bool _puedeRenombrar(int index) {
     if (_esOnline) return false;
@@ -415,7 +414,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     if (_esOnline) return widget.miNombre ?? _partida.jugadorActual;
     if (widget.contraPc) {
       return _partida.nombres.firstWhere(
-        (n) => n != TextosCuloSucio.vsPcNombre,
+        (n) => !esNombrePc(n),
         orElse: () => _partida.jugadorActual,
       );
     }

@@ -15,6 +15,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
@@ -119,7 +120,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     }
     if (_esLocalHotSeat) return _jugadorVistaLocal;
     return _partida.jugadores.firstWhere(
-      (j) => j.nombre != TextosCuloSucioV2.vsPcNombre,
+      (j) => !esNombrePc(j.nombre),
       orElse: () => _partida.jugadores.first,
     );
   }
@@ -133,10 +134,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       );
     }
     if (widget.contraPc) {
-      return _partida.jugadores.firstWhere(
-        (j) => j.nombre == TextosCuloSucioV2.vsPcNombre,
-        orElse: () => _partida.jugadores.last,
-      );
+      if (_esTurnoPc) return _partida.jugadorActual;
+      return _partida.rivalActual;
     }
     if (_jugadorVistaLocal.nombre == _partida.jugadorActual.nombre) {
       return _partida.rivalActual;
@@ -158,7 +157,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_fasePares) {
       if (_esOnline) return !_yo.paresInicialesListos;
       if (widget.contraPc) {
-        return _partida.jugadorActual.nombre != TextosCuloSucioV2.vsPcNombre;
+        return !esNombrePc(_partida.jugadorActual.nombre);
       }
       return _jugadorVistaLocal.nombre == _partida.jugadorActual.nombre;
     }
@@ -166,7 +165,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_esLocalHotSeat) {
       return _jugadorVistaLocal.nombre == _partida.jugadorActual.nombre;
     }
-    return _partida.jugadorActual.nombre != TextosCuloSucioV2.vsPcNombre;
+    return !esNombrePc(_partida.jugadorActual.nombre);
   }
 
   bool get _esTurnoPc =>
@@ -175,7 +174,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       !_partida.terminada &&
       _partida.enJuego &&
       !_esperandoDescartarPar &&
-      _partida.jugadorActual.nombre == TextosCuloSucioV2.vsPcNombre;
+      esNombrePc(_partida.jugadorActual.nombre);
 
   bool get _fasePares => _partida.descartandoPares;
 
@@ -196,7 +195,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_partida.ganador == null || _partida.perdedor == null) return false;
     if (_esOnline) return _partida.ganador == widget.miNombre;
     if (_esLocalHotSeat) return true;
-    return _partida.ganador != TextosCuloSucioV2.vsPcNombre;
+    return !esNombrePc(_partida.ganador!);
   }
 
   String get _textoEstado {
@@ -510,9 +509,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
 
   static const int _maxNombre = 15;
 
-  bool _esPcNombre(String nombre) =>
-      nombre == TextosCuloSucioV2.vsPcNombre ||
-      (nombre.startsWith('PC ') && nombre.length > 3);
+  bool _esPcNombre(String nombre) => esNombrePc(nombre);
 
   bool _puedeRenombrar(int index) {
     if (_esOnline) return false;
@@ -676,7 +673,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
 
     final de = _yo;
     final hacia = _rival;
-    if (de.sinCartas || hacia.nombre != TextosCuloSucioV2.vsPcNombre) {
+    if (de.sinCartas || !esNombrePc(hacia.nombre)) {
       return;
     }
     final idx = math.Random().nextInt(de.mano.length);

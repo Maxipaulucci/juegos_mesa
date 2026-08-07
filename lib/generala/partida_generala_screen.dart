@@ -83,7 +83,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
   bool get _turnoDeLaPc =>
       widget.contraPc &&
       _partida.ganador == null &&
-      _partida.jugadorActual.nombre == nombreJugadorPc;
+      esNombrePc(_partida.jugadorActual.nombre);
 
   bool get _esOnline => widget.salaCodigo != null && widget.miNombre != null;
 
@@ -106,7 +106,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     if (_partida.ganador != null) return false;
     if (_partida.jugadores[index].rendido) return false;
     final nombre = _partida.jugadores[index].nombre;
-    if (widget.contraPc) return nombre != nombreJugadorPc;
+    if (widget.contraPc) return !esNombrePc(nombre);
     return widget.partidaRapida;
   }
 
@@ -115,6 +115,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     if (nombre.length > _maxNombre) {
       return 'Máximo $_maxNombre caracteres.';
     }
+    if (esNombrePc(nombre)) return 'Ese nombre está reservado.';
     final ocupado = _partida.jugadores.asMap().entries.any(
           (e) => e.key != index && e.value.nombre == nombre,
         );

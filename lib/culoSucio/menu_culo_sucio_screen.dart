@@ -5,6 +5,7 @@ import 'package:app_juegos_mesa/culoSucio/partida_culo_sucio_screen.dart';
 import 'package:app_juegos_mesa/culoSucio/standby_store.dart';
 import 'package:app_juegos_mesa/culoSucio/textos.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -84,6 +85,8 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
       juegoId: MenuJuegoScreen.juegoIdCuloSucioV1,
       modosDados: const [1],
       mostrarDificultad: false,
+      mostrarJugadoresVsPc: true,
+      opcionesCantidadJugadores: const [2, 3, 4],
       textoInfoModoDios: TextosCuloSucio.infoModoDios,
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
@@ -93,10 +96,14 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
       },
       onVsPc: (ctx, estado, _) {
         final resume = CuloSucioStandByStore.consumirSiCoincide(_opciones);
+        final humano = estado.nombres.isNotEmpty
+            ? estado.nombres.first
+            : 'Jugador 1';
         final nombres = resume?.nombres ??
-            (estado.nombres.length >= 2
-                ? [estado.nombres.first, TextosCuloSucio.vsPcNombre]
-                : const ['Jugador 1', TextosCuloSucio.vsPcNombre]);
+            nombresPartidaVsPc(
+              humano: humano,
+              total: estado.cantidadJugadores,
+            );
         _abrir(
           ctx: ctx,
           nombres: nombres,

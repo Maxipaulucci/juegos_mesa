@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/casitaRobada/textos.dart';
 import 'package:app_juegos_mesa/casitaRobada/victoria_casita_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -52,7 +53,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   JugadorCasita get _yo {
     if (widget.contraPc) {
       return _partida.jugadores.firstWhere(
-        (j) => j.nombre != TextosCasita.vsPcNombre,
+        (j) => !esNombrePc(j.nombre),
         orElse: () => _partida.jugadores.first,
       );
     }
@@ -61,10 +62,8 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
 
   JugadorCasita get _rival {
     if (widget.contraPc) {
-      return _partida.jugadores.firstWhere(
-        (j) => j.nombre == TextosCasita.vsPcNombre,
-        orElse: () => _partida.jugadores.last,
-      );
+      if (_esTurnoPc) return _partida.jugadorActual;
+      return _partida.rivalActual;
     }
     return _partida.rivalActual;
   }
@@ -72,13 +71,13 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   bool get _esTurnoHumano {
     if (_partida.terminada) return false;
     if (!widget.contraPc) return true;
-    return _partida.jugadorActual.nombre != TextosCasita.vsPcNombre;
+    return !esNombrePc(_partida.jugadorActual.nombre);
   }
 
   bool get _esTurnoPc =>
       widget.contraPc &&
       !_partida.terminada &&
-      _partida.jugadorActual.nombre == TextosCasita.vsPcNombre;
+      esNombrePc(_partida.jugadorActual.nombre);
 
   bool get _bloquearHumano => !_esTurnoHumano || _jugando || _partida.terminada;
 
@@ -178,9 +177,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
 
   static const int _maxNombre = 15;
 
-  bool _esPcNombre(String nombre) =>
-      nombre == TextosCasita.vsPcNombre ||
-      (nombre.startsWith('PC ') && nombre.length > 3);
+  bool _esPcNombre(String nombre) => esNombrePc(nombre);
 
   bool _puedeRenombrar(int index) {
     if (_partida.terminada) return false;

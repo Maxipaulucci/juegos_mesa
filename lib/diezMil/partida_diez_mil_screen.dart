@@ -11,6 +11,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'diez_mil_online_codec.dart';
 import 'estadisticas.dart';
 import 'ia_diez_mil.dart';
@@ -99,7 +100,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   bool get _turnoDeLaPc =>
       widget.contraPc &&
       _partida.ganador == null &&
-      _partida.jugadorActual.nombre == nombreJugadorPc;
+      esNombrePc(_partida.jugadorActual.nombre);
 
   bool get _esOnline => widget.salaCodigo != null && widget.miNombre != null;
 
@@ -127,7 +128,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     if (_partida.ganador != null) return false;
     if (_partida.jugadores[index].rendido) return false;
     final nombre = _partida.jugadores[index].nombre;
-    if (widget.contraPc) return nombre != nombreJugadorPc;
+    if (widget.contraPc) return !esNombrePc(nombre);
     return widget.partidaRapida;
   }
 
@@ -273,7 +274,16 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _volverAJugar() {
+    if (widget.contraPc) DiezMilStandByStore.limpiar();
     setState(_iniciarPartidaNueva);
+    if (_turnoDeLaPc) _programarJugadaPc();
+  }
+
+  Future<void> _pedirReiniciarVsPc() async {
+    if (!widget.contraPc || _esOnline) return;
+    final ok = await confirmarReiniciarPartidaPc(context);
+    if (!ok || !mounted) return;
+    _volverAJugar();
   }
 
   void _programarJugadaPc({int demoraMs = 900}) {
@@ -450,6 +460,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     if (nombre.length > _maxNombre) {
       return 'Máximo $_maxNombre caracteres.';
     }
+    if (esNombrePc(nombre)) return 'Ese nombre está reservado.';
     final ocupado = _partida.jugadores.asMap().entries.any(
           (e) => e.key != index && e.value.nombre == nombre,
         );
@@ -514,7 +525,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     // En vs PC siempre se rinde el humano, aunque sea turno de la máquina.
     final rendido = widget.contraPc
         ? _partida.jugadores.firstWhere(
-            (j) => j.nombre != nombreJugadorPc,
+            (j) => !esNombrePc(j.nombre),
             orElse: () => _partida.jugadorActual,
           )
         : _partida.jugadorActual;
@@ -817,7 +828,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
           _mensaje = null;
         case 'banco':
           _registrarMejorTirada(nombre, banco.sumados ?? sumados);
-          if (widget.contraPc && nombre != nombreJugadorPc) {
+          if (widget.contraPc && !esNombrePc(nombre)) {
             _ultimoTurnoHumano = banco.sumados ?? sumados;
           }
           _mensaje =
@@ -891,6 +902,9 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                               _Header(
                                 dados: _partida.modo.dados,
                                 onMenu: _abrirMenu,
+                                onRestart: widget.contraPc && !_esOnline
+                                    ? _pedirReiniciarVsPc
+                                    : null,
                                 onSettings: () {
                                   setState(() {
                                     _mostrarAjustes = true;
@@ -1174,7 +1188,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                     : (widget.contraPc
                         ? _partida.jugadores
                             .firstWhere(
-                              (p) => p.nombre != nombreJugadorPc,
+                              (p) => !esNombrePc(p.nombre),
                               orElse: () => j,
                             )
                             .nombre
@@ -1218,11 +1232,13 @@ class _Header extends StatelessWidget {
     required this.dados,
     required this.onMenu,
     required this.onSettings,
+    this.onRestart,
   });
 
   final int dados;
   final VoidCallback onMenu;
   final VoidCallback onSettings;
+  final VoidCallback? onRestart;
 
   @override
   Widget build(BuildContext context) {
