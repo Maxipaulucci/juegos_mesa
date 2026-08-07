@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/icono_espada.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
 
@@ -884,63 +885,28 @@ class _ChipJugador extends StatelessWidget {
             ? AppColors.mint
             : activo
                 ? AppColors.acento
-                : AppColors.violeta;
-    final chip = AnimatedContainer(
+                : AppColors.cartaBorde;
+    return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: EdgeInsets.symmetric(
-        horizontal: puedeRenombrar ? 10 : 12,
-        vertical: 10,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.violeta.withValues(alpha: 0.42),
+        color: AppColors.carta.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: borde,
-          width: activo || perdido || ganado || puedeRenombrar ? 2 : 1.2,
+          width: activo || perdido || ganado ? 2 : 1,
         ),
-        boxShadow: puedeRenombrar
-            ? neonGlow(AppColors.violeta, blur: 10)
-            : null,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Flexible(
-            child: Text(
-              nombre,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: perdido
-                    ? AppColors.peligro
-                    : ganado
-                        ? AppColors.mint
-                        : AppColors.texto,
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          if (puedeRenombrar) ...[
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.edit_rounded,
-              size: 14,
-              color: AppColors.acento,
-            ),
-          ],
-        ],
-      ),
-    );
-
-    if (!puedeRenombrar || onRenombrar == null) return chip;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onRenombrar,
-        borderRadius: BorderRadius.circular(14),
-        child: chip,
+      child: NombreJugadorEditable(
+        nombre: nombre,
+        puedeRenombrar: puedeRenombrar,
+        onRenombrar: onRenombrar,
+        fontSize: 14,
+        colorTexto: perdido
+            ? AppColors.peligro
+            : ganado
+                ? AppColors.mint
+                : AppColors.texto,
       ),
     );
   }

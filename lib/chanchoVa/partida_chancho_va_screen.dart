@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida de Chancho va (vs PC / online).
@@ -1952,73 +1953,39 @@ class _MarcadorLetras extends StatelessWidget {
         for (var i = 0; i < jugadores.length; i++) ...[
           if (i > 0) const SizedBox(width: 8),
           Expanded(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: puedeRenombrar(i) ? () => onRenombrar(i) : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A0A33),
                 borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: puedeRenombrar(i) ? 6 : 8,
-                    vertical: 8,
+                border: Border.all(color: AppColors.violeta),
+              ),
+              child: Column(
+                children: [
+                  NombreJugadorEditable(
+                    nombre: jugadores[i].nombre,
+                    puedeRenombrar: puedeRenombrar(i),
+                    onRenombrar:
+                        puedeRenombrar(i) ? () => onRenombrar(i) : null,
+                    fontSize: 12,
+                    tachado: jugadores[i].eliminado,
+                    colorTexto: jugadores[i].eliminado
+                        ? AppColors.textoSuave
+                        : AppColors.texto,
                   ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A0A33),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: puedeRenombrar(i)
-                          ? AppColors.acento.withValues(alpha: 0.85)
-                          : AppColors.violeta,
+                  const SizedBox(height: 4),
+                  Text(
+                    jugadores[i].letrasTexto,
+                    style: TextStyle(
+                      color: jugadores[i].eliminado
+                          ? AppColors.peligro
+                          : AppColors.acento,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      letterSpacing: 1,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              jugadores[i].nombre,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: jugadores[i].eliminado
-                                    ? AppColors.textoSuave
-                                    : AppColors.texto,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                                decoration: jugadores[i].eliminado
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                              ),
-                            ),
-                          ),
-                          if (puedeRenombrar(i)) ...[
-                            const SizedBox(width: 2),
-                            Icon(
-                              Icons.edit_rounded,
-                              size: 12,
-                              color: AppColors.acento.withValues(alpha: 0.9),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        jugadores[i].letrasTexto,
-                        style: TextStyle(
-                          color: jugadores[i].eliminado
-                              ? AppColors.peligro
-                              : AppColors.acento,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                ],
               ),
             ),
           ),

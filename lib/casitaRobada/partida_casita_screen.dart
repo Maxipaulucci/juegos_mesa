@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/casitaRobada/victoria_casita_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida local / vs PC de Casita robada.
@@ -872,50 +873,23 @@ class _ChipJugador extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borde = activo ? AppColors.mint : AppColors.violeta;
-    final chip = Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: puedeRenombrar ? 8 : 10,
-        vertical: 8,
-      ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.violeta.withValues(alpha: 0.42),
+        color: AppColors.carta.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: borde,
-          width: activo || puedeRenombrar ? 2 : 1.2,
+          color: activo ? AppColors.mint : AppColors.cartaBorde,
+          width: activo ? 2 : 1,
         ),
-        boxShadow: puedeRenombrar
-            ? neonGlow(AppColors.violeta, blur: 10)
-            : null,
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  nombre,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.texto,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              if (puedeRenombrar) ...[
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.edit_rounded,
-                  size: 13,
-                  color: AppColors.acento,
-                ),
-              ],
-            ],
+          NombreJugadorEditable(
+            nombre: nombre,
+            puedeRenombrar: puedeRenombrar,
+            onRenombrar: onRenombrar,
+            fontSize: 13,
           ),
           Text(
             'mano $cartasMano · casita $cartasPozo',
@@ -926,16 +900,6 @@ class _ChipJugador extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-
-    if (!puedeRenombrar || onRenombrar == null) return chip;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onRenombrar,
-        borderRadius: BorderRadius.circular(14),
-        child: chip,
       ),
     );
   }
