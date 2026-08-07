@@ -22,14 +22,15 @@ abstract final class TextosCasita {
       'Durante la partida ves las cartas de la PC boca arriba '
       'para probar jugadas.';
   static const reglaCorta =
-      'Mazo español de 40. Se reparte 4 a la mesa y 3 a cada uno. '
-      'Jugá una carta: si hay el mismo número en la mesa, las capturás '
-      'a tu casita (cima visible). Si coincide con la cima de la casita '
-      'rival, ¡le robás toda la casita! Gana quien juntó más cartas.';
+      'Mazo español de 48 (con 8 y 9; sin comodines). Se reparte 4 a la mesa '
+      'y 3 a cada uno. Jugá una carta: si hay el mismo número en la mesa, '
+      'las capturás a tu casita (cima visible). Si coincide con la cima de '
+      'la casita rival, ¡le robás toda la casita! Gana quien juntó más cartas.';
 }
 
 String reglasCasitaRobada() => '''
-· Casita robada se juega con mazo español de 40 cartas (sin 8, 9 ni comodines).
+· Casita robada se juega con mazo español de 48 cartas (del 1 al 12 en los
+  cuatro palos). Incluye 8 y 9; únicamente se juega sin comodines.
 
 · Se reparte 4 cartas a la mesa y 3 a cada jugador.
 

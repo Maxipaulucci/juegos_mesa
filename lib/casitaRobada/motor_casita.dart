@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-/// Casita robada — mazo español de 40 (sin 8, 9 ni comodines).
+/// Casita robada — mazo español de 48 (1–12 en 4 palos; sin comodines).
 /// Pares por número: mesa o robo de casita (cima del pozo rival).
 
 enum PaloCasita { oro, copa, espada, basto }
@@ -10,7 +10,7 @@ enum FaseCasita { jugando, terminada }
 class CartaCasita {
   const CartaCasita({required this.numero, required this.palo});
 
-  /// 1–7, 10, 11 o 12.
+  /// 1–12 (incluye 8 y 9; sin comodines).
   final int numero;
   final PaloCasita palo;
 
@@ -110,7 +110,7 @@ class PartidaCasita {
 }
 
 List<CartaCasita> crearMazoCasita([math.Random? rng]) {
-  const numeros = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12];
+  const numeros = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   final mazo = <CartaCasita>[
     for (final palo in PaloCasita.values)
       for (final n in numeros) CartaCasita(numero: n, palo: palo),
