@@ -1,14 +1,19 @@
 {
-    "name": "app_juegos_mesa",
-    "short_name": "app_juegos_mesa",
+    "name": "Juegos de Mesa Argentinos",
+    "short_name": "Juegos de Mesa",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1A0A33",
+    "theme_color": "#1A0A33",
+    "description": "Juegos de mesa argentinos con un estilo moderno para jugar solo, contra la PC o de manera Online.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
+        {
+            "src": "logo.png",
+            "sizes": "any",
+            "type": "image/png"
+        },
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
