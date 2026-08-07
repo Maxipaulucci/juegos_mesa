@@ -1213,7 +1213,6 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                     Expanded(
                       child: _ZonaParesDescartados(
                         descartes: yoTurno.descartes,
-                        ultimoPar: _partida.ultimoPar,
                         colorPalo: _colorPalo,
                         iconoPalo: _iconoPalo,
                       ),
@@ -1669,26 +1668,17 @@ class _ChipJugador extends StatelessWidget {
 class _ZonaParesDescartados extends StatelessWidget {
   const _ZonaParesDescartados({
     required this.descartes,
-    required this.ultimoPar,
     required this.colorPalo,
     required this.iconoPalo,
   });
 
   final List<CartaCuloSucioV2> descartes;
-  final List<CartaCuloSucioV2>? ultimoPar;
   final Color Function(PaloCuloSucioV2) colorPalo;
   final IconData Function(PaloCuloSucioV2) iconoPalo;
 
   @override
   Widget build(BuildContext context) {
     final pares = descartes.length ~/ 2;
-    final destacado = ultimoPar != null && ultimoPar!.length >= 2
-        ? ultimoPar!
-        : (descartes.length >= 2
-            ? descartes.sublist(descartes.length - 2)
-            : const <CartaCuloSucioV2>[]);
-    final vacio = destacado.length < 2;
-    final mostrarHistorial = pares > 1;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -1703,9 +1693,9 @@ class _ZonaParesDescartados extends StatelessWidget {
               fontSize: 14,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Expanded(
-            child: vacio
+            child: descartes.isEmpty
                 ? const Center(
                     child: Text(
                       'Acá se van a ver los pares que saques',
@@ -1717,101 +1707,27 @@ class _ZonaParesDescartados extends StatelessWidget {
                       ),
                     ),
                   )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final historialH = mostrarHistorial ? 72.0 : 0.0;
-                      final tituloParH =
-                          (ultimoPar != null && ultimoPar!.length >= 2)
-                              ? 28.0
-                              : 0.0;
-                      final disponible = (constraints.maxHeight -
-                              historialH -
-                              tituloParH)
-                          .clamp(56.0, 160.0);
-                      final cardH = disponible;
-                      final cardW = cardH * (92 / 136);
-
-                      return Column(
-                        children: [
-                          if (ultimoPar != null && ultimoPar!.length >= 2)
-                            const Text(
-                              '¡Par!',
-                              style: TextStyle(
-                                color: AppColors.mint,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 18,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          Expanded(
-                            child: Center(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _CartaSkinV2(
-                                      carta: destacado[0],
-                                      bocaArriba: true,
-                                      compacta: false,
-                                      seleccionada: false,
-                                      color: colorPalo(destacado[0].palo),
-                                      icono: iconoPalo(destacado[0].palo),
-                                      width: cardW,
-                                      height: cardH,
-                                    ),
-                                    const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(horizontal: 12),
-                                      child: Text(
-                                        '+',
-                                        style: TextStyle(
-                                          color: AppColors.mint,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 28,
-                                        ),
-                                      ),
-                                    ),
-                                    _CartaSkinV2(
-                                      carta: destacado[1],
-                                      bocaArriba: true,
-                                      compacta: false,
-                                      seleccionada: false,
-                                      color: colorPalo(destacado[1].palo),
-                                      icono: iconoPalo(destacado[1].palo),
-                                      width: cardW,
-                                      height: cardH,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (mostrarHistorial) ...[
-                            const Text(
-                              TextosCuloSucioV2.paresDescartados,
-                              style: TextStyle(
-                                color: AppColors.textoSuave,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            SizedBox(
-                              height: 56,
-                              width: double.infinity,
-                              child: _FilaCartas(
-                                cartas: descartes,
-                                bocaArriba: true,
-                                compacta: true,
-                                colorPalo: colorPalo,
-                                iconoPalo: iconoPalo,
-                              ),
-                            ),
-                          ],
-                        ],
-                      );
-                    },
+                : Column(
+                    children: [
+                      const Text(
+                        TextosCuloSucioV2.paresDescartados,
+                        style: TextStyle(
+                          color: AppColors.textoSuave,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Expanded(
+                        child: _FilaCartas(
+                          cartas: descartes,
+                          bocaArriba: true,
+                          compacta: true,
+                          colorPalo: colorPalo,
+                          iconoPalo: iconoPalo,
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ],
