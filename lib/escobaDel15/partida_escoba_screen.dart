@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida de Escoba del 15.
@@ -130,15 +131,10 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
 
   static const int _maxNombre = 15;
 
-  int? get _indiceRenombrable {
-    if (_partida.terminada || _esOnline) return null;
-    if (widget.contraPc) {
-      final i = _partida.jugadores.indexWhere((j) => j.nombre != 'PC');
-      return i >= 0 ? i : null;
-    }
-    final i = _partida.indiceTurno % _partida.jugadores.length;
-    if (_partida.jugadores[i].nombre == 'PC') return null;
-    return i;
+  bool _puedeRenombrar(int index) {
+    if (_partida.terminada || _esOnline) return false;
+    if (index < 0 || index >= _partida.jugadores.length) return false;
+    return _partida.jugadores[index].nombre != 'PC';
   }
 
   String? _validarNombre(String nombre, int index) {
@@ -154,9 +150,8 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     return null;
   }
 
-  Future<void> _renombrarDesdeHeader() async {
-    final index = _indiceRenombrable;
-    if (index == null) return;
+  Future<void> _renombrarJugador(int index) async {
+    if (!_puedeRenombrar(index)) return;
     final actual = _partida.jugadores[index].nombre;
     final ctrl = TextEditingController(text: actual);
     String? error;
@@ -930,7 +925,6 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final j = _partida.jugadorActual;
     final mano = _manoVisible;
 
     return Scaffold(
@@ -955,15 +949,17 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                         }),
                         icon: const Icon(Icons.menu, color: AppColors.texto),
                       ),
-                      Expanded(
+                      const Expanded(
                         child: Center(
-                          child: _TituloNombreEditable(
-                            etiquetaJuego: 'Escoba',
-                            nombre: (widget.contraPc || _esOnline)
-                                ? _manoVisible.nombre
-                                : j.nombre,
-                            puedeEditar: _indiceRenombrable != null,
-                            onEditar: _renombrarDesdeHeader,
+                          child: Text(
+                            'Escoba del 15',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.mint,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
                           ),
                         ),
                       ),
@@ -981,6 +977,8 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                   _MarcadoresFila(
                     partida: _partida,
                     onVerCartas: _abrirCombos,
+                    puedeRenombrar: _puedeRenombrar,
+                    onRenombrar: _renombrarJugador,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -1341,94 +1339,33 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   }
 }
 
-class _TituloNombreEditable extends StatelessWidget {
-  const _TituloNombreEditable({
-    required this.etiquetaJuego,
-    required this.nombre,
-    required this.puedeEditar,
-    required this.onEditar,
-  });
-
-  final String etiquetaJuego;
-  final String nombre;
-  final bool puedeEditar;
-  final VoidCallback onEditar;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: puedeEditar ? onEditar : null,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: '$etiquetaJuego · ',
-                        style: const TextStyle(
-                          color: AppColors.mint,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                        ),
-                      ),
-                      TextSpan(
-                        text: nombre,
-                        style: TextStyle(
-                          color: puedeEditar
-                              ? AppColors.texto
-                              : AppColors.mint,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              if (puedeEditar) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.edit_rounded,
-                  size: 16,
-                  color: AppColors.textoSuave.withValues(alpha: 0.9),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MarcadoresFila extends StatelessWidget {
   const _MarcadoresFila({
     required this.partida,
     required this.onVerCartas,
+    required this.puedeRenombrar,
+    required this.onRenombrar,
   });
 
   final PartidaEscoba partida;
   final ValueChanged<JugadorEscoba> onVerCartas;
+  final bool Function(int index) puedeRenombrar;
+  final Future<void> Function(int index) onRenombrar;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var i = 0; i < partida.jugadores.length; i++) ...[
-            if (i > 0) const SizedBox(width: 14),
-            Container(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < partida.jugadores.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 14),
+                  Container(
               padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
               decoration: BoxDecoration(
                 color: AppColors.carta.withValues(alpha: 0.85),
@@ -1446,20 +1383,19 @@ class _MarcadoresFila extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        partida.jugadores[i].rendido
+                      NombreJugadorEditable(
+                        nombre: partida.jugadores[i].rendido
                             ? '${partida.jugadores[i].nombre} (fuera)'
                             : partida.jugadores[i].nombre,
-                        style: TextStyle(
-                          color: partida.jugadores[i].rendido
-                              ? AppColors.textoSuave
-                              : AppColors.texto,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          decoration: partida.jugadores[i].rendido
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
+                        puedeRenombrar: puedeRenombrar(i),
+                        onRenombrar: puedeRenombrar(i)
+                            ? () => onRenombrar(i)
+                            : null,
+                        fontSize: 12,
+                        colorTexto: partida.jugadores[i].rendido
+                            ? AppColors.textoSuave
+                            : AppColors.texto,
+                        tachado: partida.jugadores[i].rendido,
                       ),
                       const SizedBox(height: 4),
                       MarcadorPalitosEscoba(
@@ -1515,8 +1451,11 @@ class _MarcadoresFila extends StatelessWidget {
               ),
             ),
           ],
-        ],
-      ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
