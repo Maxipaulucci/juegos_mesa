@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/casitaRobada/menu_partida_casita.dart';
 import 'package:app_juegos_mesa/casitaRobada/motor_casita.dart';
 import 'package:app_juegos_mesa/casitaRobada/standby_store.dart';
 import 'package:app_juegos_mesa/casitaRobada/textos.dart';
 import 'package:app_juegos_mesa/casitaRobada/victoria_casita_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -36,6 +38,9 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   final List<CartaCasita> _mesaSeleccion = [];
   bool _roboCasitaSeleccionado = false;
   bool _jugando = false;
+  bool _mostrarMenu = false;
+  bool _mostrarAjustes = false;
+  AjustesEstado _ajustes = const AjustesEstado();
 
   bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
 
@@ -159,6 +164,37 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
+  }
+
+  void _mostrarReglas() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        title: const Text(
+          'Reglas',
+          style: TextStyle(
+            color: AppColors.mint,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Text(
+            reglasCasitaRobada(),
+            style: const TextStyle(
+              color: AppColors.texto,
+              height: 1.35,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _talVezTurnoPc() async {
@@ -334,9 +370,18 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _salirAlMenu(
-          guardar: widget.contraPc && !_partida.terminada,
-        );
+        if (_mostrarAjustes) {
+          setState(() => _mostrarAjustes = false);
+          return;
+        }
+        if (_mostrarMenu) {
+          setState(() => _mostrarMenu = false);
+          return;
+        }
+        setState(() {
+          _mostrarMenu = true;
+          _mostrarAjustes = false;
+        });
       },
       child: Scaffold(
         backgroundColor: AppColors.fondo,
@@ -349,16 +394,15 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 4, 12, 0),
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
                     child: Row(
                       children: [
                         IconButton(
-                          onPressed: () => _salirAlMenu(
-                            guardar:
-                                widget.contraPc && !_partida.terminada,
-                          ),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          color: AppColors.texto,
+                          onPressed: () => setState(() {
+                            _mostrarMenu = true;
+                            _mostrarAjustes = false;
+                          }),
+                          icon: const Icon(Icons.menu, color: AppColors.texto),
                         ),
                         const Expanded(
                           child: Text(
@@ -371,7 +415,16 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 48),
+                        IconButton(
+                          onPressed: () => setState(() {
+                            _mostrarAjustes = true;
+                            _mostrarMenu = false;
+                          }),
+                          icon: const Icon(
+                            Icons.settings,
+                            color: AppColors.textoSuave,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -622,6 +675,34 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                 ],
               ),
             ),
+            if (_mostrarAjustes)
+              Positioned.fill(
+                child: AjustesOverlay(
+                  ajustes: _ajustes,
+                  onChanged: (a) => setState(() => _ajustes = a),
+                  onCerrar: () => setState(() => _mostrarAjustes = false),
+                ),
+              ),
+            if (_mostrarMenu)
+              Positioned.fill(
+                child: MenuPartidaCasita(
+                  jugador: widget.contraPc
+                      ? _yo.nombre
+                      : _partida.jugadorActual.nombre,
+                  partidaTerminada: _partida.terminada,
+                  onCerrar: () => setState(() => _mostrarMenu = false),
+                  onReglas: () {
+                    setState(() => _mostrarMenu = false);
+                    _mostrarReglas();
+                  },
+                  onSalir: () {
+                    setState(() => _mostrarMenu = false);
+                    _salirAlMenu(
+                      guardar: widget.contraPc && !_partida.terminada,
+                    );
+                  },
+                ),
+              ),
             if (_partida.terminada)
               Positioned.fill(
                 child: VictoriaCasitaOverlay(
