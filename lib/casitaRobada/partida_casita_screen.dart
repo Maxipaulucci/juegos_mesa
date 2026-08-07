@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/casitaRobada/victoria_casita_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
@@ -487,6 +488,11 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     _pcToken++;
     CasitaStandByStore.limpiar();
     setState(() {
+      if (widget.contraPc) {
+        final pcs = cantidadPcElegidaEnMenu(MenuJuegoScreen.juegoIdCasitaRobada) ??
+            cantidadPcEnNombres(_nombres);
+        _nombres = reconstruirNombresVsPc(actuales: _nombres, cantidadPc: pcs);
+      }
       _partida = nuevaPartidaCasita(
         nombres: _nombres,
         contraPc: widget.contraPc,

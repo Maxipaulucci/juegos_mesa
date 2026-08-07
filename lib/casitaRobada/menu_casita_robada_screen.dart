@@ -43,12 +43,17 @@ class MenuCasitaRobadaScreen extends StatelessWidget {
       mostrarDificultad: false,
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
+      onCantidadPcChanged: (_) => CasitaStandByStore.limpiar(),
       textoInfoModoDios: TextosCasita.infoModoDios,
       onPartidaRapida: (ctx, estado, _) async {
         await _abrir(ctx: ctx, nombres: estado.nombres);
       },
       onVsPc: (ctx, estado, _) {
-        final resume = CasitaStandByStore.consumir();
+        final resumeRaw = CasitaStandByStore.consumir();
+        final resume = resumeRaw != null &&
+                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
+            ? resumeRaw
+            : null;
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first
             : 'Jugador 1';

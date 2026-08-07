@@ -15,6 +15,8 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
@@ -1261,6 +1263,20 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     ChanchoStandByStore.limpiar();
     _detenerCronometroChancho();
     setState(() {
+      if (widget.contraPc && !_esOnline) {
+        final pcs = cantidadPcElegidaEnMenu(MenuJuegoScreen.juegoIdChanchoVa) ??
+            cantidadPcEnNombres(_nombres);
+        _nombres = reconstruirNombresVsPc(
+          actuales: _nombres,
+          cantidadPc: pcs.clamp(2, 3),
+          minTotal: 3,
+          maxTotal: 4,
+          armarNombres: (humano, total) => TextosChancho.nombresVsPc(
+            humano: humano,
+            total: total,
+          ),
+        );
+      }
       _partida = nuevaPartidaChancho(
         nombres: _nombres,
         contraPc: true,

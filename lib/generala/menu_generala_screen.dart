@@ -52,6 +52,7 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
       mostrarDificultad: false,
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
+      onCantidadPcChanged: (_) => GeneralaStandByStore.limpiar(),
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),
@@ -69,8 +70,10 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
         );
       },
       onVsPc: (ctx, estado, dados) {
-        final resume =
-            GeneralaStandByStore.consumirSiCoincide(estado.dificultad);
+        final resume = GeneralaStandByStore.consumirSiCoincide(
+          estado.dificultad,
+          cantidadPc: estado.cantidadPc,
+        );
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first
             : 'Jugador 1';

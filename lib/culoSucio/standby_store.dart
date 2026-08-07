@@ -1,5 +1,6 @@
 import 'package:app_juegos_mesa/culoSucio/motor_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/opciones_culo_sucio.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 
 /// Resume en memoria para partidas vs PC (se pierde al cerrar/reiniciar la app).
 class PartidaCuloSucioResume {
@@ -27,12 +28,18 @@ class CuloSucioStandByStore {
 
   static PartidaCuloSucioResume? peek() => _resume;
 
-  /// Devuelve y consume el resume vs PC si las opciones coinciden.
-  /// Si cambió “Comodines”, lo descarta y parte de cero.
-  static PartidaCuloSucioResume? consumirSiCoincide(OpcionesCuloSucio opciones) {
+  /// Devuelve y consume el resume vs PC si opciones y cantidad de PC coinciden.
+  static PartidaCuloSucioResume? consumirSiCoincide(
+    OpcionesCuloSucio opciones, {
+    int? cantidadPc,
+  }) {
     final r = _resume;
     if (r == null) return null;
     if (r.opciones.comodines != opciones.comodines) {
+      _resume = null;
+      return null;
+    }
+    if (cantidadPc != null && !coincideCantidadPc(r.nombres, cantidadPc)) {
       _resume = null;
       return null;
     }

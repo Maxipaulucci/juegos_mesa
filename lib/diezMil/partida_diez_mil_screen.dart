@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'diez_mil_online_codec.dart';
@@ -252,6 +253,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   void _iniciarPartidaNueva() {
     _pcToken++;
+    if (widget.contraPc) {
+      final pcs = cantidadPcElegidaEnMenu(MenuJuegoScreen.juegoIdDiezMil) ??
+          cantidadPcEnNombres(_nombres);
+      _nombres = reconstruirNombresVsPc(actuales: _nombres, cantidadPc: pcs);
+    }
     _partida = nuevaPartida(_nombres, widget.modo);
     _stats = EstadisticasPartida(_nombres);
     iniciarTurno(_partida);

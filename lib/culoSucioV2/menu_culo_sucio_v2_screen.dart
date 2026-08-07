@@ -112,6 +112,7 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
       mostrarDificultad: false,
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
+      onCantidadPcChanged: (_) => CuloSucioV2StandByStore.limpiar(),
       textoInfoModoDios: TextosCuloSucioV2.infoModoDios,
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
@@ -124,7 +125,11 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
         );
       },
       onVsPc: (ctx, estado, _) {
-        final resume = CuloSucioV2StandByStore.consumir();
+        final resumeRaw = CuloSucioV2StandByStore.consumir();
+        final resume = resumeRaw != null &&
+                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
+            ? resumeRaw
+            : null;
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first
             : 'Jugador 1';

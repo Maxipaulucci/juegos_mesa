@@ -63,6 +63,8 @@ class MenuJuegoScreen extends StatefulWidget {
     this.opcionesCantidadJugadores = const [2, 3, 4],
     /// Opciones del diálogo “Cantidad de PC” (vs PC). Por defecto 1–3.
     this.opcionesCantidadPc = const [1, 2, 3],
+    /// Se llama al cambiar la cantidad de PC (p. ej. invalidar standby).
+    this.onCantidadPcChanged,
     /// Si no es null, el lobby solo inicia con exactamente N humanos (Chancho).
     this.lobbyHumanosExactos,
     this.lobbyTextoAyudaHumanos,
@@ -93,6 +95,7 @@ class MenuJuegoScreen extends StatefulWidget {
   final bool mostrarJugadoresVsPc;
   final List<int> opcionesCantidadJugadores;
   final List<int> opcionesCantidadPc;
+  final ValueChanged<int>? onCantidadPcChanged;
   final int? lobbyHumanosExactos;
   final String? lobbyTextoAyudaHumanos;
   final void Function(MenuJuegoEstado estado)? onPrepararSala;
@@ -135,6 +138,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     _cantidadJugadores = opts.isNotEmpty ? opts.first : 2;
     final optsPc = widget.opcionesCantidadPc;
     _cantidadPc = optsPc.isNotEmpty ? optsPc.first : 1;
+    registrarCantidadPcMenu(widget.juegoId, _cantidadPc);
     _nombresRapida = [
       for (var i = 1; i <= _cantidadJugadores; i++) 'Jugador $i',
     ];
@@ -311,6 +315,8 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     );
     if (elegida != null && mounted) {
       setState(() => _cantidadPc = elegida);
+      registrarCantidadPcMenu(widget.juegoId, elegida);
+      widget.onCantidadPcChanged?.call(elegida);
     }
   }
 

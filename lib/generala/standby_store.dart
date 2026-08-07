@@ -32,13 +32,20 @@ class GeneralaStandByStore {
 
   static PartidaGeneralaResume? peek() => _resume;
 
-  /// Devuelve el resume y lo consume si la dificultad coincide.
-  /// Si cambió, lo descarta y parte de cero.
-  static PartidaGeneralaResume? consumirSiCoincide(DificultadPc dificultad) {
+  /// Devuelve el resume y lo consume si dificultad y cantidad de PC coinciden.
+  /// Si cambió algo, lo descarta y parte de cero.
+  static PartidaGeneralaResume? consumirSiCoincide(
+    DificultadPc dificultad, {
+    int? cantidadPc,
+  }) {
     final r = _resume;
     if (r == null) return null;
     if (!r.contraPc) return null;
     if (r.dificultadPc != dificultad) {
+      _resume = null;
+      return null;
+    }
+    if (cantidadPc != null && !coincideCantidadPc(r.nombres, cantidadPc)) {
       _resume = null;
       return null;
     }

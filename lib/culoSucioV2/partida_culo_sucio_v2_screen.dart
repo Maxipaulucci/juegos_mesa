@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
@@ -954,6 +955,11 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     _pcToken++;
     CuloSucioV2StandByStore.limpiar();
     setState(() {
+      if (widget.contraPc) {
+        final pcs = cantidadPcElegidaEnMenu(MenuJuegoScreen.juegoIdCuloSucioV2) ??
+            cantidadPcEnNombres(_nombres);
+        _nombres = reconstruirNombresVsPc(actuales: _nombres, cantidadPc: pcs);
+      }
       _partida = nuevaPartidaCuloSucioV2(
         nombres: _nombres,
         contraPc: widget.contraPc,

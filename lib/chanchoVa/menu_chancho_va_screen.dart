@@ -122,6 +122,7 @@ class _MenuChanchoVaScreenState extends State<MenuChanchoVaScreen> {
       mostrarMultijugadorLocal: false,
       mostrarJugadoresVsPc: true,
       opcionesCantidadPc: const [2, 3],
+      onCantidadPcChanged: (_) => ChanchoStandByStore.limpiar(),
       textoInfoModoDios: TextosChancho.infoModoDios,
       lobbyHumanosExactos: 2,
       lobbyTextoAyudaHumanos:
@@ -134,14 +135,17 @@ class _MenuChanchoVaScreenState extends State<MenuChanchoVaScreen> {
       onPartidaRapida: (_, __, ___) async {},
       onVsPc: (ctx, estado, _) {
         _sincronizarStoreSala(estado);
-        final resume = ChanchoStandByStore.consumir();
-        final humano = resume?.nombres.firstWhere(
-              (n) => !TextosChancho.esPc(n),
-              orElse: () => estado.nombres.isNotEmpty
-                  ? estado.nombres.first
-                  : 'Jugador 1',
-            ) ??
-            (estado.nombres.isNotEmpty ? estado.nombres.first : 'Jugador 1');
+        final resumeRaw = ChanchoStandByStore.consumir();
+        final resume = resumeRaw != null &&
+                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
+            ? resumeRaw
+            : null;
+        final humano = humanoPrincipalVsPc(
+          resume?.nombres ?? estado.nombres,
+          fallback: estado.nombres.isNotEmpty
+              ? estado.nombres.first
+              : 'Jugador 1',
+        );
         final nombres = resume?.nombres ??
             TextosChancho.nombresVsPc(
               humano: humano,

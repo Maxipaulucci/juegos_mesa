@@ -80,6 +80,7 @@ class _MenuEscobaScreenState extends State<MenuEscobaScreen> {
       mostrarDificultad: false,
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
+      onCantidadPcChanged: (_) => EscobaStandByStore.limpiar(),
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),
@@ -92,7 +93,11 @@ class _MenuEscobaScreenState extends State<MenuEscobaScreen> {
         );
       },
       onVsPc: (ctx, estado, _) {
-        final resume = EscobaStandByStore.consumir();
+        final resumeRaw = EscobaStandByStore.consumir();
+        final resume = resumeRaw != null &&
+                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
+            ? resumeRaw
+            : null;
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first
             : 'Jugador 1';

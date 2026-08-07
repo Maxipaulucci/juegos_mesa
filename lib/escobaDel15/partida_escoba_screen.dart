@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
@@ -764,6 +765,11 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     if (_esOnline) return;
     EscobaStandByStore.limpiar();
     setState(() {
+      if (widget.contraPc) {
+        final pcs = cantidadPcElegidaEnMenu(MenuJuegoScreen.juegoIdEscobaDel15) ??
+            cantidadPcEnNombres(_nombres);
+        _nombres = reconstruirNombresVsPc(actuales: _nombres, cantidadPc: pcs);
+      }
       _partida = nuevaPartidaEscoba(nombres: _nombres);
       _limpiarSeleccion();
       _mensajePc = null;

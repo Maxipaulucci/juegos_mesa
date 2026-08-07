@@ -2,6 +2,7 @@ import 'ajustes_overlay.dart';
 import 'estadisticas.dart';
 import 'ia_diez_mil.dart';
 import 'motor.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 
 /// Resume en memoria para "stand by" sin persistencia (se pierde si se cierra
 /// o se reinicia la app).
@@ -50,16 +51,21 @@ class DiezMilStandByStore {
 
   static PartidaDiezMilResume? peek() => _resume;
 
-  /// Devuelve el resume y lo consume solo si el modo Y la dificultad coinciden.
-  /// Si cambiaron, descarta el resume y retorna null (parte de cero).
+  /// Devuelve el resume y lo consume solo si el modo, la dificultad y la
+  /// cantidad de PC coinciden. Si cambió algo, descarta y parte de cero.
   static PartidaDiezMilResume? consumirSiCoincide(
     Modo modo,
-    DificultadPc dificultad,
-  ) {
+    DificultadPc dificultad, {
+    int? cantidadPc,
+  }) {
     final r = _resume;
     if (r == null) return null;
     if (!r.contraPc) return null;
     if (r.modo != modo || r.dificultadPc != dificultad) {
+      _resume = null;
+      return null;
+    }
+    if (cantidadPc != null && !coincideCantidadPc(r.nombres, cantidadPc)) {
       _resume = null;
       return null;
     }

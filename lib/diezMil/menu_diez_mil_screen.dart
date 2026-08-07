@@ -26,6 +26,7 @@ class MenuDiezMilScreen extends StatelessWidget {
       mostrarDificultad: true,
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
+      onCantidadPcChanged: (_) => DiezMilStandByStore.limpiar(),
       onPartidaRapida: (ctx, estado, dados) async {
         await navegarConCarga<void>(
           ctx,
@@ -41,8 +42,11 @@ class MenuDiezMilScreen extends StatelessWidget {
       },
       onVsPc: (ctx, estado, dados) {
         final modo = _modoDeDados(dados);
-        final resume =
-            DiezMilStandByStore.consumirSiCoincide(modo, estado.dificultad);
+        final resume = DiezMilStandByStore.consumirSiCoincide(
+          modo,
+          estado.dificultad,
+          cantidadPc: estado.cantidadPc,
+        );
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first
             : 'Jugador 1';
