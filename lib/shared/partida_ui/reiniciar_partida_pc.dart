@@ -18,21 +18,31 @@ Future<bool> confirmarReiniciarPartidaPc(BuildContext context) async {
           fontWeight: FontWeight.w900,
         ),
       ),
-      content: const Text(
-        '¿Querés reiniciar la partida contra la PC?\n'
-        'Se aplicarán las configuraciones actuales de la partida.',
-        style: TextStyle(color: AppColors.texto, height: 1.4),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '¿Querés reiniciar la partida contra la PC?\n'
+            'Se aplicarán las configuraciones actuales de la partida.',
+            style: TextStyle(color: AppColors.texto, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Reiniciar'),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.peligro,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Cancelar'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('Reiniciar'),
-        ),
-      ],
     ),
   );
   return ok == true;
