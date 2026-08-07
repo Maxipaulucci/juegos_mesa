@@ -1,96 +1,115 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/chanchoVa/fin_ronda_chancho_va_overlay.dart';
+import 'package:app_juegos_mesa/chanchoVa/menu_partida_chancho_va.dart';
 import 'package:app_juegos_mesa/chanchoVa/motor_chancho_va.dart';
+import 'package:app_juegos_mesa/chanchoVa/opciones_chancho_va.dart';
 import 'package:app_juegos_mesa/chanchoVa/standby_store.dart';
 import 'package:app_juegos_mesa/chanchoVa/textos.dart';
 import 'package:app_juegos_mesa/chanchoVa/victoria_chancho_va_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
-import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Partida de Chancho va (local / vs PC).
+/// Partida de Chancho va (vs PC).
 class PartidaChanchoVaScreen extends StatefulWidget {
   const PartidaChanchoVaScreen({
     super.key,
     required this.nombres,
-    this.contraPc = false,
+    this.contraPc = true,
     this.modoDios = false,
+    this.ajustesIniciales,
     this.resume,
+    this.opciones = const OpcionesChanchoVa(),
   });
 
   final List<String> nombres;
   final bool contraPc;
   final bool modoDios;
+  final AjustesEstado? ajustesIniciales;
   final PartidaChanchoResume? resume;
+  final OpcionesChanchoVa opciones;
 
   @override
   State<PartidaChanchoVaScreen> createState() => _PartidaChanchoVaScreenState();
 }
 
-class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
+class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
+    with SingleTickerProviderStateMixin {
   late PartidaChancho _partida;
   final Set<int> _numerosElegidos = {};
-  int? _cantidadAnuncio;
-  DireccionChancho? _direccionAnuncio;
+  int? _cantidadAnuncio = 1;
+  DireccionChancho? _direccionAnuncio = DireccionChancho.derecha;
   final List<CartaChancho> _seleccionLocal = [];
-  bool _cambioPendiente = false;
-  String? _nombreVista;
   int _pcToken = 0;
   /// Tras PC abre Chancho, el humano puede decir aunque no tenga cuarteto.
   bool _chanchoVisiblePorCarrera = false;
+  /// Nombre de la PC que lanzó CHANCHA (el humano debe responder o no).
+  String? _quienLanzoChancha;
+  bool _cronoEsRespuestaChancha = false;
+  final math.Random _rng = math.Random();
+  AjustesEstado _ajustes = const AjustesEstado();
+  late OpcionesChanchoVa _opciones;
+  bool _mostrarMenu = false;
+  bool _mostrarAjustes = false;
+  late final AnimationController _cronoChancho;
+  Timer? _timerChanchaPc;
 
-  bool get _esLocalHotSeat => !widget.contraPc;
+  static const _duracionCronoChancho = Duration(milliseconds: 1000);
+  static const _segundosCronoChancho = 1.0;
 
   bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
 
-  JugadorChancho get _yo {
-    if (widget.contraPc) {
-      return _partida.jugadores.firstWhere(
-        (j) => j.nombre != TextosChancho.vsPcNombre,
+  bool _esPc(JugadorChancho j) => TextosChancho.esPc(j.nombre);
+
+  JugadorChancho get _yo => _partida.jugadores.firstWhere(
+        (j) => !_esPc(j),
         orElse: () => _partida.jugadores.first,
       );
-    }
-    final nombre = _nombreVista ?? _partida.jugadorActual.nombre;
-    return _partida.jugadores.firstWhere(
-      (j) => j.nombre == nombre,
-      orElse: () => _partida.jugadorActual,
-    );
-  }
 
-  JugadorChancho? get _pc {
-    if (!widget.contraPc) return null;
-    for (final j in _partida.jugadores) {
-      if (j.nombre == TextosChancho.vsPcNombre) return j;
-    }
-    return null;
-  }
+  List<JugadorChancho> get _pcs => _partida.jugadores
+      .where((j) => _esPc(j) && !j.eliminado)
+      .toList(growable: false);
+
+  bool get _humanoActivo => !_yo.eliminado;
 
   bool get _esTurnoHumanoAnuncio {
-    if (_partida.terminada) return false;
+    if (_partida.terminada || !_humanoActivo) return false;
     if (_partida.fase != FaseChancho.anunciando) return false;
-    if (_cambioPendiente) return false;
-    if (widget.contraPc) {
-      return _partida.jugadorActual.nombre != TextosChancho.vsPcNombre;
-    }
-    return _yo.nombre == _partida.jugadorActual.nombre;
+    return !_esPc(_partida.jugadorActual);
   }
 
   bool get _puedoElegirCartas {
-    if (_partida.fase != FaseChancho.eligiendoCartas) return false;
-    if (_cambioPendiente) return false;
-    if (_yo.seleccionPaseConfirmada) return false;
-    return true;
+    if (!_humanoActivo || _yo.seleccionPaseConfirmada) return false;
+    if (_partida.fase == FaseChancho.eligiendoCartas) return true;
+    // Antes de anunciar: se eligen las cartas a pasar.
+    if (_esTurnoHumanoAnuncio && _cantidadAnuncio != null) return true;
+    return false;
   }
 
+  int get _cupoSeleccion {
+    if (_partida.fase == FaseChancho.eligiendoCartas) {
+      return _partida.anuncioActual?.cantidad ?? 0;
+    }
+    if (_esTurnoHumanoAnuncio) return _cantidadAnuncio ?? 0;
+    return 0;
+  }
+
+  bool get _puedeAnunciarPase =>
+      _esTurnoHumanoAnuncio &&
+      _cantidadAnuncio != null &&
+      _direccionAnuncio != null &&
+      _seleccionLocal.length == _cantidadAnuncio;
+
   bool get _mostrarBotonChancho {
-    if (_partida.terminada) return false;
-    if (_partida.fase == FaseChancho.eligiendoNumeros ||
-        _partida.fase == FaseChancho.eligiendoCartas) {
+    if (_partida.terminada || _partida.enFinRonda || !_humanoActivo) {
       return false;
     }
+    if (_partida.fase == FaseChancho.eligiendoNumeros) return false;
     if (_yo.dijoChancho) return false;
     if (_yo.tieneCuarteto) return true;
     if (_chanchoVisiblePorCarrera && _partida.quienAbrioChancho != null) {
@@ -103,20 +122,42 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
       _mostrarBotonChancho &&
       (_yo.tieneCuarteto || _partida.quienAbrioChancho != null);
 
+  bool get _hayDesafioChancha => _quienLanzoChancha != null;
+
+  /// El humano puede lanzar CHANCHA en cualquier momento de la partida.
+  bool get _puedeLanzarChancha {
+    if (!_opciones.chancha || !_humanoActivo) return false;
+    if (!widget.contraPc || _partida.terminada || _partida.enFinRonda) {
+      return false;
+    }
+    if (_hayDesafioChancha) return false;
+    if (_partida.fase == FaseChancho.eligiendoNumeros) return false;
+    if (_pcs.isEmpty) return false;
+    return true;
+  }
+
+  /// Responder al CHANCHA que lanzó una PC (botón inferior).
+  bool get _puedeResponderChancha =>
+      _opciones.chancha &&
+      _hayDesafioChancha &&
+      !_partida.terminada &&
+      !_partida.enFinRonda;
+
   String get _textoEstado {
     if (_partida.terminada) return '';
-    if (_cambioPendiente) return '';
+    if (_hayDesafioChancha) {
+      return '¡${_quienLanzoChancha!} dijo CHANCHA!';
+    }
     return switch (_partida.fase) {
       FaseChancho.eligiendoNumeros => TextosChancho.eligeNumeros,
       FaseChancho.anunciando => _esTurnoHumanoAnuncio
           ? TextosChancho.anunciando
-          : (widget.contraPc
-              ? TextosChancho.esperandoPc
-              : 'Turno de ${_partida.jugadorActual.nombre}'),
+          : TextosChancho.esperandoPc,
       FaseChancho.eligiendoCartas => _yo.seleccionPaseConfirmada
           ? 'Esperando al resto…'
           : TextosChancho.eligiendoCartas,
       FaseChancho.carreraChancho => TextosChancho.carrera,
+      FaseChancho.finRonda => 'Fin de la ronda',
       FaseChancho.terminada => '',
     };
   }
@@ -124,23 +165,40 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
   @override
   void initState() {
     super.initState();
+    _cronoChancho = AnimationController(
+      vsync: this,
+      duration: _duracionCronoChancho,
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          _onTimeoutChancho();
+        }
+      });
+    _timerChanchaPc = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      _intentarChanchaPc();
+    });
     final resume = widget.resume;
+    _ajustes = resume?.ajustesIniciales ??
+        widget.ajustesIniciales ??
+        const AjustesEstado();
+    _opciones = resume?.opciones ?? widget.opciones;
     if (resume != null) {
       _partida = resume.partida;
-      _nombreVista = widget.contraPc
-          ? _yo.nombre
-          : _partida.jugadorActual.nombre;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _talVezPc();
+        if (_partida.fase == FaseChancho.carreraChancho &&
+            !_yo.dijoChancho) {
+          _iniciarCronometroChancho();
+        }
+      });
       return;
     }
     _partida = nuevaPartidaChancho(
       nombres: widget.nombres,
-      contraPc: widget.contraPc,
+      contraPc: true,
+      sinEspacio: _opciones.sinEspacio,
+      finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
     );
-    _nombreVista = _partida.jugadorActual.nombre;
-    if (_esLocalHotSeat) {
-      _cambioPendiente = true;
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_partida.fase == FaseChancho.eligiendoNumeros) {
         _abrirCartelNumeros();
@@ -153,34 +211,15 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
   @override
   void dispose() {
     _pcToken++;
+    _timerChanchaPc?.cancel();
+    _cronoChancho.dispose();
     super.dispose();
-  }
-
-  void _pedirCambioSiCorresponde(String paraQuien) {
-    if (!_esLocalHotSeat || _partida.terminada) return;
-    if (_nombreVista == paraQuien && !_cambioPendiente) return;
-    setState(() {
-      _cambioPendiente = true;
-      _nombreVista = paraQuien;
-      _seleccionLocal.clear();
-    });
-  }
-
-  void _aceptarCambio() {
-    setState(() {
-      _cambioPendiente = false;
-      _nombreVista = _partida.fase == FaseChancho.anunciando
-          ? _partida.jugadorActual.nombre
-          : (_nombreVista ?? _partida.jugadorActual.nombre);
-    });
-    _talVezPc();
   }
 
   Future<void> _abrirCartelNumeros() async {
     if (_partida.fase != FaseChancho.eligiendoNumeros) return;
-    if (_esLocalHotSeat && _cambioPendiente) return;
 
-    final elegidos = <int>{};
+    final elegidos = <int>[];
     final cupo = _partida.cantidadJugadores;
     final ok = await showDialog<bool>(
       context: context,
@@ -199,25 +238,68 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
               ),
               content: SizedBox(
                 width: 360,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final n in numerosChanchoDisponibles)
-                      FilterChip(
-                        label: Text('$n'),
-                        selected: elegidos.contains(n),
-                        onSelected: (sel) {
-                          setDialog(() {
-                            if (sel) {
-                              if (elegidos.length >= cupo) return;
-                              elegidos.add(n);
-                            } else {
-                              elegidos.remove(n);
-                            }
-                          });
-                        },
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final n in numerosChanchoDisponibles)
+                          Builder(
+                            builder: (context) {
+                              final sel = elegidos.contains(n);
+                              return Opacity(
+                                opacity: sel ? 0.4 : 1,
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    setDialog(() {
+                                      if (sel) {
+                                        elegidos.remove(n);
+                                      } else if (elegidos.length < cupo) {
+                                        elegidos.add(n);
+                                      }
+                                    });
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.texto,
+                                    side: BorderSide(
+                                      color: sel
+                                          ? AppColors.acento
+                                          : AppColors.cartaBorde,
+                                      width: sel ? 2 : 1.2,
+                                    ),
+                                    minimumSize: const Size(44, 44),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$n',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      elegidos.isEmpty
+                          ? 'Cartas con N°:'
+                          : 'Cartas con N°: ${elegidos.join('-')}',
+                      style: const TextStyle(
+                        color: AppColors.texto,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -237,7 +319,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
     if (ok != true || !mounted) return;
     final err = aplicarNumerosElegidosChancho(
       _partida,
-      elegidos.toList(),
+      List.of(elegidos),
     );
     setState(() {
       _numerosElegidos
@@ -249,11 +331,12 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
-    if (_esLocalHotSeat) {
-      _pedirCambioSiCorresponde(_partida.jugadorActual.nombre);
-    } else {
-      _talVezPc();
-    }
+    _talVezPc();
+  }
+
+  void _defaultsAnuncioArgentinos() {
+    _cantidadAnuncio = 1;
+    _direccionAnuncio = DireccionChancho.derecha;
   }
 
   void _cicloCantidad() {
@@ -261,6 +344,9 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
     setState(() {
       final actual = _cantidadAnuncio ?? 0;
       _cantidadAnuncio = actual >= 4 ? 1 : actual + 1;
+      while (_seleccionLocal.length > _cantidadAnuncio!) {
+        _seleccionLocal.removeLast();
+      }
     });
   }
 
@@ -276,24 +362,28 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
   }
 
   void _confirmarAnuncio() {
-    if (!_esTurnoHumanoAnuncio) return;
-    final c = _cantidadAnuncio;
-    final d = _direccionAnuncio;
-    if (c == null || d == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Elegí número y dirección')),
-      );
-      return;
-    }
+    if (!_puedeAnunciarPase) return;
+    final c = _cantidadAnuncio!;
+    final d = _direccionAnuncio!;
+    final cartas = List<CartaChancho>.of(_seleccionLocal);
     final err = anunciarPaseChancho(
       _partida,
       cantidad: c,
       direccion: d,
       anunciante: _yo,
     );
-    setState(() => _seleccionLocal.clear());
     if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    final errSel = confirmarSeleccionPaseChancho(
+      _partida,
+      jugador: _yo,
+      cartas: cartas,
+    );
+    setState(() => _seleccionLocal.clear());
+    if (errSel != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errSel)));
       return;
     }
     _despuesDeAnuncio();
@@ -301,46 +391,42 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
 
   void _repetirAnuncio() {
     if (!_esTurnoHumanoAnuncio) return;
-    final err = repetirUltimoAnuncioChancho(_partida, anunciante: _yo);
+    final u = _partida.ultimoAnuncio;
+    if (u == null) return;
     setState(() {
-      _seleccionLocal.clear();
-      if (_partida.ultimoAnuncio != null) {
-        _cantidadAnuncio = _partida.ultimoAnuncio!.cantidad;
-        _direccionAnuncio = _partida.ultimoAnuncio!.direccion;
+      _cantidadAnuncio = u.cantidad;
+      _direccionAnuncio = u.direccion;
+      while (_seleccionLocal.length > u.cantidad) {
+        _seleccionLocal.removeLast();
       }
     });
-    if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-      return;
-    }
-    _despuesDeAnuncio();
   }
 
   void _despuesDeAnuncio() {
-    if (widget.contraPc) {
-      _autoConfirmarPcSiCorresponde();
-      setState(() {});
-      return;
-    }
-    // Hot-seat: cada jugador elige cartas → handoff al primero que no confirmó.
-    final siguiente = _partida.jugadores.firstWhere(
-      (j) => !j.seleccionPaseConfirmada,
-      orElse: () => _partida.jugadorActual,
-    );
-    _pedirCambioSiCorresponde(siguiente.nombre);
+    _autoConfirmarPcSiCorresponde();
+    setState(() {});
   }
 
   void _toggleCarta(CartaChancho c) {
     if (!_puedoElegirCartas) return;
-    final cupo = _partida.anuncioActual?.cantidad ?? 0;
+    final cupo = _cupoSeleccion;
+    if (cupo <= 0) return;
     setState(() {
       if (_seleccionLocal.contains(c)) {
         _seleccionLocal.remove(c);
+      } else if (_seleccionLocal.length < cupo) {
+        _seleccionLocal.add(c);
       } else {
-        if (_seleccionLocal.length >= cupo) return;
+        // Cupo lleno: tocando otra carta reemplaza la más antigua.
+        _seleccionLocal.removeAt(0);
         _seleccionLocal.add(c);
       }
     });
+    // Si la PC anunció, al completar la cantidad el pase se confirma solo.
+    if (_partida.fase == FaseChancho.eligiendoCartas &&
+        _seleccionLocal.length == cupo) {
+      _confirmarCartasLocal();
+    }
   }
 
   void _confirmarCartasLocal() {
@@ -356,13 +442,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
       return;
     }
     if (_partida.fase == FaseChancho.eligiendoCartas) {
-      final siguiente = _partida.jugadores.firstWhere(
-        (j) => !j.seleccionPaseConfirmada,
-        orElse: () => _yo,
-      );
-      if (_esLocalHotSeat) {
-        _pedirCambioSiCorresponde(siguiente.nombre);
-      }
+      // Espera a que la PC confirme (ya debería haber confirmado).
+      setState(() {});
     } else {
       // Pase ejecutado.
       _chanchoVisiblePorCarrera = false;
@@ -373,22 +454,29 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
   void _despuesDePase() {
     setState(() {});
     if (_partida.terminada) return;
-    if (widget.contraPc) {
-      _talVezChanchoPc();
-      if (_partida.fase == FaseChancho.anunciando) {
-        _talVezPc();
-      }
-      return;
+    if (_partida.fase == FaseChancho.anunciando) {
+      setState(() {
+        _defaultsAnuncioArgentinos();
+        _seleccionLocal.clear();
+      });
+      if (_intentarChanchaPc()) return;
     }
-    if (_esLocalHotSeat) {
-      _pedirCambioSiCorresponde(_partida.jugadorActual.nombre);
+    // Si una PC tiene Chancho, abre y el humano tiene 1 s para responder.
+    // Si solo el humano tiene cuarteto, puede decir Chancho cuando quiera (sin reloj).
+    _talVezChanchoPc();
+    if (_partida.fase == FaseChancho.anunciando) {
+      _talVezPc();
     }
   }
 
   void _decirChancho() {
+    if (_hayDesafioChancha) return;
     if (!_chanchoHabilitado) return;
+    _detenerCronometroChancho();
     final err = decirChanchoVa(_partida, jugador: _yo);
-    setState(() {});
+    setState(() {
+      _seleccionLocal.clear();
+    });
     if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
@@ -397,18 +485,216 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
       _chanchoVisiblePorCarrera = true;
       _talVezChanchoPc();
     } else {
-      // Carrera resuelta (nueva ronda o fin).
-      _chanchoVisiblePorCarrera = false;
-      if (!_partida.terminada && _esLocalHotSeat) {
-        _pedirCambioSiCorresponde(_partida.jugadorActual.nombre);
-      } else if (!_partida.terminada) {
-        _talVezPc();
+      _alResolverRonda();
+    }
+  }
+
+  void _iniciarCronometroChancho() {
+    if (!widget.contraPc || _partida.terminada || !_humanoActivo) return;
+    if (_yo.dijoChancho) return;
+    _cronoEsRespuestaChancha = false;
+    _cronoChancho.forward(from: 0);
+    setState(() {});
+  }
+
+  void _iniciarCronometroRespuestaChancha() {
+    if (!widget.contraPc || _partida.terminada) return;
+    _cronoEsRespuestaChancha = true;
+    _cronoChancho.forward(from: 0);
+    setState(() {});
+  }
+
+  void _detenerCronometroChancho() {
+    if (_cronoChancho.isAnimating || _cronoChancho.value > 0) {
+      _cronoChancho.stop();
+      _cronoChancho.reset();
+    }
+    _cronoEsRespuestaChancha = false;
+  }
+
+  void _onTimeoutChancho() {
+    if (_cronoEsRespuestaChancha) {
+      _onTimeoutRespuestaChancha();
+      return;
+    }
+    if (!mounted || _partida.terminada || _yo.dijoChancho) return;
+
+    // Una PC abrió Chancho y el humano no apretó a tiempo → letra al humano.
+    final abrio = _partida.quienAbrioChancho;
+    if (abrio != null && TextosChancho.esPc(abrio)) {
+      penalizarJugadorChancho(
+        _partida,
+        _yo,
+        motivo: MotivoPenalizacionChancho.ultimoEnChancho,
+      );
+      _alResolverRonda();
+      return;
+    }
+
+    // Respaldo: completar carrera con el humano último.
+    for (final pc in _pcs) {
+      if (pc.dijoChancho) continue;
+      if (pc.tieneCuarteto || _partida.quienAbrioChancho != null) {
+        decirChanchoVa(_partida, jugador: pc);
+        _chanchoVisiblePorCarrera = true;
+      }
+      if (_partida.terminada ||
+          _partida.fase == FaseChancho.finRonda ||
+          _partida.fase == FaseChancho.anunciando) {
+        break;
       }
     }
+    if (!_yo.dijoChancho && _partida.quienAbrioChancho != null) {
+      decirChanchoVa(_partida, jugador: _yo);
+    }
+    _alResolverRonda();
+  }
+
+  /// Tras anotar letra: cartel de fin de ronda, victoria o seguir jugando.
+  void _alResolverRonda() {
+    _detenerCronometroChancho();
+    _quienLanzoChancha = null;
+    setState(() {
+      _chanchoVisiblePorCarrera = false;
+    });
+    if (_partida.terminada || _partida.enFinRonda) return;
+    if (_partida.fase == FaseChancho.anunciando) {
+      setState(() {
+        _defaultsAnuncioArgentinos();
+        _seleccionLocal.clear();
+      });
+      _talVezPc();
+    }
+  }
+
+  void _continuarTrasFinRonda() {
+    continuarTrasFinRondaChancho(_partida);
+    setState(() {
+      _defaultsAnuncioArgentinos();
+      _seleccionLocal.clear();
+    });
+    _talVezPc();
+  }
+
+  /// Tras CHANCHA: la ronda sigue (misma mano / mismo anunciante).
+  void _despuesDeChancha() {
+    _quienLanzoChancha = null;
+    // Solo cortar el cronómetro del desafío Chancha, no el de Chancho.
+    if (_cronoEsRespuestaChancha) {
+      _detenerCronometroChancho();
+    }
+    setState(() {});
+    if (_partida.terminada) return;
+    if (_partida.fase == FaseChancho.anunciando) {
+      _talVezPc();
+    }
+  }
+
+  /// El humano lanza CHANCHA: 50% la PC “cae” y pierde; si no, pierde el humano.
+  void _lanzarChancha() {
+    if (!_puedeLanzarChancha) return;
+    final pcs = _pcs;
+    if (pcs.isEmpty) return;
+    final pcCae = _rng.nextDouble() < 0.5;
+    if (pcCae) {
+      final pc = pcs[_rng.nextInt(pcs.length)];
+      penalizarJugadorChancho(
+        _partida,
+        pc,
+        motivo: MotivoPenalizacionChancho.chancha,
+        lanzadorChancha: _yo.nombre,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('¡${pc.nombre} cayó en CHANCHA!')),
+        );
+      }
+    } else {
+      penalizarJugadorChancho(
+        _partida,
+        _yo,
+        motivo: MotivoPenalizacionChancho.chancha,
+        lanzadorChancha: _yo.nombre,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nadie cayó. Se te anota una letra.'),
+          ),
+        );
+      }
+    }
+    _despuesDeChancha();
+  }
+
+  /// El humano toca el botón inferior durante el desafío de la PC.
+  void _responderChanchaDePc() {
+    if (!_puedeResponderChancha) return;
+    final lanzador = _quienLanzoChancha ?? 'PC';
+    penalizarJugadorChancho(
+      _partida,
+      _yo,
+      motivo: MotivoPenalizacionChancho.chancha,
+      lanzadorChancha: lanzador,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Caíste en CHANCHA. Se te anota una letra.')),
+      );
+    }
+    _despuesDeChancha();
+  }
+
+  void _onTimeoutRespuestaChancha() {
+    if (!mounted || _partida.terminada || !_hayDesafioChancha) return;
+    final nombre = _quienLanzoChancha!;
+    JugadorChancho? quien;
+    for (final j in _partida.jugadores) {
+      if (j.nombre == nombre) {
+        quien = j;
+        break;
+      }
+    }
+    if (quien != null) {
+      penalizarJugadorChancho(
+        _partida,
+        quien,
+        motivo: MotivoPenalizacionChancho.chancha,
+        lanzadorChancha: nombre,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No tocaste. Se le anota una letra a $nombre.',
+            ),
+          ),
+        );
+      }
+    }
+    _despuesDeChancha();
+  }
+
+  /// 10% de chance de que alguna PC te tire CHANCHA (en cualquier momento).
+  bool _intentarChanchaPc() {
+    if (!_opciones.chancha || !_humanoActivo) return false;
+    if (!widget.contraPc || _partida.terminada) return false;
+    if (_partida.enFinRonda) return false;
+    if (_hayDesafioChancha) return false;
+    if (_partida.fase == FaseChancho.eligiendoNumeros) return false;
+    if (_cronoChancho.isAnimating) return false;
+    if (_pcs.isEmpty) return false;
+    if (_rng.nextDouble() >= 0.10) return false;
+    final pc = _pcs[_rng.nextInt(_pcs.length)];
+    _quienLanzoChancha = pc.nombre;
+    _iniciarCronometroRespuestaChancha();
+    return true;
   }
 
   Future<void> _talVezPc() async {
     if (!widget.contraPc || _partida.terminada) return;
+    if (_partida.enFinRonda) return;
+    if (_hayDesafioChancha) return;
     final token = ++_pcToken;
 
     if (_partida.fase == FaseChancho.eligiendoNumeros) {
@@ -417,11 +703,13 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
     }
 
     if (_partida.fase == FaseChancho.anunciando &&
-        _partida.jugadorActual.nombre == TextosChancho.vsPcNombre) {
+        _esPc(_partida.jugadorActual)) {
+      if (_intentarChanchaPc()) return;
       await Future<void>.delayed(const Duration(milliseconds: 700));
       if (!mounted || token != _pcToken) return;
-      final pc = _pc;
-      if (pc == null) return;
+      if (_hayDesafioChancha) return;
+      final pc = _partida.jugadorActual;
+      if (!_esPc(pc)) return;
       final anuncio = planificarAnuncioPcChancho(pc, _partida.ultimoAnuncio);
       anunciarPaseChancho(
         _partida,
@@ -449,15 +737,18 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
   void _autoConfirmarPcSiCorresponde() {
     if (!widget.contraPc) return;
     if (_partida.fase != FaseChancho.eligiendoCartas) return;
-    final pc = _pc;
     final anuncio = _partida.anuncioActual;
-    if (pc == null || anuncio == null || pc.seleccionPaseConfirmada) return;
-    final cartas = elegirCartasPcChancho(pc, anuncio.cantidad);
-    confirmarSeleccionPaseChancho(
-      _partida,
-      jugador: pc,
-      cartas: cartas,
-    );
+    if (anuncio == null) return;
+    for (final pc in _pcs) {
+      if (pc.seleccionPaseConfirmada) continue;
+      if (_partida.fase != FaseChancho.eligiendoCartas) break;
+      final cartas = elegirCartasPcChancho(pc, anuncio.cantidad);
+      confirmarSeleccionPaseChancho(
+        _partida,
+        jugador: pc,
+        cartas: cartas,
+      );
+    }
     if (_partida.fase != FaseChancho.eligiendoCartas) {
       _chanchoVisiblePorCarrera = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -468,66 +759,119 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
 
   Future<void> _talVezChanchoPc() async {
     if (!widget.contraPc || _partida.terminada) return;
-    final pc = _pc;
-    if (pc == null || pc.dijoChancho) return;
-    if (!pcDeberiaDecirChancho(_partida, pc)) return;
+    if (_partida.enFinRonda) return;
+    if (_hayDesafioChancha) return;
+
+    final pendientes = _pcs
+        .where((pc) => !pc.dijoChancho && pcDeberiaDecirChancho(_partida, pc))
+        .toList();
+    if (pendientes.isEmpty) return;
 
     final token = ++_pcToken;
-    await Future<void>.delayed(const Duration(milliseconds: 1000));
+    final yaAbierta = _partida.quienAbrioChancho != null;
+    await Future<void>.delayed(
+      Duration(milliseconds: yaAbierta ? 200 : 120),
+    );
     if (!mounted || token != _pcToken) return;
-    if (_partida.terminada || pc.dijoChancho) return;
-    if (!pcDeberiaDecirChancho(_partida, pc)) return;
 
-    final abrio = _partida.quienAbrioChancho == null;
-    decirChanchoVa(_partida, jugador: pc);
-    setState(() {
-      // Si la PC abrió, el humano ve el botón aunque no tenga cuarteto.
-      if (abrio || _partida.quienAbrioChancho != null) {
+    for (final pc in pendientes) {
+      if (_partida.terminada) break;
+      if (pc.dijoChancho) continue;
+      if (!pcDeberiaDecirChancho(_partida, pc)) continue;
+      decirChanchoVa(_partida, jugador: pc);
+      setState(() {
         _chanchoVisiblePorCarrera = true;
+      });
+      if (_partida.fase != FaseChancho.carreraChancho) break;
+      // Pequeña pausa entre PCs en la carrera.
+      if (pendientes.length > 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        if (!mounted || token != _pcToken) return;
       }
-    });
+    }
 
-    if (_partida.fase == FaseChancho.anunciando || _partida.terminada) {
-      _chanchoVisiblePorCarrera = false;
-      if (!_partida.terminada) _talVezPc();
+    if (_partida.fase == FaseChancho.carreraChancho &&
+        _humanoActivo &&
+        !_yo.dijoChancho) {
+      _iniciarCronometroChancho();
+    } else if (_partida.fase == FaseChancho.finRonda ||
+        _partida.fase == FaseChancho.anunciando ||
+        _partida.terminada) {
+      _alResolverRonda();
     }
   }
 
   void _reiniciar() {
     ChanchoStandByStore.limpiar();
+    _detenerCronometroChancho();
     setState(() {
       _partida = nuevaPartidaChancho(
         nombres: widget.nombres,
-        contraPc: widget.contraPc,
+        contraPc: true,
+        sinEspacio: _opciones.sinEspacio,
+        finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
       );
       _numerosElegidos.clear();
-      _cantidadAnuncio = null;
-      _direccionAnuncio = null;
+      _defaultsAnuncioArgentinos();
       _seleccionLocal.clear();
       _chanchoVisiblePorCarrera = false;
-      _nombreVista = _partida.jugadorActual.nombre;
-      _cambioPendiente = _esLocalHotSeat;
+      _quienLanzoChancha = null;
+      _mostrarMenu = false;
+      _mostrarAjustes = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_cambioPendiente) return;
       _abrirCartelNumeros();
     });
   }
 
   void _salir({required bool guardar}) {
     _pcToken++;
+    _detenerCronometroChancho();
     if (guardar && widget.contraPc && !_partida.terminada) {
       ChanchoStandByStore.guardar(
         PartidaChanchoResume(
           partida: _partida,
           nombres: widget.nombres,
+          ajustesIniciales: _ajustes,
           modoDios: widget.modoDios,
+          opciones: _opciones,
         ),
       );
     } else {
       ChanchoStandByStore.limpiar();
     }
     if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+  }
+
+  void _mostrarReglas() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        title: const Text(
+          'Reglas',
+          style: TextStyle(
+            color: AppColors.mint,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Text(
+            TextosChancho.reglas(),
+            style: const TextStyle(
+              color: AppColors.texto,
+              height: 1.35,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
   }
 
   PaloEspanolVisual _paloVisual(PaloChancho p) => switch (p) {
@@ -544,15 +888,76 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
         DireccionChancho.centro => TextosChancho.centro,
       };
 
+  /// Cartel del anuncio de la PC mientras elegís cartas.
+  bool get _mostrarCartelAnuncioPc {
+    if (_partida.fase != FaseChancho.eligiendoCartas) return false;
+    if (_partida.anuncioActual == null) return false;
+    return _esPc(_partida.jugadorActual);
+  }
+
+  /// Vista previa del anuncio mientras el humano elige cantidad/dirección.
+  bool get _mostrarCartelAnuncioHumano =>
+      _esTurnoHumanoAnuncio &&
+      _cantidadAnuncio != null &&
+      _direccionAnuncio != null;
+
+  _CartelAnuncioPc? get _cartelAnuncioActivo {
+    if (_mostrarCartelAnuncioPc) {
+      return _CartelAnuncioPc(
+        titulo: '${_partida.jugadorActual.nombre} dijo',
+        texto: _textoAnuncioNatural(_partida.anuncioActual!),
+      );
+    }
+    if (_mostrarCartelAnuncioHumano) {
+      return _CartelAnuncioPc(
+        titulo: '${_yo.nombre} elige',
+        texto: _textoAnuncioNatural(
+          AnuncioChancho(
+            cantidad: _cantidadAnuncio!,
+            direccion: _direccionAnuncio!,
+          ),
+        ),
+      );
+    }
+    return null;
+  }
+
+  String _textoAnuncioNatural(AnuncioChancho a) {
+    final dir = switch (a.direccion) {
+      DireccionChancho.izquierda => 'a la izquierda',
+      DireccionChancho.derecha => 'a la derecha',
+      DireccionChancho.centro => 'al centro',
+    };
+    return '${a.cantidad} $dir';
+  }
+
+  String? get _textoElegirCartas {
+    if (!_puedoElegirCartas) return null;
+    final cupo = _cupoSeleccion;
+    if (cupo <= 0) return null;
+    return 'Elegí $cupo carta(s) (${_seleccionLocal.length}/$cupo)';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final mano = _cambioPendiente ? const <CartaChancho>[] : _yo.mano;
+    final mano = _yo.mano;
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _salir(guardar: widget.contraPc && !_partida.terminada);
+        if (_mostrarAjustes) {
+          setState(() => _mostrarAjustes = false);
+          return;
+        }
+        if (_mostrarMenu) {
+          setState(() => _mostrarMenu = false);
+          return;
+        }
+        setState(() {
+          _mostrarMenu = true;
+          _mostrarAjustes = false;
+        });
       },
       child: Scaffold(
         backgroundColor: AppColors.fondo,
@@ -569,11 +974,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
                     Row(
                       children: [
                         IconButton(
-                          onPressed: () => _salir(
-                            guardar: widget.contraPc && !_partida.terminada,
-                          ),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          color: AppColors.texto,
+                          onPressed: () => setState(() {
+                            _mostrarMenu = true;
+                            _mostrarAjustes = false;
+                          }),
+                          icon: const Icon(Icons.menu, color: AppColors.texto),
                         ),
                         const Expanded(
                           child: Text(
@@ -587,53 +992,31 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () {
-                            showDialog<void>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                backgroundColor: AppColors.carta,
-                                title: const Text(
-                                  'Reglas',
-                                  style: TextStyle(
-                                    color: AppColors.mint,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                content: SingleChildScrollView(
-                                  child: Text(
-                                    TextosChancho.reglas(),
-                                    style: const TextStyle(
-                                      color: AppColors.texto,
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text('Cerrar'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.help_outline_rounded),
-                          color: AppColors.textoSuave,
+                          onPressed: () => setState(() {
+                            _mostrarAjustes = true;
+                            _mostrarMenu = false;
+                          }),
+                          icon: const Icon(
+                            Icons.settings,
+                            color: AppColors.textoSuave,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     _MarcadorLetras(jugadores: _partida.jugadores),
-                    if (_modoDiosActivo && _pc != null) ...[
+                    if (_modoDiosActivo) ...[
                       const SizedBox(height: 8),
-                      Text(
-                        'PC: ${_pc!.mano.map((c) => c.etiqueta).join(' · ')}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.textoSuave,
-                          fontSize: 11,
+                      for (final pc in _partida.jugadores.where(_esPc))
+                        Text(
+                          '${pc.nombre}${pc.eliminado ? ' (fuera)' : ''}: '
+                          '${pc.mano.map((c) => c.etiqueta).join(' · ')}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.textoSuave,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
                     ],
                     if (_textoEstado.isNotEmpty) ...[
                       const SizedBox(height: 8),
@@ -647,7 +1030,29 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
                         ),
                       ),
                     ],
-                    const Spacer(),
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final cartel = _cartelAnuncioActivo;
+                          if (cartel == null) return const SizedBox.shrink();
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              return Center(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: constraints.maxWidth,
+                                    ),
+                                    child: cartel,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
                     Text(
                       '${TextosChancho.tuMano}: ${_yo.nombre}',
                       style: const TextStyle(
@@ -655,34 +1060,51 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                    if (_textoElegirCartas != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _textoElegirCartas!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.textoSuave,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     SizedBox(
-                      height: 130,
-                      child: _cambioPendiente
-                          ? const SizedBox.shrink()
-                          : ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: mano.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 8),
-                              itemBuilder: (context, i) {
-                                final c = mano[i];
-                                final sel = _seleccionLocal.contains(c);
-                                return GestureDetector(
-                                  onTap: _puedoElegirCartas
-                                      ? () => _toggleCarta(c)
-                                      : null,
-                                  child: CartaEspanolaSkin(
-                                    numero: c.numero,
-                                    etiqueta: c.etiqueta,
-                                    palo: _paloVisual(c.palo),
-                                    seleccionada: sel,
-                                    width: 78,
-                                    height: 118,
-                                  ),
-                                );
-                              },
+                      height: 132,
+                      width: double.infinity,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minWidth: constraints.maxWidth,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  for (var i = 0; i < mano.length; i++) ...[
+                                    if (i > 0) const SizedBox(width: 8),
+                                    _CartaManoChancho(
+                                      carta: mano[i],
+                                      seleccionada:
+                                          _seleccionLocal.contains(mano[i]),
+                                      onTap: _puedoElegirCartas
+                                          ? () => _toggleCarta(mano[i])
+                                          : null,
+                                      palo: _paloVisual(mano[i].palo),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
+                          );
+                        },
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -690,8 +1112,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
                         Expanded(
                           child: _BotonAccion(
                             label: _cantidadAnuncio == null
-                                ? TextosChancho.numero
-                                : '${TextosChancho.numero}: $_cantidadAnuncio',
+                                ? TextosChancho.cantidad
+                                : '${TextosChancho.cantidad}: $_cantidadAnuncio',
                             onPressed:
                                 _esTurnoHumanoAnuncio ? _cicloCantidad : null,
                           ),
@@ -706,62 +1128,131 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _BotonAccion(
-                            label: TextosChancho.repetir,
-                            onPressed:
-                                _esTurnoHumanoAnuncio ? _repetirAnuncio : null,
+                          child: Opacity(
+                            opacity:
+                                _partida.ultimoAnuncio != null ? 1 : 0.35,
+                            child: _BotonAccion(
+                              label: TextosChancho.repetir,
+                              onPressed: _esTurnoHumanoAnuncio &&
+                                      _partida.ultimoAnuncio != null
+                                  ? _repetirAnuncio
+                                  : null,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    if (_esTurnoHumanoAnuncio) ...[
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _cantidadAnuncio != null &&
-                                  _direccionAnuncio != null
-                              ? _confirmarAnuncio
-                              : null,
-                          child: const Text('Anunciar pase'),
-                        ),
-                      ),
-                    ],
-                    if (_puedoElegirCartas) ...[
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _seleccionLocal.length ==
-                                  (_partida.anuncioActual?.cantidad ?? -1)
-                              ? _confirmarCartasLocal
-                              : null,
-                          child: Text(
-                            '${TextosChancho.confirmarPase}'
-                            ' (${_seleccionLocal.length}'
-                            '/${_partida.anuncioActual?.cantidad ?? 0})',
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: FilledButton(
                         onPressed:
-                            _chanchoHabilitado ? _decirChancho : null,
+                            _puedeAnunciarPase ? _confirmarAnuncio : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: _chanchoHabilitado
+                          backgroundColor: AppColors.mint,
+                          foregroundColor: Colors.black,
+                          disabledBackgroundColor:
+                              AppColors.carta.withValues(alpha: 0.5),
+                          disabledForegroundColor:
+                              AppColors.textoSuave.withValues(alpha: 0.6),
+                        ),
+                        child: const Text(
+                          TextosChancho.titulo,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_opciones.chancha) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: FilledButton(
+                          onPressed:
+                              _puedeLanzarChancha ? _lanzarChancha : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _puedeLanzarChancha
+                                ? AppColors.acentoSuave
+                                : AppColors.carta,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                AppColors.carta.withValues(alpha: 0.5),
+                          ),
+                          child: const Text(
+                            TextosChancho.chancha,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (_cronoChancho.isAnimating) ...[
+                      AnimatedBuilder(
+                        animation: _cronoChancho,
+                        builder: (context, _) {
+                          final resto =
+                              (_segundosCronoChancho * (1 - _cronoChancho.value))
+                                  .clamp(0.0, _segundosCronoChancho);
+                          return Column(
+                            children: [
+                              Text(
+                                '${resto.toStringAsFixed(1)} s',
+                                style: const TextStyle(
+                                  color: AppColors.acento,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 22,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(99),
+                                child: LinearProgressIndicator(
+                                  value: 1 - _cronoChancho.value,
+                                  minHeight: 8,
+                                  backgroundColor:
+                                      AppColors.carta.withValues(alpha: 0.7),
+                                  color: resto <= 0.5
+                                      ? AppColors.peligro
+                                      : AppColors.acento,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: FilledButton(
+                        onPressed: _puedeResponderChancha
+                            ? _responderChanchaDePc
+                            : (_chanchoHabilitado ? _decirChancho : null),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: (_puedeResponderChancha ||
+                                  _chanchoHabilitado)
                               ? AppColors.peligro
                               : AppColors.carta,
                           foregroundColor: Colors.white,
                           disabledBackgroundColor:
                               AppColors.carta.withValues(alpha: 0.5),
                         ),
-                        child: const Text(
-                          TextosChancho.chancho,
-                          style: TextStyle(
+                        child: Text(
+                          _puedeResponderChancha
+                              ? TextosChancho.chancha
+                              : TextosChancho.chancho,
+                          style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 18,
                             letterSpacing: 1.2,
@@ -773,28 +1264,111 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen> {
                 ),
               ),
             ),
-            if (_esLocalHotSeat && _cambioPendiente && !_partida.terminada)
+            if (_mostrarAjustes)
               Positioned.fill(
-                child: CambioJugadorOverlay(
-                  nombreJugador: _nombreVista ?? _partida.jugadorActual.nombre,
-                  onAceptar: () {
-                    _aceptarCambio();
-                    if (_partida.fase == FaseChancho.eligiendoNumeros) {
-                      _abrirCartelNumeros();
-                    }
+                child: AjustesOverlay(
+                  ajustes: _ajustes,
+                  onChanged: (a) => setState(() => _ajustes = a),
+                  onCerrar: () => setState(() => _mostrarAjustes = false),
+                ),
+              ),
+            if (_mostrarMenu)
+              Positioned.fill(
+                child: MenuPartidaChanchoVa(
+                  jugador: _yo.nombre,
+                  partidaTerminada: _partida.terminada,
+                  onCerrar: () => setState(() => _mostrarMenu = false),
+                  onReglas: () {
+                    setState(() => _mostrarMenu = false);
+                    _mostrarReglas();
                   },
+                  onSalir: () {
+                    setState(() => _mostrarMenu = false);
+                    _salir(
+                      guardar: widget.contraPc && !_partida.terminada,
+                    );
+                  },
+                ),
+              ),
+            if (_partida.enFinRonda)
+              Positioned.fill(
+                child: FinRondaChanchoOverlay(
+                  partida: _partida,
+                  onContinuar: _continuarTrasFinRonda,
                 ),
               ),
             if (_partida.terminada)
               Positioned.fill(
                 child: VictoriaChanchoOverlay(
                   partida: _partida,
+                  animaciones: _ajustes.animaciones,
                   onVolverAJugar: _reiniciar,
                   onVolver: () => _salir(guardar: false),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CartelAnuncioPc extends StatelessWidget {
+  const _CartelAnuncioPc({
+    required this.titulo,
+    required this.texto,
+  });
+
+  final String titulo;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF3B1D6E),
+            Color(0xFF1A0A33),
+            Color(0xFF2A1050),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.azul, width: 2),
+        boxShadow: neonGlow(AppColors.azul, blur: 14),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            titulo,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textoSuave.withValues(alpha: 0.95),
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            texto,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.acento,
+              fontWeight: FontWeight.w900,
+              fontSize: 26,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -825,17 +1399,24 @@ class _MarcadorLetras extends StatelessWidget {
                     jugadores[i].nombre,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.texto,
+                    style: TextStyle(
+                      color: jugadores[i].eliminado
+                          ? AppColors.textoSuave
+                          : AppColors.texto,
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
+                      decoration: jugadores[i].eliminado
+                          ? TextDecoration.lineThrough
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     jugadores[i].letrasTexto,
-                    style: const TextStyle(
-                      color: AppColors.acento,
+                    style: TextStyle(
+                      color: jugadores[i].eliminado
+                          ? AppColors.peligro
+                          : AppColors.acento,
                       fontWeight: FontWeight.w900,
                       fontSize: 13,
                       letterSpacing: 1,
@@ -847,6 +1428,70 @@ class _MarcadorLetras extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _CartaManoChancho extends StatelessWidget {
+  const _CartaManoChancho({
+    required this.carta,
+    required this.seleccionada,
+    required this.palo,
+    this.onTap,
+  });
+
+  final CartaChancho carta;
+  final bool seleccionada;
+  final PaloEspanolVisual palo;
+  final VoidCallback? onTap;
+
+  static const double _cardW = 78;
+  static const double _cardH = 118;
+  static const double _deslizamiento = 14;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = CartaEspanolaSkin(
+      numero: carta.numero,
+      etiqueta: carta.etiqueta,
+      palo: palo,
+      seleccionada: seleccionada,
+      width: _cardW,
+      height: _cardH,
+    );
+    // Slot fijo: al seleccionar, la carta queda arriba (como en Escoba).
+    final tarjeta = SizedBox(
+      width: _cardW,
+      height: _cardH + _deslizamiento,
+      child: AnimatedAlign(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        alignment:
+            seleccionada ? Alignment.topCenter : Alignment.bottomCenter,
+        child: skin,
+      ),
+    );
+    if (onTap == null) return tarjeta;
+    // Sin hover si no está seleccionada (evita el rectángulo feo).
+    // Con selección, el InkWell pinta el sombreado en el hueco de abajo.
+    if (!seleccionada) {
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: tarjeta,
+      );
+    }
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        splashColor: colorSeleccionCartaEspanola.withValues(alpha: 0.25),
+        highlightColor: colorSeleccionCartaEspanola.withValues(alpha: 0.18),
+        hoverColor: colorSeleccionCartaEspanola.withValues(alpha: 0.22),
+        child: tarjeta,
+      ),
     );
   }
 }

@@ -18,6 +18,7 @@ class MenuJuegoEstado {
     required this.decidirOrden,
     required this.dificultad,
     required this.nombres,
+    this.cantidadJugadores = 2,
   });
 
   final AjustesEstado ajustes;
@@ -25,6 +26,7 @@ class MenuJuegoEstado {
   final bool decidirOrden;
   final DificultadPc dificultad;
   final List<String> nombres;
+  final int cantidadJugadores;
 }
 
 /// Menú compartido post-home: salas, partida rápida, vs PC.
@@ -48,6 +50,10 @@ class MenuJuegoScreen extends StatefulWidget {
     this.extraTrasModoLocal,
     /// Si false, oculta Multijugador local (decidir orden, partida rápida, nombres).
     this.mostrarMultijugadorLocal = true,
+    /// Si true, muestra “Jugadores · N” debajo de Jugar vs PC (p. ej. Chancho va).
+    this.mostrarJugadoresVsPc = false,
+    /// Opciones del diálogo “Cantidad de jugadores” (vs PC / partida rápida).
+    this.opcionesCantidadJugadores = const [2, 3, 4],
   });
 
   static const juegoIdDiezMil = 'diezMil';
@@ -70,6 +76,8 @@ class MenuJuegoScreen extends StatefulWidget {
   final String? textoInfoModoDios;
   final Widget? extraTrasModoLocal;
   final bool mostrarMultijugadorLocal;
+  final bool mostrarJugadoresVsPc;
+  final List<int> opcionesCantidadJugadores;
 
   final Future<void> Function(
     BuildContext context,
@@ -97,9 +105,19 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   bool _decidirOrden = false;
   AjustesEstado _ajustes = const AjustesEstado();
   DificultadPc _dificultad = DificultadPc.medio;
-  int _cantidadJugadores = 2;
-  List<String> _nombresRapida = ['Jugador 1', 'Jugador 2'];
+  late int _cantidadJugadores;
+  late List<String> _nombresRapida;
   static const int _maxNombre = 15;
+
+  @override
+  void initState() {
+    super.initState();
+    final opts = widget.opcionesCantidadJugadores;
+    _cantidadJugadores = opts.isNotEmpty ? opts.first : 2;
+    _nombresRapida = [
+      for (var i = 1; i <= _cantidadJugadores; i++) 'Jugador $i',
+    ];
+  }
 
   MenuJuegoEstado _estado({List<String>? nombres}) => MenuJuegoEstado(
         ajustes: _ajustes,
@@ -107,6 +125,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
         decidirOrden: _decidirOrden,
         dificultad: _dificultad,
         nombres: nombres ?? List.of(_nombresRapida),
+        cantidadJugadores: _cantidadJugadores,
       );
 
   Future<void> _abrirAjustes() async {
@@ -151,6 +170,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   }
 
   Future<void> _elegirCantidadJugadores() async {
+    final opciones = widget.opcionesCantidadJugadores;
     final elegida = await showDialog<int>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -166,20 +186,21 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final n in [2, 3, 4]) ...[
-              if (n != 2) const SizedBox(height: 10),
+            for (var i = 0; i < opciones.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(21),
                   border: Border.all(
-                    color: n == _cantidadJugadores
+                    color: opciones[i] == _cantidadJugadores
                         ? AppColors.texto
                         : Colors.transparent,
                     width: 3,
                   ),
                 ),
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(n),
+                  onPressed: () =>
+                      Navigator.of(dialogContext).pop(opciones[i]),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6B6578),
                     foregroundColor: AppColors.texto,
@@ -188,7 +209,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                     shadowColor: Colors.transparent,
                   ),
                   child: Text(
-                    '$n jugadores',
+                    '${opciones[i]} jugadores',
                     style: const TextStyle(
                       color: AppColors.texto,
                       fontWeight: FontWeight.w900,
@@ -675,6 +696,23 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                                 color: Color(0xFF1A0A00),
                                 fontWeight: FontWeight.w800,
                               ),
+                            ),
+                          ),
+                        ],
+                        if (widget.mostrarJugadoresVsPc) ...[
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: _elegirCantidadJugadores,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.texto,
+                              backgroundColor: const Color(0xFF6B6578),
+                              side: const BorderSide(
+                                color: Color(0xFF8A8498),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              'Jugadores · $_cantidadJugadores',
                             ),
                           ),
                         ],

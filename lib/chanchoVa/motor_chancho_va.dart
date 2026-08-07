@@ -11,10 +11,11 @@ enum FaseChancho {
   anunciando,
   eligiendoCartas,
   carreraChancho,
+  finRonda,
   terminada,
 }
 
-/// Letras del tablero (el espacio cuenta como penalización).
+/// Letras del tablero con espacio (CHANCHO VA).
 const List<String> letrasChanchoVa = [
   'C',
   'H',
@@ -27,6 +28,22 @@ const List<String> letrasChanchoVa = [
   'V',
   'A',
 ];
+
+/// Letras del tablero sin espacio (CHANCHOVA).
+const List<String> letrasChanchoVaSinEspacio = [
+  'C',
+  'H',
+  'A',
+  'N',
+  'C',
+  'H',
+  'O',
+  'V',
+  'A',
+];
+
+List<String> secuenciaLetrasChancho({required bool sinEspacio}) =>
+    sinEspacio ? letrasChanchoVaSinEspacio : letrasChanchoVa;
 
 const List<int> numerosChanchoDisponibles = [
   1,
@@ -72,25 +89,75 @@ class JugadorChancho {
 
   final String nombre;
   final List<CartaChancho> mano = [];
-  /// Letras ya recibidas (largo = progreso hacia CHANCHO VA).
+  /// Letras ya recibidas (largo = progreso hacia la palabra objetivo).
   final List<String> letras = [];
   /// En fase de elección de cartas para el pase.
   final List<CartaChancho> seleccionPase = [];
   bool seleccionPaseConfirmada = false;
   bool dijoChancho = false;
+  /// Completó la palabra y ya no juega (salvo modo fin al primer perdedor).
+  bool eliminado = false;
 
   bool get tieneCuarteto {
-    if (mano.length != 4) return false;
+    if (eliminado || mano.length != 4) return false;
     final n = mano.first.numero;
     return mano.every((c) => c.numero == n);
   }
 
-  bool get completoChanchoVa => letras.length >= letrasChanchoVa.length;
+  bool completoObjetivo(int objetivo) => letras.length >= objetivo;
 
   String get letrasTexto {
     if (letras.isEmpty) return '—';
     return letras.map((l) => l == ' ' ? '·' : l).join();
   }
+}
+
+/// Por qué se anotó una letra.
+enum MotivoPenalizacionChancho { chancha, ultimoEnChancho }
+
+/// Entrada del historial de letras de la partida.
+class EventoHistorialChancho {
+  EventoHistorialChancho({
+    required this.jugador,
+    required this.letrasTras,
+    required this.motivo,
+  });
+
+  final String jugador;
+  /// Letras del jugador justo después del evento (ej. "C", "CH").
+  final String letrasTras;
+  final MotivoPenalizacionChancho motivo;
+
+  String get motivoTexto => switch (motivo) {
+        MotivoPenalizacionChancho.chancha => 'Por CHANCHA',
+        MotivoPenalizacionChancho.ultimoEnChancho =>
+          'Por tocar último en CHANCHO',
+      };
+}
+
+/// Resumen mostrado en el cartel de fin de ronda.
+class ResumenRondaChancho {
+  const ResumenRondaChancho({
+    required this.motivo,
+    required this.chancho,
+    this.chanchoDe,
+  });
+
+  final MotivoPenalizacionChancho motivo;
+  /// Quién abrió Chancho (cuarteto) o quién lanzó Chancha.
+  final String? chanchoDe;
+  /// Quién dijo último Chancho / cayó y recibió la letra.
+  final String chancho;
+
+  String get etiquetaChanchoDe => switch (motivo) {
+        MotivoPenalizacionChancho.chancha => 'Chancha de',
+        MotivoPenalizacionChancho.ultimoEnChancho => 'Chancho de',
+      };
+
+  String get etiquetaChancho => switch (motivo) {
+        MotivoPenalizacionChancho.chancha => 'Cayó',
+        MotivoPenalizacionChancho.ultimoEnChancho => 'Chancho',
+      };
 }
 
 class AnuncioChancho {
@@ -109,12 +176,23 @@ class PartidaChancho {
     this.indiceTurno = 0,
     this.fase = FaseChancho.eligiendoNumeros,
     this.contraPc = false,
-    int? objetivoLetras,
-  }) : objetivoLetras = objetivoLetras ?? letrasChanchoVa.length;
+    this.sinEspacio = false,
+    this.finAlPrimerPerdedor = false,
+    List<String>? secuenciaLetras,
+  }) : secuenciaLetras = List<String>.unmodifiable(
+          secuenciaLetras ??
+              secuenciaLetrasChancho(sinEspacio: sinEspacio),
+        );
 
   final List<JugadorChancho> jugadores;
   final bool contraPc;
-  final int objetivoLetras;
+  /// Si true, el tablero es CHANCHOVA (sin el espacio).
+  final bool sinEspacio;
+  /// Si true, termina al primer jugador que completa la palabra.
+  final bool finAlPrimerPerdedor;
+  final List<String> secuenciaLetras;
+  int get objetivoLetras => secuenciaLetras.length;
+  String get palabraObjetivo => sinEspacio ? 'CHANCHOVA' : 'CHANCHO VA';
   int indiceTurno;
   FaseChancho fase;
   List<int> numerosEnJuego = [];
@@ -124,13 +202,23 @@ class PartidaChancho {
   String? quienAbrioChancho;
   /// Orden en que dijeron Chancho en la carrera actual.
   final List<String> ordenChancho = [];
+  /// Historial de letras anotadas (motivo + progreso).
+  final List<EventoHistorialChancho> historialLetras = [];
+  /// Datos del cartel tras anotar una letra (mientras [fase] == finRonda).
+  ResumenRondaChancho? ultimoResumenRonda;
   String? perdedor;
+  String? ganador;
   String? mensajeFin;
+
+  List<JugadorChancho> get jugadoresActivos =>
+      jugadores.where((j) => !j.eliminado).toList(growable: false);
 
   JugadorChancho get jugadorActual =>
       jugadores[indiceTurno % jugadores.length];
 
   bool get terminada => fase == FaseChancho.terminada;
+
+  bool get enFinRonda => fase == FaseChancho.finRonda;
 
   int get cantidadJugadores => jugadores.length;
 }
@@ -156,15 +244,35 @@ void barajarChancho(List<CartaChancho> mazo, [math.Random? rng]) {
 PartidaChancho nuevaPartidaChancho({
   required List<String> nombres,
   bool contraPc = false,
+  bool sinEspacio = false,
+  bool finAlPrimerPerdedor = false,
 }) {
-  assert(nombres.length >= 2 && nombres.length <= 4);
+  assert(nombres.length >= 3 && nombres.length <= 4);
   final jugadores = [for (final n in nombres) JugadorChancho(n)];
   return PartidaChancho(
     jugadores: jugadores,
     contraPc: contraPc,
     fase: FaseChancho.eligiendoNumeros,
     indiceTurno: 0,
+    sinEspacio: sinEspacio,
+    finAlPrimerPerdedor: finAlPrimerPerdedor,
   );
+}
+
+void _asegurarAnuncianteActivo(PartidaChancho p) {
+  final n = p.jugadores.length;
+  if (n == 0) return;
+  for (var i = 0; i < n; i++) {
+    if (!p.jugadores[p.indiceTurno % n].eliminado) return;
+    p.indiceTurno = (p.indiceTurno + 1) % n;
+  }
+}
+
+void _avanzarAnunciante(PartidaChancho p) {
+  final n = p.jugadores.length;
+  if (n == 0) return;
+  p.indiceTurno = (p.indiceTurno + 1) % n;
+  _asegurarAnuncianteActivo(p);
 }
 
 /// Elige exactamente [cantidadJugadores] números y reparte.
@@ -234,6 +342,7 @@ String? anunciarPaseChancho(
     return 'Ahora no se anuncia un pase.';
   }
   final quien = anunciante ?? p.jugadorActual;
+  if (quien.eliminado) return 'Ese jugador ya está fuera.';
   if (!identical(quien, p.jugadorActual)) {
     return 'No es el turno de ${quien.nombre}.';
   }
@@ -273,6 +382,7 @@ String? confirmarSeleccionPaseChancho(
   if (p.fase != FaseChancho.eligiendoCartas) {
     return 'Ahora no se eligen cartas para pasar.';
   }
+  if (jugador.eliminado) return 'Ese jugador ya está fuera.';
   final anuncio = p.anuncioActual;
   if (anuncio == null) return 'No hay anuncio activo.';
   if (cartas.length != anuncio.cantidad) {
@@ -292,7 +402,8 @@ String? confirmarSeleccionPaseChancho(
     ..addAll(cartas);
   jugador.seleccionPaseConfirmada = true;
 
-  if (p.jugadores.every((j) => j.seleccionPaseConfirmada)) {
+  final activos = p.jugadoresActivos;
+  if (activos.every((j) => j.seleccionPaseConfirmada)) {
     return _ejecutarPaseChancho(p, rng: rng);
   }
   return null;
@@ -314,22 +425,23 @@ String? _ejecutarPaseChancho(PartidaChancho p, {math.Random? rng}) {
 
   p.anuncioActual = null;
   _limpiarSeleccionesPase(p);
-  p.indiceTurno = (p.indiceTurno + 1) % p.jugadores.length;
+  // El mismo anunciante sigue hasta que alguien haga Chancho.
   _limpiarCarreraChancho(p);
   p.fase = FaseChancho.anunciando;
   return null;
 }
 
-/// Izquierda = hacia índice menor (jugador i recibe de i+1).
-/// Derecha = hacia índice mayor (jugador i recibe de i-1).
+/// Izquierda = hacia índice menor entre activos.
+/// Derecha = hacia índice mayor entre activos.
 void _rotarPase(PartidaChancho p, {required bool sentidoHorario}) {
-  final n = p.jugadores.length;
+  final activos = p.jugadoresActivos;
+  final n = activos.length;
   final enviadas = <List<CartaChancho>>[
-    for (final j in p.jugadores) List.of(j.seleccionPase),
+    for (final j in activos) List.of(j.seleccionPase),
   ];
 
   for (var i = 0; i < n; i++) {
-    final j = p.jugadores[i];
+    final j = activos[i];
     for (final c in enviadas[i]) {
       j.mano.remove(c);
     }
@@ -337,21 +449,22 @@ void _rotarPase(PartidaChancho p, {required bool sentidoHorario}) {
 
   for (var i = 0; i < n; i++) {
     final destino = sentidoHorario ? (i + 1) % n : (i - 1 + n) % n;
-    p.jugadores[destino].mano.addAll(enviadas[i]);
+    activos[destino].mano.addAll(enviadas[i]);
   }
 }
 
 /// Nadie recibe de vuelta las que aportó (si es posible).
 String? _paseAlCentro(PartidaChancho p, {math.Random? rng}) {
   final r = rng ?? math.Random();
-  final n = p.jugadores.length;
+  final activos = p.jugadoresActivos;
+  final n = activos.length;
   final aportes = <List<CartaChancho>>[
-    for (final j in p.jugadores) List.of(j.seleccionPase),
+    for (final j in activos) List.of(j.seleccionPase),
   ];
 
   for (var i = 0; i < n; i++) {
     for (final c in aportes[i]) {
-      p.jugadores[i].mano.remove(c);
+      activos[i].mano.remove(c);
     }
   }
 
@@ -367,7 +480,9 @@ String? _paseAlCentro(PartidaChancho p, {math.Random? rng}) {
   List<List<CartaChancho>>? mejor;
   for (var intento = 0; intento < 80; intento++) {
     barajarChancho(pool, r);
-    final reparto = <List<CartaChancho>>[for (var i = 0; i < n; i++) <CartaChancho>[]];
+    final reparto = <List<CartaChancho>>[
+      for (var i = 0; i < n; i++) <CartaChancho>[],
+    ];
     var ok = true;
     var idx = 0;
     for (var i = 0; i < n; i++) {
@@ -391,22 +506,18 @@ String? _paseAlCentro(PartidaChancho p, {math.Random? rng}) {
       mejor = reparto;
       break;
     }
-  }
-
-  // Fallback: barajar y repartir en orden (puede devolver propias).
-  if (mejor == null) {
-    barajarChancho(pool, r);
-    mejor = [for (var i = 0; i < n; i++) <CartaChancho>[]];
-    var idx = 0;
-    for (var t = 0; t < k; t++) {
-      for (var i = 0; i < n; i++) {
-        mejor[i].add(pool[idx++]);
-      }
+    if (intento == 79) {
+      // Último recurso: aceptar cualquier reparto completo.
+      barajarChancho(pool, r);
+      mejor = [
+        for (var i = 0; i < n; i++)
+          pool.sublist(i * k, (i + 1) * k),
+      ];
     }
   }
-
+  if (mejor == null) return 'No se pudo repartir al centro.';
   for (var i = 0; i < n; i++) {
-    p.jugadores[i].mano.addAll(mejor[i]);
+    activos[i].mano.addAll(mejor[i]);
   }
   return null;
 }
@@ -417,8 +528,9 @@ String? decirChanchoVa(
   required JugadorChancho jugador,
 }) {
   if (p.terminada) return 'La partida ya terminó.';
+  if (jugador.eliminado) return 'Ese jugador ya está fuera.';
   if (p.fase == FaseChancho.eligiendoNumeros ||
-      p.fase == FaseChancho.eligiendoCartas) {
+      p.fase == FaseChancho.finRonda) {
     return 'Ahora no se puede decir Chancho.';
   }
   if (jugador.dijoChancho) return 'Ya dijiste Chancho.';
@@ -428,6 +540,11 @@ String? decirChanchoVa(
     if (!jugador.tieneCuarteto) {
       return 'Solo podés abrir Chancho con 4 cartas iguales.';
     }
+    // Si estaban eligiendo cartas del pase, se cancela: gana la carrera.
+    if (p.fase == FaseChancho.eligiendoCartas) {
+      p.anuncioActual = null;
+      _limpiarSeleccionesPase(p);
+    }
     p.quienAbrioChancho = jugador.nombre;
     p.fase = FaseChancho.carreraChancho;
   }
@@ -435,31 +552,123 @@ String? decirChanchoVa(
   jugador.dijoChancho = true;
   p.ordenChancho.add(jugador.nombre);
 
-  // Cuando todos dijeron Chancho, el último del orden recibe la letra.
-  if (p.ordenChancho.length >= p.jugadores.length) {
+  // Cuando todos los activos dijeron Chancho, el último recibe la letra.
+  if (p.ordenChancho.length >= p.jugadoresActivos.length) {
     final nombreUltimo = p.ordenChancho.last;
     final ultimo = p.jugadores.firstWhere((j) => j.nombre == nombreUltimo);
-    _penalizarUltimo(p, ultimo);
+    _penalizarUltimo(
+      p,
+      ultimo,
+      MotivoPenalizacionChancho.ultimoEnChancho,
+    );
   }
   return null;
 }
 
-void _penalizarUltimo(PartidaChancho p, JugadorChancho ultimo) {
-  if (ultimo.letras.length < letrasChanchoVa.length) {
-    ultimo.letras.add(letrasChanchoVa[ultimo.letras.length]);
+void _penalizarUltimo(
+  PartidaChancho p,
+  JugadorChancho ultimo,
+  MotivoPenalizacionChancho motivo, {
+  String? lanzadorChancha,
+}) {
+  if (ultimo.eliminado) return;
+
+  final chanchoDe = switch (motivo) {
+    MotivoPenalizacionChancho.ultimoEnChancho => p.quienAbrioChancho,
+    MotivoPenalizacionChancho.chancha => lanzadorChancha,
+  };
+
+  if (ultimo.letras.length < p.objetivoLetras) {
+    ultimo.letras.add(p.secuenciaLetras[ultimo.letras.length]);
   }
-  if (ultimo.completoChanchoVa) {
-    p.fase = FaseChancho.terminada;
-    p.perdedor = ultimo.nombre;
-    p.mensajeFin = '${ultimo.nombre} completó CHANCHO VA y pierde.';
+  p.historialLetras.add(
+    EventoHistorialChancho(
+      jugador: ultimo.nombre,
+      letrasTras: ultimo.letrasTexto,
+      motivo: motivo,
+    ),
+  );
+  p.ultimoResumenRonda = ResumenRondaChancho(
+    motivo: motivo,
+    chanchoDe: chanchoDe,
+    chancho: ultimo.nombre,
+  );
+
+  if (ultimo.completoObjetivo(p.objetivoLetras)) {
+    ultimo.eliminado = true;
+    ultimo.mano.clear();
+    ultimo.seleccionPase.clear();
+    ultimo.seleccionPaseConfirmada = false;
+    _limpiarCarreraChancho(p);
+
+    final activos = p.jugadoresActivos;
+    final terminaYa = p.finAlPrimerPerdedor || activos.length <= 1;
+    if (terminaYa) {
+      p.fase = FaseChancho.terminada;
+      p.perdedor = ultimo.nombre;
+      if (activos.length == 1) {
+        p.ganador = activos.first.nombre;
+        p.mensajeFin =
+            '${p.ganador} gana: quedó solo en pie.';
+      } else {
+        p.ganador = null;
+        p.mensajeFin =
+            '${ultimo.nombre} completó ${p.palabraObjetivo} y pierde.';
+      }
+      return;
+    }
+
+    // Sigue la partida con los que quedan.
+    if (motivo == MotivoPenalizacionChancho.ultimoEnChancho) {
+      p.fase = FaseChancho.finRonda;
+    } else {
+      _asegurarAnuncianteActivo(p);
+    }
     return;
   }
-  // Nueva ronda: mismo mazo/números, repartir de nuevo.
-  _iniciarNuevaRondaTrasChancho(p);
+
+  // Solo CHANCHO (último) cierra la ronda. CHANCHA solo anota letra.
+  if (motivo == MotivoPenalizacionChancho.ultimoEnChancho) {
+    _limpiarCarreraChancho(p);
+    p.fase = FaseChancho.finRonda;
+  }
+}
+
+/// Anota una letra a [jugador] (CHANCHO / CHANCHA).
+void penalizarJugadorChancho(
+  PartidaChancho p,
+  JugadorChancho jugador, {
+  required MotivoPenalizacionChancho motivo,
+  String? lanzadorChancha,
+}) {
+  _penalizarUltimo(
+    p,
+    jugador,
+    motivo,
+    lanzadorChancha: lanzadorChancha,
+  );
+}
+
+/// Tras el cartel de fin de ronda: reparte y vuelve a anunciar.
+void continuarTrasFinRondaChancho(PartidaChancho p, [math.Random? rng]) {
+  if (p.fase != FaseChancho.finRonda) return;
+  _iniciarNuevaRondaTrasChancho(p, rng);
 }
 
 void _iniciarNuevaRondaTrasChancho(PartidaChancho p, [math.Random? rng]) {
   final r = rng ?? math.Random();
+  final activos = p.jugadoresActivos;
+  if (activos.isEmpty) {
+    p.fase = FaseChancho.terminada;
+    return;
+  }
+
+  // Ajustar cantidad de números a los jugadores activos.
+  while (p.numerosEnJuego.length > activos.length &&
+      p.numerosEnJuego.isNotEmpty) {
+    p.numerosEnJuego.removeLast();
+  }
+
   final mazo = crearMazoChanchoConNumeros(p.numerosEnJuego);
   barajarChancho(mazo, r);
   for (final j in p.jugadores) {
@@ -469,14 +678,19 @@ void _iniciarNuevaRondaTrasChancho(PartidaChancho p, [math.Random? rng]) {
   }
   var i = 0;
   while (mazo.isNotEmpty) {
-    p.jugadores[i % p.jugadores.length].mano.add(mazo.removeLast());
+    activos[i % activos.length].mano.add(mazo.removeLast());
     i++;
   }
   _limpiarCarreraChancho(p);
   p.anuncioActual = null;
   p.fase = FaseChancho.anunciando;
-  // Sigue el siguiente anunciante.
-  p.indiceTurno = (p.indiceTurno + 1) % p.jugadores.length;
+  _avanzarAnunciante(p);
+}
+
+bool pcDeberiaDecirChancho(PartidaChancho p, JugadorChancho pc) {
+  if (pc.eliminado || pc.dijoChancho) return false;
+  if (p.quienAbrioChancho != null) return true;
+  return pc.tieneCuarteto;
 }
 
 /// Heurística PC: conserva el número más frecuente; pasa del resto.
@@ -550,8 +764,3 @@ AnuncioChancho planificarAnuncioPcChancho(
   return AnuncioChancho(cantidad: cantidad.clamp(1, 4), direccion: direccion);
 }
 
-bool pcDeberiaDecirChancho(PartidaChancho p, JugadorChancho pc) {
-  if (pc.dijoChancho) return false;
-  if (p.quienAbrioChancho != null) return true;
-  return pc.tieneCuarteto;
-}
