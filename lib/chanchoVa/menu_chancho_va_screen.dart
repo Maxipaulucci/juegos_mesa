@@ -26,9 +26,8 @@ class _MenuChanchoVaScreenState extends State<MenuChanchoVaScreen> {
 
   void _sincronizarStoreSala(MenuJuegoEstado? estado) {
     if (estado != null) {
-      // Online: siempre 2 humanos + N PCs (máx. 4 asientos → hasta 2 PCs).
-      SalaFormStore.totalJugadoresChancho =
-          (2 + estado.cantidadPc).clamp(3, 4);
+      // Online: 2 humanos + 2 PCs (tope de 4 asientos).
+      SalaFormStore.totalJugadoresChancho = 4;
     }
     SalaFormStore.opcionesChancho = encodeOpcionesChancho(
       _opciones,
@@ -122,12 +121,12 @@ class _MenuChanchoVaScreenState extends State<MenuChanchoVaScreen> {
       mostrarDificultad: false,
       mostrarMultijugadorLocal: false,
       mostrarJugadoresVsPc: true,
-      opcionesCantidadPc: const [1, 2, 3],
+      opcionesCantidadPc: const [2, 3],
       textoInfoModoDios: TextosChancho.infoModoDios,
       lobbyHumanosExactos: 2,
       lobbyTextoAyudaHumanos:
           'Chancho online: exactamente 2 personas. '
-          'Las PCs (según “Cantidad de PC”) se agregan al iniciar.',
+          'Las PCs (mínimo 2 según “Cantidad de PC”) se agregan al iniciar.',
       onPrepararSala: _sincronizarStoreSala,
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
@@ -185,8 +184,8 @@ class _MenuChanchoVaScreenState extends State<MenuChanchoVaScreen> {
             decidirOrden: false,
             dificultad: DificultadPc.medio,
             nombres: nombres,
-            cantidadJugadores: nombres.length.clamp(2, 4),
-            cantidadPc: (nombres.length - 2).clamp(1, 3),
+            cantidadJugadores: nombres.length.clamp(3, 4),
+            cantidadPc: (nombres.length - 2).clamp(2, 3),
           ),
         );
         _abrir(

@@ -8,13 +8,12 @@ abstract final class TextosChancho {
       nombre == vsPcNombre ||
       (nombre.startsWith('PC ') && nombre.length > 3);
 
-  /// 1 humano + (total-1) PCs. [total] entre 2 y 4 (1–3 PCs).
+  /// 1 humano + (total-1) PCs. [total] entre 3 y 4 (mín. 2 PCs).
   static List<String> nombresVsPc({
     required String humano,
     required int total,
   }) {
-    final n = total.clamp(2, 4);
-    if (n <= 2) return [humano, vsPcNombre];
+    final n = total.clamp(3, 4);
     return [
       humano,
       for (var i = 1; i < n; i++) 'PC $i',

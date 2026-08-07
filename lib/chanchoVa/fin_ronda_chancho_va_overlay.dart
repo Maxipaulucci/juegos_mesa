@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/chanchoVa/motor_chancho_va.dart';
 import 'package:app_juegos_mesa/chanchoVa/tablero_chancho_va.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
+import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
 
 /// Cartel de fin de ronda + acceso al tablero de letras.
 class FinRondaChanchoOverlay extends StatefulWidget {
@@ -25,6 +26,7 @@ class FinRondaChanchoOverlay extends StatefulWidget {
 
 class _FinRondaChanchoOverlayState extends State<FinRondaChanchoOverlay> {
   bool _mostrarTablero = false;
+  bool _cartelVisible = true;
 
   @override
   Widget build(BuildContext context) {
@@ -41,97 +43,126 @@ class _FinRondaChanchoOverlayState extends State<FinRondaChanchoOverlay> {
     final etDe = resumen?.etiquetaChanchoDe ?? 'Chancho de';
     final etCh = resumen?.etiquetaChancho ?? 'Chancho';
 
-    return Material(
-      color: Colors.black.withValues(alpha: 0.78),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(22, 26, 22, 20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF3B1D6E),
-                      Color(0xFF1A0A33),
-                      Color(0xFF2A1050),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: AppColors.acento, width: 2.5),
-                  boxShadow: [
-                    ...neonGlow(AppColors.acento, blur: 22),
-                    ...neonGlow(AppColors.rosa, blur: 12),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Fin de la ronda',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.acento,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 26,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    _LineaResumen(
-                      etiqueta: etDe,
-                      valor: chanchoDe,
-                    ),
-                    const SizedBox(height: 10),
-                    _LineaResumen(
-                      etiqueta: etCh,
-                      valor: chancho,
-                    ),
-                    const SizedBox(height: 24),
-                    BotonVerTableroChancho(
-                      onPressed: () => setState(() => _mostrarTablero = true),
-                    ),
-                    const SizedBox(height: 12),
-                    Opacity(
-                      opacity: widget.continuarHabilitado ? 1 : 0.55,
-                      child: IgnorePointer(
-                        ignoring: !widget.continuarHabilitado,
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: widget.continuarHabilitado
-                                ? widget.onContinuar
-                                : null,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.mint,
-                              foregroundColor: Colors.black,
-                              shape: const StadiumBorder(),
-                            ),
-                            child: Text(
-                              widget.labelContinuar ?? 'CONTINUAR',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
-                                letterSpacing: 0.6,
+    return Stack(
+      children: [
+        IgnorePointer(
+          ignoring: !_cartelVisible,
+          child: Material(
+            color: _cartelVisible
+                ? Colors.black.withValues(alpha: 0.78)
+                : Colors.transparent,
+            child: _cartelVisible
+                ? SafeArea(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.fromLTRB(22, 26, 22, 20),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF3B1D6E),
+                                  Color(0xFF1A0A33),
+                                  Color(0xFF2A1050),
+                                ],
                               ),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: AppColors.acento,
+                                width: 2.5,
+                              ),
+                              boxShadow: [
+                                ...neonGlow(AppColors.acento, blur: 22),
+                                ...neonGlow(AppColors.rosa, blur: 12),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Fin de la ronda',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: AppColors.acento,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 26,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                _LineaResumen(
+                                  etiqueta: etDe,
+                                  valor: chanchoDe,
+                                ),
+                                const SizedBox(height: 10),
+                                _LineaResumen(
+                                  etiqueta: etCh,
+                                  valor: chancho,
+                                ),
+                                const SizedBox(height: 24),
+                                BotonVerTableroChancho(
+                                  onPressed: () =>
+                                      setState(() => _mostrarTablero = true),
+                                ),
+                                const SizedBox(height: 12),
+                                Opacity(
+                                  opacity:
+                                      widget.continuarHabilitado ? 1 : 0.55,
+                                  child: IgnorePointer(
+                                    ignoring: !widget.continuarHabilitado,
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      height: 52,
+                                      child: FilledButton(
+                                        onPressed: widget.continuarHabilitado
+                                            ? widget.onContinuar
+                                            : null,
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: AppColors.mint,
+                                          foregroundColor: Colors.black,
+                                          shape: const StadiumBorder(),
+                                        ),
+                                        child: Text(
+                                          widget.labelContinuar ?? 'CONTINUAR',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 15,
+                                            letterSpacing: 0.6,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  )
+                : const SizedBox.expand(),
+          ),
+        ),
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: BotonOjoVictoria(
+                cartelVisible: _cartelVisible,
+                onTap: () =>
+                    setState(() => _cartelVisible = !_cartelVisible),
               ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
