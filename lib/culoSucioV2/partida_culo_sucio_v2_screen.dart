@@ -49,6 +49,7 @@ class PartidaCuloSucioV2Screen extends StatefulWidget {
 
 class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   late PartidaCuloSucioV2 _partida;
+  late List<String> _nombres;
   late OpcionesCuloSucioV2 _opciones;
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
@@ -263,10 +264,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   void initState() {
     super.initState();
     final resume = widget.resume;
+    _nombres = List.of(resume?.nombres ?? widget.nombres);
     if (resume != null && !_esOnline) {
       _partida = resume.partida;
       _opciones = resume.opciones;
       _ajustes = resume.ajustesIniciales;
+      _nombres = List.of(resume.nombres);
       WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
       return;
     }
@@ -275,7 +278,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_esOnline) {
       _esperandoMazoOnline = true;
       _partida = nuevaPartidaCuloSucioV2(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: false,
         online: true,
       );
@@ -288,7 +291,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       return;
     }
     _partida = nuevaPartidaCuloSucioV2(
-      nombres: widget.nombres,
+      nombres: _nombres,
       contraPc: widget.contraPc,
     );
     if (_esLocalHotSeat) {
@@ -385,7 +388,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   Future<void> _publicarMazoInicialOnline() async {
     if (!_esOnline || _mazoPublicado || _publicandoOnline) return;
     final generada = nuevaPartidaCuloSucioV2(
-      nombres: widget.nombres,
+      nombres: _nombres,
       contraPc: false,
       online: true,
     );
@@ -450,7 +453,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     CuloSucioV2StandByStore.guardar(
       PartidaCuloSucioV2Resume(
         partida: _partida,
-        nombres: widget.nombres,
+        nombres: _nombres,
         modoDios: widget.modoDios,
         opciones: _opciones,
         ajustesIniciales: _ajustes,
@@ -498,6 +501,129 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
+  }
+
+  static const int _maxNombre = 15;
+
+  bool _esPcNombre(String nombre) =>
+      nombre == TextosCuloSucioV2.vsPcNombre ||
+      (nombre.startsWith('PC ') && nombre.length > 3);
+
+  bool _puedeRenombrar(int index) {
+    if (_esOnline) return false;
+    if (_partida.terminada) return false;
+    if (index < 0 || index >= _partida.jugadores.length) return false;
+    return !_esPcNombre(_partida.jugadores[index].nombre);
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    if (_esPcNombre(nombre)) {
+      return 'Ese nombre está reservado para la PC.';
+    }
+    final ocupado = _partida.jugadores.asMap().entries.any(
+          (e) => e.key != index && e.value.nombre == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarJugador(int index) async {
+    if (!_puedeRenombrar(index)) return;
+    final actual = _partida.jugadores[index].nombre;
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle: const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+                child: const Text('Guardar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+
+    setState(() {
+      _partida.jugadores[index].nombre = nuevo;
+      if (index < _nombres.length) _nombres[index] = nuevo;
+      if (_partida.perdedor == actual) _partida.perdedor = nuevo;
+      if (_partida.ganador == actual) _partida.ganador = nuevo;
+      if (_partida.ultimaRobadaDe == actual) {
+        _partida.ultimaRobadaDe = nuevo;
+      }
+      if (_partida.ultimaRobadaPor == actual) {
+        _partida.ultimaRobadaPor = nuevo;
+      }
+      if (_nombreVistaLocal == actual) _nombreVistaLocal = nuevo;
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
+    });
   }
 
   void _limpiarAvisoJugada() {
@@ -804,7 +930,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     CuloSucioV2StandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaCuloSucioV2(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: widget.contraPc,
       );
       _robando = false;
@@ -929,6 +1055,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                                   _partida.jugadores[i].nombre,
                               ganado: _partida.ganador ==
                                   _partida.jugadores[i].nombre,
+                              puedeRenombrar: _puedeRenombrar(i),
+                              onRenombrar: _puedeRenombrar(i)
+                                  ? () => _renombrarJugador(i)
+                                  : null,
                             ),
                           ),
                         ],
@@ -1406,6 +1536,8 @@ class _ChipJugador extends StatelessWidget {
     required this.activo,
     required this.perdido,
     required this.ganado,
+    this.puedeRenombrar = false,
+    this.onRenombrar,
   });
 
   final String nombre;
@@ -1413,6 +1545,8 @@ class _ChipJugador extends StatelessWidget {
   final bool activo;
   final bool perdido;
   final bool ganado;
+  final bool puedeRenombrar;
+  final VoidCallback? onRenombrar;
 
   @override
   Widget build(BuildContext context) {
@@ -1422,32 +1556,54 @@ class _ChipJugador extends StatelessWidget {
             ? AppColors.mint
             : activo
                 ? AppColors.acento
-                : AppColors.cartaBorde;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                : AppColors.violeta;
+    final chip = Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: puedeRenombrar ? 8 : 10,
+        vertical: 8,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.carta.withValues(alpha: 0.92),
+        color: AppColors.violeta.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: borde,
-          width: activo || perdido || ganado ? 2 : 1,
+          width: activo || perdido || ganado || puedeRenombrar ? 2 : 1.2,
         ),
+        boxShadow: puedeRenombrar
+            ? neonGlow(AppColors.violeta, blur: 10)
+            : null,
       ),
       child: Column(
         children: [
-          Text(
-            nombre,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: perdido
-                  ? AppColors.peligro
-                  : ganado
-                      ? AppColors.mint
-                      : AppColors.texto,
-              fontWeight: FontWeight.w800,
-              fontSize: 13,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: perdido
+                        ? AppColors.peligro
+                        : ganado
+                            ? AppColors.mint
+                            : AppColors.texto,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              if (puedeRenombrar) ...[
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.edit_rounded,
+                  size: 13,
+                  color: AppColors.acento,
+                ),
+              ],
+            ],
           ),
           Text(
             '$cartas carta${cartas == 1 ? '' : 's'}',
@@ -1458,6 +1614,16 @@ class _ChipJugador extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    if (!puedeRenombrar || onRenombrar == null) return chip;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onRenombrar,
+        borderRadius: BorderRadius.circular(14),
+        child: chip,
       ),
     );
   }

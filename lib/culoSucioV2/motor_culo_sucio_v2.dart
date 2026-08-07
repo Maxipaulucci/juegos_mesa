@@ -42,7 +42,7 @@ class CartaCuloSucioV2 {
 class JugadorCuloSucioV2 {
   JugadorCuloSucioV2(this.nombre);
 
-  final String nombre;
+  String nombre;
   final List<CartaCuloSucioV2> mano = [];
   /// Pares descartados (cartas sueltas, de a pares).
   final List<CartaCuloSucioV2> descartes = [];
