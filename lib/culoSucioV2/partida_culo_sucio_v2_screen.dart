@@ -18,6 +18,7 @@ import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -959,6 +960,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       );
       _robando = false;
       _mostrarMenu = false;
+      _mostrarAjustes = false;
       _confirmarRendicion = false;
       _seleccionPar.clear();
       _indiceRevelando = null;
@@ -973,6 +975,13 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (!_esLocalHotSeat) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
     }
+  }
+
+  Future<void> _pedirReiniciarVsPc() async {
+    if (!widget.contraPc || _esOnline) return;
+    final ok = await confirmarReiniciarPartidaPc(context);
+    if (!ok || !mounted) return;
+    _reiniciar();
   }
 
   Color _colorPalo(PaloCuloSucioV2 palo) => switch (palo) {
@@ -1054,6 +1063,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                             ),
                           ),
                         ),
+                        if (widget.contraPc && !_esOnline)
+                          BotonReiniciarPartidaPc(
+                            onPressed: _pedirReiniciarVsPc,
+                          ),
                         IconButton(
                           onPressed: () => setState(() {
                             _mostrarAjustes = true;

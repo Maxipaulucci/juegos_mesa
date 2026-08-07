@@ -17,6 +17,7 @@ import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida de Chancho va (vs PC / online).
@@ -1284,6 +1285,13 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     });
   }
 
+  Future<void> _pedirReiniciarVsPc() async {
+    if (!widget.contraPc || _esOnline) return;
+    final ok = await confirmarReiniciarPartidaPc(context);
+    if (!ok || !mounted) return;
+    _reiniciar();
+  }
+
   void _salir({required bool guardar}) {
     _pcToken++;
     _detenerCronometroChancho();
@@ -1453,6 +1461,10 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                             ),
                           ),
                         ),
+                        if (widget.contraPc && !_esOnline)
+                          BotonReiniciarPartidaPc(
+                            onPressed: _pedirReiniciarVsPc,
+                          ),
                         IconButton(
                           onPressed: () => setState(() {
                             _mostrarAjustes = true;

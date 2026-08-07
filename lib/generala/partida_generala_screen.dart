@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/generala/motor_generala.dart';
 import 'package:app_juegos_mesa/generala/opciones_generala.dart';
@@ -350,6 +351,13 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     GeneralaStandByStore.limpiar();
     setState(_iniciarPartidaNueva);
     if (_turnoDeLaPc) _programarJugadaPc();
+  }
+
+  Future<void> _pedirReiniciarVsPc() async {
+    if (!widget.contraPc || _esOnline) return;
+    final ok = await confirmarReiniciarPartidaPc(context);
+    if (!ok || !mounted) return;
+    _volverAJugar();
   }
 
   void _salirGuardandoResumeYVolverAlMenu() {
@@ -873,6 +881,9 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                             children: [
                               _Header(
                                 onMenu: _modoAnotar ? () {} : _abrirMenu,
+                                onRestart: widget.contraPc && !_esOnline
+                                    ? _pedirReiniciarVsPc
+                                    : null,
                                 onSettings: _abrirAjustes,
                               ),
                               const SizedBox(height: 8),
@@ -1137,10 +1148,15 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
 // ─── UI ───────────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onMenu, required this.onSettings});
+  const _Header({
+    required this.onMenu,
+    required this.onSettings,
+    this.onRestart,
+  });
 
   final VoidCallback onMenu;
   final VoidCallback onSettings;
+  final VoidCallback? onRestart;
 
   @override
   Widget build(BuildContext context) {
@@ -1216,6 +1232,8 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+        if (onRestart != null)
+          _RoundIcon(icon: Icons.refresh_rounded, onTap: onRestart!),
         _RoundIcon(icon: Icons.settings, onTap: onSettings),
       ],
     );

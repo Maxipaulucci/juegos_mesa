@@ -17,6 +17,7 @@ import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -767,11 +768,21 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       _limpiarSeleccion();
       _mensajePc = null;
       _pcMostrandoJugada = false;
+      _mostrarMenu = false;
+      _mostrarAjustes = false;
+      _confirmarRendicion = false;
       _mesaReveladas = _opciones.escobasAutomaticasInicio ? 0 : _partida.mesa.length;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_revelarMesaYEscobasAuto(luegoPc: true));
     });
+  }
+
+  Future<void> _pedirReiniciarVsPc() async {
+    if (!widget.contraPc || _esOnline) return;
+    final ok = await confirmarReiniciarPartidaPc(context);
+    if (!ok || !mounted) return;
+    _volverAJugar();
   }
 
   void _salirAlMenu() {
@@ -964,6 +975,8 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                           ),
                         ),
                       ),
+                      if (widget.contraPc && !_esOnline)
+                        BotonReiniciarPartidaPc(onPressed: _pedirReiniciarVsPc),
                       IconButton(
                         onPressed: () =>
                             setState(() => _mostrarAjustes = true),

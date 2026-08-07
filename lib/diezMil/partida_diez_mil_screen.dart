@@ -1316,6 +1316,8 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+        if (onRestart != null)
+          _RoundIcon(icon: Icons.refresh_rounded, onTap: onRestart!),
         _RoundIcon(icon: Icons.settings, onTap: onSettings),
       ],
     );
