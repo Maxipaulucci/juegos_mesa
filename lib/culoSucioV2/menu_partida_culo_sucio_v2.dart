@@ -2,22 +2,31 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Menú in-partida de Culo sucio v2 (REGLAS / SALIR).
+/// Menú in-partida de Culo sucio v2 (REGLAS / RENDIRSE o SALIR).
 class MenuPartidaCuloSucioV2 extends StatelessWidget {
   const MenuPartidaCuloSucioV2({
     super.key,
     required this.jugador,
     required this.partidaTerminada,
+    required this.confirmarRendicion,
     required this.onCerrar,
     required this.onReglas,
-    required this.onSalir,
+    required this.onSalirORendirse,
+    required this.onConfirmarRendicion,
+    required this.onCancelarRendicion,
+    this.permitirRendirse = false,
   });
 
   final String jugador;
   final bool partidaTerminada;
+  final bool confirmarRendicion;
+  /// Multijugador local: muestra RENDIRSE en lugar de SALIR.
+  final bool permitirRendirse;
   final VoidCallback onCerrar;
   final VoidCallback onReglas;
-  final VoidCallback onSalir;
+  final VoidCallback onSalirORendirse;
+  final VoidCallback onConfirmarRendicion;
+  final VoidCallback onCancelarRendicion;
 
   @override
   Widget build(BuildContext context) {
@@ -112,12 +121,45 @@ class MenuPartidaCuloSucioV2 extends StatelessWidget {
                           onPressed: onReglas,
                         ),
                         const SizedBox(height: 10),
-                        _BotonArcade(
-                          label: 'SALIR',
-                          icon: Icons.logout_rounded,
-                          tono: _TonoBoton.rojo,
-                          onPressed: onSalir,
-                        ),
+                        if (partidaTerminada || !permitirRendirse)
+                          _BotonArcade(
+                            label: 'SALIR',
+                            icon: Icons.logout_rounded,
+                            tono: _TonoBoton.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else if (!confirmarRendicion)
+                          _BotonArcade(
+                            label: 'RENDIRSE',
+                            icon: Icons.flag_rounded,
+                            tono: _TonoBoton.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else ...[
+                          const Text(
+                            '¿Confirmás tu derrota?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.peligro,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _BotonArcade(
+                            label: 'CONFIRMAR RENDICIÓN',
+                            icon: Icons.check_circle_outline,
+                            tono: _TonoBoton.rojo,
+                            onPressed: onConfirmarRendicion,
+                          ),
+                          const SizedBox(height: 10),
+                          _BotonArcade(
+                            label: 'CANCELAR',
+                            icon: Icons.close,
+                            tono: _TonoBoton.violeta,
+                            onPressed: onCancelarRendicion,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -131,7 +173,7 @@ class MenuPartidaCuloSucioV2 extends StatelessWidget {
   }
 }
 
-enum _TonoBoton { azul, rojo }
+enum _TonoBoton { violeta, azul, rojo }
 
 class _BotonArcade extends StatelessWidget {
   const _BotonArcade({
@@ -151,6 +193,13 @@ class _BotonArcade extends StatelessWidget {
     late final List<Color> colors;
     late final Color glow;
     switch (tono) {
+      case _TonoBoton.violeta:
+        colors = const [
+          Color(0xFFCE93D8),
+          Color(0xFFAB47BC),
+          Color(0xFF6A1B9A),
+        ];
+        glow = AppColors.rosa;
       case _TonoBoton.azul:
         colors = const [
           Color(0xFF81D4FA),
@@ -194,12 +243,16 @@ class _BotonArcade extends StatelessWidget {
               children: [
                 Icon(icon, color: Colors.white),
                 const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
               ],

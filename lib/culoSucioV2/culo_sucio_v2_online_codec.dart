@@ -103,6 +103,7 @@ Map<String, dynamic> encodeCuloSucioV2GameState({
           'mano': _encodeCartas(j.mano),
           'descartes': _encodeCartas(j.descartes),
           'paresInicialesListos': j.paresInicialesListos,
+          'rendido': j.rendido,
         },
     ],
     'mostrarVictoria': partida.terminada,
@@ -151,6 +152,7 @@ void applyCuloSucioV2GameState(
       ..clear()
       ..addAll(_decodeCartas(m['descartes']));
     j.paresInicialesListos = m['paresInicialesListos'] == true;
+    j.rendido = m['rendido'] == true;
     nuevos.add(j);
   }
   if (nuevos.isNotEmpty) {

@@ -48,6 +48,8 @@ class JugadorCuloSucioV2 {
   final List<CartaCuloSucioV2> descartes = [];
   /// Ya terminó de sacar pares al inicio.
   bool paresInicialesListos = false;
+  /// Se rindió (multijugador local): queda fuera de la partida.
+  bool rendido = false;
 
   bool get sinCartas => mano.isEmpty;
 }
@@ -89,6 +91,11 @@ class PartidaCuloSucioV2 {
   bool get descartandoPares => fase == FaseCuloSucioV2.descartandoPares;
   bool get enJuego => fase == FaseCuloSucioV2.jugando;
 
+  List<JugadorCuloSucioV2> get jugadoresActivos => [
+        for (final j in jugadores)
+          if (!j.rendido) j,
+      ];
+
   JugadorCuloSucioV2 get jugadorActual =>
       jugadores[indiceTurno % jugadores.length];
 
@@ -96,7 +103,7 @@ class PartidaCuloSucioV2 {
     final yo = indiceTurno % jugadores.length;
     for (var i = 1; i < jugadores.length; i++) {
       final j = jugadores[(yo + i) % jugadores.length];
-      if (!j.sinCartas) return j;
+      if (!j.rendido && !j.sinCartas) return j;
     }
     return jugadores[(yo + 1) % jugadores.length];
   }
@@ -153,21 +160,41 @@ List<CartaCuloSucioV2> descartarParesDeMano(List<CartaCuloSucioV2> mano) {
 
 void _chequearFin(PartidaCuloSucioV2 p) {
   if (p.terminada || p.descartandoPares) return;
-  final activos = [
-    for (final j in p.jugadores)
+
+  final enPie = p.jugadoresActivos;
+  if (enPie.length <= 1) {
+    p.fase = FaseCuloSucioV2.terminada;
+    if (enPie.isEmpty) {
+      p.mensajeFin = 'Todos se rindieron.';
+      return;
+    }
+    final ganador = enPie.first;
+    p.ganador = ganador.nombre;
+    final rendidos = [
+      for (final j in p.jugadores)
+        if (j.rendido) j.nombre,
+    ];
+    p.perdedor = rendidos.isEmpty ? null : rendidos.last;
+    p.mensajeFin =
+        '¡${p.ganador} gana por abandono!';
+    return;
+  }
+
+  final conCartas = [
+    for (final j in enPie)
       if (!j.sinCartas) j,
   ];
-  if (activos.length > 1) return;
+  if (conCartas.length > 1) return;
 
   p.fase = FaseCuloSucioV2.terminada;
-  if (activos.isEmpty) {
+  if (conCartas.isEmpty) {
     p.mensajeFin = 'Empate raro: nadie tiene cartas.';
     return;
   }
-  final perdedor = activos.first;
+  final perdedor = conCartas.first;
   p.perdedor = perdedor.nombre;
   final otros = [
-    for (final j in p.jugadores)
+    for (final j in enPie)
       if (j.nombre != p.perdedor) j.nombre,
   ];
   p.ganador = otros.isEmpty ? null : otros.first;
@@ -180,18 +207,70 @@ void _avanzarTurno(PartidaCuloSucioV2 p) {
   final n = p.jugadores.length;
   for (var i = 0; i < n; i++) {
     p.indiceTurno = (p.indiceTurno + 1) % n;
-    if (!p.jugadorActual.sinCartas && !p.rivalActual.sinCartas) {
+    final actual = p.jugadorActual;
+    if (actual.rendido || actual.sinCartas) continue;
+    if (!p.rivalActual.sinCartas && !p.rivalActual.rendido) {
       return;
     }
-    if (!p.jugadorActual.sinCartas) {
-      final activos = p.jugadores.where((j) => !j.sinCartas).length;
-      if (activos <= 1) {
-        _chequearFin(p);
-        return;
-      }
+    final conCartas = p.jugadoresActivos.where((j) => !j.sinCartas).length;
+    if (conCartas <= 1) {
+      _chequearFin(p);
+      return;
     }
   }
   _chequearFin(p);
+}
+
+/// Marca [nombre] como rendido. Si queda uno en pie, gana por abandono.
+String? rendirseCuloSucioV2(PartidaCuloSucioV2 p, String nombre) {
+  final idx = p.jugadores.indexWhere(
+    (j) => j.nombre == nombre && !j.rendido,
+  );
+  if (idx < 0 || p.terminada) return null;
+
+  final j = p.jugadores[idx];
+  final teniaCulo = j.mano.any((c) => c.esCuloSucio);
+  final culo = teniaCulo
+      ? j.mano.firstWhere((c) => c.esCuloSucio)
+      : null;
+  j.rendido = true;
+  j.mano.clear();
+  j.paresInicialesListos = true;
+
+  final activos = p.jugadoresActivos;
+  if (activos.length <= 1) {
+    p.fase = FaseCuloSucioV2.terminada;
+    if (activos.isEmpty) {
+      p.ganador = null;
+      p.perdedor = nombre;
+      p.mensajeFin = '$nombre se rindió.';
+      return null;
+    }
+    final ganador = activos.first.nombre;
+    p.ganador = ganador;
+    p.perdedor = nombre;
+    p.mensajeFin = '$nombre se rindió. ¡$ganador gana por abandono!';
+    return ganador;
+  }
+
+  // Si se llevaba el 1 de oro, pasa a otro jugador en pie al azar.
+  if (culo != null) {
+    final destino = activos[math.Random().nextInt(activos.length)];
+    destino.mano.insert(
+      math.Random().nextInt(destino.mano.length + 1),
+      culo,
+    );
+  }
+
+  if (p.descartandoPares) {
+    _siguienteTrasParesIniciales(p);
+  } else if (p.enJuego) {
+    if (p.jugadorActual.rendido || p.jugadorActual.nombre == nombre) {
+      _avanzarTurno(p);
+    }
+    _chequearFin(p);
+  }
+  return null;
 }
 
 void _iniciarFaseJuego(PartidaCuloSucioV2 p) {
@@ -212,7 +291,7 @@ void _iniciarFaseJuego(PartidaCuloSucioV2 p) {
 void _siguienteTrasParesIniciales(PartidaCuloSucioV2 p) {
   final pendientes = [
     for (final j in p.jugadores)
-      if (!j.paresInicialesListos) j,
+      if (!j.rendido && !j.paresInicialesListos) j,
   ];
   if (pendientes.isEmpty) {
     _iniciarFaseJuego(p);
@@ -298,6 +377,7 @@ bool _jugadorPuedeDescartarParesIniciales(
   JugadorCuloSucioV2 jugador,
 ) {
   if (p.fase != FaseCuloSucioV2.descartandoPares) return false;
+  if (jugador.rendido) return false;
   if (jugador.paresInicialesListos) return false;
   // Online: cada uno en su dispositivo, en paralelo.
   if (p.online) return true;
@@ -416,6 +496,8 @@ String? robarCartaCuloSucioV2(
     return 'Primero descartá los pares de tu mano.';
   }
   if (hacia != p.jugadorActual) return 'No es el turno de ${hacia.nombre}.';
+  if (hacia.rendido) return '${hacia.nombre} ya se rindió.';
+  if (de.rendido) return '${de.nombre} ya se rindió.';
   if (de.sinCartas) return '${de.nombre} no tiene cartas.';
   if (indiceEnManoDe < 0 || indiceEnManoDe >= de.mano.length) {
     return 'Carta inválida.';

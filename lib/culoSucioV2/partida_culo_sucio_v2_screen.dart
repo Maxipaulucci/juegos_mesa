@@ -55,6 +55,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
+  bool _confirmarRendicion = false;
   bool _robando = false;
   int _pcToken = 0;
   /// Índices seleccionados en la mano para formar un par inicial.
@@ -137,8 +138,11 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         orElse: () => _partida.jugadores.last,
       );
     }
+    if (_jugadorVistaLocal.nombre == _partida.jugadorActual.nombre) {
+      return _partida.rivalActual;
+    }
     return _partida.jugadores.firstWhere(
-      (j) => j.nombre != _jugadorVistaLocal.nombre,
+      (j) => j.nombre != _jugadorVistaLocal.nombre && !j.rendido,
       orElse: () => _partida.jugadores.last,
     );
   }
@@ -514,7 +518,29 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_esOnline) return false;
     if (_partida.terminada) return false;
     if (index < 0 || index >= _partida.jugadores.length) return false;
-    return !_esPcNombre(_partida.jugadores[index].nombre);
+    final j = _partida.jugadores[index];
+    if (j.rendido) return false;
+    return !_esPcNombre(j.nombre);
+  }
+
+  void _rendirse() {
+    if (_partida.terminada || !_esLocalHotSeat) return;
+    final yo = _partida.jugadorActual;
+    if (yo.rendido) return;
+
+    setState(() {
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
+      _seleccionPar.clear();
+      _esperandoDescartarPar = false;
+      _indiceCuloMoviendo = null;
+      _limpiarAvisoJugada();
+      rendirseCuloSucioV2(_partida, yo.nombre);
+    });
+
+    if (!_partida.terminada) {
+      _pedirCambioJugadorSiCorresponde();
+    }
   }
 
   String? _validarNombre(String nombre, int index) {
@@ -935,6 +961,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         contraPc: widget.contraPc,
       );
       _robando = false;
+      _mostrarMenu = false;
+      _confirmarRendicion = false;
       _seleccionPar.clear();
       _indiceRevelando = null;
       _esperandoDescartarPar = false;
@@ -984,11 +1012,15 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
           return;
         }
         if (_mostrarMenu) {
-          setState(() => _mostrarMenu = false);
+          setState(() {
+            _mostrarMenu = false;
+            _confirmarRendicion = false;
+          });
           return;
         }
         setState(() {
           _mostrarMenu = true;
+          _confirmarRendicion = false;
           _mostrarAjustes = false;
         });
       },
@@ -1009,6 +1041,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                         IconButton(
                           onPressed: () => setState(() {
                             _mostrarMenu = true;
+                            _confirmarRendicion = false;
                             _mostrarAjustes = false;
                           }),
                           icon: const Icon(Icons.menu, color: AppColors.texto),
@@ -1048,14 +1081,18 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                           if (i > 0) const SizedBox(width: 8),
                           Expanded(
                             child: _ChipJugador(
-                              nombre: _partida.jugadores[i].nombre,
+                              nombre: _partida.jugadores[i].rendido
+                                  ? '${_partida.jugadores[i].nombre} (fuera)'
+                                  : _partida.jugadores[i].nombre,
                               cartas: _partida.jugadores[i].mano.length,
                               activo: !_partida.terminada &&
+                                  !_partida.jugadores[i].rendido &&
                                   _partida.indiceTurno == i,
                               perdido: _partida.perdedor ==
                                   _partida.jugadores[i].nombre,
                               ganado: _partida.ganador ==
                                   _partida.jugadores[i].nombre,
+                              rendido: _partida.jugadores[i].rendido,
                               puedeRenombrar: _puedeRenombrar(i),
                               onRenombrar: _puedeRenombrar(i)
                                   ? () => _renombrarJugador(i)
@@ -1494,19 +1531,36 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                           ? _yo.nombre
                           : _partida.jugadorActual.nombre),
                   partidaTerminada: _partida.terminada,
-                  onCerrar: () => setState(() => _mostrarMenu = false),
+                  permitirRendirse: _esLocalHotSeat,
+                  confirmarRendicion:
+                      _confirmarRendicion && _esLocalHotSeat,
+                  onCerrar: () => setState(() {
+                    _mostrarMenu = false;
+                    _confirmarRendicion = false;
+                  }),
                   onReglas: () {
-                    setState(() => _mostrarMenu = false);
+                    setState(() {
+                      _mostrarMenu = false;
+                      _confirmarRendicion = false;
+                    });
                     _mostrarDialogoReglas();
                   },
-                  onSalir: () {
-                    setState(() => _mostrarMenu = false);
-                    _salirAlMenu(
-                      guardar: !_esOnline &&
-                          widget.contraPc &&
-                          !_partida.terminada,
-                    );
-                  },
+                  onSalirORendirse: _partida.terminada || !_esLocalHotSeat
+                      ? () {
+                          setState(() {
+                            _mostrarMenu = false;
+                            _confirmarRendicion = false;
+                          });
+                          _salirAlMenu(
+                            guardar: !_esOnline &&
+                                widget.contraPc &&
+                                !_partida.terminada,
+                          );
+                        }
+                      : () => setState(() => _confirmarRendicion = true),
+                  onConfirmarRendicion: _rendirse,
+                  onCancelarRendicion: () =>
+                      setState(() => _confirmarRendicion = false),
                 ),
               ),
             if (_partida.terminada)
@@ -1537,6 +1591,7 @@ class _ChipJugador extends StatelessWidget {
     required this.activo,
     required this.perdido,
     required this.ganado,
+    this.rendido = false,
     this.puedeRenombrar = false,
     this.onRenombrar,
   });
@@ -1546,6 +1601,7 @@ class _ChipJugador extends StatelessWidget {
   final bool activo;
   final bool perdido;
   final bool ganado;
+  final bool rendido;
   final bool puedeRenombrar;
   final VoidCallback? onRenombrar;
 
@@ -1575,14 +1631,19 @@ class _ChipJugador extends StatelessWidget {
             puedeRenombrar: puedeRenombrar,
             onRenombrar: onRenombrar,
             fontSize: 13,
+            tachado: rendido,
             colorTexto: perdido
                 ? AppColors.peligro
                 : ganado
                     ? AppColors.mint
-                    : AppColors.texto,
+                    : rendido
+                        ? AppColors.textoSuave
+                        : AppColors.texto,
           ),
           Text(
-            '$cartas carta${cartas == 1 ? '' : 's'}',
+            rendido
+                ? 'rendido'
+                : '$cartas carta${cartas == 1 ? '' : 's'}',
             style: const TextStyle(
               color: AppColors.textoSuave,
               fontWeight: FontWeight.w700,
