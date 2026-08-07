@@ -99,7 +99,7 @@ class _MenuEscobaScreenState extends State<MenuEscobaScreen> {
         final nombres = resume?.nombres ??
             nombresPartidaVsPc(
               humano: humano,
-              total: estado.cantidadJugadores,
+              total: estado.totalVsPc,
             );
         _abrir(
           ctx: ctx,

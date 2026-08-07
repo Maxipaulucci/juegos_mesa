@@ -19,6 +19,7 @@ class MenuJuegoEstado {
     required this.dificultad,
     required this.nombres,
     this.cantidadJugadores = 2,
+    this.cantidadPc = 1,
   });
 
   final AjustesEstado ajustes;
@@ -26,7 +27,13 @@ class MenuJuegoEstado {
   final bool decidirOrden;
   final DificultadPc dificultad;
   final List<String> nombres;
+  /// Cantidad de asientos en multijugador local.
   final int cantidadJugadores;
+  /// Cantidad de rivales PC (1–3) en vs PC.
+  final int cantidadPc;
+
+  /// Asientos totales en vs PC: 1 humano + [cantidadPc].
+  int get totalVsPc => cantidadPc + 1;
 }
 
 /// Menú compartido post-home: salas, partida rápida, vs PC.
@@ -50,10 +57,12 @@ class MenuJuegoScreen extends StatefulWidget {
     this.extraTrasModoLocal,
     /// Si false, oculta Multijugador local (decidir orden, partida rápida, nombres).
     this.mostrarMultijugadorLocal = true,
-    /// Si true, muestra “Jugadores · N” debajo de Jugar vs PC (p. ej. Chancho va).
+    /// Si true, muestra “Cantidad de PC: N” debajo de Jugar vs PC.
     this.mostrarJugadoresVsPc = false,
-    /// Opciones del diálogo “Cantidad de jugadores” (vs PC / partida rápida).
+    /// Opciones del diálogo “Cantidad de jugadores” (multijugador local).
     this.opcionesCantidadJugadores = const [2, 3, 4],
+    /// Opciones del diálogo “Cantidad de PC” (vs PC). Por defecto 1–3.
+    this.opcionesCantidadPc = const [1, 2, 3],
     /// Si no es null, el lobby solo inicia con exactamente N humanos (Chancho).
     this.lobbyHumanosExactos,
     this.lobbyTextoAyudaHumanos,
@@ -83,6 +92,7 @@ class MenuJuegoScreen extends StatefulWidget {
   final bool mostrarMultijugadorLocal;
   final bool mostrarJugadoresVsPc;
   final List<int> opcionesCantidadJugadores;
+  final List<int> opcionesCantidadPc;
   final int? lobbyHumanosExactos;
   final String? lobbyTextoAyudaHumanos;
   final void Function(MenuJuegoEstado estado)? onPrepararSala;
@@ -114,6 +124,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   AjustesEstado _ajustes = const AjustesEstado();
   DificultadPc _dificultad = DificultadPc.medio;
   late int _cantidadJugadores;
+  late int _cantidadPc;
   late List<String> _nombresRapida;
   static const int _maxNombre = 15;
 
@@ -122,6 +133,8 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     super.initState();
     final opts = widget.opcionesCantidadJugadores;
     _cantidadJugadores = opts.isNotEmpty ? opts.first : 2;
+    final optsPc = widget.opcionesCantidadPc;
+    _cantidadPc = optsPc.isNotEmpty ? optsPc.first : 1;
     _nombresRapida = [
       for (var i = 1; i <= _cantidadJugadores; i++) 'Jugador $i',
     ];
@@ -134,6 +147,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
         dificultad: _dificultad,
         nombres: nombres ?? List.of(_nombresRapida),
         cantidadJugadores: _cantidadJugadores,
+        cantidadPc: _cantidadPc,
       );
 
   Future<void> _abrirAjustes() async {
@@ -237,6 +251,66 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
         _cantidadJugadores = elegida;
         _sincronizarNombres(elegida);
       });
+    }
+  }
+
+  Future<void> _elegirCantidadPc() async {
+    final opciones = widget.opcionesCantidadPc;
+    final elegida = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text(
+          'Cantidad de PC',
+          style: TextStyle(color: AppColors.acento, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < opciones.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(21),
+                  border: Border.all(
+                    color: opciones[i] == _cantidadPc
+                        ? AppColors.texto
+                        : Colors.transparent,
+                    width: 3,
+                  ),
+                ),
+                child: ElevatedButton(
+                  onPressed: () =>
+                      Navigator.of(dialogContext).pop(opciones[i]),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6B6578),
+                    foregroundColor: AppColors.texto,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                  ),
+                  child: Text(
+                    opciones[i] == 1 ? '1 PC' : '${opciones[i]} PCs',
+                    style: const TextStyle(
+                      color: AppColors.texto,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (elegida != null && mounted) {
+      setState(() => _cantidadPc = elegida);
     }
   }
 
@@ -720,7 +794,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                         if (widget.mostrarJugadoresVsPc) ...[
                           const SizedBox(height: 8),
                           OutlinedButton(
-                            onPressed: _elegirCantidadJugadores,
+                            onPressed: _elegirCantidadPc,
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.texto,
                               backgroundColor: const Color(0xFF6B6578),
@@ -730,7 +804,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                               ),
                             ),
                             child: Text(
-                              'Jugadores · $_cantidadJugadores',
+                              'Cantidad de PC: $_cantidadPc',
                             ),
                           ),
                         ],

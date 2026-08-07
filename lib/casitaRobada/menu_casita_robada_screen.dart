@@ -55,7 +55,7 @@ class MenuCasitaRobadaScreen extends StatelessWidget {
         final nombres = resume?.nombres ??
             nombresPartidaVsPc(
               humano: humano,
-              total: estado.cantidadJugadores,
+              total: estado.totalVsPc,
             );
         _abrir(
           ctx: ctx,

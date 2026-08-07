@@ -49,7 +49,7 @@ class MenuDiezMilScreen extends StatelessWidget {
         final nombres = resume?.nombres ??
             nombresPartidaVsPc(
               humano: humano,
-              total: estado.cantidadJugadores,
+              total: estado.totalVsPc,
             );
         navegarConCarga<void>(
           ctx,

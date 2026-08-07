@@ -102,7 +102,7 @@ class _MenuCuloSucioScreenState extends State<MenuCuloSucioScreen> {
         final nombres = resume?.nombres ??
             nombresPartidaVsPc(
               humano: humano,
-              total: estado.cantidadJugadores,
+              total: estado.totalVsPc,
             );
         _abrir(
           ctx: ctx,

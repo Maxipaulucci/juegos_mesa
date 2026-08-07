@@ -249,7 +249,7 @@ PartidaChancho nuevaPartidaChancho({
   bool sinEspacio = false,
   bool finAlPrimerPerdedor = false,
 }) {
-  assert(nombres.length >= 3 && nombres.length <= 4);
+  assert(nombres.length >= 2 && nombres.length <= 4);
   final jugadores = [for (final n in nombres) JugadorChancho(n)];
   return PartidaChancho(
     jugadores: jugadores,
