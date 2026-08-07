@@ -16,6 +16,9 @@ class LobbySalaScreen extends StatefulWidget {
     required this.onIniciarPartida,
     this.mostrarSelectorDados = true,
     this.editarCategorias = false,
+    /// Si no es null, solo se puede iniciar con exactamente esa cantidad de humanos.
+    this.humanosExactosParaIniciar,
+    this.textoAyudaHumanos,
   });
 
   final Sala salaInicial;
@@ -25,6 +28,8 @@ class LobbySalaScreen extends StatefulWidget {
   final bool mostrarSelectorDados;
   /// Tutti Frutti: anfitrión define 3–6 categorías antes de iniciar.
   final bool editarCategorias;
+  final int? humanosExactosParaIniciar;
+  final String? textoAyudaHumanos;
 
   @override
   State<LobbySalaScreen> createState() => _LobbySalaScreenState();
@@ -154,10 +159,25 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     _sub?.cancel();
     final yo = sala.jugadores.where((j) => j.id == widget.miId);
     final miNombre = yo.isNotEmpty ? yo.first.nombre : sala.jugadores.first.nombre;
+    // Chancho va: el seed incluye humanos + PCs en gameState.jugadores.
+    var nombres = sala.jugadores.map((j) => j.nombre).toList();
+    final gs = sala.gameState;
+    if (sala.juegoId == 'chanchoVa' && gs != null) {
+      final jgs = gs['jugadores'];
+      if (jgs is List && jgs.length >= 3) {
+        final mesa = <String>[];
+        for (final item in jgs) {
+          if (item is! Map) continue;
+          final n = Map<String, dynamic>.from(item)['nombre']?.toString();
+          if (n != null && n.isNotEmpty) mesa.add(n);
+        }
+        if (mesa.length >= 3) nombres = mesa;
+      }
+    }
     widget.onIniciarPartida(
       context,
       InicioPartidaOnline(
-        nombres: sala.jugadores.map((j) => j.nombre).toList(),
+        nombres: nombres,
         dados: sala.dados,
         salaCodigo: sala.codigo,
         miNombre: miNombre,
@@ -190,6 +210,18 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   }
 
   Future<void> _iniciar() async {
+    final exactos = widget.humanosExactosParaIniciar;
+    if (exactos != null && _sala.jugadores.length != exactos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.textoAyudaHumanos ??
+                'Hacen falta exactamente $exactos jugadores.',
+          ),
+        ),
+      );
+      return;
+    }
     if (_sala.jugadores.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Hacen falta al menos 2 jugadores')),
@@ -248,6 +280,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
         categorias: categorias,
         maxRondas: maxRondas,
         opcionesPapa: SalaFormStore.opcionesPapa,
+        opcionesChancho: SalaFormStore.opcionesChancho,
       );
       if (!mounted) return;
       _lanzarPartida(sala);

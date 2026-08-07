@@ -19,7 +19,7 @@ abstract final class TextosChancho {
       for (var i = 1; i < n; i++) 'PC $i',
     ];
   }
-  static const onlineProximamente = 'Online de Chancho va: próximamente.';
+  static const onlineProximamente = '';
   static const tuMano = 'Tu mano';
   static const eligeNumeros = 'Elegí los números de la partida';
   static const confirmarNumeros = 'Listo';

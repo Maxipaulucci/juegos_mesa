@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/chanchoVa/chancho_va_online_codec.dart';
 import 'package:app_juegos_mesa/chanchoVa/fin_ronda_chancho_va_overlay.dart';
 import 'package:app_juegos_mesa/chanchoVa/menu_partida_chancho_va.dart';
 import 'package:app_juegos_mesa/chanchoVa/motor_chancho_va.dart';
@@ -10,17 +11,21 @@ import 'package:app_juegos_mesa/chanchoVa/opciones_chancho_va.dart';
 import 'package:app_juegos_mesa/chanchoVa/standby_store.dart';
 import 'package:app_juegos_mesa/chanchoVa/textos.dart';
 import 'package:app_juegos_mesa/chanchoVa/victoria_chancho_va_overlay.dart';
+import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Partida de Chancho va (vs PC).
+/// Partida de Chancho va (vs PC / online).
 class PartidaChanchoVaScreen extends StatefulWidget {
   const PartidaChanchoVaScreen({
     super.key,
     required this.nombres,
     this.contraPc = true,
+    this.salaCodigo,
+    this.miNombre,
     this.modoDios = false,
     this.ajustesIniciales,
     this.resume,
@@ -29,6 +34,8 @@ class PartidaChanchoVaScreen extends StatefulWidget {
 
   final List<String> nombres;
   final bool contraPc;
+  final String? salaCodigo;
+  final String? miNombre;
   final bool modoDios;
   final AjustesEstado? ajustesIniciales;
   final PartidaChanchoResume? resume;
@@ -50,6 +57,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   bool _chanchoVisiblePorCarrera = false;
   /// Nombre de la PC que lanzó CHANCHA (el humano debe responder o no).
   String? _quienLanzoChancha;
+  /// Online: humano desafiado por CHANCHA de una PC (null = local / único humano).
+  String? _objetivoChancha;
   bool _cronoEsRespuestaChancha = false;
   final math.Random _rng = math.Random();
   AjustesEstado _ajustes = const AjustesEstado();
@@ -59,17 +68,46 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   late final AnimationController _cronoChancho;
   Timer? _timerChanchaPc;
 
+  StreamSubscription<Sala>? _onlineSub;
+  int _onlineVersion = 0;
+  bool _publicandoOnline = false;
+  bool _dealPublicado = false;
+  bool _esperandoDealOnline = false;
+
   static const _duracionCronoChancho = Duration(milliseconds: 1000);
   static const _segundosCronoChancho = 1.0;
 
-  bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
+  bool get _esOnline =>
+      widget.salaCodigo != null &&
+      widget.salaCodigo!.isNotEmpty &&
+      widget.miNombre != null &&
+      widget.miNombre!.isNotEmpty;
+
+  bool get _soyAnfitrionOnline {
+    if (!_esOnline) return false;
+    for (final n in widget.nombres) {
+      if (!TextosChancho.esPc(n)) return n == widget.miNombre;
+    }
+    return false;
+  }
+
+  bool get _modoDiosActivo =>
+      widget.modoDios && widget.contraPc && !_esOnline;
 
   bool _esPc(JugadorChancho j) => TextosChancho.esPc(j.nombre);
 
-  JugadorChancho get _yo => _partida.jugadores.firstWhere(
-        (j) => !_esPc(j),
+  JugadorChancho get _yo {
+    if (_esOnline) {
+      return _partida.jugadores.firstWhere(
+        (j) => j.nombre == widget.miNombre,
         orElse: () => _partida.jugadores.first,
       );
+    }
+    return _partida.jugadores.firstWhere(
+      (j) => !_esPc(j),
+      orElse: () => _partida.jugadores.first,
+    );
+  }
 
   List<JugadorChancho> get _pcs => _partida.jugadores
       .where((j) => _esPc(j) && !j.eliminado)
@@ -80,7 +118,13 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   bool get _esTurnoHumanoAnuncio {
     if (_partida.terminada || !_humanoActivo) return false;
     if (_partida.fase != FaseChancho.anunciando) return false;
-    return !_esPc(_partida.jugadorActual);
+    return _partida.jugadorActual.nombre == _yo.nombre;
+  }
+
+  bool get _puedoElegirNumeros {
+    if (_partida.fase != FaseChancho.eligiendoNumeros) return false;
+    if (!_humanoActivo || _esperandoDealOnline) return false;
+    return _partida.jugadorActual.nombre == _yo.nombre;
   }
 
   bool get _puedoElegirCartas {
@@ -137,22 +181,42 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   }
 
   /// Responder al CHANCHA que lanzó una PC (botón inferior).
-  bool get _puedeResponderChancha =>
-      _opciones.chancha &&
-      _hayDesafioChancha &&
-      !_partida.terminada &&
-      !_partida.enFinRonda;
+  bool get _puedeResponderChancha {
+    if (!_opciones.chancha || !_hayDesafioChancha) return false;
+    if (_partida.terminada || _partida.enFinRonda || !_humanoActivo) {
+      return false;
+    }
+    if (_esOnline &&
+        _objetivoChancha != null &&
+        _objetivoChancha != widget.miNombre) {
+      return false;
+    }
+    return true;
+  }
+
+  bool get _soyObjetivoChancha =>
+      !_esOnline ||
+      _objetivoChancha == null ||
+      _objetivoChancha == widget.miNombre;
 
   String get _textoEstado {
     if (_partida.terminada) return '';
+    if (_esperandoDealOnline) return 'Esperando repartida…';
     if (_hayDesafioChancha) {
+      if (_esOnline && !_soyObjetivoChancha) {
+        return '¡${_quienLanzoChancha!} dijo CHANCHA a ${_objetivoChancha!}!';
+      }
       return '¡${_quienLanzoChancha!} dijo CHANCHA!';
     }
     return switch (_partida.fase) {
-      FaseChancho.eligiendoNumeros => TextosChancho.eligeNumeros,
+      FaseChancho.eligiendoNumeros => _puedoElegirNumeros
+          ? TextosChancho.eligeNumeros
+          : 'Esperando números…',
       FaseChancho.anunciando => _esTurnoHumanoAnuncio
           ? TextosChancho.anunciando
-          : TextosChancho.esperandoPc,
+          : (_esOnline
+              ? 'Esperando a ${_partida.jugadorActual.nombre}…'
+              : TextosChancho.esperandoPc),
       FaseChancho.eligiendoCartas => _yo.seleccionPaseConfirmada
           ? 'Esperando al resto…'
           : TextosChancho.eligiendoCartas,
@@ -193,6 +257,17 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       });
       return;
     }
+    if (_esOnline) {
+      _esperandoDealOnline = true;
+      _partida = nuevaPartidaChancho(
+        nombres: widget.nombres,
+        contraPc: true,
+        sinEspacio: _opciones.sinEspacio,
+        finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
+      );
+      _iniciarSincronizacionOnline();
+      return;
+    }
     _partida = nuevaPartidaChancho(
       nombres: widget.nombres,
       contraPc: true,
@@ -210,13 +285,192 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
 
   @override
   void dispose() {
+    _onlineSub?.cancel();
     _pcToken++;
     _timerChanchaPc?.cancel();
     _cronoChancho.dispose();
     super.dispose();
   }
 
+  void _iniciarSincronizacionOnline() {
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+    if (_onlineVersion < 1) _onlineVersion = 1;
+    unawaited(() async {
+      try {
+        final sala = await SalaService.instance.obtener(codigo);
+        if (mounted) _onSalaOnlineActualizada(sala);
+      } catch (_) {}
+    }());
+    _onlineSub = SalaService.instance
+        .watch(codigo, intervalo: const Duration(milliseconds: 400))
+        .listen(_onSalaOnlineActualizada);
+  }
+
+  void _onSalaOnlineActualizada(Sala sala) {
+    if (!mounted || !_esOnline) return;
+    final gameState = sala.gameState;
+    if (gameState == null) return;
+
+    final juego = gameState['juego']?.toString();
+    if (juego != 'chanchoVa') {
+      if (_soyAnfitrionOnline && !_dealPublicado) {
+        unawaited(_publicarDealInicialOnline());
+      }
+      return;
+    }
+
+    final version = (gameState['version'] as num?)?.toInt() ?? 0;
+    if (version < _onlineVersion) return;
+    if (_publicandoOnline && version <= _onlineVersion) return;
+
+    final tieneDeal = chanchoPartidaGenerada(gameState);
+    if (!tieneDeal) {
+      if (_soyAnfitrionOnline && !_dealPublicado) {
+        unawaited(_publicarDealInicialOnline());
+      }
+      return;
+    }
+
+    if (version <= _onlineVersion && !_esperandoDealOnline) return;
+
+    final remoteChancha = gameState['quienLanzoChancha']?.toString();
+    final chanchaRemota = (remoteChancha != null && remoteChancha.isNotEmpty)
+        ? remoteChancha
+        : null;
+    final remoteObjetivo = gameState['objetivoChancha']?.toString();
+    final objetivoRemoto =
+        (remoteObjetivo != null && remoteObjetivo.isNotEmpty)
+            ? remoteObjetivo
+            : null;
+    final chanchaNueva =
+        chanchaRemota != null && chanchaRemota != _quienLanzoChancha;
+    final eraEsperandoDeal = _esperandoDealOnline;
+    final faseAntes = _partida.fase;
+
+    setState(() {
+      applyChanchoGameState(_partida, gameState);
+      final opts = decodeOpcionesChancho(gameState['opciones']);
+      _opciones = opts;
+      _onlineVersion = version;
+      _esperandoDealOnline = false;
+      _dealPublicado = true;
+      _quienLanzoChancha = chanchaRemota;
+      _objetivoChancha = chanchaRemota == null ? null : objetivoRemoto;
+      if (_partida.fase == FaseChancho.carreraChancho &&
+          _humanoActivo &&
+          !_yo.dijoChancho) {
+        _chanchoVisiblePorCarrera = true;
+      }
+      if (_partida.fase != FaseChancho.eligiendoCartas &&
+          _partida.fase != FaseChancho.anunciando) {
+        _seleccionLocal.clear();
+      }
+    });
+
+    if (chanchaRemota == null) {
+      if (_cronoEsRespuestaChancha) _detenerCronometroChancho();
+    } else if (chanchaNueva &&
+        _soyObjetivoChancha &&
+        chanchaRemota != widget.miNombre) {
+      _iniciarCronometroRespuestaChancha();
+    }
+
+    if (_partida.fase == FaseChancho.carreraChancho &&
+        _humanoActivo &&
+        !_yo.dijoChancho &&
+        !_cronoChancho.isAnimating) {
+      _iniciarCronometroChancho();
+    } else if (_partida.fase != FaseChancho.carreraChancho &&
+        !_cronoEsRespuestaChancha &&
+        _cronoChancho.isAnimating) {
+      _detenerCronometroChancho();
+    }
+
+    if (_puedoElegirNumeros &&
+        (eraEsperandoDeal || faseAntes != FaseChancho.eligiendoNumeros)) {
+      unawaited(_abrirCartelNumeros());
+    }
+
+    if (_soyAnfitrionOnline) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _autoConfirmarPcSiCorresponde();
+        _talVezPc();
+        _talVezChanchoPc();
+      });
+    }
+  }
+
+  Future<void> _publicarDealInicialOnline() async {
+    if (!_esOnline || _dealPublicado || _publicandoOnline) return;
+    final generada = nuevaPartidaChancho(
+      nombres: widget.nombres,
+      contraPc: true,
+      sinEspacio: _opciones.sinEspacio,
+      finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
+    );
+    setState(() {
+      _partida = generada;
+      _esperandoDealOnline = false;
+      _dealPublicado = true;
+    });
+    await _publicarEstadoOnline(forzar: true);
+    if (!mounted) return;
+    if (_puedoElegirNumeros) {
+      unawaited(_abrirCartelNumeros());
+    }
+  }
+
+  Future<void> _publicarEstadoOnline({bool forzar = false}) async {
+    if (!_esOnline) return;
+    final codigo = widget.salaCodigo;
+    if (codigo == null) return;
+
+    _publicandoOnline = true;
+    try {
+      for (var intento = 0; intento < 4; intento++) {
+        _onlineVersion++;
+        final gameState = encodeChanchoGameState(
+          partida: _partida,
+          version: _onlineVersion,
+          opciones: _opciones,
+          quienLanzoChancha: _quienLanzoChancha,
+          objetivoChancha: _objetivoChancha,
+        );
+        try {
+          final res = await SalaService.instance.actualizarJuego(
+            codigo: codigo,
+            gameState: gameState,
+          );
+          if (!res.ignored) {
+            final v =
+                (res.sala.gameState?['version'] as num?)?.toInt() ??
+                    _onlineVersion;
+            _onlineVersion = v;
+            return;
+          }
+          final remoteV = res.sala.gameVersion;
+          if (remoteV >= _onlineVersion) {
+            _onlineVersion = remoteV;
+            if (!forzar) return;
+          }
+          await Future<void>.delayed(
+            Duration(milliseconds: 60 * (intento + 1)),
+          );
+        } catch (_) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 100 * (intento + 1)),
+          );
+        }
+      }
+    } finally {
+      _publicandoOnline = false;
+    }
+  }
+
   Future<void> _abrirCartelNumeros() async {
+    if (!_puedoElegirNumeros) return;
     if (_partida.fase != FaseChancho.eligiendoNumeros) return;
 
     final elegidos = <int>[];
@@ -331,6 +585,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
+    if (_esOnline) unawaited(_publicarEstadoOnline(forzar: true));
     _talVezPc();
   }
 
@@ -386,6 +641,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errSel)));
       return;
     }
+    if (_esOnline) unawaited(_publicarEstadoOnline());
     _despuesDeAnuncio();
   }
 
@@ -441,9 +697,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
+    if (_esOnline) unawaited(_publicarEstadoOnline());
     if (_partida.fase == FaseChancho.eligiendoCartas) {
-      // Espera a que la PC confirme (ya debería haber confirmado).
+      // Espera a que el resto confirme.
       setState(() {});
+      if (_soyAnfitrionOnline) _autoConfirmarPcSiCorresponde();
     } else {
       // Pase ejecutado.
       _chanchoVisiblePorCarrera = false;
@@ -481,6 +739,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
+    if (_esOnline) unawaited(_publicarEstadoOnline());
     if (_partida.fase == FaseChancho.carreraChancho) {
       _chanchoVisiblePorCarrera = true;
       _talVezChanchoPc();
@@ -519,6 +778,23 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     }
     if (!mounted || _partida.terminada || _yo.dijoChancho) return;
 
+    // Online: cada humano se suma a la carrera al timeout; no cortar si sigue.
+    if (_esOnline) {
+      if (!_yo.dijoChancho && _partida.quienAbrioChancho != null) {
+        decirChanchoVa(_partida, jugador: _yo);
+        setState(() {});
+        unawaited(_publicarEstadoOnline());
+      }
+      if (_partida.terminada ||
+          _partida.enFinRonda ||
+          _partida.fase == FaseChancho.anunciando) {
+        _alResolverRonda();
+      } else if (_soyAnfitrionOnline) {
+        _talVezChanchoPc();
+      }
+      return;
+    }
+
     // Una PC abrió Chancho y el humano no apretó a tiempo → letra al humano.
     final abrio = _partida.quienAbrioChancho;
     if (abrio != null && TextosChancho.esPc(abrio)) {
@@ -554,6 +830,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   void _alResolverRonda() {
     _detenerCronometroChancho();
     _quienLanzoChancha = null;
+    _objetivoChancha = null;
     setState(() {
       _chanchoVisiblePorCarrera = false;
     });
@@ -568,22 +845,26 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   }
 
   void _continuarTrasFinRonda() {
+    if (_esOnline && !_soyAnfitrionOnline) return;
     continuarTrasFinRondaChancho(_partida);
     setState(() {
       _defaultsAnuncioArgentinos();
       _seleccionLocal.clear();
     });
+    if (_esOnline) unawaited(_publicarEstadoOnline());
     _talVezPc();
   }
 
   /// Tras CHANCHA: la ronda sigue (misma mano / mismo anunciante).
   void _despuesDeChancha() {
     _quienLanzoChancha = null;
+    _objetivoChancha = null;
     // Solo cortar el cronómetro del desafío Chancha, no el de Chancho.
     if (_cronoEsRespuestaChancha) {
       _detenerCronometroChancho();
     }
     setState(() {});
+    if (_esOnline) unawaited(_publicarEstadoOnline());
     if (_partida.terminada) return;
     if (_partida.fase == FaseChancho.anunciando) {
       _talVezPc();
@@ -647,6 +928,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
 
   void _onTimeoutRespuestaChancha() {
     if (!mounted || _partida.terminada || !_hayDesafioChancha) return;
+    if (!_soyObjetivoChancha) return;
     final nombre = _quienLanzoChancha!;
     JugadorChancho? quien;
     for (final j in _partida.jugadores) {
@@ -677,7 +959,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
 
   /// 10% de chance de que alguna PC te tire CHANCHA (en cualquier momento).
   bool _intentarChanchaPc() {
-    if (!_opciones.chancha || !_humanoActivo) return false;
+    if (_esOnline && !_soyAnfitrionOnline) return false;
+    if (!_opciones.chancha) return false;
     if (!widget.contraPc || _partida.terminada) return false;
     if (_partida.enFinRonda) return false;
     if (_hayDesafioChancha) return false;
@@ -685,13 +968,23 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     if (_cronoChancho.isAnimating) return false;
     if (_pcs.isEmpty) return false;
     if (_rng.nextDouble() >= 0.10) return false;
+    final humanos = _partida.jugadores
+        .where((j) => !_esPc(j) && !j.eliminado)
+        .toList(growable: false);
+    if (humanos.isEmpty) return false;
+    final objetivo = humanos[_rng.nextInt(humanos.length)];
     final pc = _pcs[_rng.nextInt(_pcs.length)];
     _quienLanzoChancha = pc.nombre;
-    _iniciarCronometroRespuestaChancha();
+    _objetivoChancha = objetivo.nombre;
+    if (_soyObjetivoChancha) {
+      _iniciarCronometroRespuestaChancha();
+    }
+    if (_esOnline) unawaited(_publicarEstadoOnline());
     return true;
   }
 
   Future<void> _talVezPc() async {
+    if (_esOnline && !_soyAnfitrionOnline) return;
     if (!widget.contraPc || _partida.terminada) return;
     if (_partida.enFinRonda) return;
     if (_hayDesafioChancha) return;
@@ -722,6 +1015,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         _direccionAnuncio = anuncio.direccion;
       });
       _autoConfirmarPcSiCorresponde();
+      if (_esOnline) unawaited(_publicarEstadoOnline());
       // Humano debe elegir cartas.
       setState(() {});
       return;
@@ -736,9 +1030,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
 
   void _autoConfirmarPcSiCorresponde() {
     if (!widget.contraPc) return;
+    if (_esOnline && !_soyAnfitrionOnline) return;
     if (_partida.fase != FaseChancho.eligiendoCartas) return;
     final anuncio = _partida.anuncioActual;
     if (anuncio == null) return;
+    var confirmoAlguno = false;
     for (final pc in _pcs) {
       if (pc.seleccionPaseConfirmada) continue;
       if (_partida.fase != FaseChancho.eligiendoCartas) break;
@@ -748,6 +1044,10 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         jugador: pc,
         cartas: cartas,
       );
+      confirmoAlguno = true;
+    }
+    if (confirmoAlguno && _esOnline) {
+      unawaited(_publicarEstadoOnline());
     }
     if (_partida.fase != FaseChancho.eligiendoCartas) {
       _chanchoVisiblePorCarrera = false;
@@ -758,6 +1058,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   }
 
   Future<void> _talVezChanchoPc() async {
+    if (_esOnline && !_soyAnfitrionOnline) return;
     if (!widget.contraPc || _partida.terminada) return;
     if (_partida.enFinRonda) return;
     if (_hayDesafioChancha) return;
@@ -774,11 +1075,13 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     );
     if (!mounted || token != _pcToken) return;
 
+    var dijoAlguno = false;
     for (final pc in pendientes) {
       if (_partida.terminada) break;
       if (pc.dijoChancho) continue;
       if (!pcDeberiaDecirChancho(_partida, pc)) continue;
       decirChanchoVa(_partida, jugador: pc);
+      dijoAlguno = true;
       setState(() {
         _chanchoVisiblePorCarrera = true;
       });
@@ -788,6 +1091,10 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         await Future<void>.delayed(const Duration(milliseconds: 80));
         if (!mounted || token != _pcToken) return;
       }
+    }
+
+    if (dijoAlguno && _esOnline) {
+      unawaited(_publicarEstadoOnline());
     }
 
     if (_partida.fase == FaseChancho.carreraChancho &&
@@ -802,6 +1109,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   }
 
   void _reiniciar() {
+    if (_esOnline && !_soyAnfitrionOnline) return;
     ChanchoStandByStore.limpiar();
     _detenerCronometroChancho();
     setState(() {
@@ -816,18 +1124,25 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       _seleccionLocal.clear();
       _chanchoVisiblePorCarrera = false;
       _quienLanzoChancha = null;
+      _objetivoChancha = null;
       _mostrarMenu = false;
       _mostrarAjustes = false;
     });
+    if (_esOnline) {
+      unawaited(_publicarEstadoOnline(forzar: true));
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _abrirCartelNumeros();
+      if (_puedoElegirNumeros) _abrirCartelNumeros();
+      _talVezPc();
     });
   }
 
   void _salir({required bool guardar}) {
     _pcToken++;
     _detenerCronometroChancho();
-    if (guardar && widget.contraPc && !_partida.terminada) {
+    if (_esOnline) {
+      // Online: no guardar standby local.
+    } else if (guardar && widget.contraPc && !_partida.terminada) {
       ChanchoStandByStore.guardar(
         PartidaChanchoResume(
           partida: _partida,
@@ -888,11 +1203,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         DireccionChancho.centro => TextosChancho.centro,
       };
 
-  /// Cartel del anuncio de la PC mientras elegís cartas.
+  /// Cartel del anuncio ajeno mientras elegís cartas.
   bool get _mostrarCartelAnuncioPc {
     if (_partida.fase != FaseChancho.eligiendoCartas) return false;
     if (_partida.anuncioActual == null) return false;
-    return _esPc(_partida.jugadorActual);
+    return _partida.jugadorActual.nombre != _yo.nombre;
   }
 
   /// Vista previa del anuncio mientras el humano elige cantidad/dirección.
@@ -1285,7 +1600,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                   onSalir: () {
                     setState(() => _mostrarMenu = false);
                     _salir(
-                      guardar: widget.contraPc && !_partida.terminada,
+                      guardar:
+                          !_esOnline && widget.contraPc && !_partida.terminada,
                     );
                   },
                 ),
@@ -1295,6 +1611,10 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                 child: FinRondaChanchoOverlay(
                   partida: _partida,
                   onContinuar: _continuarTrasFinRonda,
+                  continuarHabilitado: !_esOnline || _soyAnfitrionOnline,
+                  labelContinuar: _esOnline && !_soyAnfitrionOnline
+                      ? 'ESPERANDO AL ANFITRIÓN…'
+                      : null,
                 ),
               ),
             if (_partida.terminada)

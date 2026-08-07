@@ -14,6 +14,8 @@ class UnirseSalaScreen extends StatefulWidget {
     required this.onIniciarPartida,
     this.mostrarSelectorDados = true,
     this.editarCategorias = false,
+    this.humanosExactosParaIniciar,
+    this.textoAyudaHumanos,
   });
 
   final String juegoId;
@@ -21,6 +23,8 @@ class UnirseSalaScreen extends StatefulWidget {
       onIniciarPartida;
   final bool mostrarSelectorDados;
   final bool editarCategorias;
+  final int? humanosExactosParaIniciar;
+  final String? textoAyudaHumanos;
 
   @override
   State<UnirseSalaScreen> createState() => _UnirseSalaScreenState();
@@ -88,6 +92,8 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
             onIniciarPartida: widget.onIniciarPartida,
             mostrarSelectorDados: widget.mostrarSelectorDados,
             editarCategorias: widget.editarCategorias,
+            humanosExactosParaIniciar: widget.humanosExactosParaIniciar,
+            textoAyudaHumanos: widget.textoAyudaHumanos,
           ),
         ),
       );

@@ -10,10 +10,14 @@ class FinRondaChanchoOverlay extends StatefulWidget {
     super.key,
     required this.partida,
     required this.onContinuar,
+    this.continuarHabilitado = true,
+    this.labelContinuar,
   });
 
   final PartidaChancho partida;
   final VoidCallback onContinuar;
+  final bool continuarHabilitado;
+  final String? labelContinuar;
 
   @override
   State<FinRondaChanchoOverlay> createState() => _FinRondaChanchoOverlayState();
@@ -93,22 +97,30 @@ class _FinRondaChanchoOverlayState extends State<FinRondaChanchoOverlay> {
                       onPressed: () => setState(() => _mostrarTablero = true),
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: FilledButton(
-                        onPressed: widget.onContinuar,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.mint,
-                          foregroundColor: Colors.black,
-                          shape: const StadiumBorder(),
-                        ),
-                        child: const Text(
-                          'CONTINUAR',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
-                            letterSpacing: 0.6,
+                    Opacity(
+                      opacity: widget.continuarHabilitado ? 1 : 0.55,
+                      child: IgnorePointer(
+                        ignoring: !widget.continuarHabilitado,
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: widget.continuarHabilitado
+                                ? widget.onContinuar
+                                : null,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.mint,
+                              foregroundColor: Colors.black,
+                              shape: const StadiumBorder(),
+                            ),
+                            child: Text(
+                              widget.labelContinuar ?? 'CONTINUAR',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
                           ),
                         ),
                       ),

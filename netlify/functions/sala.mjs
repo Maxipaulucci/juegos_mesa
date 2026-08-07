@@ -479,6 +479,61 @@ export default async (req) => {
           })),
           mostrarVictoria: false,
         }
+      } else if (sala.juegoId === 'chanchoVa') {
+        // Mesa = 2 humanos de la sala + 1–2 PCs (total 3 o 4).
+        const opts =
+          body.opcionesChancho && typeof body.opcionesChancho === 'object'
+            ? body.opcionesChancho
+            : {}
+        const sinEspacio = opts.sinEspacio === true
+        const finAlPrimerPerdedor = opts.finAlPrimerPerdedor === true
+        const chancha = opts.chancha !== false
+        let total = Number(opts.totalJugadores)
+        if (!Number.isFinite(total)) total = 3
+        total = Math.min(4, Math.max(3, Math.trunc(total)))
+        const pcs = Math.min(2, Math.max(1, total - nombres.length))
+        const nombresMesa = [
+          ...nombres,
+          ...Array.from({ length: pcs }, (_, i) => `PC ${i + 1}`),
+        ]
+        sala.gameState = {
+          version: 1,
+          juego: 'chanchoVa',
+          pendienteDeal: true,
+          contraPc: true,
+          sinEspacio,
+          finAlPrimerPerdedor,
+          opciones: {
+            chancha,
+            sinEspacio,
+            finAlPrimerPerdedor,
+            totalJugadores: nombresMesa.length,
+          },
+          indiceTurno: 0,
+          fase: 'eligiendoNumeros',
+          numerosEnJuego: [],
+          anuncioActual: null,
+          ultimoAnuncio: null,
+          quienAbrioChancho: null,
+          ordenChancho: [],
+          historialLetras: [],
+          ultimoResumenRonda: null,
+          perdedor: null,
+          ganador: null,
+          mensajeFin: null,
+          quienLanzoChancha: null,
+          objetivoChancha: null,
+          jugadores: nombresMesa.map((n) => ({
+            nombre: n,
+            mano: [],
+            letras: [],
+            seleccionPase: [],
+            seleccionPaseConfirmada: false,
+            dijoChancho: false,
+            eliminado: false,
+          })),
+          mostrarVictoria: false,
+        }
       } else if (sala.juegoId === 'casitaRobada') {
         sala.gameState = {
           version: 1,

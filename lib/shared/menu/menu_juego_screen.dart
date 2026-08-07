@@ -54,6 +54,11 @@ class MenuJuegoScreen extends StatefulWidget {
     this.mostrarJugadoresVsPc = false,
     /// Opciones del diálogo “Cantidad de jugadores” (vs PC / partida rápida).
     this.opcionesCantidadJugadores = const [2, 3, 4],
+    /// Si no es null, el lobby solo inicia con exactamente N humanos (Chancho).
+    this.lobbyHumanosExactos,
+    this.lobbyTextoAyudaHumanos,
+    /// Antes de Crear/Unirse sala (p. ej. guardar opciones Chancho).
+    this.onPrepararSala,
   });
 
   static const juegoIdDiezMil = 'diezMil';
@@ -78,6 +83,9 @@ class MenuJuegoScreen extends StatefulWidget {
   final bool mostrarMultijugadorLocal;
   final bool mostrarJugadoresVsPc;
   final List<int> opcionesCantidadJugadores;
+  final int? lobbyHumanosExactos;
+  final String? lobbyTextoAyudaHumanos;
+  final void Function(MenuJuegoEstado estado)? onPrepararSala;
 
   final Future<void> Function(
     BuildContext context,
@@ -532,6 +540,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       const SizedBox(height: 18),
                       ElevatedButton(
                         onPressed: () {
+                          widget.onPrepararSala?.call(_estado());
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => CrearSalaScreen(
@@ -540,6 +549,10 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                                     widget.modosDados.length > 1,
                                 onIniciarPartida:
                                     widget.onIniciarDesdeSala,
+                                humanosExactosParaIniciar:
+                                    widget.lobbyHumanosExactos,
+                                textoAyudaHumanos:
+                                    widget.lobbyTextoAyudaHumanos,
                               ),
                             ),
                           );
@@ -549,6 +562,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       const SizedBox(height: 10),
                       OutlinedButton(
                         onPressed: () {
+                          widget.onPrepararSala?.call(_estado());
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => UnirseSalaScreen(
@@ -557,6 +571,10 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                                     widget.modosDados.length > 1,
                                 onIniciarPartida:
                                     widget.onIniciarDesdeSala,
+                                humanosExactosParaIniciar:
+                                    widget.lobbyHumanosExactos,
+                                textoAyudaHumanos:
+                                    widget.lobbyTextoAyudaHumanos,
                               ),
                             ),
                           );
