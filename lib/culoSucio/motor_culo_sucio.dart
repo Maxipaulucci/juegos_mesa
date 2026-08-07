@@ -62,7 +62,11 @@ class PartidaCuloSucio {
     this.mensajeFin,
     this.contraPc = false,
     List<JugadaHistorialCuloSucio>? historial,
-  }) : historial = historial ?? [];
+    List<bool>? rendidos,
+  })  : historial = historial ?? [],
+        rendidos = List<bool>.from(
+          rendidos ?? List.filled(nombres.length, false),
+        );
 
   final List<String> nombres;
   final List<CartaCuloSucio> mazo;
@@ -75,6 +79,8 @@ class PartidaCuloSucio {
   String? mensajeFin;
   final bool contraPc;
   final List<JugadaHistorialCuloSucio> historial;
+  /// Paralelo a [nombres]: true si ese jugador se rindió.
+  final List<bool> rendidos;
 
   bool get terminada => fase == FaseCuloSucio.terminada;
 
@@ -82,6 +88,29 @@ class PartidaCuloSucio {
       nombres.isEmpty ? '' : nombres[indiceTurno % nombres.length];
 
   int get cartasRestantes => mazo.length;
+
+  void asegurarRendidos() {
+    while (rendidos.length < nombres.length) {
+      rendidos.add(false);
+    }
+    while (rendidos.length > nombres.length) {
+      rendidos.removeLast();
+    }
+  }
+
+  bool estaRendido(int index) {
+    asegurarRendidos();
+    if (index < 0 || index >= rendidos.length) return false;
+    return rendidos[index];
+  }
+
+  List<String> get nombresActivos {
+    asegurarRendidos();
+    return [
+      for (var i = 0; i < nombres.length; i++)
+        if (!rendidos[i]) nombres[i],
+    ];
+  }
 }
 
 /// Una carta sacada por un jugador en un turno.
@@ -147,6 +176,11 @@ PartidaCuloSucio nuevaPartidaCuloSucio({
 /// Saca la carta de arriba del mazo. Devuelve error o null si ok.
 String? sacarCartaCuloSucio(PartidaCuloSucio p) {
   if (p.terminada) return 'La partida ya terminó.';
+  p.asegurarRendidos();
+  if (p.estaRendido(p.indiceTurno % p.nombres.length)) {
+    _avanzarTurnoSaltandoRendidos(p);
+    return 'Ese jugador ya se rindió.';
+  }
   if (p.mazo.isEmpty) {
     p.fase = FaseCuloSucio.terminada;
     p.mensajeFin = 'Se acabó el mazo sin salir el 1 de oro. Empate.';
@@ -169,8 +203,8 @@ String? sacarCartaCuloSucio(PartidaCuloSucio p) {
     p.fase = FaseCuloSucio.terminada;
     p.perdedor = quien;
     final otros = [
-      for (final n in p.nombres)
-        if (n != p.perdedor) n,
+      for (var i = 0; i < p.nombres.length; i++)
+        if (p.nombres[i] != p.perdedor && !p.rendidos[i]) p.nombres[i],
     ];
     p.ganador = otros.isEmpty ? null : otros.first;
     p.mensajeFin =
@@ -178,7 +212,48 @@ String? sacarCartaCuloSucio(PartidaCuloSucio p) {
     return null;
   }
 
-  p.indiceTurno = (p.indiceTurno + 1) % p.nombres.length;
+  _avanzarTurnoSaltandoRendidos(p);
+  return null;
+}
+
+void _avanzarTurnoSaltandoRendidos(PartidaCuloSucio p) {
+  final n = p.nombres.length;
+  if (n == 0) return;
+  p.asegurarRendidos();
+  for (var i = 0; i < n; i++) {
+    p.indiceTurno = (p.indiceTurno + 1) % n;
+    if (!p.rendidos[p.indiceTurno]) return;
+  }
+}
+
+/// Marca [nombre] como rendido. Si queda uno en pie, gana por abandono.
+String? rendirseCuloSucio(PartidaCuloSucio p, String nombre) {
+  if (p.terminada) return null;
+  p.asegurarRendidos();
+  final idx = p.nombres.indexWhere((n) => n == nombre);
+  if (idx < 0 || p.rendidos[idx]) return null;
+
+  p.rendidos[idx] = true;
+
+  final activos = p.nombresActivos;
+  if (activos.length <= 1) {
+    p.fase = FaseCuloSucio.terminada;
+    if (activos.isEmpty) {
+      p.ganador = null;
+      p.perdedor = nombre;
+      p.mensajeFin = '$nombre se rindió.';
+      return null;
+    }
+    final ganador = activos.first;
+    p.ganador = ganador;
+    p.perdedor = nombre;
+    p.mensajeFin = '$nombre se rindió. ¡$ganador gana por abandono!';
+    return ganador;
+  }
+
+  if (p.indiceTurno % p.nombres.length == idx) {
+    _avanzarTurnoSaltandoRendidos(p);
+  }
   return null;
 }
 

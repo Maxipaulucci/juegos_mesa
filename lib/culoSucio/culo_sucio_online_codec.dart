@@ -85,6 +85,7 @@ Map<String, dynamic> encodeCuloSucioGameState({
     'perdedor': partida.perdedor,
     'ganador': partida.ganador,
     'mensajeFin': partida.mensajeFin,
+    'rendidos': List<bool>.from(partida.rendidos),
     'historial': [
       for (final j in partida.historial)
         {
@@ -116,6 +117,15 @@ void applyCuloSucioGameState(
     destino.nombres
       ..clear()
       ..addAll(nombres);
+  }
+
+  destino.asegurarRendidos();
+  final rendidosRaw = raw['rendidos'];
+  if (rendidosRaw is List) {
+    for (var i = 0; i < destino.rendidos.length; i++) {
+      destino.rendidos[i] =
+          i < rendidosRaw.length && rendidosRaw[i] == true;
+    }
   }
 
   destino.mazo
