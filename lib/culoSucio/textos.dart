@@ -26,3 +26,19 @@ abstract final class TextosCuloSucio {
       'en orden, reordenarlo y elegir cuál es la próxima.\n\n'
       'Sirve para probar partidas sin depender del azar.';
 }
+
+String reglasCuloSucio({required bool comodines}) => comodines
+    ? '''
+· Se juega con mazo español de 50 cartas (incluye comodines).
+
+· Por turnos, cada jugador saca una carta del mazo.
+
+· Quien saque el 1 de oro es el culo sucio y pierde.
+'''.trim()
+    : '''
+· Se juega con mazo español de 48 cartas (sin comodines).
+
+· Por turnos, cada jugador saca una carta del mazo.
+
+· Quien saque el 1 de oro es el culo sucio y pierde.
+'''.trim();

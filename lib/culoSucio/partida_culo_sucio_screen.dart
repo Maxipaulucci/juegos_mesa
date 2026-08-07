@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/culoSucio/culo_sucio_online_codec.dart';
 import 'package:app_juegos_mesa/culoSucio/historial_culo_sucio.dart';
+import 'package:app_juegos_mesa/culoSucio/menu_partida_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/modo_dios_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/motor_culo_sucio.dart';
 import 'package:app_juegos_mesa/culoSucio/opciones_culo_sucio.dart';
@@ -12,6 +13,7 @@ import 'package:app_juegos_mesa/culoSucio/textos.dart';
 import 'package:app_juegos_mesa/culoSucio/victoria_culo_sucio_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/icono_espada.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -48,6 +50,9 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   bool _sacando = false;
   bool _editandoMazo = false;
   int _pcToken = 0;
+  bool _mostrarMenu = false;
+  bool _mostrarAjustes = false;
+  AjustesEstado _ajustes = const AjustesEstado();
 
   StreamSubscription<Sala>? _onlineSub;
   int _onlineVersion = 0;
@@ -263,6 +268,48 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     }
   }
 
+  String get _nombreMenu {
+    if (_esOnline) return widget.miNombre ?? _partida.jugadorActual;
+    if (widget.contraPc) {
+      return _partida.nombres.firstWhere(
+        (n) => n != TextosCuloSucio.vsPcNombre,
+        orElse: () => _partida.jugadorActual,
+      );
+    }
+    return _partida.jugadorActual;
+  }
+
+  void _mostrarReglas() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        title: const Text(
+          'Reglas',
+          style: TextStyle(
+            color: AppColors.mint,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Text(
+            reglasCuloSucio(comodines: _opciones.comodines),
+            style: const TextStyle(
+              color: AppColors.texto,
+              height: 1.35,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _talVezTurnoPc() async {
     if (_esOnline) return;
     if (!_esTurnoPc || _sacando || _editandoMazo) return;
@@ -378,9 +425,18 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        _salirAlMenu(
-          guardar: !_esOnline && widget.contraPc && !_partida.terminada,
-        );
+        if (_mostrarAjustes) {
+          setState(() => _mostrarAjustes = false);
+          return;
+        }
+        if (_mostrarMenu) {
+          setState(() => _mostrarMenu = false);
+          return;
+        }
+        setState(() {
+          _mostrarMenu = true;
+          _mostrarAjustes = false;
+        });
       },
       child: Scaffold(
       backgroundColor: AppColors.fondo,
@@ -391,17 +447,15 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 12, 0),
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => _salirAlMenu(
-                          guardar: !_esOnline &&
-                              widget.contraPc &&
-                              !_partida.terminada,
-                        ),
-                        icon: const Icon(Icons.arrow_back_rounded),
-                        color: AppColors.texto,
+                        onPressed: () => setState(() {
+                          _mostrarMenu = true;
+                          _mostrarAjustes = false;
+                        }),
+                        icon: const Icon(Icons.menu, color: AppColors.texto),
                       ),
                       const Expanded(
                         child: Text(
@@ -414,7 +468,16 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 48),
+                      IconButton(
+                        onPressed: () => setState(() {
+                          _mostrarAjustes = true;
+                          _mostrarMenu = false;
+                        }),
+                        icon: const Icon(
+                          Icons.settings,
+                          color: AppColors.textoSuave,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -614,6 +677,34 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
               ],
             ),
           ),
+          if (_mostrarAjustes)
+            Positioned.fill(
+              child: AjustesOverlay(
+                ajustes: _ajustes,
+                onChanged: (a) => setState(() => _ajustes = a),
+                onCerrar: () => setState(() => _mostrarAjustes = false),
+              ),
+            ),
+          if (_mostrarMenu)
+            Positioned.fill(
+              child: MenuPartidaCuloSucio(
+                jugador: _nombreMenu,
+                partidaTerminada: _partida.terminada,
+                onCerrar: () => setState(() => _mostrarMenu = false),
+                onReglas: () {
+                  setState(() => _mostrarMenu = false);
+                  _mostrarReglas();
+                },
+                onSalir: () {
+                  setState(() => _mostrarMenu = false);
+                  _salirAlMenu(
+                    guardar: !_esOnline &&
+                        widget.contraPc &&
+                        !_partida.terminada,
+                  );
+                },
+              ),
+            ),
           if (_partida.terminada)
             Positioned.fill(
               child: _debeMostrarVictoria
