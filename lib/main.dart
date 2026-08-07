@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -57,6 +59,8 @@ class _SplashInicial extends StatefulWidget {
 }
 
 class _SplashInicialState extends State<_SplashInicial> {
+  final Completer<void> _barraListo = Completer<void>();
+
   @override
   void initState() {
     super.initState();
@@ -64,8 +68,22 @@ class _SplashInicialState extends State<_SplashInicial> {
   }
 
   Future<void> _irAlHome() async {
-    await Future<void>.delayed(duracionCargaMinima);
+    // En segundo plano: calentar el home mientras corre la barra.
+    final prep = Future<void>(() async {
+      await Future<void>.delayed(Duration.zero);
+      await WidgetsBinding.instance.endOfFrame;
+      // Fuerza a resolver tipografías / tema antes del menú.
+      if (mounted) {
+        Theme.of(context);
+        DefaultTextStyle.of(context);
+      }
+      await WidgetsBinding.instance.endOfFrame;
+    });
+
+    await Future.wait<void>([_barraListo.future, prep]);
+    await Future<void>.delayed(pausaTrasCienPorCiento);
     if (!mounted) return;
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         pageBuilder: (_, __, ___) => const HomeScreen(),
@@ -79,9 +97,12 @@ class _SplashInicialState extends State<_SplashInicial> {
 
   @override
   Widget build(BuildContext context) {
-    return const PantallaCarga(
+    return PantallaCarga(
       mensaje: 'Juegos de Mesa',
       duracion: duracionCargaMinima,
+      onBarraCompleta: () {
+        if (!_barraListo.isCompleted) _barraListo.complete();
+      },
     );
   }
 }
