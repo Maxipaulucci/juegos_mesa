@@ -11,6 +11,7 @@ import '../tutiFruti/menu_tuti_fruti_screen.dart';
 import '../culoSucio/menu_culo_sucio_screen.dart';
 import '../culoSucioV2/menu_culo_sucio_v2_screen.dart';
 import '../casitaRobada/menu_casita_robada_screen.dart';
+import '../chanchoVa/menu_chancho_va_screen.dart';
 import '../unoSolo/menu_uno_solo_screen.dart';
 
 enum _CategoriaHome {
@@ -160,10 +161,9 @@ class _HomeScreenState extends State<HomeScreen>
     _JuegoHome(
       tipo: _TipoJuegoHome.chanchoVa,
       titulo: 'Chancho va',
-      subtitulo: 'Próximamente',
+      subtitulo: 'Cartas · cuartetos y CHANCHO VA',
       accent: AppColors.acentoSuave,
       categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.desconfio,
@@ -335,8 +335,13 @@ class _HomeScreenState extends State<HomeScreen>
               acento: AppColors.mint,
               mensaje: 'Casita robada',
             );
-      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.chanchoVa:
+        return () => _abrirJuego(
+              menu: const MenuChanchoVaScreen(),
+              acento: AppColors.acentoSuave,
+              mensaje: 'Chancho va',
+            );
+      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.desconfio:
       case _TipoJuegoHome.jodete:
         return null;
