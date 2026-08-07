@@ -48,6 +48,7 @@ class PartidaChanchoVaScreen extends StatefulWidget {
 class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     with SingleTickerProviderStateMixin {
   late PartidaChancho _partida;
+  late List<String> _nombres;
   final Set<int> _numerosElegidos = {};
   int? _cantidadAnuncio = 1;
   DireccionChancho? _direccionAnuncio = DireccionChancho.derecha;
@@ -67,6 +68,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   bool _mostrarAjustes = false;
   late final AnimationController _cronoChancho;
   Timer? _timerChanchaPc;
+  Timer? _timerNotiTope;
+  String? _notiTopeTexto;
 
   StreamSubscription<Sala>? _onlineSub;
   int _onlineVersion = 0;
@@ -85,7 +88,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
 
   bool get _soyAnfitrionOnline {
     if (!_esOnline) return false;
-    for (final n in widget.nombres) {
+    for (final n in _nombres) {
       if (!TextosChancho.esPc(n)) return n == widget.miNombre;
     }
     return false;
@@ -246,6 +249,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         widget.ajustesIniciales ??
         const AjustesEstado();
     _opciones = resume?.opciones ?? widget.opciones;
+    _nombres = List.of(resume?.nombres ?? widget.nombres);
     if (resume != null) {
       _partida = resume.partida;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -260,7 +264,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     if (_esOnline) {
       _esperandoDealOnline = true;
       _partida = nuevaPartidaChancho(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: true,
         sinEspacio: _opciones.sinEspacio,
         finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
@@ -269,7 +273,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       return;
     }
     _partida = nuevaPartidaChancho(
-      nombres: widget.nombres,
+      nombres: _nombres,
       contraPc: true,
       sinEspacio: _opciones.sinEspacio,
       finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
@@ -288,8 +292,155 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     _onlineSub?.cancel();
     _pcToken++;
     _timerChanchaPc?.cancel();
+    _timerNotiTope?.cancel();
     _cronoChancho.dispose();
     super.dispose();
+  }
+
+  /// Toast violeta arriba: no empuja el layout ni tapa botones (IgnorePointer).
+  void _mostrarNotiTope(String texto) {
+    _timerNotiTope?.cancel();
+    setState(() => _notiTopeTexto = texto);
+    _timerNotiTope = Timer(const Duration(milliseconds: 2600), () {
+      if (!mounted) return;
+      setState(() => _notiTopeTexto = null);
+    });
+  }
+
+  static const int _maxNombre = 15;
+
+  bool _puedeRenombrar(int index) {
+    if (_esOnline) return false;
+    if (!widget.contraPc) return false;
+    if (_partida.terminada) return false;
+    if (index < 0 || index >= _partida.jugadores.length) return false;
+    final j = _partida.jugadores[index];
+    if (j.eliminado) return false;
+    return !_esPc(j);
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    if (TextosChancho.esPc(nombre)) {
+      return 'Ese nombre está reservado para la PC.';
+    }
+    final ocupado = _partida.jugadores.asMap().entries.any(
+          (e) => e.key != index && e.value.nombre == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarJugador(int index) async {
+    if (!_puedeRenombrar(index)) return;
+    final actual = _partida.jugadores[index].nombre;
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle: const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+                child: const Text('Guardar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+
+    setState(() {
+      _partida.jugadores[index].nombre = nuevo;
+      if (index < _nombres.length) _nombres[index] = nuevo;
+      if (_partida.quienAbrioChancho == actual) {
+        _partida.quienAbrioChancho = nuevo;
+      }
+      for (var i = 0; i < _partida.ordenChancho.length; i++) {
+        if (_partida.ordenChancho[i] == actual) {
+          _partida.ordenChancho[i] = nuevo;
+        }
+      }
+      if (_partida.perdedor == actual) _partida.perdedor = nuevo;
+      if (_partida.ganador == actual) _partida.ganador = nuevo;
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
+      for (final e in _partida.historialLetras) {
+        if (e.jugador == actual) e.jugador = nuevo;
+      }
+      final r = _partida.ultimoResumenRonda;
+      if (r != null) {
+        _partida.ultimoResumenRonda = ResumenRondaChancho(
+          motivo: r.motivo,
+          chanchoDe: r.chanchoDe == actual ? nuevo : r.chanchoDe,
+          chancho: r.chancho == actual ? nuevo : r.chancho,
+        );
+      }
+      if (_quienLanzoChancha == actual) _quienLanzoChancha = nuevo;
+      if (_objetivoChancha == actual) _objetivoChancha = nuevo;
+    });
   }
 
   void _iniciarSincronizacionOnline() {
@@ -405,7 +556,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   Future<void> _publicarDealInicialOnline() async {
     if (!_esOnline || _dealPublicado || _publicandoOnline) return;
     final generada = nuevaPartidaChancho(
-      nombres: widget.nombres,
+      nombres: _nombres,
       contraPc: true,
       sinEspacio: _opciones.sinEspacio,
       finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
@@ -886,9 +1037,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         lanzadorChancha: _yo.nombre,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('¡${pc.nombre} cayó en CHANCHA!')),
-        );
+        _mostrarNotiTope('¡${pc.nombre} cayó en CHANCHA!');
       }
     } else {
       penalizarJugadorChancho(
@@ -898,11 +1047,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         lanzadorChancha: _yo.nombre,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nadie cayó. Se te anota una letra.'),
-          ),
-        );
+        _mostrarNotiTope('Nadie cayó. Se te anota una letra.');
       }
     }
     _despuesDeChancha();
@@ -919,9 +1064,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       lanzadorChancha: lanzador,
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Caíste en CHANCHA. Se te anota una letra.')),
-      );
+      _mostrarNotiTope('Caíste en CHANCHA. Se te anota una letra.');
     }
     _despuesDeChancha();
   }
@@ -945,13 +1088,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
         lanzadorChancha: nombre,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'No tocaste. Se le anota una letra a $nombre.',
-            ),
-          ),
-        );
+        _mostrarNotiTope('No tocaste. Se le anota una letra a $nombre.');
       }
     }
     _despuesDeChancha();
@@ -1114,7 +1251,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     _detenerCronometroChancho();
     setState(() {
       _partida = nuevaPartidaChancho(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: true,
         sinEspacio: _opciones.sinEspacio,
         finAlPrimerPerdedor: _opciones.finAlPrimerPerdedor,
@@ -1146,7 +1283,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       ChanchoStandByStore.guardar(
         PartidaChanchoResume(
           partida: _partida,
-          nombres: widget.nombres,
+          nombres: _nombres,
           ajustesIniciales: _ajustes,
           modoDios: widget.modoDios,
           opciones: _opciones,
@@ -1319,7 +1456,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                       ],
                     ),
                     const SizedBox(height: 6),
-                    _MarcadorLetras(jugadores: _partida.jugadores),
+                    _MarcadorLetras(
+                      jugadores: _partida.jugadores,
+                      puedeRenombrar: _puedeRenombrar,
+                      onRenombrar: _renombrarJugador,
+                    ),
                     if (_modoDiosActivo) ...[
                       const SizedBox(height: 8),
                       for (final pc in _partida.jugadores.where(_esPc))
@@ -1579,6 +1720,18 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                 ),
               ),
             ),
+            if (_notiTopeTexto != null)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: IgnorePointer(
+                    child: _NotiTopeChancho(texto: _notiTopeTexto!),
+                  ),
+                ),
+              ),
             if (_mostrarAjustes)
               Positioned.fill(
                 child: AjustesOverlay(
@@ -1627,6 +1780,84 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotiTopeChancho extends StatelessWidget {
+  const _NotiTopeChancho({required this.texto});
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(48, 6, 48, 0),
+        child: Material(
+          color: Colors.transparent,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF6A3DE8),
+                  Color(0xFF4A1FB8),
+                  Color(0xFF3B158F),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.violeta.withValues(alpha: 0.95),
+                width: 1.4,
+              ),
+              boxShadow: [
+                ...neonGlow(AppColors.violeta, blur: 12),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: AppColors.acento,
+                      shape: BoxShape.circle,
+                      boxShadow: neonGlow(AppColors.acento, blur: 6),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      texto,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.texto,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                        height: 1.2,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -1695,9 +1926,15 @@ class _CartelAnuncioPc extends StatelessWidget {
 }
 
 class _MarcadorLetras extends StatelessWidget {
-  const _MarcadorLetras({required this.jugadores});
+  const _MarcadorLetras({
+    required this.jugadores,
+    required this.puedeRenombrar,
+    required this.onRenombrar,
+  });
 
   final List<JugadorChancho> jugadores;
+  final bool Function(int index) puedeRenombrar;
+  final Future<void> Function(int index) onRenombrar;
 
   @override
   Widget build(BuildContext context) {
@@ -1706,43 +1943,73 @@ class _MarcadorLetras extends StatelessWidget {
         for (var i = 0; i < jugadores.length; i++) ...[
           if (i > 0) const SizedBox(width: 8),
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A0A33),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: puedeRenombrar(i) ? () => onRenombrar(i) : null,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.violeta),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    jugadores[i].nombre,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: jugadores[i].eliminado
-                          ? AppColors.textoSuave
-                          : AppColors.texto,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                      decoration: jugadores[i].eliminado
-                          ? TextDecoration.lineThrough
-                          : null,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: puedeRenombrar(i) ? 6 : 8,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A0A33),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: puedeRenombrar(i)
+                          ? AppColors.acento.withValues(alpha: 0.85)
+                          : AppColors.violeta,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    jugadores[i].letrasTexto,
-                    style: TextStyle(
-                      color: jugadores[i].eliminado
-                          ? AppColors.peligro
-                          : AppColors.acento,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      letterSpacing: 1,
-                    ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              jugadores[i].nombre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: jugadores[i].eliminado
+                                    ? AppColors.textoSuave
+                                    : AppColors.texto,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                decoration: jugadores[i].eliminado
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          if (puedeRenombrar(i)) ...[
+                            const SizedBox(width: 2),
+                            Icon(
+                              Icons.edit_rounded,
+                              size: 12,
+                              color: AppColors.acento.withValues(alpha: 0.9),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        jugadores[i].letrasTexto,
+                        style: TextStyle(
+                          color: jugadores[i].eliminado
+                              ? AppColors.peligro
+                              : AppColors.acento,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

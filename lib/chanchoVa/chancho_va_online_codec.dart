@@ -332,6 +332,10 @@ void applyChanchoGameState(PartidaChancho destino, Map<String, dynamic> raw) {
     if (jugadoresRaw[i] is! Map) continue;
     final m = Map<String, dynamic>.from(jugadoresRaw[i] as Map);
     final j = destino.jugadores[i];
+    final nombreRemote = m['nombre']?.toString();
+    if (nombreRemote != null && nombreRemote.isNotEmpty) {
+      j.nombre = nombreRemote;
+    }
     j.mano
       ..clear()
       ..addAll(_decodeCartas(m['mano']));

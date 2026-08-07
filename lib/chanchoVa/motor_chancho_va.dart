@@ -87,7 +87,7 @@ class CartaChancho {
 class JugadorChancho {
   JugadorChancho(this.nombre);
 
-  final String nombre;
+  String nombre;
   final List<CartaChancho> mano = [];
   /// Letras ya recibidas (largo = progreso hacia la palabra objetivo).
   final List<String> letras = [];
@@ -123,7 +123,7 @@ class EventoHistorialChancho {
     required this.motivo,
   });
 
-  final String jugador;
+  String jugador;
   /// Letras del jugador justo después del evento (ej. "C", "CH").
   final String letrasTras;
   final MotivoPenalizacionChancho motivo;
