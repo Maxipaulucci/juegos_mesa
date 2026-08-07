@@ -86,14 +86,14 @@ class PartidaCuloSucio {
 
 /// Una carta sacada por un jugador en un turno.
 class JugadaHistorialCuloSucio {
-  const JugadaHistorialCuloSucio({
+  JugadaHistorialCuloSucio({
     required this.turno,
     required this.jugador,
     required this.carta,
   });
 
   final int turno;
-  final String jugador;
+  String jugador;
   final CartaCuloSucio carta;
 }
 

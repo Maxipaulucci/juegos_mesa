@@ -46,6 +46,7 @@ class PartidaCuloSucioScreen extends StatefulWidget {
 
 class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   late PartidaCuloSucio _partida;
+  late List<String> _nombres;
   late OpcionesCuloSucio _opciones;
   bool _sacando = false;
   bool _editandoMazo = false;
@@ -69,8 +70,8 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   bool get _soyAnfitrionOnline =>
       _esOnline &&
       widget.miNombre != null &&
-      (widget.nombres.isNotEmpty
-          ? widget.nombres.first == widget.miNombre
+      (_nombres.isNotEmpty
+          ? _nombres.first == widget.miNombre
           : (_partida.nombres.isNotEmpty &&
               _partida.nombres.first == widget.miNombre));
 
@@ -90,9 +91,10 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     super.initState();
     _opciones = widget.opciones;
     final resume = widget.resume;
+    _nombres = List.of(resume?.nombres ?? widget.nombres);
     if (_esOnline) {
       _partida = PartidaCuloSucio(
-        nombres: List.of(widget.nombres),
+        nombres: List.of(_nombres),
         mazo: [],
       );
       _esperandoMazoOnline = true;
@@ -100,13 +102,15 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     } else if (resume != null) {
       _partida = resume.partida;
       _opciones = resume.opciones;
+      _nombres = List.of(resume.nombres);
       WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
     } else {
       _partida = nuevaPartidaCuloSucio(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: widget.contraPc,
         incluirComodines: _opciones.comodines,
       );
+      _nombres = List.of(_partida.nombres);
       WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
     }
   }
@@ -185,7 +189,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   Future<void> _publicarMazoInicialOnline() async {
     if (!_esOnline || _mazoPublicado || _publicandoOnline) return;
     final generada = nuevaPartidaCuloSucio(
-      nombres: widget.nombres,
+      nombres: _nombres,
       incluirComodines: _opciones.comodines,
     );
     setState(() {
@@ -249,7 +253,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     CuloSucioStandByStore.guardar(
       PartidaCuloSucioResume(
         partida: _partida,
-        nombres: widget.nombres,
+        nombres: _nombres,
         opciones: _opciones,
         modoDios: widget.modoDios,
       ),
@@ -266,6 +270,125 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
+  }
+
+  static const int _maxNombre = 15;
+
+  bool _esPcNombre(String nombre) =>
+      nombre == TextosCuloSucio.vsPcNombre ||
+      (nombre.startsWith('PC ') && nombre.length > 3);
+
+  bool _puedeRenombrar(int index) {
+    if (_esOnline) return false;
+    if (_partida.terminada) return false;
+    if (index < 0 || index >= _partida.nombres.length) return false;
+    return !_esPcNombre(_partida.nombres[index]);
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    if (nombre.isEmpty) return 'El nombre no puede estar vacío.';
+    if (nombre.length > _maxNombre) {
+      return 'Máximo $_maxNombre caracteres.';
+    }
+    if (_esPcNombre(nombre)) {
+      return 'Ese nombre está reservado para la PC.';
+    }
+    final ocupado = _partida.nombres.asMap().entries.any(
+          (e) => e.key != index && e.value == nombre,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarJugador(int index) async {
+    if (!_puedeRenombrar(index)) return;
+    final actual = _partida.nombres[index];
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle: const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final t = ctrl.text.trim();
+                  if (_validarNombre(t, index) case final e?) {
+                    setDialogState(() => error = e);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+                child: const Text('Guardar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+
+    setState(() {
+      _partida.nombres[index] = nuevo;
+      if (index < _nombres.length) _nombres[index] = nuevo;
+      if (_partida.perdedor == actual) _partida.perdedor = nuevo;
+      if (_partida.ganador == actual) _partida.ganador = nuevo;
+      for (final j in _partida.historial) {
+        if (j.jugador == actual) j.jugador = nuevo;
+      }
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
+    });
   }
 
   String get _nombreMenu {
@@ -365,7 +488,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     CuloSucioStandByStore.limpiar();
     setState(() {
       _partida = nuevaPartidaCuloSucio(
-        nombres: widget.nombres,
+        nombres: _nombres,
         contraPc: widget.contraPc,
         incluirComodines: _opciones.comodines,
       );
@@ -509,6 +632,10 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                                 _partida.indiceTurno == i,
                             perdido: _partida.perdedor == _partida.nombres[i],
                             ganado: _partida.ganador == _partida.nombres[i],
+                            puedeRenombrar: _puedeRenombrar(i),
+                            onRenombrar: _puedeRenombrar(i)
+                                ? () => _renombrarJugador(i)
+                                : null,
                           ),
                         ),
                       ],
@@ -738,12 +865,16 @@ class _ChipJugador extends StatelessWidget {
     required this.activo,
     required this.perdido,
     required this.ganado,
+    this.puedeRenombrar = false,
+    this.onRenombrar,
   });
 
   final String nombre;
   final bool activo;
   final bool perdido;
   final bool ganado;
+  final bool puedeRenombrar;
+  final VoidCallback? onRenombrar;
 
   @override
   Widget build(BuildContext context) {
@@ -753,32 +884,63 @@ class _ChipJugador extends StatelessWidget {
             ? AppColors.mint
             : activo
                 ? AppColors.acento
-                : AppColors.cartaBorde;
-    return AnimatedContainer(
+                : AppColors.violeta;
+    final chip = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: puedeRenombrar ? 10 : 12,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.carta.withValues(alpha: 0.92),
+        color: AppColors.violeta.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: borde,
-          width: activo || perdido || ganado ? 2 : 1,
+          width: activo || perdido || ganado || puedeRenombrar ? 2 : 1.2,
         ),
+        boxShadow: puedeRenombrar
+            ? neonGlow(AppColors.violeta, blur: 10)
+            : null,
       ),
-      child: Text(
-        nombre,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: perdido
-              ? AppColors.peligro
-              : ganado
-                  ? AppColors.mint
-                  : AppColors.texto,
-          fontWeight: FontWeight.w800,
-          fontSize: 14,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Text(
+              nombre,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: perdido
+                    ? AppColors.peligro
+                    : ganado
+                        ? AppColors.mint
+                        : AppColors.texto,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          if (puedeRenombrar) ...[
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.edit_rounded,
+              size: 14,
+              color: AppColors.acento,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (!puedeRenombrar || onRenombrar == null) return chip;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onRenombrar,
+        borderRadius: BorderRadius.circular(14),
+        child: chip,
       ),
     );
   }
