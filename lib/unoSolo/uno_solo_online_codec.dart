@@ -47,6 +47,7 @@ Map<String, dynamic> encodeUnoSoloGameState({
     'ganador': partida.ganador,
     'calificacion': partida.calificacion,
     'solo': partida.solo,
+    'rendidos': List<String>.from(partida.rendidos),
     'mostrarVictoria': partida.terminada,
     'historial': [
       for (final m in historial ?? const <MovimientoUnoSolo>[])
@@ -65,6 +66,13 @@ void applyUnoSoloGameState(
   destino.mensajeFin = raw['mensajeFin']?.toString();
   destino.ganador = raw['ganador']?.toString();
   destino.calificacion = raw['calificacion']?.toString();
+
+  final rendidos = (raw['rendidos'] as List?)
+      ?.map((e) => e.toString())
+      .toList();
+  destino.rendidos
+    ..clear()
+    ..addAll(rendidos ?? const []);
 
   final nombres = (raw['nombres'] as List?)
       ?.map((e) => e.toString())

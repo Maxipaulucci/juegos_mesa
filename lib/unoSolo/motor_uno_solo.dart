@@ -29,7 +29,8 @@ class PartidaUnoSolo {
     this.ganador,
     this.calificacion,
     this.solo = false,
-  });
+    List<String>? rendidos,
+  }) : rendidos = List<String>.from(rendidos ?? const []);
 
   final List<String> nombres;
   /// 7×7 = 49. Esquinas 2×2 son [CeldaUnoSolo.invalida].
@@ -41,6 +42,8 @@ class PartidaUnoSolo {
   /// Regular / Mejor / … ya no se usan; solo victoria o “Seguí intentando”.
   String? calificacion;
   final bool solo;
+  /// Multijugador: nombres que abandonaron (siguen en la mesa, sin jugar).
+  final List<String> rendidos;
 
   static const int filas = 7;
   static const int columnas = 7;
@@ -52,6 +55,13 @@ class PartidaUnoSolo {
 
   bool get terminada =>
       fase == FaseUnoSolo.ganado || fase == FaseUnoSolo.perdido;
+
+  bool estaRendido(String nombre) => rendidos.contains(nombre);
+
+  List<String> get jugadoresActivos => [
+        for (final n in nombres)
+          if (!estaRendido(n)) n,
+      ];
 
   int get fichasRestantes =>
       celdas.where((c) => c == CeldaUnoSolo.ocupada).length;
@@ -197,12 +207,57 @@ void _evaluarFinTrasJugada(PartidaUnoSolo p) {
 
 void _pasarTurnoUnoSolo(PartidaUnoSolo p) {
   if (p.solo || p.nombres.length < 2 || p.terminada) return;
-  p.indiceTurno = (p.indiceTurno + 1) % p.nombres.length;
+  final n = p.nombres.length;
+  for (var i = 0; i < n; i++) {
+    p.indiceTurno = (p.indiceTurno + 1) % n;
+    if (!p.estaRendido(p.jugadorActual)) return;
+  }
+}
+
+/// Marca [nombre] como rendido. Si queda ≤1 activo, gana por abandono.
+/// Devuelve el ganador si la partida terminó; si no, null.
+String? rendirseUnoSolo(PartidaUnoSolo p, String nombre) {
+  if (p.terminada || p.solo) return null;
+  if (nombre.isEmpty || p.estaRendido(nombre)) return null;
+  if (!p.nombres.contains(nombre)) return null;
+
+  p.rendidos.add(nombre);
+
+  final activos = p.jugadoresActivos;
+  if (activos.length <= 1) {
+    p.fase = FaseUnoSolo.ganado;
+    if (activos.isEmpty) {
+      p.ganador = null;
+      p.calificacion = null;
+      p.mensajeFin = '$nombre se rindió.';
+    } else {
+      p.ganador = activos.first;
+      p.calificacion = '¡Victoria!';
+      p.mensajeFin =
+          '$nombre se rindió. ¡${activos.first} gana por abandono!';
+    }
+    return p.ganador;
+  }
+
+  // Sigue la partida: si era su turno (o el actual ya está fuera), avanza.
+  if (p.jugadorActual == nombre || p.estaRendido(p.jugadorActual)) {
+    // Retrocede uno y pasa: _pasarTurno avanza desde el índice actual.
+    // Si el actual es el rendido, solo hay que saltar al próximo activo.
+    final n = p.nombres.length;
+    for (var i = 0; i < n; i++) {
+      if (!p.estaRendido(p.jugadorActual)) break;
+      p.indiceTurno = (p.indiceTurno + 1) % n;
+    }
+  }
+  return null;
 }
 
 /// Ejecuta un salto. Devuelve error o null si ok.
 String? jugarMovimientoUnoSolo(PartidaUnoSolo p, MovimientoUnoSolo m) {
   if (p.fase != FaseUnoSolo.jugando) return 'La partida ya terminó.';
+  if (!p.solo && p.estaRendido(p.jugadorActual)) {
+    return '${p.jugadorActual} ya se rindió.';
+  }
   final validos = movimientosDesdeUnoSolo(p, m.desde);
   final ok = validos.any(
     (v) => v.desde == m.desde && v.medio == m.medio && v.hasta == m.hasta,

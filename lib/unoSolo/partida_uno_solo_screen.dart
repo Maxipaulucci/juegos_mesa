@@ -96,7 +96,9 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       widget.miNombre!.isNotEmpty;
 
   bool get _esMiTurno =>
-      !_esOnline || _partida.jugadorActual == widget.miNombre;
+      !_esOnline ||
+      (_partida.jugadorActual == widget.miNombre &&
+          !_partida.estaRendido(widget.miNombre!));
 
   bool get _soyAnfitrionOnline =>
       _esOnline &&
@@ -105,6 +107,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
 
   bool get _bloquearHumano =>
       _partida.terminada ||
+      (_partida.estaRendido(_partida.jugadorActual) && !_partida.solo) ||
       (_esOnline && (_esperandoTableroOnline || !_esMiTurno));
 
   @override
@@ -452,30 +455,17 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     final yo = _esOnline
         ? (widget.miNombre ?? _partida.jugadorActual)
         : _partida.jugadorActual;
-    final otros = [
-      for (final n in _partida.nombres)
-        if (n != yo) n,
-    ];
+    if (_partida.estaRendido(yo)) return;
+
     setState(() {
       _mostrarMenu = false;
       _confirmarRendicion = false;
       _seleccion = null;
-      if (otros.isEmpty) {
-        _partida.fase = FaseUnoSolo.perdido;
-        _partida.ganador = null;
-        _partida.calificacion = null;
-        _partida.mensajeFin = '$yo se rindió.';
-      } else {
-        // Multijugador: gana el rival (victoria por abandono).
-        _partida.fase = FaseUnoSolo.ganado;
-        _partida.ganador = otros.first;
-        _partida.calificacion = '¡Victoria!';
-        _partida.mensajeFin =
-            '$yo se rindió. ¡${otros.first} gana por abandono!';
-      }
+      rendirseUnoSolo(_partida, yo);
     });
     unawaited(_publicarEstadoOnline(forzar: true));
-    if (_esOnline && !_partida.terminada && mounted) {
+    // Online: quien se rinde sale de la sala; el resto sigue si quedan ≥2.
+    if (_esOnline && mounted) {
       Navigator.of(context).pop();
     }
   }
@@ -645,6 +635,12 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       if (_partida.ganador == actual) {
         _partida.ganador = nuevo;
       }
+      final ri = _partida.rendidos.indexOf(actual);
+      if (ri >= 0) _partida.rendidos[ri] = nuevo;
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
     });
     unawaited(_publicarEstadoOnline(forzar: true));
   }
@@ -802,6 +798,30 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                       fontSize: 13,
                     ),
                   ),
+                  if (!_partida.solo && _partida.nombres.length > 1) ...[
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (var i = 0; i < _partida.nombres.length; i++)
+                            _ChipJugadorUnoSolo(
+                              nombre: _partida.nombres[i],
+                              activo: !_partida.terminada &&
+                                  i ==
+                                      (_partida.indiceTurno %
+                                          _partida.nombres.length) &&
+                                  !_partida.estaRendido(_partida.nombres[i]),
+                              rendido:
+                                  _partida.estaRendido(_partida.nombres[i]),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (_modoPracticaActivo) ...[
                     if (!_esCelular) ...[
                       const SizedBox(height: 6),
@@ -1308,6 +1328,42 @@ class _ArcadeButtonUnoSolo extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChipJugadorUnoSolo extends StatelessWidget {
+  const _ChipJugadorUnoSolo({
+    required this.nombre,
+    required this.activo,
+    required this.rendido,
+  });
+
+  final String nombre;
+  final bool activo;
+  final bool rendido;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.carta.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: activo ? AppColors.mint : AppColors.cartaBorde,
+          width: activo ? 2 : 1,
+        ),
+      ),
+      child: Text(
+        rendido ? '$nombre (fuera)' : nombre,
+        style: TextStyle(
+          color: rendido ? AppColors.textoSuave : AppColors.texto,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+          decoration: rendido ? TextDecoration.lineThrough : null,
         ),
       ),
     );

@@ -330,7 +330,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       _limpiarSeleccion();
       _mensajePc = null;
       _pcMostrandoJugada = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _talVezPc());
       return;
     }
     _nombres = List.of(widget.nombres);
@@ -376,8 +376,8 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       _revelandoMesa = true;
       _mesaReveladas = 0;
       _limpiarSeleccion();
-      _aviso = null;
-    });
+        _aviso = null;
+      });
 
     for (var i = 1; i <= 4; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 480));
@@ -412,7 +412,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     final resultado = aplicarEscobasAutomaticasInicio(_partida);
     if (!mounted || token != _reveladoToken) return;
 
-    setState(() {
+      setState(() {
       _revelandoMesa = false;
       _mesaReveladas = _partida.mesa.length;
       _limpiarSeleccion();
@@ -487,7 +487,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       jugadaMap = Map<String, dynamic>.from(ultima);
     }
 
-    setState(() {
+      setState(() {
       applyEscobaGameState(_partida, gameState);
       _nombres = [for (final j in _partida.jugadores) j.nombre];
       _onlineVersion = version;
@@ -572,8 +572,8 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   }
 
   void _limpiarSeleccion() {
-    _cartaSeleccionada = null;
-    _mesaSeleccion.clear();
+        _cartaSeleccionada = null;
+        _mesaSeleccion.clear();
     _aviso = null;
   }
 
@@ -969,17 +969,17 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                       ),
                       const Expanded(
                         child: Center(
-                          child: Text(
+                        child: Text(
                             'Escoba del 15',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: AppColors.mint,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 18,
-                            ),
+                            color: AppColors.mint,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
                           ),
                         ),
+                      ),
                       ),
                       if (widget.contraPc && !_esOnline)
                         BotonReiniciarPartidaPc(onPressed: _pedirReiniciarVsPc),
@@ -1033,9 +1033,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                             ),
                             child: const Text(
                               '👆 ¡Debés elegir una carta de tu mano sí o sí!',
-                              textAlign: TextAlign.center,
+                      textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: AppColors.acento,
+                        color: AppColors.acento,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 14,
                               ),
@@ -1070,9 +1070,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                             ? AppColors.mint
                                             : AppColors.acento),
                                     fontWeight: FontWeight.w900,
-                                    fontSize: 13,
-                                  ),
-                                ),
+                        fontSize: 13,
+                      ),
+                    ),
                               )
                             : const SizedBox.shrink(),
                   ),
@@ -1087,10 +1087,10 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                   ? 'MESA (pozo)'
                                   : 'MESA · ${_mesaSeleccion.length} seleccionada(s)',
                           style: const TextStyle(
-                            color: AppColors.azul,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
-                          ),
+                      color: AppColors.azul,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
                         ),
                       ),
                       Text(
@@ -1146,14 +1146,14 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                           : _toggleMesa,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
                   if (widget.contraPc || (_esOnline && !_esperandoMazoOnline))
                     SizedBox(
                       height: 126,
                       child: _pcMostrandoJugada && _cartaSeleccionada != null
                           ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
+                      children: [
                                 const Text(
                                   'LA PC JUEGA CON',
                                   style: TextStyle(
@@ -1161,9 +1161,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                     fontWeight: FontWeight.w900,
                                     fontSize: 11,
                                     letterSpacing: 0.8,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                                 _CartaTexto(
                                   carta: _cartaSeleccionada!,
                                   seleccionada: true,
@@ -1217,7 +1217,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                             },
                     ),
                   ),
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 10),
                   SizedBox(
                     height: 54,
                     child: Row(
@@ -1275,8 +1275,8 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                 labelContinuar: _esOnline && !_soyAnfitrionOnline
                     ? 'ESPERANDO AL ANFITRIÓN…'
                     : null,
-              ),
             ),
+          ),
           if (_mostrarAjustes)
             Positioned.fill(
               child: AjustesOverlay(
@@ -1376,16 +1376,16 @@ class _MarcadoresFila extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: Row(
+      child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < partida.jugadores.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 14),
-                  Container(
+        children: [
+          for (var i = 0; i < partida.jugadores.length; i++) ...[
+            if (i > 0) const SizedBox(width: 14),
+            Container(
               padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
               decoration: BoxDecoration(
                 color: AppColors.carta.withValues(alpha: 0.85),
@@ -1411,28 +1411,28 @@ class _MarcadoresFila extends StatelessWidget {
                         onRenombrar: puedeRenombrar(i)
                             ? () => onRenombrar(i)
                             : null,
-                        fontSize: 12,
+                      fontSize: 12,
                         colorTexto: partida.jugadores[i].rendido
                             ? AppColors.textoSuave
                             : AppColors.texto,
                         tachado: partida.jugadores[i].rendido,
-                      ),
-                      const SizedBox(height: 4),
-                      MarcadorPalitosEscoba(
-                        puntos: partida.jugadores[i].puntos,
-                        color: AppColors.acento,
-                        tamanoGrupo: 22,
-                      ),
-                      Text(
-                        '${partida.jugadores[i].puntos} pts'
-                        '${partida.jugadores[i].escobasRonda > 0 ? ' · ${partida.jugadores[i].escobasRonda} escoba(s)' : ''}',
-                        style: const TextStyle(
-                          color: AppColors.textoSuave,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  MarcadorPalitosEscoba(
+                    puntos: partida.jugadores[i].puntos,
+                    color: AppColors.acento,
+                    tamanoGrupo: 22,
+                  ),
+                  Text(
+                    '${partida.jugadores[i].puntos} pts'
+                    '${partida.jugadores[i].escobasRonda > 0 ? ' · ${partida.jugadores[i].escobasRonda} escoba(s)' : ''}',
+                    style: const TextStyle(
+                      color: AppColors.textoSuave,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
                   ),
                   const SizedBox(width: 6),
                   Material(
@@ -1460,9 +1460,9 @@ class _MarcadoresFila extends StatelessWidget {
                                 color: AppColors.azul,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 9,
-                              ),
-                            ),
-                          ],
+              ),
+            ),
+          ],
                         ),
                       ),
                     ),
@@ -1864,9 +1864,9 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
       child: InkWell(
         onTap: () => _toggle(c),
         borderRadius: BorderRadius.circular(14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             CartaEspanolaSkin(
               numero: c.numero,
               etiqueta: c.etiqueta,
@@ -1910,20 +1910,20 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
             _tituloPalo(palo),
             style: TextStyle(
               color: color,
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
               letterSpacing: 0.6,
-            ),
-          ),
+                ),
+              ),
           const SizedBox(height: 8),
           if (cartas.isEmpty)
-            Text(
+              Text(
               'Sin cartas disponibles',
-              style: TextStyle(
+                style: TextStyle(
                 color: AppColors.textoSuave.withValues(alpha: 0.85),
                 fontWeight: FontWeight.w600,
-                fontSize: 11,
-              ),
+                  fontSize: 11,
+                ),
             )
           else
             GridView.builder(
@@ -1963,12 +1963,12 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
             children: [
               const Text(
                 '🎯 Forzar cartas',
-                style: TextStyle(
+                      style: TextStyle(
                   color: AppColors.acento,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
               const SizedBox(height: 4),
               Text(
                 _modo == _ModoForzarCartas.mesa
@@ -2057,12 +2057,12 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
                             child: const Text(
                               'Cancelar',
                               style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ],
+                      ),
+                ),
+              ],
                 ),
               ),
             ],
