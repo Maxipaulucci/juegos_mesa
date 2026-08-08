@@ -705,7 +705,24 @@ bool pcDeberiaDecirChancho(PartidaChancho p, JugadorChancho pc) {
   return pc.tieneCuarteto;
 }
 
-/// Heurística PC: conserva el número más frecuente; pasa del resto.
+/// Número objetivo de la PC: el más frecuente (empate → número más alto).
+int _numeroObjetivoPc(JugadorChancho pc) {
+  final porNumero = <int, int>{};
+  for (final c in pc.mano) {
+    porNumero[c.numero] = (porNumero[c.numero] ?? 0) + 1;
+  }
+  if (porNumero.isEmpty) return 1;
+  final orden = porNumero.entries.toList()
+    ..sort((a, b) {
+      final porCantidad = b.value.compareTo(a.value);
+      if (porCantidad != 0) return porCantidad;
+      return b.key.compareTo(a.key);
+    });
+  return orden.first.key;
+}
+
+/// Heurística PC: conserva el número más frecuente y pasa basura
+/// (singles primero). Evita romper el grupo objetivo salvo que no quede otra.
 List<CartaChancho> elegirCartasPcChancho(
   JugadorChancho pc,
   int cantidad, [
@@ -714,33 +731,38 @@ List<CartaChancho> elegirCartasPcChancho(
   final r = rng ?? math.Random();
   if (cantidad <= 0) return const [];
   if (pc.mano.length <= cantidad) return List.of(pc.mano);
+  // Con cuarteto no debería pasarse: no tocar la mano.
+  if (pc.tieneCuarteto) return const [];
 
   final porNumero = <int, List<CartaChancho>>{};
   for (final c in pc.mano) {
     porNumero.putIfAbsent(c.numero, () => []).add(c);
   }
-  var mejorNumero = pc.mano.first.numero;
-  var mejorCount = 0;
-  for (final e in porNumero.entries) {
-    if (e.value.length > mejorCount) {
-      mejorCount = e.value.length;
-      mejorNumero = e.key;
-    }
-  }
+  final mejorNumero = _numeroObjetivoPc(pc);
+  final conservar = List<CartaChancho>.of(porNumero[mejorNumero] ?? const []);
 
-  final conservar = porNumero[mejorNumero] ?? const <CartaChancho>[];
-  final resto = [
-    for (final c in pc.mano)
-      if (c.numero != mejorNumero) c,
-  ];
-  barajarChancho(resto, r);
+  // Basura: primero grupos chicos (singles), luego el resto (sin el objetivo).
+  final basuraGrupos = porNumero.entries
+      .where((e) => e.key != mejorNumero)
+      .toList()
+    ..sort((a, b) {
+      final porTam = a.value.length.compareTo(b.value.length);
+      if (porTam != 0) return porTam;
+      return a.key.compareTo(b.key);
+    });
+
+  final resto = <CartaChancho>[];
+  for (final g in basuraGrupos) {
+    final cartas = List<CartaChancho>.of(g.value)..shuffle(r);
+    resto.addAll(cartas);
+  }
 
   final out = <CartaChancho>[];
   for (final c in resto) {
     if (out.length >= cantidad) break;
     out.add(c);
   }
-  // Si no alcanza, sacar del grupo conservado (las de menos valor relativo).
+  // Último recurso: romper el grupo objetivo (anuncio forzado demasiado alto).
   if (out.length < cantidad) {
     final extras = List<CartaChancho>.of(conservar)..shuffle(r);
     for (final c in extras) {
@@ -751,28 +773,65 @@ List<CartaChancho> elegirCartasPcChancho(
   return out;
 }
 
+/// Anuncia para sacar basura y acercarse al cuarteto (evita centro cerca del Chancho).
 AnuncioChancho planificarAnuncioPcChancho(
   JugadorChancho pc, [
   AnuncioChancho? ultimo,
   math.Random? rng,
 ]) {
   final r = rng ?? math.Random();
+  if (pc.mano.isEmpty) {
+    return const AnuncioChancho(
+      cantidad: 1,
+      direccion: DireccionChancho.izquierda,
+    );
+  }
+
   final porNumero = <int, int>{};
   for (final c in pc.mano) {
     porNumero[c.numero] = (porNumero[c.numero] ?? 0) + 1;
   }
-  final mejor = porNumero.values.fold<int>(0, (a, b) => a > b ? a : b);
-  final faltan = 4 - mejor;
+  final mejorNumero = _numeroObjetivoPc(pc);
+  final mejor = porNumero[mejorNumero] ?? 0;
+  final basura = (pc.mano.length - mejor).clamp(0, 4);
 
-  if (ultimo != null && r.nextDouble() < 0.25) {
+  // Repetir el último solo a veces y si no obliga a romper el objetivo.
+  if (ultimo != null &&
+      basura > 0 &&
+      ultimo.cantidad <= basura &&
+      r.nextDouble() < 0.12) {
     return ultimo;
   }
 
-  final cantidad = faltan <= 1
-      ? 1
-      : (faltan == 2 ? (r.nextBool() ? 1 : 2) : 1 + r.nextInt(2));
-  final dirs = DireccionChancho.values;
-  final direccion = dirs[r.nextInt(dirs.length)];
-  return AnuncioChancho(cantidad: cantidad.clamp(1, 4), direccion: direccion);
+  late final int cantidad;
+  if (basura <= 0) {
+    cantidad = 1;
+  } else if (basura == 1) {
+    cantidad = 1;
+  } else if (mejor >= 3) {
+    // Triple: siempre sacar la carta que sobra.
+    cantidad = 1;
+  } else if (mejor == 2 && basura == 2) {
+    // Dos pares: a menudo pasa el par entero.
+    cantidad = r.nextDouble() < 0.7 ? 2 : 1;
+  } else {
+    // Mano dispersa: preferir 1 para no vaciar progreso.
+    cantidad = r.nextDouble() < 0.75 ? 1 : basura.clamp(1, 2);
+  }
+
+  final DireccionChancho direccion;
+  if (mejor >= 3 || r.nextDouble() < 0.85) {
+    // Evitar centro (mezcla caótica) cuando se busca Chancho.
+    direccion = r.nextBool()
+        ? DireccionChancho.izquierda
+        : DireccionChancho.derecha;
+  } else {
+    direccion = DireccionChancho.centro;
+  }
+
+  return AnuncioChancho(
+    cantidad: cantidad.clamp(1, 4),
+    direccion: direccion,
+  );
 }
 

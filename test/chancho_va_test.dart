@@ -319,4 +319,51 @@ void main() {
     expect(puedeLanzarChanchaRonda(p, 'PC 1'), isTrue);
     expect(puedeLanzarChanchaRonda(p, 'PC 2'), isTrue);
   });
+
+  test('PC pasa basura y conserva el número más frecuente', () {
+    final pc = JugadorChancho('PC 1')
+      ..mano.addAll(const [
+        CartaChancho(numero: 7, palo: PaloChancho.oro),
+        CartaChancho(numero: 7, palo: PaloChancho.copa),
+        CartaChancho(numero: 7, palo: PaloChancho.espada),
+        CartaChancho(numero: 3, palo: PaloChancho.oro),
+      ]);
+
+    final cartas = elegirCartasPcChancho(pc, 1, math.Random(0));
+    expect(cartas, hasLength(1));
+    expect(cartas.single.numero, 3);
+
+    final anuncio = planificarAnuncioPcChancho(pc, null, math.Random(1));
+    expect(anuncio.cantidad, 1);
+    expect(anuncio.direccion, isNot(DireccionChancho.centro));
+  });
+
+  test('PC con cuarteto no elige cartas para pasar', () {
+    final pc = JugadorChancho('PC 1')
+      ..mano.addAll(const [
+        CartaChancho(numero: 10, palo: PaloChancho.oro),
+        CartaChancho(numero: 10, palo: PaloChancho.copa),
+        CartaChancho(numero: 10, palo: PaloChancho.espada),
+        CartaChancho(numero: 10, palo: PaloChancho.basto),
+      ]);
+    expect(pc.tieneCuarteto, isTrue);
+    expect(elegirCartasPcChancho(pc, 1), isEmpty);
+    expect(pcDeberiaDecirChancho(
+      PartidaChancho(jugadores: [pc]),
+      pc,
+    ), isTrue);
+  });
+
+  test('PC con dos pares suele pasar un par entero', () {
+    final pc = JugadorChancho('PC 1')
+      ..mano.addAll(const [
+        CartaChancho(numero: 5, palo: PaloChancho.oro),
+        CartaChancho(numero: 5, palo: PaloChancho.copa),
+        CartaChancho(numero: 2, palo: PaloChancho.oro),
+        CartaChancho(numero: 2, palo: PaloChancho.copa),
+      ]);
+    // Objetivo = 5 (empate de cantidad → número más alto).
+    final cartas = elegirCartasPcChancho(pc, 2, math.Random(42));
+    expect(cartas.every((c) => c.numero == 2), isTrue);
+  });
 }

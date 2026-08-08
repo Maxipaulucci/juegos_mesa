@@ -864,11 +864,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     } else {
       // Pase ejecutado.
       _chanchoVisiblePorCarrera = false;
-      _despuesDePase();
+      unawaited(_despuesDePase());
     }
   }
 
-  void _despuesDePase() {
+  Future<void> _despuesDePase() async {
     setState(() {});
     if (_partida.terminada) return;
     if (_partida.fase == FaseChancho.anunciando) {
@@ -878,11 +878,16 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       });
       if (_intentarChanchaPc()) return;
     }
-    // Si una PC tiene Chancho, abre y el humano tiene 1 s para responder.
-    // Si solo el humano tiene cuarteto, puede decir Chancho cuando quiera (sin reloj).
-    _talVezChanchoPc();
+    // Primero Chancho (si una PC armó cuarteto). Hay que await para no
+    // cancelar el token con el próximo _talVezPc.
+    await _talVezChanchoPc();
+    if (!mounted || _partida.terminada) return;
+    if (_partida.fase == FaseChancho.carreraChancho ||
+        _partida.fase == FaseChancho.finRonda) {
+      return;
+    }
     if (_partida.fase == FaseChancho.anunciando) {
-      _talVezPc();
+      await _talVezPc();
     }
   }
 
@@ -1145,14 +1150,33 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       return;
     }
 
+    // Cualquier PC con cuarteto debe decir Chancho antes de anunciar/pasar.
+    if (_pcs.any((pc) => pc.tieneCuarteto && !pc.dijoChancho)) {
+      await _talVezChanchoPc();
+      if (!mounted || token != _pcToken) return;
+      if (_partida.fase != FaseChancho.anunciando &&
+          _partida.fase != FaseChancho.eligiendoCartas) {
+        return;
+      }
+    }
+
     if (_partida.fase == FaseChancho.anunciando &&
         _esPc(_partida.jugadorActual)) {
       if (_intentarChanchaPc()) return;
+      final anunciante = _partida.jugadorActual;
+      if (_esPc(anunciante) && anunciante.tieneCuarteto) {
+        await _talVezChanchoPc();
+        return;
+      }
       await Future<void>.delayed(const Duration(milliseconds: 700));
       if (!mounted || token != _pcToken) return;
       if (_hayDesafioChancha) return;
       final pc = _partida.jugadorActual;
       if (!_esPc(pc)) return;
+      if (pc.tieneCuarteto) {
+        await _talVezChanchoPc();
+        return;
+      }
       final anuncio = planificarAnuncioPcChancho(pc, _partida.ultimoAnuncio);
       anunciarPaseChancho(
         _partida,
@@ -1175,7 +1199,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       _autoConfirmarPcSiCorresponde();
     }
 
-    _talVezChanchoPc();
+    await _talVezChanchoPc();
   }
 
   void _autoConfirmarPcSiCorresponde() {
@@ -1184,11 +1208,27 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     if (_partida.fase != FaseChancho.eligiendoCartas) return;
     final anuncio = _partida.anuncioActual;
     if (anuncio == null) return;
+
+    // Si alguna PC ya tiene cuarteto, abre Chancho en vez de romper la mano.
+    if (_pcs.any((pc) => pc.tieneCuarteto && !pc.dijoChancho)) {
+      unawaited(_talVezChanchoPc());
+      return;
+    }
+
     var confirmoAlguno = false;
     for (final pc in _pcs) {
       if (pc.seleccionPaseConfirmada) continue;
       if (_partida.fase != FaseChancho.eligiendoCartas) break;
+      if (pc.tieneCuarteto) {
+        unawaited(_talVezChanchoPc());
+        return;
+      }
       final cartas = elegirCartasPcChancho(pc, anuncio.cantidad);
+      if (cartas.length != anuncio.cantidad) {
+        // Sin cartas válidas (p. ej. cuarteto): priorizar Chancho.
+        unawaited(_talVezChanchoPc());
+        return;
+      }
       confirmarSeleccionPaseChancho(
         _partida,
         jugador: pc,
@@ -1202,7 +1242,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     if (_partida.fase != FaseChancho.eligiendoCartas) {
       _chanchoVisiblePorCarrera = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _despuesDePase();
+        if (mounted) unawaited(_despuesDePase());
       });
     }
   }
