@@ -1847,7 +1847,7 @@ class _ManoDosFilas extends StatelessWidget {
   }
 }
 
-class _FilaCartas extends StatelessWidget {
+class _FilaCartas extends StatefulWidget {
   const _FilaCartas({
     required this.cartas,
     required this.bocaArriba,
@@ -1876,8 +1876,104 @@ class _FilaCartas extends StatelessWidget {
   final int? indiceRevelado;
 
   @override
+  State<_FilaCartas> createState() => _FilaCartasState();
+}
+
+class _FilaCartasState extends State<_FilaCartas> {
+  final _scroll = ScrollController();
+  bool _hayIzquierda = false;
+  bool _hayDerecha = false;
+
+  double get _anchoCarta => widget.compacta ? 40.0 : 68.0;
+  double get _altoCarta => widget.compacta ? 56.0 : 102.0;
+  double get _gap => widget.compacta ? 4.0 : 6.0;
+  double get _pasoScroll => _anchoCarta + _gap;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_actualizarFlechas);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _actualizarFlechas());
+  }
+
+  @override
+  void didUpdateWidget(covariant _FilaCartas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cartas.length != widget.cartas.length ||
+        oldWidget.compacta != widget.compacta) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _actualizarFlechas());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_actualizarFlechas);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _actualizarFlechas() {
+    if (!mounted || !_scroll.hasClients) return;
+    final pos = _scroll.position;
+    final izq = pos.maxScrollExtent > 0.5 && pos.pixels > 1;
+    final der =
+        pos.maxScrollExtent > 0.5 && pos.pixels < pos.maxScrollExtent - 1;
+    if (izq != _hayIzquierda || der != _hayDerecha) {
+      setState(() {
+        _hayIzquierda = izq;
+        _hayDerecha = der;
+      });
+    }
+  }
+
+  void _desplazar(double delta) {
+    if (!_scroll.hasClients) return;
+    final destino =
+        (_scroll.offset + delta).clamp(0.0, _scroll.position.maxScrollExtent);
+    _scroll.animateTo(
+      destino,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Widget _flecha({
+    required bool izquierda,
+    required bool visible,
+  }) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 160),
+        child: Material(
+          color: AppColors.carta.withValues(alpha: 0.92),
+          shape: const CircleBorder(),
+          elevation: 4,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: visible
+                ? () => _desplazar(izquierda ? -_pasoScroll : _pasoScroll)
+                : null,
+            child: Padding(
+              padding: EdgeInsets.all(widget.compacta ? 4 : 6),
+              child: Icon(
+                izquierda
+                    ? Icons.chevron_left_rounded
+                    : Icons.chevron_right_rounded,
+                color: AppColors.acento,
+                size: widget.compacta ? 22 : 28,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (cartas.isEmpty) {
+    if (widget.cartas.isEmpty) {
       return const Center(
         child: Text(
           '—',
@@ -1885,102 +1981,150 @@ class _FilaCartas extends StatelessWidget {
         ),
       );
     }
-    final w = compacta ? 40.0 : 68.0;
-    final h = compacta ? 56.0 : 102.0;
+    final w = _anchoCarta;
+    final h = _altoCarta;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var index = 0; index < cartas.length; index++) ...[
-                  if (index > 0) SizedBox(width: compacta ? 4 : 6),
-                  Builder(
-                    builder: (context) {
-                      final c = cartas[index];
-                      final indiceReal = indiceBase + index;
-                      final color = colorPalo(c.palo);
-                      final seleccionada = seleccionados.contains(indiceReal);
-                      final visible =
-                          bocaArriba || indiceRevelado == indiceReal;
-                      final card = AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 320),
-                        switchInCurve: Curves.easeOut,
-                        switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, animation) {
-                          return AnimatedBuilder(
-                            animation: animation,
-                            child: child,
-                            builder: (context, child) {
-                              final angle = (1 - animation.value) * 1.5708;
-                              return Transform(
-                                alignment: Alignment.center,
-                                transform: Matrix4.identity()
-                                  ..setEntry(3, 2, 0.0015)
-                                  ..rotateY(angle),
-                                child: child,
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A0A33).withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.violeta.withValues(alpha: 0.55),
+              width: 1.2,
+            ),
+          ),
+          clipBehavior: Clip.hardEdge,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              NotificationListener<ScrollMetricsNotification>(
+                onNotification: (_) {
+                  _actualizarFlechas();
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: widget.compacta ? 28 : 34,
+                    vertical: 4,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: math.max(
+                        0,
+                        constraints.maxWidth - (widget.compacta ? 56 : 68),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (var index = 0;
+                            index < widget.cartas.length;
+                            index++) ...[
+                          if (index > 0) SizedBox(width: _gap),
+                          Builder(
+                            builder: (context) {
+                              final c = widget.cartas[index];
+                              final indiceReal = widget.indiceBase + index;
+                              final color = widget.colorPalo(c.palo);
+                              final seleccionada =
+                                  widget.seleccionados.contains(indiceReal);
+                              final visible = widget.bocaArriba ||
+                                  widget.indiceRevelado == indiceReal;
+                              final card = AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 320),
+                                switchInCurve: Curves.easeOut,
+                                switchOutCurve: Curves.easeIn,
+                                transitionBuilder: (child, animation) {
+                                  return AnimatedBuilder(
+                                    animation: animation,
+                                    child: child,
+                                    builder: (context, child) {
+                                      final angle =
+                                          (1 - animation.value) * 1.5708;
+                                      return Transform(
+                                        alignment: Alignment.center,
+                                        transform: Matrix4.identity()
+                                          ..setEntry(3, 2, 0.0015)
+                                          ..rotateY(angle),
+                                        child: child,
+                                      );
+                                    },
+                                  );
+                                },
+                                child: _CartaSkinV2(
+                                  key: ValueKey<String>(
+                                    visible
+                                        ? '${indiceReal}_up'
+                                        : '${indiceReal}_down',
+                                  ),
+                                  carta: c,
+                                  bocaArriba: visible,
+                                  compacta: widget.compacta,
+                                  seleccionada: seleccionada ||
+                                      widget.indiceRevelado == indiceReal,
+                                  color: color,
+                                  icono: widget.iconoPalo(c.palo),
+                                  width: w,
+                                  height: h,
+                                ),
+                              );
+                              final child = AnimatedOpacity(
+                                duration: const Duration(milliseconds: 180),
+                                opacity: widget.atenuarNoSeleccionados &&
+                                        widget.seleccionados.isNotEmpty &&
+                                        !seleccionada
+                                    ? 0.28
+                                    : 1,
+                                child: AnimatedPadding(
+                                  duration: const Duration(milliseconds: 120),
+                                  padding: EdgeInsets.only(
+                                    bottom: (seleccionada ||
+                                            widget.indiceRevelado ==
+                                                indiceReal)
+                                        ? 8
+                                        : 0,
+                                  ),
+                                  child: card,
+                                ),
+                              );
+                              if (widget.onTapIndex == null) return child;
+                              if (widget.atenuarNoSeleccionados &&
+                                  widget.seleccionados.isNotEmpty &&
+                                  !seleccionada) {
+                                return IgnorePointer(child: child);
+                              }
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(
+                                    widget.compacta ? 10 : 14,
+                                  ),
+                                  onTap: () =>
+                                      widget.onTapIndex!(indiceReal),
+                                  child: child,
+                                ),
                               );
                             },
-                          );
-                        },
-                        child: _CartaSkinV2(
-                          key: ValueKey<String>(
-                            visible
-                                ? '${indiceReal}_up'
-                                : '${indiceReal}_down',
                           ),
-                          carta: c,
-                          bocaArriba: visible,
-                          compacta: compacta,
-                          seleccionada: seleccionada ||
-                              indiceRevelado == indiceReal,
-                          color: color,
-                          icono: iconoPalo(c.palo),
-                          width: w,
-                          height: h,
-                        ),
-                      );
-                      final child = AnimatedOpacity(
-                        duration: const Duration(milliseconds: 180),
-                        opacity: atenuarNoSeleccionados &&
-                                seleccionados.isNotEmpty &&
-                                !seleccionada
-                            ? 0.28
-                            : 1,
-                        child: AnimatedPadding(
-                          duration: const Duration(milliseconds: 120),
-                          padding: EdgeInsets.only(
-                            bottom: (seleccionada ||
-                                    indiceRevelado == indiceReal)
-                                ? 8
-                                : 0,
-                          ),
-                          child: card,
-                        ),
-                      );
-                      if (onTapIndex == null) return child;
-                      if (atenuarNoSeleccionados &&
-                          seleccionados.isNotEmpty &&
-                          !seleccionada) {
-                        return IgnorePointer(child: child);
-                      }
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius:
-                              BorderRadius.circular(compacta ? 10 : 14),
-                          onTap: () => onTapIndex!(indiceReal),
-                          child: child,
-                        ),
-                      );
-                    },
+                        ],
+                      ],
+                    ),
                   ),
-                ],
-              ],
-            ),
+                ),
+              ),
+              Positioned(
+                left: 2,
+                child: _flecha(izquierda: true, visible: _hayIzquierda),
+              ),
+              Positioned(
+                right: 2,
+                child: _flecha(izquierda: false, visible: _hayDerecha),
+              ),
+            ],
           ),
         );
       },
