@@ -7,6 +7,9 @@ abstract final class TextosCasita {
   static const mesa = 'Mesa';
   static const tuCasita = 'Tu casita';
   static const casitaRival = 'Casita rival';
+
+  static String casitaRivalDe(String nombre) => '$casitaRival $nombre';
+  static String tuCasitaDe(String nombre) => '$tuCasita $nombre';
   static const juegaUna =
       'Elegí una carta de tu mano y de la mesa (mismo número), o tirala';
   static const esperandoPc = 'La PC está jugando…';

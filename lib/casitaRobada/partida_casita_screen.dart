@@ -41,7 +41,8 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   int _pcToken = 0;
   int? _cartaSeleccionada;
   final List<CartaCasita> _mesaSeleccion = [];
-  bool _roboCasitaSeleccionado = false;
+  /// Nombre del dueño de la casita rival seleccionada para robar.
+  String? _nombreCasitaRobo;
   bool _jugando = false;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
@@ -62,12 +63,55 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     return _partida.jugadorActual;
   }
 
+  /// Quién mira la mesa abajo (vs PC = humano; local = turno actual).
+  JugadorCasita get _vistaAbajo => widget.contraPc ? _yo : _partida.jugadorActual;
+
+  /// Rivales en orden de mesa desde el siguiente a [_vistaAbajo].
+  List<JugadorCasita> get _oponentes {
+    final todos = _partida.jugadores;
+    final yo = _vistaAbajo;
+    final idx = todos.indexWhere((j) => j.nombre == yo.nombre);
+    if (idx < 0) {
+      return [for (final j in todos) if (j.nombre != yo.nombre) j];
+    }
+    return [
+      for (var i = 1; i < todos.length; i++)
+        todos[(idx + i) % todos.length],
+    ];
+  }
+
+  /// PC1 / 1.º → arriba-izq; PC2 / 2.º → arriba-der; PC3 / 3.º → abajo-der.
+  ({
+    JugadorCasita? arribaIzq,
+    JugadorCasita? arribaDer,
+    JugadorCasita? abajoDer,
+  }) get _asientosCasitasRival {
+    final ops = _oponentes;
+    return switch (ops.length) {
+      0 => (arribaIzq: null, arribaDer: null, abajoDer: null),
+      1 => (arribaIzq: ops[0], arribaDer: null, abajoDer: null),
+      2 => (arribaIzq: ops[0], arribaDer: ops[1], abajoDer: null),
+      _ => (arribaIzq: ops[0], arribaDer: ops[1], abajoDer: ops[2]),
+    };
+  }
+
   JugadorCasita get _rival {
     if (widget.contraPc) {
       if (_esTurnoPc) return _partida.jugadorActual;
       return _partida.rivalActual;
     }
     return _partida.rivalActual;
+  }
+
+  bool get _roboCasitaSeleccionado => _nombreCasitaRobo != null;
+
+  JugadorCasita? get _casitaRoboSel {
+    final n = _nombreCasitaRobo;
+    if (n == null) return null;
+    for (final j in _partida.jugadores) {
+      if (j.nombre == n) return j;
+    }
+    return null;
   }
 
   bool get _esTurnoHumano {
@@ -96,7 +140,9 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     final carta = _cartaManoSel;
     if (carta == null) return false;
     if (_roboCasitaSeleccionado) {
-      return puedeRobarCasita(carta, _rival);
+      final rival = _casitaRoboSel;
+      if (rival == null) return false;
+      return puedeRobarCasita(carta, rival);
     }
     if (_mesaSeleccion.isEmpty) return false;
     return _mesaSeleccion.every((c) => c.numero == carta.numero);
@@ -127,7 +173,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   void _limpiarSeleccion() {
     _cartaSeleccionada = null;
     _mesaSeleccion.clear();
-    _roboCasitaSeleccionado = false;
+    _nombreCasitaRobo = null;
   }
 
   @override
@@ -358,7 +404,8 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
       _mesaSeleccion
         ..clear()
         ..addAll(plan.mesaElegida);
-      _roboCasitaSeleccionado = plan.robarCasita;
+      _nombreCasitaRobo =
+          plan.robarCasita ? plan.robarDeNombre : null;
     });
     await Future<void>.delayed(const Duration(milliseconds: 1500));
     if (!mounted || token != _pcToken || !_esTurnoPc) return;
@@ -371,10 +418,21 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
           forzarTirar: true,
         );
       } else if (plan.robarCasita) {
+        JugadorCasita? rival;
+        final nombre = plan.robarDeNombre;
+        if (nombre != null) {
+          for (final j in _partida.jugadores) {
+            if (j.nombre == nombre) {
+              rival = j;
+              break;
+            }
+          }
+        }
         jugarCartaCasita(
           _partida,
           indiceEnMano: plan.indiceMano,
           robarCasita: true,
+          rivalObjetivo: rival,
         );
       } else {
         jugarCartaCasita(
@@ -402,7 +460,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
       }
       _cartaSeleccionada = indice;
       _mesaSeleccion.clear();
-      _roboCasitaSeleccionado = false;
+      _nombreCasitaRobo = null;
     });
   }
 
@@ -412,7 +470,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     if (mano == null) return;
     if (carta.numero != mano.numero) return;
     setState(() {
-      _roboCasitaSeleccionado = false;
+      _nombreCasitaRobo = null;
       if (_mesaSeleccion.contains(carta)) {
         _mesaSeleccion.remove(carta);
       } else {
@@ -421,14 +479,15 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     });
   }
 
-  void _tocarCasitaRival() {
+  void _tocarCasitaRival(JugadorCasita rival) {
     if (_bloquearHumano) return;
     final mano = _cartaManoSel;
     if (mano == null) return;
-    if (!puedeRobarCasita(mano, _rival)) return;
+    if (!puedeRobarCasita(mano, rival)) return;
     setState(() {
       _mesaSeleccion.clear();
-      _roboCasitaSeleccionado = !_roboCasitaSeleccionado;
+      _nombreCasitaRobo =
+          _nombreCasitaRobo == rival.nombre ? null : rival.nombre;
     });
   }
 
@@ -466,6 +525,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
       indiceEnMano: idx,
       mesaElegida: _roboCasitaSeleccionado ? null : List.of(_mesaSeleccion),
       robarCasita: _roboCasitaSeleccionado,
+      rivalObjetivo: _casitaRoboSel,
     );
     setState(() {
       _jugando = false;
@@ -522,10 +582,22 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final manoAbajo = widget.contraPc ? _yo : _partida.jugadorActual;
+    final manoAbajo = _vistaAbajo;
     final manoArriba = widget.contraPc ? _rival : _partida.rivalActual;
+    final asientos = _asientosCasitasRival;
     final pozoAbajo = manoAbajo;
-    final pozoArriba = manoArriba;
+
+    Widget pozoRival(JugadorCasita j) {
+      return _PozoCasita(
+        titulo: TextosCasita.casitaRivalDe(j.nombre),
+        jugador: j,
+        paloVisual: _paloVisual,
+        seleccionada: _nombreCasitaRobo == j.nombre,
+        onTap: _esTurnoHumano && !_jugando && !j.rendido
+            ? () => _tocarCasitaRival(j)
+            : null,
+      );
+    }
 
     return PopScope(
       canPop: false,
@@ -644,157 +716,158 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                     ),
                   ],
                   const SizedBox(height: 10),
-                  // Rival: mano centrada; casita a la izquierda (no desplaza el centro)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: SizedBox(
-                      height: 148,
-                      width: double.infinity,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          Align(
-                            alignment: Alignment.topCenter,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${TextosCasita.manoRival}: ${manoArriba.nombre}',
-                                  style: const TextStyle(
-                                    color: AppColors.textoSuave,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
+                          Column(
+                            children: [
+                              SizedBox(
+                                height: 148,
+                                width: double.infinity,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${TextosCasita.manoRival}: ${manoArriba.nombre}',
+                                      style: const TextStyle(
+                                        color: AppColors.textoSuave,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      height: 116,
+                                      width: double.infinity,
+                                      child: _FilaCartas(
+                                        cartas: manoArriba.mano,
+                                        bocaArriba: _modoDiosActivo,
+                                        paloVisual: _paloVisual,
+                                        seleccionIndex: _esTurnoPc
+                                            ? _cartaSeleccionada
+                                            : null,
+                                        indiceRevelado: _esTurnoPc
+                                            ? _cartaSeleccionada
+                                            : null,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 6),
-                                SizedBox(
-                                  height: 116,
-                                  width: double.infinity,
-                                  child: _FilaCartas(
-                                    cartas: manoArriba.mano,
-                                    bocaArriba: _modoDiosActivo,
-                                    paloVisual: _paloVisual,
-                                    seleccionIndex:
-                                        _esTurnoPc ? _cartaSeleccionada : null,
-                                    indiceRevelado:
-                                        _esTurnoPc ? _cartaSeleccionada : null,
-                                  ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${TextosCasita.mesa} · mazo ${_partida.mazo.length}',
+                                style: const TextStyle(
+                                  color: AppColors.textoSuave,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
                                 ),
-                              ],
-                            ),
-                          ),
-                          Positioned(
-                            left: 0,
-                            top: 18,
-                            child: _PozoCasita(
-                              titulo: TextosCasita.casitaRival,
-                              jugador: pozoArriba,
-                              paloVisual: _paloVisual,
-                              // El humano selecciona la casita rival para robar.
-                              seleccionada: _roboCasitaSeleccionado &&
-                                  _esTurnoHumano,
-                              onTap: _esTurnoHumano && !_jugando
-                                  ? _tocarCasitaRival
-                                  : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${TextosCasita.mesa} · mazo ${_partida.mazo.length}',
-                    style: const TextStyle(
-                      color: AppColors.textoSuave,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    height: 116,
-                    width: double.infinity,
-                    child: _FilaCartas(
-                      cartas: _partida.mesa,
-                      bocaArriba: true,
-                      paloVisual: _paloVisual,
-                      cartasSeleccionadas: _mesaSeleccion,
-                      onTapCarta: _esTurnoHumano && !_jugando
-                          ? _seleccionarMesa
-                          : null,
-                    ),
-                  ),
-                  if (_partida.ultimaJugada != null) ...[
-                    const SizedBox(height: 8),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        _partida.ultimaJugada!.descripcion,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.acento,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
-                  // Yo: mano centrada; casita a la izquierda (no desplaza el centro)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: SizedBox(
-                      height: 160,
-                      width: double.infinity,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Align(
-                            alignment: Alignment.bottomCenter,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
-                                  style: const TextStyle(
-                                    color: AppColors.mint,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                  ),
+                              ),
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                height: 116,
+                                width: double.infinity,
+                                child: _FilaCartas(
+                                  cartas: _partida.mesa,
+                                  bocaArriba: true,
+                                  paloVisual: _paloVisual,
+                                  cartasSeleccionadas: _mesaSeleccion,
+                                  onTapCarta: _esTurnoHumano && !_jugando
+                                      ? _seleccionarMesa
+                                      : null,
                                 ),
-                                const SizedBox(height: 6),
-                                SizedBox(
-                                  height: 116,
-                                  width: double.infinity,
-                                  child: _FilaCartas(
-                                    cartas: manoAbajo.mano,
-                                    bocaArriba: true,
-                                    paloVisual: _paloVisual,
-                                    seleccionIndex: _esTurnoHumano
-                                        ? _cartaSeleccionada
-                                        : null,
-                                    onTapIndex: _esTurnoHumano && !_jugando
-                                        ? (i) async => _seleccionarMano(i)
-                                        : null,
+                              ),
+                              if (_partida.ultimaJugada != null) ...[
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 72,
+                                  ),
+                                  child: Text(
+                                    _partida.ultimaJugada!.descripcion,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: AppColors.acento,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
                               ],
-                            ),
+                              const Spacer(),
+                              SizedBox(
+                                height: 160,
+                                width: double.infinity,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
+                                      style: const TextStyle(
+                                        color: AppColors.mint,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      height: 116,
+                                      width: double.infinity,
+                                      child: _FilaCartas(
+                                        cartas: manoAbajo.mano,
+                                        bocaArriba: true,
+                                        paloVisual: _paloVisual,
+                                        seleccionIndex: _esTurnoHumano
+                                            ? _cartaSeleccionada
+                                            : null,
+                                        onTapIndex:
+                                            _esTurnoHumano && !_jugando
+                                                ? (i) async =>
+                                                    _seleccionarMano(i)
+                                                : null,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
+                          // Pozos: 1.º arriba-izq, 2.º arriba-der, 3.º abajo-der.
+                          if (asientos.arribaIzq != null)
+                            Positioned(
+                              left: 0,
+                              top: 18,
+                              child: pozoRival(asientos.arribaIzq!),
+                            ),
+                          if (asientos.arribaDer != null)
+                            Positioned(
+                              right: 0,
+                              top: 18,
+                              child: pozoRival(asientos.arribaDer!),
+                            ),
                           Positioned(
                             left: 0,
                             bottom: 0,
                             child: _PozoCasita(
-                              titulo: TextosCasita.tuCasita,
+                              titulo: widget.contraPc
+                                  ? TextosCasita.tuCasita
+                                  : TextosCasita.tuCasitaDe(pozoAbajo.nombre),
                               jugador: pozoAbajo,
                               paloVisual: _paloVisual,
                               resaltar: true,
-                              // La PC selecciona tu casita cuando te la va a robar.
-                              seleccionada: _roboCasitaSeleccionado &&
-                                  _esTurnoPc,
+                              seleccionada:
+                                  _nombreCasitaRobo == pozoAbajo.nombre,
                             ),
                           ),
+                          if (asientos.abajoDer != null)
+                            Positioned(
+                              right: 0,
+                              bottom: 0,
+                              child: pozoRival(asientos.abajoDer!),
+                            ),
                         ],
                       ),
                     ),
@@ -1028,11 +1101,16 @@ class _PozoCasita extends StatelessWidget {
       );
     }
 
-    final cuerpo = Column(
+    final cuerpo = SizedBox(
+      width: 86,
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           titulo,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: seleccionada
                 ? colorSeleccionCartaEspanola
@@ -1053,6 +1131,7 @@ class _PozoCasita extends StatelessWidget {
         const SizedBox(height: 4),
         cartaWidget,
       ],
+      ),
     );
 
     if (onTap == null) return cuerpo;
