@@ -100,6 +100,7 @@ Map<String, dynamic> encodePapaGameState({
     'conVidas': partida.conVidas,
     'modoFantasma': partida.modoFantasma,
     'vidas': List<int>.from(partida.vidas),
+    'rendidos': List<String>.from(partida.rendidos),
     'trazos': [
       for (final t in partida.trazos)
         {
@@ -158,6 +159,15 @@ void applyPapaGameState(
       ..clear()
       ..addAll(vidasRaw.map((e) => (e as num).toInt()));
   }
+
+  final rendidosRaw = raw['rendidos'];
+  destino.rendidos
+    ..clear()
+    ..addAll(
+      rendidosRaw is List
+          ? rendidosRaw.map((e) => e.toString())
+          : const <String>[],
+    );
 
   destino.trazos.clear();
   final trazosRaw = raw['trazos'];

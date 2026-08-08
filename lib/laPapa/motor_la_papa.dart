@@ -103,8 +103,10 @@ class PartidaPapa {
     this.conVidas = false,
     this.modoFantasma = false,
     List<int>? vidas,
+    List<String>? rendidos,
   })  : trazos = trazos ?? [],
-        vidas = vidas ?? [];
+        vidas = vidas ?? [],
+        rendidos = List<String>.from(rendidos ?? const []);
 
   final List<String> nombres;
   /// Índice 0..49 → número 1..maxNumero o null si vacío.
@@ -124,12 +126,21 @@ class PartidaPapa {
   final bool modoFantasma;
   /// Vidas restantes por jugador (vacío si [conVidas] es false).
   final List<int> vidas;
+  /// Multijugador: nombres fuera de la partida (rendidos / eliminados).
+  final List<String> rendidos;
 
   String get jugadorActual =>
       nombres.isEmpty ? '' : nombres[indiceTurno % nombres.length];
 
   bool get terminada =>
       fase == FasePapa.ganado || fase == FasePapa.perdido;
+
+  bool estaRendido(String nombre) => rendidos.contains(nombre);
+
+  List<String> get jugadoresActivos => [
+        for (final n in nombres)
+          if (!estaRendido(n)) n,
+      ];
 
   int? vidasDelActual() {
     if (!conVidas || vidas.isEmpty || nombres.isEmpty) return null;
@@ -285,12 +296,11 @@ String? colocarNumeroEnCasillaPapa(
     p.fase = FasePapa.jugando;
     p.siguienteConectar = 1;
     p.indiceTurno = 0;
+    _asegurarTurnoActivoPapa(p);
     return null;
   }
   p.siguienteAColocar = n + 1;
-  if (p.nombres.length > 1) {
-    p.indiceTurno = (p.indiceTurno + 1) % p.nombres.length;
-  }
+  _pasarTurnoPapa(p);
   return null;
 }
 
@@ -841,33 +851,89 @@ void aceptarTrazoPapa(
     return;
   }
   p.siguienteConectar = a;
-  if (p.nombres.length > 1) {
-    p.indiceTurno = (p.indiceTurno + 1) % p.nombres.length;
+  _pasarTurnoPapa(p);
+}
+
+void _pasarTurnoPapa(PartidaPapa p) {
+  if (p.nombres.length <= 1) return;
+  final n = p.nombres.length;
+  for (var i = 0; i < n; i++) {
+    p.indiceTurno = (p.indiceTurno + 1) % n;
+    if (!p.estaRendido(p.jugadorActual)) return;
   }
+}
+
+void _asegurarTurnoActivoPapa(PartidaPapa p) {
+  if (p.nombres.isEmpty) return;
+  final n = p.nombres.length;
+  for (var i = 0; i < n; i++) {
+    if (!p.estaRendido(p.jugadorActual)) return;
+    p.indiceTurno = (p.indiceTurno + 1) % n;
+  }
+}
+
+/// Marca [nombre] fuera. Si queda ≤1 activo, termina; si no, sigue.
+String? rendirsePapa(PartidaPapa p, String nombre) {
+  if (p.terminada || nombre.isEmpty) return null;
+  if (p.estaRendido(nombre)) return null;
+  if (!p.nombres.contains(nombre)) return null;
+
+  p.rendidos.add(nombre);
+  final idx = p.nombres.indexOf(nombre);
+  if (p.conVidas && idx >= 0 && idx < p.vidas.length) {
+    p.vidas[idx] = 0;
+  }
+
+  final activos = p.jugadoresActivos;
+  if (activos.length <= 1) {
+    if (activos.isEmpty) {
+      p.fase = FasePapa.perdido;
+      p.ganador = null;
+      p.mensajeFin = '$nombre se rindió.';
+    } else {
+      p.fase = FasePapa.ganado;
+      p.ganador = activos.first;
+      p.mensajeFin = '$nombre se rindió. ¡${activos.first} gana!';
+    }
+    return p.ganador;
+  }
+
+  if (p.jugadorActual == nombre || p.estaRendido(p.jugadorActual)) {
+    _asegurarTurnoActivoPapa(p);
+  }
+  return null;
 }
 
 void perderPapa(PartidaPapa p, {String? motivo}) {
   if (p.terminada) return;
   final perdedor = p.jugadorActual;
-  final idx = p.nombres.isEmpty ? 0 : p.indiceTurno % p.nombres.length;
-  final otros = [
-    for (var i = 0; i < p.nombres.length; i++)
-      if (i != idx) p.nombres[i],
-  ];
+  if (perdedor.isEmpty) return;
 
-  if (otros.isNotEmpty) {
-    // Quien falla pierde: gana el rival (o el primero de los que quedan).
-    p.fase = FasePapa.ganado;
-    p.ganador = otros.first;
-    p.mensajeFin = motivo ??
-        (otros.length == 1
-            ? '$perdedor falló. ¡${otros.first} gana!'
-            : '$perdedor falló. Ganan: ${otros.join(', ')}');
-  } else {
-    p.fase = FasePapa.perdido;
-    p.ganador = null;
-    p.mensajeFin = motivo ?? '$perdedor tocó una línea. Fin de la partida.';
+  if (!p.estaRendido(perdedor)) {
+    p.rendidos.add(perdedor);
   }
+  final idx = p.nombres.isEmpty ? -1 : p.indiceTurno % p.nombres.length;
+  if (p.conVidas && idx >= 0 && idx < p.vidas.length) {
+    p.vidas[idx] = 0;
+  }
+
+  final activos = p.jugadoresActivos;
+  if (activos.length <= 1) {
+    if (activos.isEmpty) {
+      p.fase = FasePapa.perdido;
+      p.ganador = null;
+      p.mensajeFin =
+          motivo ?? '$perdedor tocó una línea. Fin de la partida.';
+    } else {
+      p.fase = FasePapa.ganado;
+      p.ganador = activos.first;
+      p.mensajeFin = motivo ?? '$perdedor falló. ¡${activos.first} gana!';
+    }
+    return;
+  }
+
+  // Quedan varios: el perdedor sale y sigue el próximo activo.
+  _pasarTurnoPapa(p);
 }
 
 /// Números que un jugador unió con trazos exitosos (extremos de cada conexión).
@@ -897,7 +963,7 @@ bool registrarFalloPapa(PartidaPapa p, {String? motivo}) {
     p.vidas[i] = 0;
   }
   perderPapa(p, motivo: motivo);
-  return true;
+  return p.terminada;
 }
 
 /// Reescala trazos guardados en píxeles cuando cambia el tamaño de la hoja.

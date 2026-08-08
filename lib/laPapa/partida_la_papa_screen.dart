@@ -90,8 +90,15 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       widget.miNombre != null &&
       widget.miNombre!.isNotEmpty;
 
-  bool get _esMiTurno =>
-      !_esOnline || _partida.jugadorActual == widget.miNombre;
+  bool get _esMiTurno {
+    if (_partida.estaRendido(_partida.jugadorActual) && !widget.solo) {
+      return false;
+    }
+    if (!_esOnline) return true;
+    final yo = widget.miNombre;
+    if (yo == null || _partida.estaRendido(yo)) return false;
+    return _partida.jugadorActual == yo;
+  }
 
   bool get _soyAnfitrionOnline =>
       _esOnline &&
@@ -422,6 +429,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
   void _fallar(String motivo) {
     final board = _boardSize;
+    final quien = _partida.jugadorActual;
     _trazoFallido
       ..clear()
       ..addAll(
@@ -432,9 +440,13 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     final termino = registrarFalloPapa(_partida, motivo: motivo);
     _limpiarTrazo();
     if (!termino) {
-      final quedan = _partida.vidasDelActual() ?? 0;
-      _avisoVida =
-          '${_partida.jugadorActual} perdió una vida · quedan $quedan';
+      if (_partida.estaRendido(quien)) {
+        _avisoVida = '$quien quedó fuera · sigue la partida';
+      } else {
+        final quedan = _partida.vidasDelActual() ?? 0;
+        _avisoVida =
+            '$quien perdió una vida · quedan $quedan';
+      }
     } else {
       _avisoVida = null;
     }
@@ -806,6 +818,27 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     setState(() {
       _nombres[index] = nuevo;
       _partida.nombres[index] = nuevo;
+      if (_partida.ganador == actual) {
+        _partida.ganador = nuevo;
+      }
+      final ri = _partida.rendidos.indexOf(actual);
+      if (ri >= 0) _partida.rendidos[ri] = nuevo;
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
+      for (var i = 0; i < _partida.trazos.length; i++) {
+        final t = _partida.trazos[i];
+        if (t.jugador == actual) {
+          _partida.trazos[i] = TrazoPapa(
+            puntos: t.puntos,
+            de: t.de,
+            a: t.a,
+            jugador: nuevo,
+            grosor: t.grosor,
+          );
+        }
+      }
     });
   }
 
@@ -949,55 +982,23 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _salirAlMenu();
       return;
     }
-    if (_esOnline) {
-      // Abandono online: gana el rival (si queda uno).
-      final yo = widget.miNombre ?? _partida.jugadorActual;
-      final otros = [
-        for (final n in _partida.nombres)
-          if (n != yo) n,
-      ];
-      setState(() {
-        _mostrarMenu = false;
-        _confirmarRendicion = false;
-        _limpiarTrazo();
-        if (otros.isEmpty) {
-          _partida.fase = FasePapa.perdido;
-          _partida.ganador = null;
-          _partida.mensajeFin = '$yo se rindió.';
-        } else {
-          _partida.fase = FasePapa.ganado;
-          _partida.ganador = otros.first;
-          _partida.mensajeFin = '$yo se rindió. ¡${otros.first} gana!';
-        }
-      });
-      unawaited(_publicarEstadoOnline(forzar: true));
-      return;
-    }
-
-    final index = _partida.indiceTurno % _nombres.length;
-    final nombre = _nombres[index];
-    final otros = [
-      for (var i = 0; i < _nombres.length; i++)
-        if (i != index) _nombres[i],
-    ];
+    final yo = _esOnline
+        ? (widget.miNombre ?? _partida.jugadorActual)
+        : _partida.jugadorActual;
+    if (_partida.estaRendido(yo)) return;
 
     setState(() {
       _mostrarMenu = false;
       _confirmarRendicion = false;
       _limpiarTrazo();
       _trazoFallido.clear();
-      if (otros.isEmpty) {
-        _partida.fase = FasePapa.perdido;
-        _partida.ganador = null;
-        _partida.mensajeFin = '$nombre se rindió.';
-      } else {
-        _partida.fase = FasePapa.ganado;
-        _partida.ganador = otros.first;
-        _partida.mensajeFin = otros.length == 1
-            ? '$nombre se rindió. ¡${otros.first} gana!'
-            : '$nombre se rindió. Ganan: ${otros.join(', ')}';
+      _avisoVida = null;
+      rendirsePapa(_partida, yo);
+      if (!_partida.terminada) {
+        _avisoVida = '$yo se rindió · sigue la partida';
       }
     });
+    unawaited(_publicarEstadoOnline(forzar: true));
   }
 
   String get _mensajeEstado {
@@ -1372,6 +1373,69 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                       ),
                     ),
                   ),
+                  if (!widget.solo && _partida.nombres.length > 1) ...[
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (var i = 0; i < _partida.nombres.length; i++)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.carta.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: !_partida.terminada &&
+                                          i ==
+                                              (_partida.indiceTurno %
+                                                  _partida.nombres.length) &&
+                                          !_partida.estaRendido(
+                                            _partida.nombres[i],
+                                          )
+                                      ? AppColors.mint
+                                      : AppColors.cartaBorde,
+                                  width: !_partida.terminada &&
+                                          i ==
+                                              (_partida.indiceTurno %
+                                                  _partida.nombres.length) &&
+                                          !_partida.estaRendido(
+                                            _partida.nombres[i],
+                                          )
+                                      ? 2
+                                      : 1,
+                                ),
+                              ),
+                              child: Text(
+                                _partida.estaRendido(_partida.nombres[i])
+                                    ? '${_partida.nombres[i]} (fuera)'
+                                    : _partida.nombres[i],
+                                style: TextStyle(
+                                  color: _partida.estaRendido(
+                                    _partida.nombres[i],
+                                  )
+                                      ? AppColors.textoSuave
+                                      : AppColors.texto,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                  decoration: _partida.estaRendido(
+                                    _partida.nombres[i],
+                                  )
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Expanded(
                     child: Center(
