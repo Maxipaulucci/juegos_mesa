@@ -458,7 +458,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     if (_esOnline) return;
     if (!_esTurnoPc || _sacando || _editandoMazo) return;
     final token = ++_pcToken;
-    final espera = _modoDiosActivo ? 2200 : 700;
+    final espera = _modoDiosActivo ? 1200 : 200;
     await Future<void>.delayed(Duration(milliseconds: espera));
     if (!mounted || token != _pcToken) return;
     if (!_esTurnoPc || _sacando || _editandoMazo) return;
