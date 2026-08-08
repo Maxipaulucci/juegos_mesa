@@ -40,7 +40,7 @@ abstract final class TextosChancho {
   static const volverMenu = 'Volver al menú';
   static const infoModoDios =
       'Solo aplica a “Jugar vs PC”.\n\n'
-      'Durante la partida ves las cartas de la PC boca arriba.';
+      'Durante la partida ves las cartas de cada PC boca arriba.';
 
   static const infoOpcionChancha =
       'Activado (por defecto): aparece el botón CHANCHA y las PCs también '

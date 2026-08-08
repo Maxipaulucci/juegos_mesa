@@ -120,6 +120,36 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       .where((j) => _esPc(j) && !j.eliminado)
       .toList(growable: false);
 
+  /// Rivales en orden de mesa (siguiente a [_yo] en adelante).
+  List<JugadorChancho> get _oponentes {
+    final todos = _partida.jugadores;
+    final yo = _yo;
+    final idx = todos.indexWhere((j) => j.nombre == yo.nombre);
+    if (idx < 0) {
+      return [for (final j in todos) if (j.nombre != yo.nombre) j];
+    }
+    return [
+      for (var i = 1; i < todos.length; i++)
+        todos[(idx + i) % todos.length],
+    ];
+  }
+
+  /// 1 rival → arriba; 2 → costados; 3 → izquierda, arriba y derecha.
+  /// “Derecha” del pase = siguiente en la mesa (ops[0]).
+  ({
+    JugadorChancho? izquierda,
+    JugadorChancho? arriba,
+    JugadorChancho? derecha,
+  }) get _asientosOponentes {
+    final ops = _oponentes;
+    return switch (ops.length) {
+      0 => (izquierda: null, arriba: null, derecha: null),
+      1 => (izquierda: null, arriba: ops[0], derecha: null),
+      2 => (izquierda: ops[1], arriba: null, derecha: ops[0]),
+      _ => (izquierda: ops[2], arriba: ops[1], derecha: ops[0]),
+    };
+  }
+
   bool get _humanoActivo => !_yo.eliminado;
 
   bool get _esTurnoHumanoAnuncio {
@@ -222,9 +252,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
           : 'Esperando números…',
       FaseChancho.anunciando => _esTurnoHumanoAnuncio
           ? TextosChancho.anunciando
-          : (_esOnline
-              ? 'Esperando a ${_partida.jugadorActual.nombre}…'
-              : TextosChancho.esperandoPc),
+          : 'Esperando a ${_partida.jugadorActual.nombre}…',
       FaseChancho.eligiendoCartas => _yo.seleccionPaseConfirmada
           ? 'Esperando al resto…'
           : TextosChancho.eligiendoCartas,
@@ -1538,20 +1566,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                       jugadores: _partida.jugadores,
                       puedeRenombrar: _puedeRenombrar,
                       onRenombrar: _renombrarJugador,
+                      anuncianteNombre: !_partida.terminada &&
+                              _partida.fase != FaseChancho.eligiendoNumeros
+                          ? _partida.jugadorActual.nombre
+                          : null,
                     ),
-                    if (_modoDiosActivo) ...[
-                      const SizedBox(height: 8),
-                      for (final pc in _partida.jugadores.where(_esPc))
-                        Text(
-                          '${pc.nombre}${pc.eliminado ? ' (fuera)' : ''}: '
-                          '${pc.mano.map((c) => c.etiqueta).join(' · ')}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textoSuave,
-                            fontSize: 11,
-                          ),
-                        ),
-                    ],
                     if (_textoEstado.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
@@ -1567,22 +1586,84 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                     Expanded(
                       child: Builder(
                         builder: (context) {
+                          final asientos = _asientosOponentes;
                           final cartel = _cartelAnuncioActivo;
-                          if (cartel == null) return const SizedBox.shrink();
-                          return LayoutBuilder(
-                            builder: (context, constraints) {
-                              return Center(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: constraints.maxWidth,
-                                    ),
-                                    child: cartel,
+                          Widget manoMesa(JugadorChancho j, {required bool lateral}) {
+                            return _ManoMesaChancho(
+                              jugador: j,
+                              lateral: lateral,
+                              bocaArriba: _modoDiosActivo && _esPc(j),
+                              esAnunciante:
+                                  j.nombre == _partida.jugadorActual.nombre &&
+                                      !_partida.terminada &&
+                                      _partida.fase !=
+                                          FaseChancho.eligiendoNumeros,
+                              confirmoPase: _partida.fase ==
+                                      FaseChancho.eligiendoCartas &&
+                                  j.seleccionPaseConfirmada,
+                              paloVisual: _paloVisual,
+                            );
+                          }
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (asientos.izquierda != null) ...[
+                                SizedBox(
+                                  width: 78,
+                                  child: manoMesa(
+                                    asientos.izquierda!,
+                                    lateral: true,
                                   ),
                                 ),
-                              );
-                            },
+                                const SizedBox(width: 4),
+                              ],
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    if (asientos.arriba != null) ...[
+                                      manoMesa(
+                                        asientos.arriba!,
+                                        lateral: false,
+                                      ),
+                                      const SizedBox(height: 6),
+                                    ],
+                                    Expanded(
+                                      child: cartel == null
+                                          ? const SizedBox.shrink()
+                                          : LayoutBuilder(
+                                              builder: (context, constraints) {
+                                                return Center(
+                                                  child: FittedBox(
+                                                    fit: BoxFit.scaleDown,
+                                                    child: ConstrainedBox(
+                                                      constraints:
+                                                          BoxConstraints(
+                                                        maxWidth:
+                                                            constraints
+                                                                .maxWidth,
+                                                      ),
+                                                      child: cartel,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (asientos.derecha != null) ...[
+                                const SizedBox(width: 4),
+                                SizedBox(
+                                  width: 78,
+                                  child: manoMesa(
+                                    asientos.derecha!,
+                                    lateral: true,
+                                  ),
+                                ),
+                              ],
+                            ],
                           );
                         },
                       ),
@@ -2008,11 +2089,13 @@ class _MarcadorLetras extends StatelessWidget {
     required this.jugadores,
     required this.puedeRenombrar,
     required this.onRenombrar,
+    this.anuncianteNombre,
   });
 
   final List<JugadorChancho> jugadores;
   final bool Function(int index) puedeRenombrar;
   final Future<void> Function(int index) onRenombrar;
+  final String? anuncianteNombre;
 
   @override
   Widget build(BuildContext context) {
@@ -2026,7 +2109,12 @@ class _MarcadorLetras extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1A0A33),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.violeta),
+                border: Border.all(
+                  color: anuncianteNombre == jugadores[i].nombre
+                      ? AppColors.acento
+                      : AppColors.violeta,
+                  width: anuncianteNombre == jugadores[i].nombre ? 1.8 : 1,
+                ),
               ),
               child: Column(
                 children: [
@@ -2059,6 +2147,153 @@ class _MarcadorLetras extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _ManoMesaChancho extends StatelessWidget {
+  const _ManoMesaChancho({
+    required this.jugador,
+    required this.lateral,
+    required this.bocaArriba,
+    required this.esAnunciante,
+    required this.confirmoPase,
+    required this.paloVisual,
+  });
+
+  final JugadorChancho jugador;
+  final bool lateral;
+  final bool bocaArriba;
+  final bool esAnunciante;
+  final bool confirmoPase;
+  final PaloEspanolVisual Function(PaloChancho) paloVisual;
+
+  static const double _w = 42;
+  static const double _h = 60;
+
+  @override
+  Widget build(BuildContext context) {
+    final cartas = jugador.mano;
+    final titulo = jugador.eliminado
+        ? '${jugador.nombre} (fuera)'
+        : jugador.nombre;
+
+    final etiqueta = Text(
+      confirmoPase ? '$titulo · ✓' : titulo,
+      textAlign: TextAlign.center,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: esAnunciante ? AppColors.acento : AppColors.textoSuave,
+        fontWeight: FontWeight.w800,
+        fontSize: 11,
+      ),
+    );
+
+    Widget cartaWidget(CartaChancho c) {
+      return CartaEspanolaSkin(
+        numero: c.numero,
+        etiqueta: c.etiqueta,
+        palo: paloVisual(c.palo),
+        bocaArriba: bocaArriba,
+        compacta: true,
+        width: _w,
+        height: _h,
+      );
+    }
+
+    final mano = cartas.isEmpty
+        ? Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Sin cartas',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textoSuave.withValues(alpha: 0.7),
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          )
+        : lateral
+            ? Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final overlap = cartas.length <= 4
+                        ? 10.0
+                        : (constraints.maxHeight / cartas.length).clamp(8.0, 14.0);
+                    final totalH = _h + (cartas.length - 1) * overlap;
+                    return Center(
+                      child: SizedBox(
+                        height: totalH.clamp(0, constraints.maxHeight),
+                        width: _w + 4,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            for (var i = 0; i < cartas.length; i++)
+                              Positioned(
+                                top: i * overlap,
+                                left: 2,
+                                child: cartaWidget(cartas[i]),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              )
+            : SizedBox(
+                height: _h + 4,
+                width: double.infinity,
+                child: Center(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < cartas.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 4),
+                          cartaWidget(cartas[i]),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+
+    return Opacity(
+      opacity: jugador.eliminado ? 0.45 : 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: esAnunciante
+                ? AppColors.acento.withValues(alpha: 0.65)
+                : Colors.transparent,
+            width: 1.2,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: lateral
+              ? Column(
+                  children: [
+                    etiqueta,
+                    const SizedBox(height: 4),
+                    mano,
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    etiqueta,
+                    const SizedBox(height: 4),
+                    mano,
+                  ],
+                ),
+        ),
+      ),
     );
   }
 }

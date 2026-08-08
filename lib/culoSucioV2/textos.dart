@@ -8,6 +8,7 @@ abstract final class TextosCuloSucioV2 {
   static const vsPcNombre = 'PC';
   static const tuMano = 'Tu mano';
   static const manoRival = 'Mano del rival';
+  static const manoDe = 'Mano de';
   static const paresDescartados = 'Pares descartados';
   static const robaUna = 'Tocá una carta tapada del rival';
   static const moverCulo =
@@ -53,7 +54,7 @@ abstract final class TextosCuloSucioV2 {
   static const volverMenu = 'Volver al menú';
   static const infoModoDios =
       'Solo aplica a “Jugar vs PC”.\n\n'
-      'Durante la partida ves las cartas de la PC boca arriba '
+      'Durante la partida ves las cartas de las PCs boca arriba '
       'para probar jugadas.';
 
   static String reglasCompletas() => '''

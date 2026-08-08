@@ -65,6 +65,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   final List<int> _seleccionPar = [];
   /// Carta del rival revelada antes de robarla.
   int? _indiceRevelando;
+  /// Nombre del jugador cuya carta está revelada ([_indiceRevelando]).
+  String? _revelandoDeNombre;
   /// Tras un robo, hay que confirmar el par tocando las cartas marcadas.
   bool _esperandoDescartarPar = false;
   /// Índice del 1 de oro seleccionado para reordenarlo en la mano.
@@ -127,26 +129,25 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     );
   }
 
-  /// Mano del rival (arriba).
-  JugadorCuloSucioV2 get _rival {
-    if (_esOnline) {
-      return _partida.jugadores.firstWhere(
-        (j) => j.nombre != widget.miNombre,
-        orElse: () => _partida.jugadores.last,
-      );
+  /// Manos ajenas (arriba), en orden de mesa desde el siguiente a [_yo].
+  List<JugadorCuloSucioV2> get _oponentes {
+    final todos = _partida.jugadores;
+    final yo = _yo;
+    final idx = todos.indexWhere((j) => j.nombre == yo.nombre);
+    if (idx < 0) {
+      return [for (final j in todos) if (j.nombre != yo.nombre) j];
     }
-    if (widget.contraPc) {
-      if (_esTurnoPc) return _partida.jugadorActual;
-      return _partida.rivalActual;
-    }
-    if (_jugadorVistaLocal.nombre == _partida.jugadorActual.nombre) {
-      return _partida.rivalActual;
-    }
-    return _partida.jugadores.firstWhere(
-      (j) => j.nombre != _jugadorVistaLocal.nombre && !j.rendido,
-      orElse: () => _partida.jugadores.last,
-    );
+    return [
+      for (var i = 1; i < todos.length; i++)
+        todos[(idx + i) % todos.length],
+    ];
   }
+
+  /// A quién se le puede robar en el turno actual.
+  JugadorCuloSucioV2 get _objetivoRobo => _partida.rivalActual;
+
+  bool _manoOponenteBocaArriba(JugadorCuloSucioV2 j) =>
+      _modoDiosActivo && esNombrePc(j.nombre);
 
   bool get _esMiTurnoOnline =>
       !_esOnline || _partida.jugadorActual.nombre == widget.miNombre;
@@ -368,6 +369,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
         _esperandoDescartarPar = false;
         _seleccionPar.clear();
         _indiceRevelando = null;
+        _revelandoDeNombre = null;
         _indiceCuloMoviendo = null;
       }
       _talVezMostrarRoboDelRival(version);
@@ -673,18 +675,24 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (!mounted || token != _pcToken) return;
     if (!_esTurnoPc) return;
 
-    final de = _yo;
-    final hacia = _rival;
+    final hacia = _partida.jugadorActual;
+    final de = _partida.rivalActual;
     if (de.sinCartas || !esNombrePc(hacia.nombre)) {
       return;
     }
     final idx = math.Random().nextInt(de.mano.length);
     final cartaElegida = de.mano[idx];
+    final robaAlHumano = de.nombre == _yo.nombre;
 
     setState(() {
       _robando = true;
-      _indiceRobadaPorPc = idx;
-      _cartaQueSeLlevaPc = cartaElegida;
+      if (robaAlHumano) {
+        _indiceRobadaPorPc = idx;
+        _cartaQueSeLlevaPc = cartaElegida;
+      } else {
+        _revelandoDeNombre = de.nombre;
+        _indiceRevelando = idx;
+      }
     });
     // Tiempo para que el usuario vea qué carta se lleva la PC.
     await Future<void>.delayed(const Duration(milliseconds: 1200));
@@ -700,6 +708,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     setState(() {
       _indiceRobadaPorPc = null;
       _cartaQueSeLlevaPc = null;
+      _indiceRevelando = null;
+      _revelandoDeNombre = null;
       _robando = false;
     });
     // Deja ver el aviso de robada / par.
@@ -721,13 +731,15 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       return;
     }
     final hacia = _yo;
-    final de = _rival;
+    final de = _objetivoRobo;
     if (hacia.nombre != _partida.jugadorActual.nombre) return;
+    if (de.nombre == hacia.nombre) return;
     if (indice < 0 || indice >= de.mano.length) return;
 
     setState(() {
       _limpiarAvisoJugada();
       _robando = true;
+      _revelandoDeNombre = de.nombre;
       _indiceRevelando = indice;
       _indiceCuloMoviendo = null;
     });
@@ -749,6 +761,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (!mounted) return;
     setState(() {
       _indiceRevelando = null;
+      _revelandoDeNombre = null;
       _robando = false;
       if (detectarPar && err == null && parPendiente.length >= 2) {
         _esperandoDescartarPar = true;
@@ -970,6 +983,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _confirmarRendicion = false;
       _seleccionPar.clear();
       _indiceRevelando = null;
+      _revelandoDeNombre = null;
       _esperandoDescartarPar = false;
       _indiceRobadaPorPc = null;
       _cartaQueSeLlevaPc = null;
@@ -1009,10 +1023,15 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     final manoAbajo = (_esOnline || widget.contraPc || _esLocalHotSeat)
         ? _yo
         : _partida.jugadorActual;
-    final manoArriba = (_esOnline || widget.contraPc || _esLocalHotSeat)
-        ? _rival
-        : _partida.rivalActual;
-    final rivalParaRobar = manoArriba;
+    final oponentes = (_esOnline || widget.contraPc || _esLocalHotSeat)
+        ? _oponentes
+        : [
+            for (final j in _partida.jugadores)
+              if (j.nombre != manoAbajo.nombre) j,
+          ];
+    final objetivoRobo = _objetivoRobo;
+    final compactaOponentes = oponentes.length > 1;
+    final altoManoOponente = compactaOponentes ? 72.0 : 112.0;
     final yoTurno = manoAbajo;
 
     return PopScope(
@@ -1134,36 +1153,99 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                     ),
                   ],
                   if (!_fasePares) ...[
-                    const SizedBox(height: 14),
-                    Text(
-                      '${TextosCuloSucioV2.manoRival}: ${manoArriba.nombre}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textoSuave,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      height: 112,
-                      width: double.infinity,
-                      child: _FilaCartas(
-                        cartas: manoArriba.mano,
-                        bocaArriba: _modoDiosActivo,
-                        indiceRevelado: _indiceRevelando,
-                        colorPalo: _colorPalo,
-                        iconoPalo: _iconoPalo,
-                        onTapIndex: (_esTurnoHumano &&
-                                !_robando &&
-                                !_esperandoDescartarPar &&
-                                !_esperandoMazoOnline &&
-                                identical(manoArriba, rivalParaRobar))
-                            ? _robarDeRival
-                            : null,
-                      ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      flex: oponentes.length > 1 ? 3 : 2,
+                      child: oponentes.isEmpty
+                          ? const SizedBox.shrink()
+                          : SingleChildScrollView(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (var i = 0;
+                                      i < oponentes.length;
+                                      i++) ...[
+                                    if (i > 0) const SizedBox(height: 8),
+                                    Builder(
+                                      builder: (context) {
+                                        final oponente = oponentes[i];
+                                        final sePuedeRobar = _esTurnoHumano &&
+                                            !_robando &&
+                                            !_esperandoDescartarPar &&
+                                            !_esperandoMazoOnline &&
+                                            oponente.nombre ==
+                                                objetivoRobo.nombre &&
+                                            !oponente.sinCartas &&
+                                            !oponente.rendido;
+                                        return Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              oponentes.length == 1
+                                                  ? '${TextosCuloSucioV2.manoRival}: ${oponente.nombre}'
+                                                  : '${TextosCuloSucioV2.manoDe} ${oponente.nombre}',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                color: sePuedeRobar
+                                                    ? AppColors.acento
+                                                    : AppColors.textoSuave,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            SizedBox(
+                                              height: altoManoOponente,
+                                              width: double.infinity,
+                                              child: DecoratedBox(
+                                                decoration: sePuedeRobar
+                                                    ? BoxDecoration(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                        border: Border.all(
+                                                          color: AppColors
+                                                              .acento
+                                                              .withValues(
+                                                            alpha: 0.55,
+                                                          ),
+                                                          width: 1.2,
+                                                        ),
+                                                      )
+                                                    : const BoxDecoration(),
+                                                child: _FilaCartas(
+                                                  cartas: oponente.mano,
+                                                  bocaArriba:
+                                                      _manoOponenteBocaArriba(
+                                                    oponente,
+                                                  ),
+                                                  compacta: compactaOponentes,
+                                                  indiceRevelado:
+                                                      _revelandoDeNombre ==
+                                                              oponente.nombre
+                                                          ? _indiceRevelando
+                                                          : null,
+                                                  colorPalo: _colorPalo,
+                                                  iconoPalo: _iconoPalo,
+                                                  onTapIndex: sePuedeRobar
+                                                      ? _robarDeRival
+                                                      : null,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                     ),
                     Expanded(
+                      flex: 1,
                       child: Center(
                         child: (_cartaQueSeLlevaPc == null &&
                                 (_partida.ultimaRobada != null ||
