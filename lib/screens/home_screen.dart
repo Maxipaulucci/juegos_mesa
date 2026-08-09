@@ -37,6 +37,7 @@ enum _TipoJuegoHome {
   canasta,
   casitaRobada,
   chanchoVa,
+  guerraDeCartas,
   desconfio,
   jodete,
 }
@@ -142,15 +143,6 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.peligro,
       categoria: _CategoriaHome.cartasEspanolas,
     ),
-    // Próximamente.
-    _JuegoHome(
-      tipo: _TipoJuegoHome.canasta,
-      titulo: 'Canasta',
-      subtitulo: 'Próximamente',
-      accent: AppColors.violeta,
-      categoria: _CategoriaHome.cartasInglesas,
-      enabled: false,
-    ),
     _JuegoHome(
       tipo: _TipoJuegoHome.casitaRobada,
       titulo: 'Casita robada',
@@ -164,6 +156,22 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas · cuartetos y CHANCHO VA',
       accent: AppColors.acentoSuave,
       categoria: _CategoriaHome.cartasEspanolas,
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.guerraDeCartas,
+      titulo: 'Guerra de cartas',
+      subtitulo: 'Próximamente',
+      accent: AppColors.azul,
+      categoria: _CategoriaHome.cartasEspanolas,
+      enabled: false,
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.canasta,
+      titulo: 'Canasta',
+      subtitulo: 'Próximamente',
+      accent: AppColors.violeta,
+      categoria: _CategoriaHome.cartasInglesas,
+      enabled: false,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.desconfio,
@@ -342,6 +350,7 @@ class _HomeScreenState extends State<HomeScreen>
               mensaje: 'Chancho va',
             );
       case _TipoJuegoHome.canasta:
+      case _TipoJuegoHome.guerraDeCartas:
       case _TipoJuegoHome.desconfio:
       case _TipoJuegoHome.jodete:
         return null;
