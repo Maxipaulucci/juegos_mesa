@@ -12,6 +12,7 @@ import '../culoSucio/menu_culo_sucio_screen.dart';
 import '../culoSucioV2/menu_culo_sucio_v2_screen.dart';
 import '../casitaRobada/menu_casita_robada_screen.dart';
 import '../chanchoVa/menu_chancho_va_screen.dart';
+import '../guerraDeCartas/menu_guerra_screen.dart';
 import '../unoSolo/menu_uno_solo_screen.dart';
 
 enum _CategoriaHome {
@@ -160,10 +161,9 @@ class _HomeScreenState extends State<HomeScreen>
     _JuegoHome(
       tipo: _TipoJuegoHome.guerraDeCartas,
       titulo: 'Guerra de cartas',
-      subtitulo: 'Próximamente',
+      subtitulo: 'Cartas inglesas · AS alto',
       accent: AppColors.azul,
-      categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
+      categoria: _CategoriaHome.cartasInglesas,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
@@ -349,8 +349,13 @@ class _HomeScreenState extends State<HomeScreen>
               acento: AppColors.acentoSuave,
               mensaje: 'Chancho va',
             );
-      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.guerraDeCartas:
+        return () => _abrirJuego(
+              menu: const MenuGuerraScreen(),
+              acento: AppColors.azul,
+              mensaje: 'Guerra de cartas',
+            );
+      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.desconfio:
       case _TipoJuegoHome.jodete:
         return null;

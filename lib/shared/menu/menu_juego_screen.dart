@@ -81,6 +81,7 @@ class MenuJuegoScreen extends StatefulWidget {
   static const juegoIdCuloSucioV2 = 'culoSucioV2';
   static const juegoIdCasitaRobada = 'casitaRobada';
   static const juegoIdChanchoVa = 'chanchoVa';
+  static const juegoIdGuerraDeCartas = 'guerraDeCartas';
 
   final String titulo;
   final String juegoId;
