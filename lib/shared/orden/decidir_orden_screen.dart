@@ -2,47 +2,122 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/cartas/carta_inglesa_skin.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-enum _PaloOrden { oro, copa, espada, basto }
+enum TipoMazoOrden { espanol, ingles }
+
+enum _PaloEsp { oro, copa, espada, basto }
+
+enum _PaloIng { corazones, diamantes, treboles, picas }
 
 class _CartaOrden {
-  const _CartaOrden({required this.numero, required this.palo});
+  const _CartaOrden.espanola({required this.numero, required _PaloEsp palo})
+      : tipo = TipoMazoOrden.espanol,
+        _paloEsp = palo,
+        _paloIng = null;
 
-  /// 1–12.
+  const _CartaOrden.inglesa({required this.numero, required _PaloIng palo})
+      : tipo = TipoMazoOrden.ingles,
+        _paloEsp = null,
+        _paloIng = palo;
+
+  final TipoMazoOrden tipo;
+  /// Español: 1–12. Inglés: 1=AS … 13=K.
   final int numero;
-  final _PaloOrden palo;
+  final _PaloEsp? _paloEsp;
+  final _PaloIng? _paloIng;
 
-  String get nombrePalo => switch (palo) {
-        _PaloOrden.oro => 'oro',
-        _PaloOrden.copa => 'copa',
-        _PaloOrden.espada => 'espada',
-        _PaloOrden.basto => 'basto',
+  /// Orden de comparación (más alto primero). Inglés: AS > K > … > 2.
+  int get rango {
+    if (tipo == TipoMazoOrden.ingles) {
+      return numero == 1 ? 14 : numero;
+    }
+    return numero;
+  }
+
+  String get etiquetaValor {
+    if (tipo == TipoMazoOrden.ingles) {
+      return switch (numero) {
+        1 => 'A',
+        11 => 'J',
+        12 => 'Q',
+        13 => 'K',
+        _ => '$numero',
+      };
+    }
+    return '$numero';
+  }
+
+  String get nombrePalo {
+    if (tipo == TipoMazoOrden.ingles) {
+      return switch (_paloIng!) {
+        _PaloIng.corazones => 'corazones',
+        _PaloIng.diamantes => 'diamantes',
+        _PaloIng.treboles => 'tréboles',
+        _PaloIng.picas => 'picas',
+      };
+    }
+    return switch (_paloEsp!) {
+      _PaloEsp.oro => 'oro',
+      _PaloEsp.copa => 'copa',
+      _PaloEsp.espada => 'espada',
+      _PaloEsp.basto => 'basto',
+    };
+  }
+
+  String get etiqueta => tipo == TipoMazoOrden.ingles
+      ? '$etiquetaValor${simboloPaloIngles(_paloVisualIngles)}'
+      : '$numero de $nombrePalo';
+
+  PaloInglesVisual get _paloVisualIngles => switch (_paloIng!) {
+        _PaloIng.corazones => PaloInglesVisual.corazones,
+        _PaloIng.diamantes => PaloInglesVisual.diamantes,
+        _PaloIng.treboles => PaloInglesVisual.treboles,
+        _PaloIng.picas => PaloInglesVisual.picas,
       };
 
-  String get etiqueta => '$numero de $nombrePalo';
+  bool get esRojaIngles =>
+      _paloIng == _PaloIng.corazones || _paloIng == _PaloIng.diamantes;
 
   @override
   bool operator ==(Object other) =>
-      other is _CartaOrden && other.numero == numero && other.palo == palo;
+      other is _CartaOrden &&
+      other.tipo == tipo &&
+      other.numero == numero &&
+      other._paloEsp == _paloEsp &&
+      other._paloIng == _paloIng;
 
   @override
-  int get hashCode => Object.hash(numero, palo);
+  int get hashCode => Object.hash(tipo, numero, _paloEsp, _paloIng);
 }
 
-/// Mazo español completo: 12 cartas × 4 palos = 48 (sin comodines).
-List<_CartaOrden> _crearMazoOrden() => [
-      for (final palo in _PaloOrden.values)
-        for (var n = 1; n <= 12; n++) _CartaOrden(numero: n, palo: palo),
+List<_CartaOrden> _crearMazo(TipoMazoOrden tipo) {
+  if (tipo == TipoMazoOrden.ingles) {
+    return [
+      for (final palo in _PaloIng.values)
+        for (var n = 1; n <= 13; n++)
+          _CartaOrden.inglesa(numero: n, palo: palo),
     ];
+  }
+  return [
+    for (final palo in _PaloEsp.values)
+      for (var n = 1; n <= 12; n++)
+        _CartaOrden.espanola(numero: n, palo: palo),
+  ];
+}
 
-/// Cada jugador saca una carta del mazo español; gana el número más alto
-/// (el palo no importa). Empates: solo los empatados vuelven a sacar,
-/// sin repetir cartas ya salidas.
+/// Cada jugador saca una carta; gana el valor más alto (el palo no importa).
+/// Empates: solo los empatados vuelven a sacar, sin repetir cartas ya salidas.
 class DecidirOrdenScreen extends StatefulWidget {
-  const DecidirOrdenScreen({super.key, required this.nombres});
+  const DecidirOrdenScreen({
+    super.key,
+    required this.nombres,
+    this.tipoMazo = TipoMazoOrden.espanol,
+  });
 
   final List<String> nombres;
+  final TipoMazoOrden tipoMazo;
 
   @override
   State<DecidirOrdenScreen> createState() => _DecidirOrdenScreenState();
@@ -53,28 +128,28 @@ class _ResultadoTiradaOrden {
 
   final String nombre;
   final int indiceOriginal;
-  /// Historial de cartas: la 1.ª define el grupo; las siguientes solo
-  /// desempatan dentro del mismo prefijo de números.
   final List<_CartaOrden> cartas = [];
 
   _CartaOrden? get cartaMostrada => cartas.isEmpty ? null : cartas.last;
 
-  /// Clave de grupo por números (sin palo), para empates.
+  /// Clave de grupo por rango (sin palo), para empates.
   String get claveGrupo =>
-      [for (final c in cartas) c.numero].join(',');
+      [for (final c in cartas) c.rango].join(',');
 }
 
 class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
   final _rng = math.Random();
   late final List<_ResultadoTiradaOrden> _jugadores;
   late final List<_CartaOrden> _mazo;
-  /// Índices en [_jugadores] que deben sacar en esta ronda.
   late List<int> _cola;
   int _posCola = 0;
   bool _sacando = false;
   _CartaOrden? _cartaAnimada;
   bool _mostrarOrden = false;
   bool _puedeSacar = true;
+
+  TipoMazoOrden get _tipo => widget.tipoMazo;
+  bool get _ingles => _tipo == TipoMazoOrden.ingles;
 
   _ResultadoTiradaOrden get _actual => _jugadores[_cola[_posCola]];
 
@@ -93,7 +168,7 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
         ),
     ];
     _cola = List.generate(_jugadores.length, (i) => i);
-    _mazo = _crearMazoOrden()..shuffle(_rng);
+    _mazo = _crearMazo(_tipo)..shuffle(_rng);
   }
 
   static Color _colorDe(int index) => switch (index) {
@@ -105,13 +180,11 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
 
   _CartaOrden _sacarDelMazo() {
     if (_mazo.isEmpty) {
-      // Por si se agotara el mazo en desempatados extremos: reponer sin
-      // las cartas ya usadas en el historial actual.
       final usadas = <_CartaOrden>{
         for (final j in _jugadores) ...j.cartas,
       };
       _mazo.addAll([
-        for (final c in _crearMazoOrden())
+        for (final c in _crearMazo(_tipo))
           if (!usadas.contains(c)) c,
       ]);
       _mazo.shuffle(_rng);
@@ -127,12 +200,12 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
       _cartaAnimada = null;
     });
 
+    final totalMazo = _ingles ? 52 : 48;
     for (var i = 0; i < 8; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 55));
       if (!mounted) return;
-      // Animación solo visual; no consume del mazo real.
       final preview = _mazo.isEmpty
-          ? _crearMazoOrden()[_rng.nextInt(48)]
+          ? _crearMazo(_tipo)[_rng.nextInt(totalMazo)]
           : _mazo[_rng.nextInt(_mazo.length)];
       setState(() => _cartaAnimada = preview);
     }
@@ -162,8 +235,6 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
       return;
     }
 
-    // Empates: mismo historial de números. Un 5 de desempate entre los
-    // que sacaron 1 no compite con quien sacó 5 en la 1.ª ronda.
     final porGrupo = <String, List<int>>{};
     for (var i = 0; i < _jugadores.length; i++) {
       final j = _jugadores[i];
@@ -187,14 +258,14 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
     setState(() => _mostrarOrden = true);
   }
 
-  /// Orden: se compara número a número (más alto gana). El palo no importa.
+  /// Orden: más alto primero (AS alto en inglés). El palo no importa.
   List<_ResultadoTiradaOrden> get _ordenFinal {
     final lista = List<_ResultadoTiradaOrden>.of(_jugadores);
     lista.sort((a, b) {
       final n = math.max(a.cartas.length, b.cartas.length);
       for (var i = 0; i < n; i++) {
-        final va = i < a.cartas.length ? a.cartas[i].numero : -1;
-        final vb = i < b.cartas.length ? b.cartas[i].numero : -1;
+        final va = i < a.cartas.length ? a.cartas[i].rango : -1;
+        final vb = i < b.cartas.length ? b.cartas[i].rango : -1;
         if (va != vb) return vb.compareTo(va);
       }
       return a.indiceOriginal.compareTo(b.indiceOriginal);
@@ -210,6 +281,12 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textoAyuda = _ingles
+        ? 'Cada jugador saca una carta del mazo inglés (52, sin comodines). '
+            'Gana el valor más alto: AS > K > Q > J > 10… > 2 (el palo no importa).'
+        : 'Cada jugador saca una carta del mazo español. '
+            'Gana el número más alto (el palo no importa).';
+
     return Scaffold(
       backgroundColor: AppColors.fondo,
       appBar: AppBar(
@@ -246,8 +323,7 @@ class _DecidirOrdenScreenState extends State<DecidirOrdenScreen> {
                       Text(
                         _rondaDeDesempate
                             ? 'Hay empate: solo vuelven a sacar quienes empataron.'
-                            : 'Cada jugador saca una carta del mazo español. '
-                                'Gana el número más alto (el palo no importa).',
+                            : textoAyuda,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AppColors.textoSuave,
@@ -371,6 +447,16 @@ class _CartaFace extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = carta;
+    if (!vacia && c != null && c.tipo == TipoMazoOrden.ingles) {
+      return CartaInglesaSkin(
+        etiquetaValor: c.etiquetaValor,
+        palo: c._paloVisualIngles,
+        bocaArriba: true,
+        width: tamano * 0.72,
+        height: tamano,
+      );
+    }
+
     return Container(
       width: tamano * 0.72,
       height: tamano,
@@ -402,9 +488,11 @@ class _CartaFace extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '${c.numero}',
-                  style: const TextStyle(
-                    color: AppColors.acento,
+                  c.etiquetaValor,
+                  style: TextStyle(
+                    color: c.tipo == TipoMazoOrden.ingles && c.esRojaIngles
+                        ? const Color(0xFFE53935)
+                        : AppColors.acento,
                     fontWeight: FontWeight.w900,
                     fontSize: 26,
                     height: 1,
@@ -443,6 +531,13 @@ class _FilaResultado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = carta;
+    final colorEtiqueta = c != null &&
+            c.tipo == TipoMazoOrden.ingles &&
+            c.esRojaIngles
+        ? const Color(0xFFE53935)
+        : accent;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -471,11 +566,11 @@ class _FilaResultado extends StatelessWidget {
               ),
             ),
           ),
-          if (carta != null)
+          if (c != null)
             Text(
-              carta!.etiqueta,
+              c.etiqueta,
               style: TextStyle(
-                color: accent,
+                color: colorEtiqueta,
                 fontWeight: FontWeight.w900,
                 fontSize: 13,
               ),

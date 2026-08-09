@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Menú in-partida de Guerra de cartas.
+/// Menú in-partida de Guerra de cartas (REGLAS / RENDIRSE o SALIR).
 class MenuPartidaGuerra extends StatelessWidget {
   const MenuPartidaGuerra({
     super.key,
@@ -20,6 +20,7 @@ class MenuPartidaGuerra extends StatelessWidget {
   final String jugador;
   final bool partidaTerminada;
   final bool confirmarRendicion;
+  /// Multijugador local: muestra RENDIRSE en lugar de SALIR.
   final bool permitirRendirse;
   final VoidCallback onCerrar;
   final VoidCallback onReglas;
@@ -29,10 +30,6 @@ class MenuPartidaGuerra extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelSalir = partidaTerminada
-        ? 'SALIR'
-        : (permitirRendirse ? 'RENDIRSE' : 'SALIR');
-
     return Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
@@ -83,65 +80,84 @@ class MenuPartidaGuerra extends StatelessWidget {
                               onPressed: onCerrar,
                               icon: const Icon(
                                 Icons.close,
-                                color: AppColors.textoSuave,
+                                color: AppColors.texto,
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 4),
                         Text(
                           jugador.toUpperCase(),
-                          style: const TextStyle(
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
                             color: AppColors.texto,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        if (confirmarRendicion) ...[
-                          const Text(
-                            '¿Seguro que querés rendirte?',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppColors.texto,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: onCancelarRendicion,
-                                  child: const Text('Cancelar'),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FilledButton(
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: AppColors.peligro,
-                                  ),
-                                  onPressed: onConfirmarRendicion,
-                                  child: const Text('Rendirse'),
-                                ),
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                            shadows: [
+                              Shadow(
+                                color: AppColors.acento.withValues(alpha: 0.7),
+                                blurRadius: 14,
                               ),
                             ],
                           ),
-                        ] else ...[
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: onReglas,
-                              child: const Text('REGLAS'),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          partidaTerminada
+                              ? 'Partida terminada'
+                              : 'Turno actual',
+                          style: TextStyle(
+                            color: AppColors.textoSuave.withValues(alpha: 0.95),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        _BotonArcade(
+                          label: 'REGLAS',
+                          icon: Icons.menu_book_rounded,
+                          tono: _TonoBoton.azul,
+                          onPressed: onReglas,
+                        ),
+                        const SizedBox(height: 10),
+                        if (partidaTerminada || !permitirRendirse)
+                          _BotonArcade(
+                            label: 'SALIR',
+                            icon: Icons.logout_rounded,
+                            tono: _TonoBoton.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else if (!confirmarRendicion)
+                          _BotonArcade(
+                            label: 'RENDIRSE',
+                            icon: Icons.flag_rounded,
+                            tono: _TonoBoton.rojo,
+                            onPressed: onSalirORendirse,
+                          )
+                        else ...[
+                          const Text(
+                            '¿Confirmás tu derrota?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.peligro,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
                             ),
                           ),
                           const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: onSalirORendirse,
-                              child: Text(labelSalir),
-                            ),
+                          _BotonArcade(
+                            label: 'CONFIRMAR RENDICIÓN',
+                            icon: Icons.check_circle_outline,
+                            tono: _TonoBoton.rojo,
+                            onPressed: onConfirmarRendicion,
+                          ),
+                          const SizedBox(height: 10),
+                          _BotonArcade(
+                            label: 'CANCELAR',
+                            icon: Icons.close,
+                            tono: _TonoBoton.violeta,
+                            onPressed: onCancelarRendicion,
                           ),
                         ],
                       ],
@@ -149,6 +165,97 @@ class MenuPartidaGuerra extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _TonoBoton { violeta, azul, rojo }
+
+class _BotonArcade extends StatelessWidget {
+  const _BotonArcade({
+    required this.label,
+    required this.icon,
+    required this.tono,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final _TonoBoton tono;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    late final List<Color> colors;
+    late final Color glow;
+    switch (tono) {
+      case _TonoBoton.violeta:
+        colors = const [
+          Color(0xFFCE93D8),
+          Color(0xFFAB47BC),
+          Color(0xFF6A1B9A),
+        ];
+        glow = AppColors.rosa;
+      case _TonoBoton.azul:
+        colors = const [
+          Color(0xFF81D4FA),
+          Color(0xFF29B6F6),
+          Color(0xFF0277BD),
+        ];
+        glow = AppColors.azul;
+      case _TonoBoton.rojo:
+        colors = const [
+          Color(0xFFFF8A80),
+          Color(0xFFFF5252),
+          Color(0xFFC62828),
+        ];
+        glow = AppColors.peligro;
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: neonGlow(glow, blur: 16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: Ink(
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: colors,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white70, width: 1.5),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

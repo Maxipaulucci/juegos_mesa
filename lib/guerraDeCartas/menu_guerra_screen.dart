@@ -1,16 +1,54 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/guerraDeCartas/opciones_guerra.dart';
 import 'package:app_juegos_mesa/guerraDeCartas/partida_guerra_screen.dart';
 import 'package:app_juegos_mesa/guerraDeCartas/standby_store.dart';
 import 'package:app_juegos_mesa/guerraDeCartas/textos.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/orden/decidir_orden_screen.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Guerra de cartas (local / vs PC; online próximamente).
-class MenuGuerraScreen extends StatelessWidget {
+class MenuGuerraScreen extends StatefulWidget {
   const MenuGuerraScreen({super.key});
+
+  @override
+  State<MenuGuerraScreen> createState() => _MenuGuerraScreenState();
+}
+
+class _MenuGuerraScreenState extends State<MenuGuerraScreen> {
+  OpcionesGuerra _opciones = const OpcionesGuerra();
+
+  Future<void> _abrirCartelModificar() async {
+    var draft = _opciones;
+    final ok = await mostrarCartelModificarPartida(
+      context: context,
+      buildOpciones: (dialogContext, setDialogState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilaToggleModificarPartida(
+              titulo: 'Vidas',
+              activo: draft.vidasActivas,
+              onChanged: (v) => setDialogState(
+                () => draft = draft.copyWith(vidasActivas: v),
+              ),
+              info: TextosGuerra.infoOpcionVidas,
+            ),
+          ],
+        );
+      },
+    );
+    if (ok && mounted) {
+      setState(() => _opciones = draft);
+      if (GuerraStandByStore.peek()?.opciones != _opciones) {
+        GuerraStandByStore.limpiar();
+      }
+    }
+  }
 
   Future<void> _abrir({
     required BuildContext ctx,
@@ -29,6 +67,7 @@ class MenuGuerraScreen extends StatelessWidget {
         nombres: resume?.nombres ?? nombres,
         contraPc: contraPc,
         modoDios: contraPc && (resume?.modoDios ?? modoDios),
+        opciones: resume?.opciones ?? _opciones,
         resume: resume,
       ),
     );
@@ -45,20 +84,24 @@ class MenuGuerraScreen extends StatelessWidget {
       opcionesCantidadJugadores: const [2, 3, 4],
       opcionesCantidadPc: const [1, 2, 3],
       onCantidadPcChanged: (_) => GuerraStandByStore.limpiar(),
+      decidirOrdenTipoMazo: TipoMazoOrden.ingles,
       textoInfoModoDios: TextosGuerra.infoModoDios,
+      extraTrasModoLocal: BotonModificarPartida(
+        onPressed: _abrirCartelModificar,
+      ),
       onPartidaRapida: (ctx, estado, _) async {
         await _abrir(ctx: ctx, nombres: estado.nombres);
       },
       onVsPc: (ctx, estado, _) {
-        final resumeRaw = GuerraStandByStore.consumir();
-        final resume = resumeRaw != null &&
-                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
-            ? resumeRaw
+        final resume = GuerraStandByStore.consumirSiCoincide(_opciones);
+        final resumeOk = resume != null &&
+                coincideCantidadPc(resume.nombres, estado.cantidadPc)
+            ? resume
             : null;
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first
             : 'Jugador 1';
-        final nombres = resume?.nombres ??
+        final nombres = resumeOk?.nombres ??
             nombresPartidaVsPc(
               humano: humano,
               total: estado.totalVsPc,
@@ -67,8 +110,8 @@ class MenuGuerraScreen extends StatelessWidget {
           ctx: ctx,
           nombres: nombres,
           contraPc: true,
-          modoDios: resume?.modoDios ?? estado.modoDios,
-          resume: resume,
+          modoDios: resumeOk?.modoDios ?? estado.modoDios,
+          resume: resumeOk,
         );
       },
       onIniciarDesdeSala: (ctx, inicio) {

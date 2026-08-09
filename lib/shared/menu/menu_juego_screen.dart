@@ -70,6 +70,8 @@ class MenuJuegoScreen extends StatefulWidget {
     this.lobbyTextoAyudaHumanos,
     /// Antes de Crear/Unirse sala (p. ej. guardar opciones Chancho).
     this.onPrepararSala,
+    /// Mazo para “Decidir orden” (español por defecto; inglés en Guerra, etc.).
+    this.decidirOrdenTipoMazo = TipoMazoOrden.espanol,
   });
 
   static const juegoIdDiezMil = 'diezMil';
@@ -100,6 +102,7 @@ class MenuJuegoScreen extends StatefulWidget {
   final int? lobbyHumanosExactos;
   final String? lobbyTextoAyudaHumanos;
   final void Function(MenuJuegoEstado estado)? onPrepararSala;
+  final TipoMazoOrden decidirOrdenTipoMazo;
 
   final Future<void> Function(
     BuildContext context,
@@ -177,7 +180,10 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     if (_decidirOrden) {
       final ordenados = await Navigator.of(context).push<List<String>>(
         MaterialPageRoute(
-          builder: (_) => DecidirOrdenScreen(nombres: nombres),
+          builder: (_) => DecidirOrdenScreen(
+            nombres: nombres,
+            tipoMazo: widget.decidirOrdenTipoMazo,
+          ),
         ),
       );
       if (ordenados == null || !mounted) return;
@@ -488,6 +494,23 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   }
 
   void _explicarDecidirOrden() {
+    final ingles = widget.decidirOrdenTipoMazo == TipoMazoOrden.ingles;
+    final texto = ingles
+        ? 'Antes de empezar la partida, cada jugador saca una carta del '
+            'mazo inglés (52 cartas: A, 2–10, J, Q, K de corazones, '
+            'diamantes, tréboles y picas).\n\n'
+            'Quien saque la más alta juega primero (AS > K > Q > J > 10 > … > 2; '
+            'el palo no importa), y así en orden descendente con el resto.\n\n'
+            'Ninguna carta se repite: la que sale se saca del mazo. '
+            'Si hay empate de valor, solo los empatados vuelven a sacar '
+            'hasta desempatar. Después se muestra el orden y arranca la partida.'
+        : 'Antes de empezar la partida, cada jugador saca una carta del '
+            'mazo español (1 al 12 de oro, copa, espada y basto).\n\n'
+            'Quien saque el número más alto juega primero (el palo no importa), '
+            'y así en orden descendente.\n\n'
+            'Ninguna carta se repite: la que sale se saca del mazo. '
+            'Si hay empate de número, solo los empatados vuelven a sacar '
+            'hasta desempatar. Después se muestra el orden y arranca la partida.';
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -507,15 +530,9 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
             ),
           ],
         ),
-        content: const Text(
-          'Antes de empezar la partida, cada jugador saca una carta del '
-          'mazo español (1 al 12 de oro, copa, espada y basto).\n\n'
-          'Quien saque el número más alto juega primero (el palo no importa), '
-          'y así en orden descendente.\n\n'
-          'Ninguna carta se repite: la que sale se saca del mazo. '
-          'Si hay empate de número, solo los empatados vuelven a sacar '
-          'hasta desempatar. Después se muestra el orden y arranca la partida.',
-          style: TextStyle(color: AppColors.texto, height: 1.45),
+        content: Text(
+          texto,
+          style: const TextStyle(color: AppColors.texto, height: 1.45),
         ),
         actions: [
           ElevatedButton(
