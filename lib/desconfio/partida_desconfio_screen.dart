@@ -568,6 +568,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                               puedeElegir: _puedeElegirCartaParaTirar,
                               cartaW: _cartaW,
                               cartaH: _cartaH,
+                              animaciones: _ajustes.animaciones,
                               onTapIndex: (i) => setState(
                                 () => _seleccionMano =
                                     _seleccionMano == i ? null : i,
@@ -1104,6 +1105,7 @@ class _ManoConFlechas extends StatefulWidget {
     required this.buildCarta,
     required this.cartaW,
     required this.cartaH,
+    required this.animaciones,
   });
 
   final List<CartaDesconfio> cartas;
@@ -1113,6 +1115,7 @@ class _ManoConFlechas extends StatefulWidget {
   final Widget Function(CartaDesconfio c, {required bool sel}) buildCarta;
   final double cartaW;
   final double cartaH;
+  final bool animaciones;
 
   @override
   State<_ManoConFlechas> createState() => _ManoConFlechasState();
@@ -1297,7 +1300,9 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
                           width: widget.cartaW,
                           height: widget.cartaH + _deslizamiento,
                           child: AnimatedAlign(
-                            duration: const Duration(milliseconds: 380),
+                            duration: widget.animaciones
+                                ? const Duration(milliseconds: 380)
+                                : Duration.zero,
                             curve: Curves.easeOutCubic,
                             alignment: sel
                                 ? Alignment.topCenter
