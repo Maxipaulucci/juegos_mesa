@@ -118,8 +118,8 @@ class CartaInglesaSkin extends StatelessWidget {
           children: [
             // Índice superior izquierdo (estilo mazo estándar).
             Positioned(
-              left: width * 0.045,
-              top: height * 0.028,
+              left: width * 0.02,
+              top: height * 0.012,
               child: _IndiceEsquina(
                 etiqueta: etiquetaValor,
                 palo: palo,
@@ -129,8 +129,8 @@ class CartaInglesaSkin extends StatelessWidget {
             ),
             // Índice inferior derecho, invertido.
             Positioned(
-              right: width * 0.045,
-              bottom: height * 0.028,
+              right: width * 0.02,
+              bottom: height * 0.012,
               child: Transform.rotate(
                 angle: math.pi,
                 child: _IndiceEsquina(
@@ -141,12 +141,12 @@ class CartaInglesaSkin extends StatelessWidget {
                 ),
               ),
             ),
-            // Zona central de pips / figura.
+            // Zona central de pips / figura (más adentro para no chocar el índice).
             Positioned(
-              left: width * 0.18,
-              right: width * 0.18,
-              top: height * 0.12,
-              bottom: height * 0.12,
+              left: width * 0.22,
+              right: width * 0.22,
+              top: height * 0.14,
+              bottom: height * 0.14,
               child: esFigura
                   ? _CartaFigura(
                       etiqueta: etiquetaValor,
@@ -181,25 +181,32 @@ class _IndiceEsquina extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fontSize = width * (etiqueta.length > 1 ? 0.20 : 0.24);
-    final pipSize = width * 0.16;
+    final esDosCaracteres = etiqueta.length > 1;
+    final fontSize = width * (esDosCaracteres ? 0.18 : 0.24);
+    // Palo del índice: chico respecto a los pips del centro, pero legible.
+    final pipSize = width * 0.105;
+    // El "10" necesita más ancho; si no, el 0 baja debajo del 1.
+    final colW = width * (esDosCaracteres ? 0.34 : 0.22);
     return SizedBox(
-      width: width * 0.22,
+      width: colW,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             etiqueta,
             textAlign: TextAlign.center,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w800,
               fontSize: fontSize,
               height: 1,
-              letterSpacing: -0.5,
+              letterSpacing: esDosCaracteres ? -1.2 : -0.5,
             ),
           ),
-          SizedBox(height: width * 0.01),
+          SizedBox(height: width * 0.002),
           SizedBox(
             width: pipSize,
             height: pipSize,
@@ -351,7 +358,7 @@ class _ZonaPips extends StatelessWidget {
       builder: (context, constraints) {
         final w = constraints.maxWidth;
         final h = constraints.maxHeight;
-        final pipBase = math.min(w, h) * (rango == 1 ? 0.55 : 0.28);
+        final pipBase = math.min(w, h) * (rango == 1 ? 0.58 : 0.34);
         return Stack(
           children: [
             for (final p in pips)
