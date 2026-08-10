@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/diezMil/motor.dart';
 import 'package:app_juegos_mesa/diezMil/partida_diez_mil_screen.dart';
 import 'package:app_juegos_mesa/diezMil/standby_store.dart';
+import 'package:app_juegos_mesa/diezMil/textos.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -27,6 +28,11 @@ class MenuDiezMilScreen extends StatelessWidget {
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
       onCantidadPcChanged: (_) => DiezMilStandByStore.limpiar(),
+      textosInfoDificultad: const {
+        DificultadPc.facil: TextosDiezMil.infoDificultadFacil,
+        DificultadPc.medio: TextosDiezMil.infoDificultadMedio,
+        DificultadPc.dificil: TextosDiezMil.infoDificultadDificil,
+      },
       onPartidaRapida: (ctx, estado, dados) async {
         await navegarConCarga<void>(
           ctx,

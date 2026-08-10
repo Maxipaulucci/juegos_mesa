@@ -58,3 +58,24 @@ String formatearCombos(List<Combo> combos) {
   if (combos.isEmpty) return '—';
   return combos.map((c) => '${c.nombre} (+${c.puntos})').join(', ');
 }
+
+/// Textos de ayuda de dificultad (vs PC).
+abstract final class TextosDiezMil {
+  static const infoDificultadFacil =
+      'La PC es temeraria: sigue tirando casi siempre, aunque arriesgue '
+      'perder el turno.\n\n'
+      'Solo se planta con un botín muy grande. Comete más errores: ideal '
+      'para aprender o ganar más fácil.';
+
+  static const infoDificultadMedio =
+      'La PC juega equilibrada: mira los puntos del turno y cuántos dados '
+      'le quedan.\n\n'
+      'Se planta cuando el turno ya es sólido (por ejemplo con pocos dados '
+      'y bastantes puntos). Se equivoca poco.';
+
+  static const infoDificultadDificil =
+      'La PC calcula mejor: mira el marcador de todos, si alguien ya abrió '
+      'y qué tan cerca está de los 10.000.\n\n'
+      'Arriesga cuando va perdiendo y se cuida cuando va ganando o cerca '
+      'de cerrar. Casi no se equivoca.';
+}
