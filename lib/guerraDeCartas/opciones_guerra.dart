@@ -20,3 +20,10 @@ class OpcionesGuerra {
   @override
   int get hashCode => vidasActivas.hashCode;
 }
+
+/// Últimas opciones del menú (para reiniciar con la config actual).
+abstract final class GuerraMenuConfig {
+  static OpcionesGuerra opciones = const OpcionesGuerra();
+
+  static void actualizar(OpcionesGuerra value) => opciones = value;
+}

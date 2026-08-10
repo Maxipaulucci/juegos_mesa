@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/unoSolo/guia_modo_dios_uno_solo.dart';
@@ -50,6 +52,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
 
   late PartidaUnoSolo _partida;
   late List<String> _nombres;
+  late bool _modoDios;
   late OpcionesUnoSolo _opciones;
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
@@ -58,13 +61,13 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
   int? _seleccion;
   String? _aviso;
   Timer? _avisoTimer;
-  late final GuiaModoDiosUnoSolo? _guiaDios;
+  GuiaModoDiosUnoSolo? _guiaDios;
   final List<MovimientoUnoSolo> _historial = [];
   /// Movimientos deshechos que se pueden rehacer (modo práctica).
   final List<MovimientoUnoSolo> _rehacer = [];
 
   bool get _modoDiosActivo =>
-      widget.modoDios &&
+      _modoDios &&
       (widget.solo || _partida.solo) &&
       !_esOnline &&
       _guiaDios != null;
@@ -115,8 +118,8 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     super.initState();
     HardwareKeyboard.instance.addHandler(_onTeclaDeshacer);
     final resume = widget.resume;
-    final quiereGuia = widget.modoDios || (resume?.modoDios ?? false);
-    _guiaDios = quiereGuia ? GuiaModoDiosUnoSolo.estandar() : null;
+    _modoDios = widget.modoDios;
+    _guiaDios = _modoDios ? GuiaModoDiosUnoSolo.estandar() : null;
     _opciones = widget.opciones;
     if (resume != null) {
       _nombres = List.of(resume.nombres);
@@ -410,6 +413,12 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
     UnoSoloStandByStore.limpiar();
     _avisoTimer?.cancel();
     setState(() {
+      _modoDios = modoDiosElegidoEnMenu(
+        MenuJuegoScreen.juegoIdUnoSolo,
+        fallback: widget.modoDios,
+      );
+      _opciones = UnoSoloMenuConfig.opciones;
+      _guiaDios = _modoDios ? GuiaModoDiosUnoSolo.estandar() : null;
       _partida = nuevaPartidaUnoSolo(
         nombres: _nombres,
         solo: widget.solo || _nombres.length == 1,
@@ -438,7 +447,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
         partida: _partida,
         nombres: _nombres,
         ajustesIniciales: _ajustes,
-        modoDios: widget.modoDios,
+        modoDios: _modoDios,
         opciones: _opciones,
         historial: List.of(_historial),
       ),

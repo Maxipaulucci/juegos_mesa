@@ -62,6 +62,7 @@ List<String> reconstruirNombresVsPc({
 }
 
 final Map<String, int> _cantidadPcElegidaPorJuego = {};
+final Map<String, bool> _modoDiosElegidoPorJuego = {};
 
 /// Guarda la cantidad de PC elegida en el menú de un juego.
 void registrarCantidadPcMenu(String juegoId, int cantidad) {
@@ -71,6 +72,15 @@ void registrarCantidadPcMenu(String juegoId, int cantidad) {
 /// Última cantidad de PC elegida en el menú, si hay.
 int? cantidadPcElegidaEnMenu(String juegoId) =>
     _cantidadPcElegidaPorJuego[juegoId];
+
+/// Guarda el toggle Modo dios del menú de un juego.
+void registrarModoDiosMenu(String juegoId, bool activo) {
+  _modoDiosElegidoPorJuego[juegoId] = activo;
+}
+
+/// Último Modo dios elegido en el menú (p. ej. al reiniciar partida).
+bool modoDiosElegidoEnMenu(String juegoId, {bool fallback = false}) =>
+    _modoDiosElegidoPorJuego[juegoId] ?? fallback;
 
 /// Dificultades disponibles para jugar contra la PC.
 enum DificultadPc {

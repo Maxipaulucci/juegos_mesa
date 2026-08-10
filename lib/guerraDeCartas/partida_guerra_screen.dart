@@ -41,6 +41,8 @@ class PartidaGuerraScreen extends StatefulWidget {
 class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
   late PartidaGuerra _partida;
   late List<String> _nombres;
+  late bool _modoDios;
+  late OpcionesGuerra _opciones;
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
@@ -49,7 +51,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
   /// Evita seguir la guerra en el mismo toque / doble Espacio.
   bool _pausaTrasEmpate = false;
 
-  bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
+  bool get _modoDiosActivo => _modoDios && widget.contraPc;
   bool get _esLocalHotSeat => !widget.contraPc;
 
   JugadorGuerra get _humanoPrincipal {
@@ -98,17 +100,20 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
     super.initState();
     HardwareKeyboard.instance.addHandler(_onTeclaJugar);
     final resume = widget.resume;
+    _modoDios = widget.modoDios;
+    _opciones = widget.opciones;
     _nombres = List.of(resume?.nombres ?? widget.nombres);
     if (resume != null) {
       _partida = resume.partida;
-      _partida.opciones = resume.opciones;
+      // Config del menú actual (vidas / etc.), no la del standby viejo.
+      _partida.opciones = _opciones;
       _nombres = List.of(resume.nombres);
       chequearFinGuerra(_partida);
     } else {
       _partida = nuevaPartidaGuerra(
         nombres: _nombres,
         contraPc: widget.contraPc,
-        opciones: widget.opciones,
+        opciones: _opciones,
       );
       _nombres = [for (final j in _partida.jugadores) j.nombre];
     }
@@ -145,8 +150,8 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
       PartidaGuerraResume(
         partida: _partida,
         nombres: _nombres,
-        modoDios: widget.modoDios,
-        opciones: _partida.opciones,
+        modoDios: _modoDios,
+        opciones: _opciones,
       ),
     );
   }
@@ -342,6 +347,12 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
   void _reiniciar() {
     GuerraStandByStore.limpiar();
     setState(() {
+      // Aplicar config actual del menú (modo dios + modificar partida).
+      _modoDios = modoDiosElegidoEnMenu(
+        MenuJuegoScreen.juegoIdGuerraDeCartas,
+        fallback: widget.modoDios,
+      );
+      _opciones = GuerraMenuConfig.opciones;
       if (widget.contraPc) {
         final pcs = cantidadPcElegidaEnMenu(
               MenuJuegoScreen.juegoIdGuerraDeCartas,
@@ -355,7 +366,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
       _partida = nuevaPartidaGuerra(
         nombres: _nombres,
         contraPc: widget.contraPc,
-        opciones: widget.opciones,
+        opciones: _opciones,
       );
       _nombres = [for (final j in _partida.jugadores) j.nombre];
       _mostrarMenu = false;

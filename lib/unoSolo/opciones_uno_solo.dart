@@ -14,3 +14,10 @@ class OpcionesUnoSolo {
     );
   }
 }
+
+/// Últimas opciones del menú (para reiniciar con la config actual).
+abstract final class UnoSoloMenuConfig {
+  static OpcionesUnoSolo opciones = const OpcionesUnoSolo();
+
+  static void actualizar(OpcionesUnoSolo value) => opciones = value;
+}

@@ -44,6 +44,7 @@ class _MenuGuerraScreenState extends State<MenuGuerraScreen> {
     );
     if (ok && mounted) {
       setState(() => _opciones = draft);
+      GuerraMenuConfig.actualizar(_opciones);
       if (GuerraStandByStore.peek()?.opciones != _opciones) {
         GuerraStandByStore.limpiar();
       }
@@ -58,6 +59,7 @@ class _MenuGuerraScreenState extends State<MenuGuerraScreen> {
     PartidaGuerraResume? resume,
     bool replace = false,
   }) {
+    GuerraMenuConfig.actualizar(_opciones);
     return navegarConCarga<void>(
       ctx,
       replace: replace,
@@ -66,8 +68,9 @@ class _MenuGuerraScreenState extends State<MenuGuerraScreen> {
       builder: (_) => PartidaGuerraScreen(
         nombres: resume?.nombres ?? nombres,
         contraPc: contraPc,
-        modoDios: contraPc && (resume?.modoDios ?? modoDios),
-        opciones: resume?.opciones ?? _opciones,
+        // Siempre la config actual del menú (no la del resume viejo).
+        modoDios: contraPc && modoDios,
+        opciones: _opciones,
         resume: resume,
       ),
     );
@@ -93,6 +96,11 @@ class _MenuGuerraScreenState extends State<MenuGuerraScreen> {
         await _abrir(ctx: ctx, nombres: estado.nombres);
       },
       onVsPc: (ctx, estado, _) {
+        GuerraMenuConfig.actualizar(_opciones);
+        registrarModoDiosMenu(
+          MenuJuegoScreen.juegoIdGuerraDeCartas,
+          estado.modoDios,
+        );
         final resume = GuerraStandByStore.consumirSiCoincide(_opciones);
         final resumeOk = resume != null &&
                 coincideCantidadPc(resume.nombres, estado.cantidadPc)
@@ -110,7 +118,7 @@ class _MenuGuerraScreenState extends State<MenuGuerraScreen> {
           ctx: ctx,
           nombres: nombres,
           contraPc: true,
-          modoDios: resumeOk?.modoDios ?? estado.modoDios,
+          modoDios: estado.modoDios,
           resume: resumeOk,
         );
       },

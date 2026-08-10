@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -42,6 +43,7 @@ class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
     );
     if (ok && mounted) {
       setState(() => _opciones = draft);
+      UnoSoloMenuConfig.actualizar(_opciones);
     }
   }
 
@@ -52,6 +54,8 @@ class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
     bool solo = false,
     PartidaUnoSoloResume? resume,
   }) {
+    UnoSoloMenuConfig.actualizar(_opciones);
+    registrarModoDiosMenu(MenuJuegoScreen.juegoIdUnoSolo, estado.modoDios);
     return navegarConCarga<void>(
       ctx,
       mensaje: 'Preparando tablero',
@@ -59,9 +63,8 @@ class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
       builder: (_) => PartidaUnoSoloScreen(
         nombres: resume?.nombres ?? nombres,
         solo: solo,
-        modoDios: solo && (resume?.modoDios ?? estado.modoDios),
-        // Siempre las opciones del menú (p. ej. modo práctica recién activado),
-        // no las de un resume viejo.
+        // Siempre la config actual del menú (no la del resume viejo).
+        modoDios: solo && estado.modoDios,
         opciones: _opciones,
         ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
         resume: resume,

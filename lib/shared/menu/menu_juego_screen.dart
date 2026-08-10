@@ -143,6 +143,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     final optsPc = widget.opcionesCantidadPc;
     _cantidadPc = optsPc.isNotEmpty ? optsPc.first : 1;
     registrarCantidadPcMenu(widget.juegoId, _cantidadPc);
+    registrarModoDiosMenu(widget.juegoId, _modoDios);
     _nombresRapida = [
       for (var i = 1; i <= _cantidadJugadores; i++) 'Jugador $i',
     ];
@@ -750,7 +751,10 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                             etiqueta: 'Jugar solo',
                             opcion: 'Modo Dios',
                             activo: _modoDios,
-                            onChanged: (v) => setState(() => _modoDios = v),
+                            onChanged: (v) => setState(() {
+                              _modoDios = v;
+                              registrarModoDiosMenu(widget.juegoId, v);
+                            }),
                             onInfo: _explicarModoDios,
                           )
                         else
@@ -776,7 +780,10 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                           etiqueta: 'Jugar vs PC',
                           opcion: 'Modo Dios',
                           activo: _modoDios,
-                          onChanged: (v) => setState(() => _modoDios = v),
+                          onChanged: (v) => setState(() {
+                            _modoDios = v;
+                            registrarModoDiosMenu(widget.juegoId, v);
+                          }),
                           onInfo: _explicarModoDios,
                         ),
                         const SizedBox(height: 10),
