@@ -1835,7 +1835,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                   ),
                 ),
               ),
-            // Copia de menú/ajustes encima de carteles (números, fin de ronda).
+            // Solo menú y ajustes encima del oscuro (no reiniciar).
             if (!_partida.terminada &&
                 (_mostrarCartelNumeros || _partida.enFinRonda) &&
                 !_mostrarMenu &&
@@ -1858,10 +1858,6 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                           icon: const Icon(Icons.menu, color: AppColors.texto),
                         ),
                         const Spacer(),
-                        if (widget.contraPc && !_esOnline)
-                          BotonReiniciarPartidaPc(
-                            onPressed: _pedirReiniciarVsPc,
-                          ),
                         IconButton(
                           onPressed: () => setState(() {
                             _mostrarAjustes = true;
@@ -1931,109 +1927,107 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     );
   }
 
-  /// Cartel de números: deja libre la barra superior (menú / ajustes).
+  /// Cartel de números: oscurece toda la pantalla (menú/ajustes van encima).
   Widget _overlayElegirNumeros() {
     final cupo = _partida.cantidadJugadores;
-    return _conBarraSuperiorLibre(
-      child: Material(
-        color: Colors.black.withValues(alpha: 0.72),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF3B1D6E),
-                      Color(0xFF1A0A33),
-                      Color(0xFF2A1050),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppColors.acento, width: 2),
-                  boxShadow: neonGlow(AppColors.acento, blur: 18),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '${TextosChancho.eligeNumeros} ($cupo)',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.acento,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        for (final n in numerosChanchoDisponibles)
-                          Builder(
-                            builder: (context) {
-                              final sel = _borradorNumeros.contains(n);
-                              return Opacity(
-                                opacity: sel ? 0.45 : 1,
-                                child: OutlinedButton(
-                                  onPressed: () => _toggleNumeroBorrador(n),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.texto,
-                                    side: BorderSide(
-                                      color: sel
-                                          ? AppColors.acento
-                                          : AppColors.cartaBorde,
-                                      width: sel ? 2 : 1.2,
-                                    ),
-                                    minimumSize: const Size(44, 44),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '$n',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _borradorNumeros.isEmpty
-                          ? 'Cartas con N°:'
-                          : 'Cartas con N°: ${_borradorNumeros.join('-')}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.texto,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _borradorNumeros.length == cupo
-                          ? _confirmarNumerosCartel
-                          : null,
-                      child: const Text(TextosChancho.confirmarNumeros),
-                    ),
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF3B1D6E),
+                    Color(0xFF1A0A33),
+                    Color(0xFF2A1050),
                   ],
                 ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.acento, width: 2),
+                boxShadow: neonGlow(AppColors.acento, blur: 18),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${TextosChancho.eligeNumeros} ($cupo)',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.acento,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      for (final n in numerosChanchoDisponibles)
+                        Builder(
+                          builder: (context) {
+                            final sel = _borradorNumeros.contains(n);
+                            return Opacity(
+                              opacity: sel ? 0.45 : 1,
+                              child: OutlinedButton(
+                                onPressed: () => _toggleNumeroBorrador(n),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.texto,
+                                  side: BorderSide(
+                                    color: sel
+                                        ? AppColors.acento
+                                        : AppColors.cartaBorde,
+                                    width: sel ? 2 : 1.2,
+                                  ),
+                                  minimumSize: const Size(44, 44),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                ),
+                                child: Text(
+                                  '$n',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _borradorNumeros.isEmpty
+                        ? 'Cartas con N°:'
+                        : 'Cartas con N°: ${_borradorNumeros.join('-')}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.texto,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _borradorNumeros.length == cupo
+                        ? _confirmarNumerosCartel
+                        : null,
+                    child: const Text(TextosChancho.confirmarNumeros),
+                  ),
+                ],
               ),
             ),
           ),
