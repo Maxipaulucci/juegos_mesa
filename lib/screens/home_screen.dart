@@ -12,6 +12,7 @@ import '../culoSucio/menu_culo_sucio_screen.dart';
 import '../culoSucioV2/menu_culo_sucio_v2_screen.dart';
 import '../casitaRobada/menu_casita_robada_screen.dart';
 import '../chanchoVa/menu_chancho_va_screen.dart';
+import '../desconfio/menu_desconfio_screen.dart';
 import '../guerraDeCartas/menu_guerra_screen.dart';
 import '../unoSolo/menu_uno_solo_screen.dart';
 
@@ -176,10 +177,9 @@ class _HomeScreenState extends State<HomeScreen>
     _JuegoHome(
       tipo: _TipoJuegoHome.desconfio,
       titulo: 'Desconfío',
-      subtitulo: 'Próximamente',
+      subtitulo: 'Cartas españolas · bluff',
       accent: AppColors.azulSuave,
       categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.jodete,
@@ -355,8 +355,13 @@ class _HomeScreenState extends State<HomeScreen>
               acento: AppColors.azul,
               mensaje: 'Guerra de cartas',
             );
-      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.desconfio:
+        return () => _abrirJuego(
+              menu: const MenuDesconfioScreen(),
+              acento: AppColors.azulSuave,
+              mensaje: 'Desconfío',
+            );
+      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.jodete:
         return null;
     }
