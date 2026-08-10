@@ -746,6 +746,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                                         cartas: manoArriba.mano,
                                         bocaArriba: _modoDiosActivo,
                                         paloVisual: _paloVisual,
+                                        animaciones: _ajustes.animaciones,
                                         seleccionIndex: _esTurnoPc
                                             ? _cartaSeleccionada
                                             : null,
@@ -774,6 +775,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                                   cartas: _partida.mesa,
                                   bocaArriba: true,
                                   paloVisual: _paloVisual,
+                                  animaciones: _ajustes.animaciones,
                                   cartasSeleccionadas: _mesaSeleccion,
                                   onTapCarta: _esTurnoHumano && !_jugando
                                       ? _seleccionarMesa
@@ -820,6 +822,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                                         cartas: manoAbajo.mano,
                                         bocaArriba: true,
                                         paloVisual: _paloVisual,
+                                        animaciones: _ajustes.animaciones,
                                         seleccionIndex: _esTurnoHumano
                                             ? _cartaSeleccionada
                                             : null,
@@ -1151,6 +1154,7 @@ class _FilaCartas extends StatelessWidget {
     required this.cartas,
     required this.bocaArriba,
     required this.paloVisual,
+    required this.animaciones,
     this.onTapIndex,
     this.onTapCarta,
     this.seleccionIndex,
@@ -1161,6 +1165,7 @@ class _FilaCartas extends StatelessWidget {
   final List<CartaCasita> cartas;
   final bool bocaArriba;
   final PaloEspanolVisual Function(PaloCasita) paloVisual;
+  final bool animaciones;
   final Future<void> Function(int index)? onTapIndex;
   final void Function(CartaCasita carta)? onTapCarta;
   final int? seleccionIndex;
@@ -1236,49 +1241,53 @@ class _FilaCartas extends StatelessWidget {
                           height: cardH,
                         );
                       }
-                      final tarjeta = SizedBox(
-                        width: cardW,
-                        height: cardH + deslizamiento,
-                        child: AnimatedAlign(
-                          duration: const Duration(milliseconds: 160),
-                          curve: Curves.easeOutCubic,
-                          alignment: seleccionada
-                              ? Alignment.topCenter
-                              : Alignment.bottomCenter,
-                          child: card,
-                        ),
-                      );
-                      if (onTapIndex == null && onTapCarta == null) {
-                        return tarjeta;
-                      }
-                      void onTap() {
-                        if (onTapIndex != null) {
-                          onTapIndex!(i);
-                        } else if (onTapCarta != null) {
-                          onTapCarta!(c);
-                        }
-                      }
-                      // Sin hover si no está seleccionada (evita sombra/rectángulo arriba).
-                      if (!seleccionada) {
-                        return GestureDetector(
-                          onTap: onTap,
-                          behavior: HitTestBehavior.opaque,
-                          child: tarjeta,
-                        );
-                      }
+                      final puedeTocar =
+                          onTapIndex != null || onTapCarta != null;
+                      // Árbol estable + AnimatedAlign: si el padre cambia al
+                      // seleccionar, la animación se reinicia y teletransporta.
                       return Material(
                         color: Colors.transparent,
                         borderRadius: BorderRadius.circular(14),
                         child: InkWell(
-                          onTap: onTap,
+                          onTap: !puedeTocar
+                              ? null
+                              : () {
+                                  if (onTapIndex != null) {
+                                    onTapIndex!(i);
+                                  } else if (onTapCarta != null) {
+                                    onTapCarta!(c);
+                                  }
+                                },
                           borderRadius: BorderRadius.circular(14),
-                          splashColor: colorSeleccionCartaEspanola
-                              .withValues(alpha: 0.25),
-                          highlightColor: colorSeleccionCartaEspanola
-                              .withValues(alpha: 0.18),
-                          hoverColor: colorSeleccionCartaEspanola
-                              .withValues(alpha: 0.22),
-                          child: tarjeta,
+                          splashColor: seleccionada
+                              ? colorSeleccionCartaEspanola.withValues(
+                                  alpha: 0.25,
+                                )
+                              : Colors.transparent,
+                          highlightColor: seleccionada
+                              ? colorSeleccionCartaEspanola.withValues(
+                                  alpha: 0.18,
+                                )
+                              : Colors.transparent,
+                          hoverColor: seleccionada
+                              ? colorSeleccionCartaEspanola.withValues(
+                                  alpha: 0.22,
+                                )
+                              : Colors.transparent,
+                          child: SizedBox(
+                            width: cardW,
+                            height: cardH + deslizamiento,
+                            child: AnimatedAlign(
+                              duration: animaciones
+                                  ? const Duration(milliseconds: 380)
+                                  : Duration.zero,
+                              curve: Curves.easeOutCubic,
+                              alignment: seleccionada
+                                  ? Alignment.topCenter
+                                  : Alignment.bottomCenter,
+                              child: card,
+                            ),
+                          ),
                         ),
                       );
                     },

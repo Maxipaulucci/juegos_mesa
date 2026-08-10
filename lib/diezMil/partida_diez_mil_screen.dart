@@ -491,21 +491,32 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _mostrarReglas() {
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      backgroundColor: AppColors.carta,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: SingleChildScrollView(
-          child: Text(
-            reglasDe(_partida.modo),
-            style: const TextStyle(color: AppColors.texto, height: 1.45),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        title: const Text(
+          'Reglas',
+          style: TextStyle(
+            color: AppColors.mint,
+            fontWeight: FontWeight.w900,
           ),
         ),
+        content: SingleChildScrollView(
+          child: Text(
+            reglasDe(_partida.modo),
+            style: const TextStyle(
+              color: AppColors.texto,
+              height: 1.35,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
       ),
     );
   }

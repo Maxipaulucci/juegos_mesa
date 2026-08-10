@@ -627,6 +627,18 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     if (_partida.fase != FaseEscoba.jugando || _bloquearHumano) return;
     setState(() {
       _mensajePc = null;
+      if (_cartaSeleccionada == carta) {
+        _cartaSeleccionada = null;
+        if (_mesaSeleccion.isEmpty) {
+          _aviso = null;
+        } else if (_sumaMesa == 15) {
+          _aviso =
+              '¡Debés elegir una carta de tu mano sí o sí para poder capturar!';
+        } else {
+          _aviso = 'Suma del pozo: $_sumaMesa / 15';
+        }
+        return;
+      }
       _cartaSeleccionada = carta;
       if (_mesaSeleccion.isEmpty) {
         _aviso =
@@ -1140,6 +1152,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     child: _ZonaCartas(
                       cartas: _mesaParaMostrar,
                       seleccionadas: _mesaSeleccion,
+                      animaciones: _ajustes.animaciones,
                       onTap: (_bloquearHumano ||
                               _partida.fase != FaseEscoba.jugando)
                           ? null
@@ -1167,6 +1180,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                 _CartaTexto(
                                   carta: _cartaSeleccionada!,
                                   seleccionada: true,
+                                  animaciones: _ajustes.animaciones,
                                 ),
                               ],
                             )
@@ -1209,6 +1223,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                               if (_cartaSeleccionada != null)
                                 _cartaSeleccionada!,
                             ],
+                      animaciones: _ajustes.animaciones,
                       onTap: (_bloquearHumano ||
                               _partida.fase != FaseEscoba.jugando)
                           ? null
@@ -1636,12 +1651,14 @@ class _HojaCombosJugador extends StatelessWidget {
 class _ZonaCartas extends StatelessWidget {
   const _ZonaCartas({
     required this.cartas,
+    required this.animaciones,
     this.seleccionadas = const [],
     this.onTap,
   });
 
   final List<CartaEscoba> cartas;
   final List<CartaEscoba> seleccionadas;
+  final bool animaciones;
   final ValueChanged<CartaEscoba>? onTap;
 
   @override
@@ -1670,6 +1687,7 @@ class _ZonaCartas extends StatelessWidget {
               _CartaTexto(
                 carta: c,
                 seleccionada: seleccionadas.contains(c),
+                animaciones: animaciones,
                 onTap: onTap == null ? null : () => onTap!(c),
               ),
           ],
@@ -1683,12 +1701,14 @@ class _CartaTexto extends StatelessWidget {
   const _CartaTexto({
     required this.carta,
     required this.seleccionada,
+    required this.animaciones,
     this.onTap,
     this.compacta = false,
   });
 
   final CartaEscoba carta;
   final bool seleccionada;
+  final bool animaciones;
   final VoidCallback? onTap;
   final bool compacta;
 
@@ -1708,38 +1728,36 @@ class _CartaTexto extends StatelessWidget {
       width: cardW,
       height: cardH,
     );
-    // Slot fijo: al seleccionar, la carta queda arriba (deslizada).
-    final tarjeta = SizedBox(
-      width: cardW,
-      height: cardH + _deslizamiento,
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        alignment:
-            seleccionada ? Alignment.topCenter : Alignment.bottomCenter,
-        child: skin,
-      ),
-    );
-    if (onTap == null) return tarjeta;
-    // Sin hover en cartas sin seleccionar (evita el rectángulo feo).
-    // Con selección, el InkWell pinta el resaltado en el hueco de abajo.
-    if (!seleccionada) {
-      return GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: tarjeta,
-      );
-    }
+    // Árbol estable + AnimatedAlign: si el padre cambia al seleccionar,
+    // la animación se reinicia y la carta “teletransporta”.
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        splashColor: colorSeleccionCartaEspanola.withValues(alpha: 0.25),
-        highlightColor: colorSeleccionCartaEspanola.withValues(alpha: 0.18),
-        hoverColor: colorSeleccionCartaEspanola.withValues(alpha: 0.22),
-        child: tarjeta,
+        splashColor: seleccionada
+            ? colorSeleccionCartaEspanola.withValues(alpha: 0.25)
+            : Colors.transparent,
+        highlightColor: seleccionada
+            ? colorSeleccionCartaEspanola.withValues(alpha: 0.18)
+            : Colors.transparent,
+        hoverColor: seleccionada
+            ? colorSeleccionCartaEspanola.withValues(alpha: 0.22)
+            : Colors.transparent,
+        child: SizedBox(
+          width: cardW,
+          height: cardH + _deslizamiento,
+          child: AnimatedAlign(
+            duration: animaciones
+                ? const Duration(milliseconds: 380)
+                : Duration.zero,
+            curve: Curves.easeOutCubic,
+            alignment:
+                seleccionada ? Alignment.topCenter : Alignment.bottomCenter,
+            child: skin,
+          ),
+        ),
       ),
     );
   }
