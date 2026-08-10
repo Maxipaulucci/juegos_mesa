@@ -29,3 +29,10 @@ class OpcionesCuloSucioV2 {
     );
   }
 }
+
+/// Última config elegida en el menú (se aplica al reiniciar partida).
+abstract final class CuloSucioV2MenuConfig {
+  static OpcionesCuloSucioV2 opciones = const OpcionesCuloSucioV2();
+
+  static void actualizar(OpcionesCuloSucioV2 o) => opciones = o;
+}

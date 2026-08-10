@@ -67,6 +67,7 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
     );
     if (ok && mounted) {
       setState(() => _opciones = draft);
+      CuloSucioV2MenuConfig.actualizar(draft);
     }
   }
 
@@ -112,12 +113,16 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
       mostrarDificultad: false,
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
-      onCantidadPcChanged: (_) => CuloSucioV2StandByStore.limpiar(),
+      onCantidadPcChanged: (n) {
+        // Solo registrar: el cambio de PCs se aplica al reiniciar en partida.
+        registrarCantidadPcMenu(MenuJuegoScreen.juegoIdCuloSucioV2, n);
+      },
       textoInfoModoDios: TextosCuloSucioV2.infoModoDios,
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),
       onPartidaRapida: (ctx, estado, _) async {
+        CuloSucioV2MenuConfig.actualizar(_opciones);
         await _abrir(
           ctx: ctx,
           nombres: estado.nombres,
@@ -125,11 +130,18 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
         );
       },
       onVsPc: (ctx, estado, _) {
-        final resumeRaw = CuloSucioV2StandByStore.consumir();
-        final resume = resumeRaw != null &&
-                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
-            ? resumeRaw
-            : null;
+        CuloSucioV2MenuConfig.actualizar(_opciones);
+        registrarCantidadPcMenu(
+          MenuJuegoScreen.juegoIdCuloSucioV2,
+          estado.cantidadPc,
+        );
+        registrarModoDiosMenu(
+          MenuJuegoScreen.juegoIdCuloSucioV2,
+          estado.modoDios,
+        );
+        // Reanudar la partida guardada tal cual; PC/opciones del menú
+        // solo se aplican con el botón reiniciar dentro de la partida.
+        final resume = CuloSucioV2StandByStore.consumir();
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first
             : 'Jugador 1';

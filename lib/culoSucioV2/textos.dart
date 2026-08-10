@@ -12,8 +12,12 @@ abstract final class TextosCuloSucioV2 {
   static const paresDescartados = 'Pares descartados';
   static const robaUna = 'Tocá una carta tapada del rival';
   static const moverCulo =
+      'Tenés el 1 de oro: arrastralo entre las cartas para moverlo';
+  static const moverCuloSinAnimacion =
       'Tenés el 1 de oro: tocálo y después otra carta para moverlo';
   static const culoSeleccionado =
+      'Soltá el 1 de oro donde quieras colocarlo';
+  static const culoSeleccionadoSinAnimacion =
       '1 de oro seleccionado: tocá otra carta de tu mano para colocarlo';
   static const tocaParParaSacar =
       'Formaste un par: tocá una de las cartas marcadas para sacarlo';
@@ -36,8 +40,8 @@ abstract final class TextosCuloSucioV2 {
       'Viene activado por defecto.';
   static const moverCuloSucio = "Mover 'culo sucio'";
   static const infoMoverCuloSucio =
-      'Activado: en tu turno, si tenés el 1 de oro, podés tocarlo y '
-      'moverlo a otra posición de tu mano (el rival roba esa posición).\n\n'
+      'Activado: en tu turno, si tenés el 1 de oro, podés arrastrarlo '
+      'a otra posición de tu mano (el rival roba esa posición).\n\n'
       'Desactivado: el 1 de oro no se puede reordenar.\n\n'
       'Viene activado por defecto.';
   static const esperandoPc = 'La PC está eligiendo…';

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/culoSucioV2/culo_sucio_v2_online_codec.dart';
@@ -55,6 +56,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   late PartidaCuloSucioV2 _partida;
   late List<String> _nombres;
   late OpcionesCuloSucioV2 _opciones;
+  late bool _modoDios;
   AjustesEstado _ajustes = const AjustesEstado();
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
@@ -73,8 +75,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   int? _indiceCuloMoviendo;
   /// Índice en la mano del humano que la PC está por robar.
   int? _indiceRobadaPorPc;
-  /// Carta que la PC está por llevarse (para mostrarla grande).
+  /// Carta que alguien se está llevando (overlay grande).
   CartaCuloSucioV2? _cartaQueSeLlevaPc;
+  /// Quién se lleva [_cartaQueSeLlevaPc] (nombre para el cartel).
+  String? _nombreQuienSeLleva;
+  /// A quién se la sacan (para el texto de estado).
+  String? _nombreVictimaRobo;
   /// Carta que el rival online te acaba de sacar (overlay).
   CartaCuloSucioV2? _cartaQueTeSacaron;
   int _roboRivalToken = 0;
@@ -102,7 +108,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       widget.nombres.first == widget.miNombre;
 
   bool get _modoDiosActivo =>
-      widget.modoDios && widget.contraPc && !_esOnline;
+      _modoDios && widget.contraPc && !_esOnline;
 
   bool get _esLocalHotSeat => !_esOnline && !widget.contraPc;
 
@@ -219,12 +225,14 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     }
     if (_esperandoDescartarPar) return '';
     if (_indiceCuloMoviendo != null) {
-      return TextosCuloSucioV2.culoSeleccionado;
+      return _ajustes.animaciones
+          ? TextosCuloSucioV2.culoSeleccionado
+          : TextosCuloSucioV2.culoSeleccionadoSinAnimacion;
     }
     if (_cartaQueSeLlevaPc != null || _cartaQueTeSacaron != null) {
       return _cartaQueTeSacaron != null
           ? TextosCuloSucioV2.rivalTeSaco
-          : TextosCuloSucioV2.pcEligioCarta;
+          : _textoEstadoRoboPc;
     }
     if (_esTurnoPc) return TextosCuloSucioV2.esperandoPc;
     if (_esOnline && !_esMiTurnoOnline) {
@@ -232,11 +240,29 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     }
     if (_esTurnoHumano) {
       if (_puedoMoverCulo) {
-        return '${TextosCuloSucioV2.robaUna}\n${TextosCuloSucioV2.moverCulo}';
+        final hint = _ajustes.animaciones
+            ? TextosCuloSucioV2.moverCulo
+            : TextosCuloSucioV2.moverCuloSinAnimacion;
+        return '${TextosCuloSucioV2.robaUna}\n$hint';
       }
       return TextosCuloSucioV2.robaUna;
     }
     return 'Turno de ${_partida.jugadorActual.nombre}';
+  }
+
+  String get _textoEstadoRoboPc {
+    final quien = _nombreQuienSeLleva ?? 'PC';
+    final victima = _nombreVictimaRobo;
+    if (victima == null || victima == _yo.nombre) {
+      return '¡$quien eligió una de tus cartas!';
+    }
+    return '¡$quien eligió una carta de $victima!';
+  }
+
+  String get _tituloOverlayRobo {
+    if (_cartaQueTeSacaron != null) return TextosCuloSucioV2.rivalTeSaco;
+    final quien = (_nombreQuienSeLleva ?? 'PC').toUpperCase();
+    return '$quien SE LLEVA';
   }
 
   void _pedirCambioJugador() {
@@ -272,9 +298,11 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     super.initState();
     final resume = widget.resume;
     _nombres = List.of(resume?.nombres ?? widget.nombres);
+    _modoDios = widget.modoDios;
     if (resume != null && !_esOnline) {
       _partida = resume.partida;
       _opciones = resume.opciones;
+      _modoDios = resume.modoDios;
       _ajustes = resume.ajustesIniciales;
       _nombres = List.of(resume.nombres);
       WidgetsBinding.instance.addPostFrameCallback((_) => _talVezTurnoPc());
@@ -462,7 +490,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       PartidaCuloSucioV2Resume(
         partida: _partida,
         nombres: _nombres,
-        modoDios: widget.modoDios,
+        modoDios: _modoDios,
         opciones: _opciones,
         ajustesIniciales: _ajustes,
       ),
@@ -525,8 +553,9 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   }
 
   void _rendirse() {
-    if (_partida.terminada || !_esLocalHotSeat) return;
-    final yo = _partida.jugadorActual;
+    if (_partida.terminada) return;
+    if (!_esLocalHotSeat && !_esOnline) return;
+    final yo = _esOnline ? _yo : _partida.jugadorActual;
     if (yo.rendido) return;
 
     setState(() {
@@ -539,6 +568,10 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       rendirseCuloSucioV2(_partida, yo.nombre);
     });
 
+    if (_esOnline) {
+      unawaited(_publicarEstadoOnline(forzar: true));
+      return;
+    }
     if (!_partida.terminada) {
       _pedirCambioJugadorSiCorresponde();
     }
@@ -665,6 +698,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     if (_esOnline) return;
     if (!_esTurnoPc || _robando) return;
     final token = ++_pcToken;
+    // Si todavía se muestra un ¡Par!, dejarlo 1 s más antes de seguir.
+    if (_partida.ultimoPar != null) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (!mounted || token != _pcToken) return;
+      if (!_esTurnoPc || _robando) return;
+    }
     setState(_limpiarAvisoJugada);
     // Si no hay autodetección de par, la espera de 2 s ya ocurrió tras el robo.
     await Future<void>.delayed(
@@ -686,15 +725,18 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
 
     setState(() {
       _robando = true;
+      _cartaQueSeLlevaPc = cartaElegida;
+      _nombreQuienSeLleva = hacia.nombre;
+      _nombreVictimaRobo = de.nombre;
       if (robaAlHumano) {
         _indiceRobadaPorPc = idx;
-        _cartaQueSeLlevaPc = cartaElegida;
       } else {
+        // También revelar en la mano del rival afectado.
         _revelandoDeNombre = de.nombre;
         _indiceRevelando = idx;
       }
     });
-    // Tiempo para que el usuario vea qué carta se lleva la PC.
+    // Tiempo para que el usuario vea qué carta se llevan.
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     if (!mounted || token != _pcToken) return;
 
@@ -708,12 +750,18 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     setState(() {
       _indiceRobadaPorPc = null;
       _cartaQueSeLlevaPc = null;
+      _nombreQuienSeLleva = null;
+      _nombreVictimaRobo = null;
       _indiceRevelando = null;
       _revelandoDeNombre = null;
       _robando = false;
     });
-    // Deja ver el aviso de robada / par.
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    // Deja ver el aviso de robada / par (+1 s si fue par).
+    await Future<void>.delayed(
+      _partida.ultimoPar != null
+          ? const Duration(milliseconds: 1700)
+          : const Duration(milliseconds: 700),
+    );
     if (!mounted || token != _pcToken) return;
     setState(_limpiarAvisoJugada);
     if (!_partida.terminada) {
@@ -783,13 +831,15 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       return;
     }
     if (_esperandoDescartarPar) return;
-    // Con autodetección: aviso breve. Sin ella: 2 s antes de que robe el rival.
+    // Con autodetección: aviso breve (+1 s si hay par). Sin ella: 2 s antes de que robe el rival.
     // En local: breve pausa y cartel de cambio de jugador.
     await Future<void>.delayed(
       _esLocalHotSeat
           ? const Duration(milliseconds: 700)
           : (detectarPar
-              ? const Duration(milliseconds: 700)
+              ? (_partida.ultimoPar != null
+                  ? const Duration(milliseconds: 1700)
+                  : const Duration(milliseconds: 700))
               : const Duration(seconds: 2)),
     );
     if (!mounted) return;
@@ -827,9 +877,9 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       unawaited(_publicarEstadoOnline(forzar: _partida.terminada));
       return;
     }
-    // Deja ver el ¡Par! y luego lo limpia al completar el turno.
+    // Deja ver el ¡Par! (+1 s) y luego lo limpia al completar el turno.
     Future<void>(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await Future<void>.delayed(const Duration(milliseconds: 1700));
       if (!mounted) return;
       setState(_limpiarAvisoJugada);
       if (_partida.terminada) return;
@@ -841,9 +891,37 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     });
   }
 
+  void _reordenarCuloEnMano(int desde, int hacia) {
+    if (!_opciones.moverCuloSucio) return;
+    if (!_partida.enJuego || _robando || _esperandoDescartarPar) return;
+    if (_yo.nombre != _partida.jugadorActual.nombre) return;
+    final mano = _partida.jugadorActual.mano;
+    if (desde < 0 || desde >= mano.length) return;
+    if (hacia < 0 || hacia >= mano.length) return;
+    if (!mano[desde].esCuloSucio) return;
+
+    final err = moverCuloSucioEnManoCuloSucioV2(
+      _partida,
+      jugador: _partida.jugadorActual,
+      desde: desde,
+      hacia: hacia,
+    );
+    if (!mounted) return;
+    setState(() => _indiceCuloMoviendo = null);
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    if (_esOnline) {
+      unawaited(_publicarEstadoOnline());
+    }
+  }
+
   void _tocarManoParaMoverCulo(int indice) {
-    if (!_puedoMoverCulo) return;
-    final mano = _yo.mano;
+    if (!_opciones.moverCuloSucio || _ajustes.animaciones) return;
+    if (!_partida.enJuego || _robando || _esperandoDescartarPar) return;
+    if (_yo.nombre != _partida.jugadorActual.nombre) return;
+    final mano = _partida.jugadorActual.mano;
     if (indice < 0 || indice >= mano.length) return;
 
     final seleccionado = _indiceCuloMoviendo;
@@ -858,14 +936,15 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       return;
     }
 
-    final err = moverCuloSucioEnManoCuloSucioV2(
+    final err = intercambiarCuloSucioEnManoCuloSucioV2(
       _partida,
-      jugador: _yo,
+      jugador: _partida.jugadorActual,
       desde: seleccionado,
       hacia: indice,
     );
+    if (!mounted) return;
     setState(() => _indiceCuloMoviendo = null);
-    if (err != null && mounted) {
+    if (err != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
@@ -968,10 +1047,19 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     _pcToken++;
     CuloSucioV2StandByStore.limpiar();
     setState(() {
+      // Aplicar config actual del menú al reiniciar.
+      _opciones = CuloSucioV2MenuConfig.opciones;
+      _modoDios = modoDiosElegidoEnMenu(
+        MenuJuegoScreen.juegoIdCuloSucioV2,
+        fallback: widget.modoDios,
+      );
       if (widget.contraPc) {
         final pcs = cantidadPcElegidaEnMenu(MenuJuegoScreen.juegoIdCuloSucioV2) ??
             cantidadPcEnNombres(_nombres);
-        _nombres = reconstruirNombresVsPc(actuales: _nombres, cantidadPc: pcs);
+        _nombres = reconstruirNombresVsPc(
+          actuales: _nombres,
+          cantidadPc: pcs.clamp(1, 3),
+        );
       }
       _partida = nuevaPartidaCuloSucioV2(
         nombres: _nombres,
@@ -987,6 +1075,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       _esperandoDescartarPar = false;
       _indiceRobadaPorPc = null;
       _cartaQueSeLlevaPc = null;
+      _nombreQuienSeLleva = null;
+      _nombreVictimaRobo = null;
       _cartaQueTeSacaron = null;
       _indiceCuloMoviendo = null;
       _nombreVistaLocal = _esLocalHotSeat ? _partida.jugadorActual.nombre : null;
@@ -1031,8 +1121,32 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
           ];
     final objetivoRobo = _objetivoRobo;
     final compactaOponentes = oponentes.length > 1;
-    final altoManoOponente = compactaOponentes ? 72.0 : 112.0;
+    // Con varios rivales: solo una mano grande (arriba); el resto chicas
+    // para que entren en pantalla.
+    final altoSlotGrande = compactaOponentes ? 108.0 : 132.0;
+    final altoSlotChico = 64.0;
+    // Prioridad visual: quien tiene el turno (si es rival) o a quién se roba.
+    final nombreManoGrande = () {
+      if (oponentes.isEmpty) return null;
+      if (_esperandoDescartarPar) return objetivoRobo.nombre;
+      final enTurno = oponentes
+          .where((o) => o.nombre == _partida.jugadorActual.nombre)
+          .toList();
+      if (enTurno.isNotEmpty) return enTurno.first.nombre;
+      return objetivoRobo.nombre;
+    }();
+    final oponentesVis = nombreManoGrande == null
+        ? oponentes
+        : [
+            ...oponentes.where((o) => o.nombre == nombreManoGrande),
+            ...oponentes.where((o) => o.nombre != nombreManoGrande),
+          ];
     final yoTurno = manoAbajo;
+    final destacarMiMano = !_fasePares && _esTurnoHumano;
+    final resaltandoRoboEnMiMano = _indiceRobadaPorPc != null ||
+        (_cartaQueSeLlevaPc != null && _nombreVictimaRobo == _yo.nombre);
+    // Tu mano: altura fija; solo resalta borde en tu turno / si te roban.
+    const altoSlotMiMano = 148.0;
 
     return PopScope(
       canPop: false,
@@ -1138,25 +1252,31 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                       ],
                     ),
                   ),
-                  if (_textoEstado.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _textoEstado,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: _esTurnoHumano
-                            ? AppColors.acento
-                            : AppColors.textoSuave,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
+                  SizedBox(
+                    height: 56,
+                    width: double.infinity,
+                    child: _textoEstado.isEmpty
+                        ? const SizedBox.shrink()
+                        : Center(
+                            child: Text(
+                              _textoEstado,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: _esTurnoHumano
+                                    ? AppColors.acento
+                                    : AppColors.textoSuave,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 20,
+                                height: 1.15,
+                              ),
+                            ),
+                          ),
+                  ),
                   if (!_fasePares) ...[
                     const SizedBox(height: 10),
                     Expanded(
-                      flex: oponentes.length > 1 ? 3 : 2,
-                      child: oponentes.isEmpty
+                      flex: oponentesVis.length > 1 ? 3 : 2,
+                      child: oponentesVis.isEmpty
                           ? const SizedBox.shrink()
                           : SingleChildScrollView(
                               padding:
@@ -1165,63 +1285,97 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   for (var i = 0;
-                                      i < oponentes.length;
+                                      i < oponentesVis.length;
                                       i++) ...[
-                                    if (i > 0) const SizedBox(height: 8),
+                                    if (i > 0) const SizedBox(height: 6),
                                     Builder(
                                       builder: (context) {
-                                        final oponente = oponentes[i];
-                                        final sePuedeRobar = _esTurnoHumano &&
-                                            !_robando &&
-                                            !_esperandoDescartarPar &&
-                                            !_esperandoMazoOnline &&
-                                            oponente.nombre ==
-                                                objetivoRobo.nombre &&
-                                            !oponente.sinCartas &&
-                                            !oponente.rendido;
+                                        final oponente = oponentesVis[i];
+                                        final esObjetivoRoboHumano =
+                                            _esTurnoHumano &&
+                                                !_esperandoMazoOnline &&
+                                                oponente.nombre ==
+                                                    objetivoRobo.nombre &&
+                                                !oponente.sinCartas &&
+                                                !oponente.rendido;
+                                        // No se puede robar mientras confirmás el par,
+                                        // pero la mano rival mantiene el tamaño normal.
+                                        final sePuedeRobar =
+                                            esObjetivoRoboHumano &&
+                                                !_robando &&
+                                                !_esperandoDescartarPar;
+                                        final esTurnoDeEste =
+                                            !_partida.terminada &&
+                                                !_fasePares &&
+                                                oponente.nombre ==
+                                                    _partida
+                                                        .jugadorActual.nombre;
+                                        final manoGrande = compactaOponentes
+                                            ? oponente.nombre ==
+                                                nombreManoGrande
+                                            : true;
+                                        final manoDestacada = esTurnoDeEste ||
+                                            esObjetivoRoboHumano ||
+                                            (_esperandoDescartarPar &&
+                                                oponente.nombre ==
+                                                    objetivoRobo.nombre);
+                                        final altoSlot = manoGrande
+                                            ? altoSlotGrande
+                                            : altoSlotChico;
                                         return Column(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
-                                              oponentes.length == 1
+                                              oponentesVis.length == 1
                                                   ? '${TextosCuloSucioV2.manoRival}: ${oponente.nombre}'
                                                   : '${TextosCuloSucioV2.manoDe} ${oponente.nombre}',
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
-                                                color: sePuedeRobar
+                                                color: manoDestacada
                                                     ? AppColors.acento
                                                     : AppColors.textoSuave,
                                                 fontWeight: FontWeight.w700,
-                                                fontSize: 12,
+                                                fontSize:
+                                                    manoGrande ? 14 : 12,
                                               ),
                                             ),
                                             const SizedBox(height: 4),
                                             SizedBox(
-                                              height: altoManoOponente,
+                                              height: altoSlot,
                                               width: double.infinity,
                                               child: DecoratedBox(
-                                                decoration: sePuedeRobar
-                                                    ? BoxDecoration(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(12),
-                                                        border: Border.all(
-                                                          color: AppColors
-                                                              .acento
-                                                              .withValues(
-                                                            alpha: 0.55,
-                                                          ),
-                                                          width: 1.2,
-                                                        ),
-                                                      )
-                                                    : const BoxDecoration(),
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                    12,
+                                                  ),
+                                                  border: Border.all(
+                                                    color: manoDestacada
+                                                        ? AppColors.acento
+                                                            .withValues(
+                                                          alpha: 0.55,
+                                                        )
+                                                        : Colors.transparent,
+                                                    width: 1.2,
+                                                  ),
+                                                ),
                                                 child: _FilaCartas(
                                                   cartas: oponente.mano,
                                                   bocaArriba:
                                                       _manoOponenteBocaArriba(
                                                     oponente,
                                                   ),
-                                                  compacta: compactaOponentes,
+                                                  compacta: !manoGrande,
+                                                  anchoCarta: manoGrande
+                                                      ? (compactaOponentes
+                                                          ? 56
+                                                          : 68)
+                                                      : 36,
+                                                  altoCarta: manoGrande
+                                                      ? (compactaOponentes
+                                                          ? 84
+                                                          : 102)
+                                                      : 50,
                                                   indiceRevelado:
                                                       _revelandoDeNombre ==
                                                               oponente.nombre
@@ -1261,37 +1415,70 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                       '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.mint
-                            .withValues(alpha: _esperandoDescartarPar ? 0 : 1),
+                        color: (destacarMiMano || resaltandoRoboEnMiMano)
+                            ? AppColors.acento
+                            : AppColors.mint.withValues(
+                                alpha: _esperandoDescartarPar ? 0 : 1,
+                              ),
                         fontWeight: FontWeight.w800,
-                        fontSize: 13,
+                        fontSize: 15,
                       ),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
-                      height: 118,
+                      height: altoSlotMiMano,
                       width: double.infinity,
-                      child: Opacity(
-                        opacity: _esperandoDescartarPar ? 0 : 1,
-                        child: IgnorePointer(
-                          ignoring: _esperandoDescartarPar,
-                          child: _FilaCartas(
-                            cartas: manoAbajo.mano,
-                            bocaArriba: !_cambioJugadorPendiente,
-                            colorPalo: _colorPalo,
-                            iconoPalo: _iconoPalo,
-                            seleccionados: _esperandoDescartarPar
-                                ? _seleccionPar
-                                : (_indiceCuloMoviendo != null
-                                    ? [_indiceCuloMoviendo!]
-                                    : (_indiceRobadaPorPc != null
-                                        ? [_indiceRobadaPorPc!]
-                                        : const [])),
-                            onTapIndex: _esperandoDescartarPar
-                                ? (i) async => _tocarParTrasRobo(i)
-                                : (_puedoMoverCulo
-                                    ? (i) async => _tocarManoParaMoverCulo(i)
-                                    : null),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: (destacarMiMano || resaltandoRoboEnMiMano)
+                                ? AppColors.acento.withValues(alpha: 0.55)
+                                : Colors.transparent,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Opacity(
+                          opacity: _esperandoDescartarPar ? 0 : 1,
+                          child: IgnorePointer(
+                            ignoring: _esperandoDescartarPar,
+                            child: _FilaCartas(
+                              cartas: manoAbajo.mano,
+                              bocaArriba: !_cambioJugadorPendiente,
+                              compacta: false,
+                              anchoCarta: destacarMiMano ? 76 : 68,
+                              altoCarta: destacarMiMano ? 114 : 102,
+                              colorPalo: _colorPalo,
+                              iconoPalo: _iconoPalo,
+                              seleccionados: _esperandoDescartarPar
+                                  ? _seleccionPar
+                                  : (_indiceCuloMoviendo != null
+                                      ? [_indiceCuloMoviendo!]
+                                      : (_indiceRobadaPorPc != null
+                                          ? [_indiceRobadaPorPc!]
+                                          : const [])),
+                              atenuarNoSeleccionados:
+                                  _indiceCuloMoviendo != null,
+                              bloquearNoSeleccionados: false,
+                              onReordenarCulo: (_puedoMoverCulo &&
+                                      _ajustes.animaciones)
+                                  ? _reordenarCuloEnMano
+                                  : null,
+                              onArrastrandoCulo: (_puedoMoverCulo &&
+                                      _ajustes.animaciones)
+                                  ? (indice) => setState(
+                                        () => _indiceCuloMoviendo = indice,
+                                      )
+                                  : null,
+                              onTapIndex: _esperandoDescartarPar
+                                  ? (i) async => _tocarParTrasRobo(i)
+                                  : ((!_ajustes.animaciones &&
+                                          (_puedoMoverCulo ||
+                                              _indiceCuloMoviendo != null))
+                                      ? (i) async =>
+                                          _tocarManoParaMoverCulo(i)
+                                      : null),
+                            ),
                           ),
                         ),
                       ),
@@ -1470,9 +1657,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            _cartaQueTeSacaron != null
-                                ? TextosCuloSucioV2.rivalTeSaco
-                                : TextosCuloSucioV2.pcSeLleva,
+                            _tituloOverlayRobo,
                             style: const TextStyle(
                               color: AppColors.rosa,
                               fontWeight: FontWeight.w900,
@@ -1530,20 +1715,24 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                         style: const TextStyle(
                           color: AppColors.mint,
                           fontWeight: FontWeight.w800,
-                          fontSize: 13,
+                          fontSize: 15,
                         ),
                       ),
                       const SizedBox(height: 6),
                       SizedBox(
-                        height: 118,
+                        height: altoSlotMiMano,
                         width: double.infinity,
                         child: _FilaCartas(
                           cartas: manoAbajo.mano,
                           bocaArriba: true,
+                          compacta: false,
+                          anchoCarta: 76,
+                          altoCarta: 114,
                           colorPalo: _colorPalo,
                           iconoPalo: _iconoPalo,
                           seleccionados: _seleccionPar,
                           atenuarNoSeleccionados: true,
+                          bloquearNoSeleccionados: true,
                           onTapIndex: (i) async => _tocarParTrasRobo(i),
                         ),
                       ),
@@ -1615,7 +1804,11 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
               Positioned.fill(
                 child: AjustesOverlay(
                   ajustes: _ajustes,
-                  onChanged: (a) => setState(() => _ajustes = a),
+                  onChanged: (a) => setState(() {
+                    final cambioAnim = a.animaciones != _ajustes.animaciones;
+                    _ajustes = a;
+                    if (cambioAnim) _indiceCuloMoviendo = null;
+                  }),
                   onCerrar: () => setState(() => _mostrarAjustes = false),
                 ),
               ),
@@ -1628,9 +1821,9 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                           ? _yo.nombre
                           : _partida.jugadorActual.nombre),
                   partidaTerminada: _partida.terminada,
-                  permitirRendirse: _esLocalHotSeat,
+                  permitirRendirse: _esLocalHotSeat || _esOnline,
                   confirmarRendicion:
-                      _confirmarRendicion && _esLocalHotSeat,
+                      _confirmarRendicion && (_esLocalHotSeat || _esOnline),
                   onCerrar: () => setState(() {
                     _mostrarMenu = false;
                     _confirmarRendicion = false;
@@ -1642,7 +1835,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                     });
                     _mostrarDialogoReglas();
                   },
-                  onSalirORendirse: _partida.terminada || !_esLocalHotSeat
+                  onSalirORendirse: _partida.terminada ||
+                          !(_esLocalHotSeat || _esOnline)
                       ? () {
                           setState(() {
                             _mostrarMenu = false;
@@ -1807,12 +2001,22 @@ class _ZonaParesDescartados extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Expanded(
-                        child: _FilaCartas(
-                          cartas: descartes,
-                          bocaArriba: true,
-                          compacta: true,
-                          colorPalo: colorPalo,
-                          iconoPalo: iconoPalo,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            // Ocupar casi todo el alto del contenedor.
+                            final alto = (constraints.maxHeight - 12)
+                                .clamp(88.0, 150.0);
+                            final ancho = alto * (68 / 102);
+                            return _FilaCartas(
+                              cartas: descartes,
+                              bocaArriba: true,
+                              compacta: false,
+                              anchoCarta: ancho,
+                              altoCarta: alto,
+                              colorPalo: colorPalo,
+                              iconoPalo: iconoPalo,
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -1909,7 +2113,7 @@ class _ManoDosFilas extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: SizedBox(
-          height: 110,
+          height: 124,
           child: fila(cards: fila1, base: 0),
         ),
       );
@@ -1920,9 +2124,9 @@ class _ManoDosFilas extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(height: 110, child: fila(cards: fila1, base: 0)),
+          SizedBox(height: 124, child: fila(cards: fila1, base: 0)),
           const SizedBox(height: 8),
-          SizedBox(height: 110, child: fila(cards: fila2, base: mitad)),
+          SizedBox(height: 124, child: fila(cards: fila2, base: mitad)),
         ],
       ),
     );
@@ -1939,8 +2143,13 @@ class _FilaCartas extends StatefulWidget {
     this.compacta = false,
     this.seleccionados = const [],
     this.atenuarNoSeleccionados = false,
+    this.bloquearNoSeleccionados = false,
     this.indiceBase = 0,
     this.indiceRevelado,
+    this.anchoCarta,
+    this.altoCarta,
+    this.onReordenarCulo,
+    this.onArrastrandoCulo,
   });
 
   final List<CartaCuloSucioV2> cartas;
@@ -1952,10 +2161,19 @@ class _FilaCartas extends StatefulWidget {
   final List<int> seleccionados;
   /// Si true, las cartas no seleccionadas quedan semitransparentes.
   final bool atenuarNoSeleccionados;
+  /// Si true, no se pueden tocar las no seleccionadas (p. ej. confirmar par).
+  final bool bloquearNoSeleccionados;
   /// Índice real de la primera carta de esta fila (para manos partidas).
   final int indiceBase;
   /// Carta que se está revelando (boca arriba) antes de robarla.
   final int? indiceRevelado;
+  /// Tamaño custom (p. ej. pares descartados). Si null, usa compacta / normal.
+  final double? anchoCarta;
+  final double? altoCarta;
+  /// Si no es null, el 1 de oro se puede arrastrar para reordenar.
+  final void Function(int desde, int hacia)? onReordenarCulo;
+  /// Notifica el índice del 1 de oro mientras se arrastra (null al soltar).
+  final void Function(int? indice)? onArrastrandoCulo;
 
   @override
   State<_FilaCartas> createState() => _FilaCartasState();
@@ -1963,13 +2181,25 @@ class _FilaCartas extends StatefulWidget {
 
 class _FilaCartasState extends State<_FilaCartas> {
   final _scroll = ScrollController();
+  final _rowKey = GlobalKey();
   bool _hayIzquierda = false;
   bool _hayDerecha = false;
 
-  double get _anchoCarta => widget.compacta ? 40.0 : 68.0;
-  double get _altoCarta => widget.compacta ? 56.0 : 102.0;
+  int? _dragCuloIndex;
+  int? _insertCuloIndex;
+  double _dragDx = 0;
+  double _dragDy = 0;
+  /// Punto X local donde se agarró la carta (para no saltar si tocás la derecha).
+  double _grabLocalX = 0;
+
+  double get _anchoCarta =>
+      widget.anchoCarta ?? (widget.compacta ? 40.0 : 68.0);
+  double get _altoCarta =>
+      widget.altoCarta ?? (widget.compacta ? 56.0 : 102.0);
   double get _gap => widget.compacta ? 4.0 : 6.0;
   double get _pasoScroll => _anchoCarta + _gap;
+  static const double _deslizamiento = 14;
+  bool get _arrastrandoCulo => _dragCuloIndex != null;
 
   @override
   void initState() {
@@ -1982,7 +2212,9 @@ class _FilaCartasState extends State<_FilaCartas> {
   void didUpdateWidget(covariant _FilaCartas oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.cartas.length != widget.cartas.length ||
-        oldWidget.compacta != widget.compacta) {
+        oldWidget.compacta != widget.compacta ||
+        oldWidget.anchoCarta != widget.anchoCarta ||
+        oldWidget.altoCarta != widget.altoCarta) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _actualizarFlechas());
     }
   }
@@ -1997,9 +2229,18 @@ class _FilaCartasState extends State<_FilaCartas> {
   void _actualizarFlechas() {
     if (!mounted || !_scroll.hasClients) return;
     final pos = _scroll.position;
-    final izq = pos.maxScrollExtent > 0.5 && pos.pixels > 1;
+    final viewW = pos.viewportDimension;
+    if (viewW <= 0) return;
+    final n = widget.cartas.length;
+    final padH = widget.compacta ? 56.0 : 68.0;
+    final contenido = n == 0
+        ? 0.0
+        : n * _anchoCarta + (n - 1) * _gap + padH;
+    // Flechas solo si las cartas no entran en el ancho visible.
+    final desborda = contenido > viewW + 8;
+    final izq = desborda && pos.pixels > 2;
     final der =
-        pos.maxScrollExtent > 0.5 && pos.pixels < pos.maxScrollExtent - 1;
+        desborda && pos.pixels < pos.maxScrollExtent - 2;
     if (izq != _hayIzquierda || der != _hayDerecha) {
       setState(() {
         _hayIzquierda = izq;
@@ -2019,34 +2260,140 @@ class _FilaCartasState extends State<_FilaCartas> {
     );
   }
 
+  double _shiftXParaIndice(int index) {
+    final from = _dragCuloIndex;
+    final to = _insertCuloIndex;
+    if (from == null || to == null || from == to) return 0;
+    final paso = _pasoScroll;
+    if (from < to) {
+      // Mueve a la derecha: las cartas (from, to] corren a la izquierda.
+      if (index > from && index <= to) return -paso;
+    } else {
+      // Mueve a la izquierda: las cartas [to, from) corren a la derecha.
+      if (index >= to && index < from) return paso;
+    }
+    return 0;
+  }
+
+  int _indiceInsercionDesdeGlobal(double globalX) {
+    final box = _rowKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return _dragCuloIndex ?? 0;
+    // Referencia = borde izquierdo de la carta, no el dedo/cursor.
+    final localX =
+        box.globalToLocal(Offset(globalX - _grabLocalX, 0)).dx;
+    final n = widget.cartas.length;
+    if (n <= 0) return 0;
+    final paso = _pasoScroll;
+    final w = _anchoCarta;
+    // Las cartas están centradas en el Row (no pegadas a la izquierda).
+    final contenido = n * w + (n - 1) * _gap;
+    final origen = math.max(0.0, (box.size.width - contenido) / 2);
+    var idx = 0;
+    for (var i = 0; i < n; i++) {
+      final mid = origen + i * paso + w / 2;
+      if (localX < mid) {
+        idx = i;
+        break;
+      }
+      idx = i;
+    }
+    return idx.clamp(0, n - 1);
+  }
+
+  void _autoScrollDuranteDrag(double globalX) {
+    if (!_scroll.hasClients) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final local = box.globalToLocal(Offset(globalX, 0)).dx;
+    const margen = 40.0;
+    final ancho = box.size.width;
+    double delta = 0;
+    if (local < margen) {
+      delta = -10;
+    } else if (local > ancho - margen) {
+      delta = 10;
+    }
+    if (delta == 0) return;
+    final destino = (_scroll.offset + delta)
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    _scroll.jumpTo(destino);
+  }
+
+  void _iniciarDragCulo(int index, Offset localPosition) {
+    // Primero marcar selección: misma subida lenta que el modo sin arrastre.
+    widget.onArrastrandoCulo?.call(widget.indiceBase + index);
+    setState(() {
+      _dragCuloIndex = index;
+      _insertCuloIndex = index;
+      _dragDx = 0;
+      _dragDy = 0;
+      _grabLocalX = localPosition.dx.clamp(0.0, _anchoCarta);
+    });
+  }
+
+  void _actualizarDragCulo(DragUpdateDetails details) {
+    if (_dragCuloIndex == null) return;
+    final nuevo = _indiceInsercionDesdeGlobal(details.globalPosition.dx);
+    _autoScrollDuranteDrag(details.globalPosition.dx);
+    setState(() {
+      _dragDx += details.delta.dx;
+      _dragDy = (_dragDy + details.delta.dy).clamp(0.0, 16.0);
+      if (nuevo != _insertCuloIndex) {
+        _insertCuloIndex = nuevo;
+      }
+    });
+  }
+
+  void _soltarDragCulo() {
+    final from = _dragCuloIndex;
+    final to = _insertCuloIndex;
+    _dragCuloIndex = null;
+    _insertCuloIndex = null;
+    _dragDx = 0;
+    _dragDy = 0;
+    _grabLocalX = 0;
+    widget.onArrastrandoCulo?.call(null);
+    if (from != null && to != null && from != to) {
+      widget.onReordenarCulo?.call(
+        widget.indiceBase + from,
+        widget.indiceBase + to,
+      );
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _cancelarDragCulo() {
+    setState(() {
+      _dragCuloIndex = null;
+      _insertCuloIndex = null;
+      _dragDx = 0;
+      _dragDy = 0;
+      _grabLocalX = 0;
+    });
+    widget.onArrastrandoCulo?.call(null);
+  }
+
   Widget _flecha({
     required bool izquierda,
     required bool visible,
   }) {
-    return IgnorePointer(
-      ignoring: !visible,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 160),
-        child: Material(
-          color: AppColors.carta.withValues(alpha: 0.92),
-          shape: const CircleBorder(),
-          elevation: 4,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: visible
-                ? () => _desplazar(izquierda ? -_pasoScroll : _pasoScroll)
-                : null,
-            child: Padding(
-              padding: EdgeInsets.all(widget.compacta ? 4 : 6),
-              child: Icon(
-                izquierda
-                    ? Icons.chevron_left_rounded
-                    : Icons.chevron_right_rounded,
-                color: AppColors.acento,
-                size: widget.compacta ? 22 : 28,
-              ),
-            ),
+    if (!visible) return const SizedBox.shrink();
+    return Material(
+      color: AppColors.carta.withValues(alpha: 0.92),
+      shape: const CircleBorder(),
+      elevation: 4,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () => _desplazar(izquierda ? -_pasoScroll : _pasoScroll),
+        child: Padding(
+          padding: EdgeInsets.all(widget.compacta ? 4 : 6),
+          child: Icon(
+            izquierda
+                ? Icons.chevron_left_rounded
+                : Icons.chevron_right_rounded,
+            color: AppColors.acento,
+            size: widget.compacta ? 22 : 28,
           ),
         ),
       ),
@@ -2080,120 +2427,250 @@ class _FilaCartasState extends State<_FilaCartas> {
           clipBehavior: Clip.hardEdge,
           child: Stack(
             alignment: Alignment.center,
+            clipBehavior: Clip.hardEdge,
             children: [
               NotificationListener<ScrollMetricsNotification>(
                 onNotification: (_) {
                   _actualizarFlechas();
                   return false;
                 },
-                child: SingleChildScrollView(
-                  controller: _scroll,
-                  scrollDirection: Axis.horizontal,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: widget.compacta ? 28 : 34,
-                    vertical: 4,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minWidth: math.max(
-                        0,
-                        constraints.maxWidth - (widget.compacta ? 56 : 68),
+                child: Listener(
+                  onPointerSignal: (signal) {
+                    if (signal is! PointerScrollEvent) return;
+                    if (!_scroll.hasClients) return;
+                    // Rueda vertical → desplazamiento horizontal de la mano.
+                    final delta = signal.scrollDelta.dx.abs() >
+                            signal.scrollDelta.dy.abs()
+                        ? signal.scrollDelta.dx
+                        : signal.scrollDelta.dy;
+                    if (delta == 0) return;
+                    final destino = (_scroll.offset + delta).clamp(
+                      0.0,
+                      _scroll.position.maxScrollExtent,
+                    );
+                    _scroll.jumpTo(destino);
+                  },
+                  child: ScrollConfiguration(
+                    behavior: const _ManoScrollBehaviorV2(),
+                    child: SingleChildScrollView(
+                      controller: _scroll,
+                      scrollDirection: Axis.horizontal,
+                      physics: (widget.onReordenarCulo != null ||
+                              _arrastrandoCulo)
+                          ? const NeverScrollableScrollPhysics()
+                          : const BouncingScrollPhysics(),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: widget.compacta ? 28 : 34,
+                        vertical: 4,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var index = 0;
-                            index < widget.cartas.length;
-                            index++) ...[
-                          if (index > 0) SizedBox(width: _gap),
-                          Builder(
-                            builder: (context) {
-                              final c = widget.cartas[index];
-                              final indiceReal = widget.indiceBase + index;
-                              final color = widget.colorPalo(c.palo);
-                              final seleccionada =
-                                  widget.seleccionados.contains(indiceReal);
-                              final visible = widget.bocaArriba ||
-                                  widget.indiceRevelado == indiceReal;
-                              final card = AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 320),
-                                switchInCurve: Curves.easeOut,
-                                switchOutCurve: Curves.easeIn,
-                                transitionBuilder: (child, animation) {
-                                  return AnimatedBuilder(
-                                    animation: animation,
-                                    child: child,
-                                    builder: (context, child) {
-                                      final angle =
-                                          (1 - animation.value) * 1.5708;
-                                      return Transform(
-                                        alignment: Alignment.center,
-                                        transform: Matrix4.identity()
-                                          ..setEntry(3, 2, 0.0015)
-                                          ..rotateY(angle),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: math.max(
+                            0,
+                            constraints.maxWidth -
+                                (widget.compacta ? 56 : 68),
+                          ),
+                        ),
+                        child: Row(
+                          key: _rowKey,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (var index = 0;
+                                index < widget.cartas.length;
+                                index++) ...[
+                              if (index > 0) SizedBox(width: _gap),
+                              Builder(
+                                builder: (context) {
+                                  final c = widget.cartas[index];
+                                  final indiceReal =
+                                      widget.indiceBase + index;
+                                  final color = widget.colorPalo(c.palo);
+                                  final seleccionada = widget.seleccionados
+                                      .contains(indiceReal);
+                                  final visible = widget.bocaArriba ||
+                                      widget.indiceRevelado == indiceReal;
+                                  final esCuloArrastrable =
+                                      widget.onReordenarCulo != null &&
+                                          c.esCuloSucio &&
+                                          visible;
+                                  final esLaQueArrastro =
+                                      _dragCuloIndex == index;
+                                  final card = AnimatedSwitcher(
+                                    duration:
+                                        const Duration(milliseconds: 320),
+                                    switchInCurve: Curves.easeOut,
+                                    switchOutCurve: Curves.easeIn,
+                                    transitionBuilder: (child, animation) {
+                                      return AnimatedBuilder(
+                                        animation: animation,
                                         child: child,
+                                        builder: (context, child) {
+                                          final angle =
+                                              (1 - animation.value) * 1.5708;
+                                          return Transform(
+                                            alignment: Alignment.center,
+                                            transform: Matrix4.identity()
+                                              ..setEntry(3, 2, 0.0015)
+                                              ..rotateY(angle),
+                                            child: child,
+                                          );
+                                        },
                                       );
                                     },
+                                    child: _CartaSkinV2(
+                                      key: ValueKey<String>(
+                                        visible
+                                            ? '${indiceReal}_up'
+                                            : '${indiceReal}_down',
+                                      ),
+                                      carta: c,
+                                      bocaArriba: visible,
+                                      compacta: widget.compacta,
+                                      seleccionada: seleccionada ||
+                                          widget.indiceRevelado ==
+                                              indiceReal,
+                                      color: color,
+                                      icono: widget.iconoPalo(c.palo),
+                                      width: w,
+                                      height: h,
+                                    ),
+                                  );
+                                  final marcada = seleccionada ||
+                                      widget.indiceRevelado == indiceReal;
+                                  final atenuar = (widget
+                                              .atenuarNoSeleccionados &&
+                                          widget.seleccionados.isNotEmpty &&
+                                          !seleccionada) ||
+                                      (_arrastrandoCulo && !esLaQueArrastro);
+                                  // Slot fijo: al seleccionar sube sin achicarse.
+                                  Widget child = AnimatedOpacity(
+                                    duration:
+                                        const Duration(milliseconds: 180),
+                                    opacity: atenuar ? 0.34 : 1,
+                                    child: SizedBox(
+                                      width: w,
+                                      height: h + _deslizamiento,
+                                      child: AnimatedAlign(
+                                        duration: const Duration(
+                                          milliseconds: 380,
+                                        ),
+                                        curve: Curves.easeOutCubic,
+                                        alignment: marcada
+                                            ? Alignment.topCenter
+                                            : Alignment.bottomCenter,
+                                        child: card,
+                                      ),
+                                    ),
+                                  );
+
+                                  final shift = _shiftXParaIndice(index);
+                                  if (_arrastrandoCulo && !esLaQueArrastro) {
+                                    child = AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      transform: Matrix4.translationValues(
+                                        shift,
+                                        0,
+                                        0,
+                                      ),
+                                      child: child,
+                                    );
+                                  }
+
+                                  // Árbol estable para el 1 de oro: si el
+                                  // Material se agrega al agarrar, AnimatedAlign
+                                  // se reinicia y la carta “teletransporta”.
+                                  if (esCuloArrastrable) {
+                                    child = Transform.translate(
+                                      offset: Offset(
+                                        esLaQueArrastro ? _dragDx : 0,
+                                        esLaQueArrastro ? _dragDy : 0,
+                                      ),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        elevation: esLaQueArrastro ? 10 : 0,
+                                        shadowColor: Colors.black54,
+                                        borderRadius: BorderRadius.circular(
+                                          widget.compacta ? 10 : 14,
+                                        ),
+                                        child: child,
+                                      ),
+                                    );
+                                    return GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onPanStart: (details) =>
+                                          _iniciarDragCulo(
+                                        index,
+                                        details.localPosition,
+                                      ),
+                                      onPanUpdate: _actualizarDragCulo,
+                                      onPanEnd: (_) => _soltarDragCulo(),
+                                      onPanCancel: _cancelarDragCulo,
+                                      child: child,
+                                    );
+                                  }
+
+                                  if (widget.onTapIndex == null) {
+                                    return child;
+                                  }
+                                  if (widget.bloquearNoSeleccionados &&
+                                      widget.seleccionados.isNotEmpty &&
+                                      !seleccionada) {
+                                    return IgnorePointer(child: child);
+                                  }
+                                  // Sin hover visible si no está seleccionada;
+                                  // InkWell transparente para que el tap
+                                  // funcione bien dentro del scroll.
+                                  if (!seleccionada) {
+                                    return Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () =>
+                                            widget.onTapIndex!(indiceReal),
+                                        splashColor: Colors.transparent,
+                                        highlightColor: Colors.transparent,
+                                        hoverColor: Colors.transparent,
+                                        overlayColor:
+                                            const WidgetStatePropertyAll(
+                                          Colors.transparent,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          widget.compacta ? 10 : 14,
+                                        ),
+                                        child: child,
+                                      ),
+                                    );
+                                  }
+                                  return Material(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(
+                                      widget.compacta ? 10 : 14,
+                                    ),
+                                    child: InkWell(
+                                      onTap: () =>
+                                          widget.onTapIndex!(indiceReal),
+                                      borderRadius: BorderRadius.circular(
+                                        widget.compacta ? 10 : 14,
+                                      ),
+                                      splashColor:
+                                          colorSeleccionCartaEspanola
+                                              .withValues(alpha: 0.25),
+                                      highlightColor:
+                                          colorSeleccionCartaEspanola
+                                              .withValues(alpha: 0.18),
+                                      hoverColor: colorSeleccionCartaEspanola
+                                          .withValues(alpha: 0.22),
+                                      child: child,
+                                    ),
                                   );
                                 },
-                                child: _CartaSkinV2(
-                                  key: ValueKey<String>(
-                                    visible
-                                        ? '${indiceReal}_up'
-                                        : '${indiceReal}_down',
-                                  ),
-                                  carta: c,
-                                  bocaArriba: visible,
-                                  compacta: widget.compacta,
-                                  seleccionada: seleccionada ||
-                                      widget.indiceRevelado == indiceReal,
-                                  color: color,
-                                  icono: widget.iconoPalo(c.palo),
-                                  width: w,
-                                  height: h,
-                                ),
-                              );
-                              final child = AnimatedOpacity(
-                                duration: const Duration(milliseconds: 180),
-                                opacity: widget.atenuarNoSeleccionados &&
-                                        widget.seleccionados.isNotEmpty &&
-                                        !seleccionada
-                                    ? 0.28
-                                    : 1,
-                                child: AnimatedPadding(
-                                  duration: const Duration(milliseconds: 120),
-                                  padding: EdgeInsets.only(
-                                    bottom: (seleccionada ||
-                                            widget.indiceRevelado ==
-                                                indiceReal)
-                                        ? 8
-                                        : 0,
-                                  ),
-                                  child: card,
-                                ),
-                              );
-                              if (widget.onTapIndex == null) return child;
-                              if (widget.atenuarNoSeleccionados &&
-                                  widget.seleccionados.isNotEmpty &&
-                                  !seleccionada) {
-                                return IgnorePointer(child: child);
-                              }
-                              return Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(
-                                    widget.compacta ? 10 : 14,
-                                  ),
-                                  onTap: () =>
-                                      widget.onTapIndex!(indiceReal),
-                                  child: child,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -2256,4 +2733,17 @@ class _CartaSkinV2 extends StatelessWidget {
       height: height,
     );
   }
+}
+
+/// Permite arrastrar la mano con dedo, mouse, stylus y trackpad.
+class _ManoScrollBehaviorV2 extends MaterialScrollBehavior {
+  const _ManoScrollBehaviorV2();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
 }

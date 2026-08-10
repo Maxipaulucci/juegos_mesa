@@ -223,7 +223,9 @@ void _avanzarTurno(PartidaCuloSucioV2 p) {
   _chequearFin(p);
 }
 
-/// Marca [nombre] como rendido. Si queda uno en pie, gana por abandono.
+/// Marca [nombre] como rendido.
+/// Si tenía el culo sucio, la partida termina (pierde).
+/// Si queda uno en pie, ese gana por abandono.
 String? rendirseCuloSucioV2(PartidaCuloSucioV2 p, String nombre) {
   final idx = p.jugadores.indexWhere(
     (j) => j.nombre == nombre && !j.rendido,
@@ -232,14 +234,28 @@ String? rendirseCuloSucioV2(PartidaCuloSucioV2 p, String nombre) {
 
   final j = p.jugadores[idx];
   final teniaCulo = j.mano.any((c) => c.esCuloSucio);
-  final culo = teniaCulo
-      ? j.mano.firstWhere((c) => c.esCuloSucio)
-      : null;
   j.rendido = true;
   j.mano.clear();
   j.paresInicialesListos = true;
 
   final activos = p.jugadoresActivos;
+
+  // Quien se rinde con el 1 de oro pierde y la partida termina.
+  if (teniaCulo) {
+    p.fase = FaseCuloSucioV2.terminada;
+    p.perdedor = nombre;
+    if (activos.isEmpty) {
+      p.ganador = null;
+      p.mensajeFin = '$nombre se rindió con el culo sucio.';
+      return null;
+    }
+    final ganador = activos.first.nombre;
+    p.ganador = ganador;
+    p.mensajeFin =
+        '$nombre se rindió con el culo sucio. ¡$ganador gana!';
+    return ganador;
+  }
+
   if (activos.length <= 1) {
     p.fase = FaseCuloSucioV2.terminada;
     if (activos.isEmpty) {
@@ -253,15 +269,6 @@ String? rendirseCuloSucioV2(PartidaCuloSucioV2 p, String nombre) {
     p.perdedor = nombre;
     p.mensajeFin = '$nombre se rindió. ¡$ganador gana por abandono!';
     return ganador;
-  }
-
-  // Si se llevaba el 1 de oro, pasa a otro jugador en pie al azar.
-  if (culo != null) {
-    final destino = activos[math.Random().nextInt(activos.length)];
-    destino.mano.insert(
-      math.Random().nextInt(destino.mano.length + 1),
-      culo,
-    );
   }
 
   if (p.descartandoPares) {
@@ -551,8 +558,8 @@ String? robarCartaCuloSucioV2(
   return null;
 }
 
-/// Mueve el 1 de oro dentro de la mano del jugador de turno (sin avanzar turno).
-/// [hacia] es el índice destino en la mano actual (antes de quitar [desde]).
+/// Mueve el 1 de oro a otra posición de la mano del jugador de turno
+/// (sin avanzar el turno). [hacia] es el índice final deseado.
 String? moverCuloSucioEnManoCuloSucioV2(
   PartidaCuloSucioV2 p, {
   required JugadorCuloSucioV2 jugador,
@@ -563,7 +570,7 @@ String? moverCuloSucioEnManoCuloSucioV2(
   if (p.fase != FaseCuloSucioV2.jugando) {
     return 'Solo podés mover el 1 de oro durante el juego.';
   }
-  if (!identical(jugador, p.jugadorActual)) {
+  if (jugador.nombre != p.jugadorActual.nombre) {
     return 'No es el turno de ${jugador.nombre}.';
   }
   final n = jugador.mano.length;
@@ -574,10 +581,39 @@ String? moverCuloSucioEnManoCuloSucioV2(
   if (hacia < 0 || hacia >= n) return 'Posición inválida.';
   if (desde == hacia) return null;
 
-  final carta = jugador.mano.removeAt(desde);
-  var insertAt = hacia;
-  if (insertAt > desde) insertAt -= 1;
-  jugador.mano.insert(insertAt, carta);
+  final mano = jugador.mano;
+  final carta = mano.removeAt(desde);
+  mano.insert(hacia.clamp(0, mano.length), carta);
+  return null;
+}
+
+/// Intercambia el 1 de oro con otra carta (modo sin animación de arrastre).
+String? intercambiarCuloSucioEnManoCuloSucioV2(
+  PartidaCuloSucioV2 p, {
+  required JugadorCuloSucioV2 jugador,
+  required int desde,
+  required int hacia,
+}) {
+  if (p.terminada) return 'La partida ya terminó.';
+  if (p.fase != FaseCuloSucioV2.jugando) {
+    return 'Solo podés mover el 1 de oro durante el juego.';
+  }
+  if (jugador.nombre != p.jugadorActual.nombre) {
+    return 'No es el turno de ${jugador.nombre}.';
+  }
+  final n = jugador.mano.length;
+  if (desde < 0 || desde >= n) return 'Carta inválida.';
+  if (!jugador.mano[desde].esCuloSucio) {
+    return 'Solo podés mover el 1 de oro.';
+  }
+  if (hacia < 0 || hacia >= n) return 'Posición inválida.';
+  if (desde == hacia) return null;
+
+  final mano = jugador.mano;
+  final a = mano[desde];
+  final b = mano[hacia];
+  mano[desde] = b;
+  mano[hacia] = a;
   return null;
 }
 
