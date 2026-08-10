@@ -641,37 +641,32 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       _mostrarMenu = false;
       _confirmarRendicion = false;
     });
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      backgroundColor: AppColors.carta,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'REGLAS · GENERALA',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.acento,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                reglasGenerala(),
-            style: const TextStyle(color: AppColors.texto, height: 1.45),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        title: const Text(
+          'Reglas',
+          style: TextStyle(
+            color: AppColors.mint,
+            fontWeight: FontWeight.w900,
           ),
         ),
+        content: SingleChildScrollView(
+          child: Text(
+            reglasGenerala(),
+            style: const TextStyle(
+              color: AppColors.texto,
+              height: 1.35,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
       ),
     );
   }
