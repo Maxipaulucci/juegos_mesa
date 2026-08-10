@@ -444,8 +444,8 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
         _mostrarTablero = false;
         _categoriaPcResaltada = null;
       });
-      return;
-    }
+        return;
+      }
 
     // Muestra la flecha sobre la casilla elegida y deja ver el tablero.
     setState(() => _categoriaPcResaltada = cat);
@@ -667,7 +667,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
               const SizedBox(height: 14),
               Text(
                 reglasGenerala(),
-                style: const TextStyle(color: AppColors.texto, height: 1.45),
+            style: const TextStyle(color: AppColors.texto, height: 1.45),
               ),
             ],
           ),
@@ -889,24 +889,24 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                 onMenu: _modoAnotar ? () {} : _abrirMenu,
                                 onRestart: widget.contraPc && !_esOnline
                                     ? _pedirReiniciarVsPc
-                                    : null,
+                                          : null,
                                 onSettings: _abrirAjustes,
                               ),
                               const SizedBox(height: 8),
                               for (var i = 0; i < _partida.jugadores.length; i++) ...[
-                                _PlayerCard(
-                                  jugador: _partida.jugadores[i],
-                                  index: i,
-                                  activo: !terminada &&
+                                    _PlayerCard(
+                                      jugador: _partida.jugadores[i],
+                                      index: i,
+                                      activo: !terminada &&
                                       i == _partida.indiceTurno,
-                                  esTu: i == 0,
-                                  puedeRenombrar: _puedeRenombrar(i),
-                                  onRenombrar: _puedeRenombrar(i)
-                                      ? () => _renombrarJugador(i)
-                                      : null,
-                                ),
-                                const SizedBox(height: 6),
-                              ],
+                                      esTu: i == 0,
+                                      puedeRenombrar: _puedeRenombrar(i),
+                                      onRenombrar: _puedeRenombrar(i)
+                                          ? () => _renombrarJugador(i)
+                                          : null,
+                                    ),
+                                    const SizedBox(height: 6),
+                                  ],
                               _TurnoBanner(
                                 nombre: terminada
                                     ? (_partida.ganador ?? '')
@@ -934,43 +934,43 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                       _esMiTurno)
                                     Positioned(
                                       right: 0,
-                                      child: Material(
-                                        color: AppColors.carta,
-                                        shape: const CircleBorder(),
-                                        child: InkWell(
-                                          customBorder: const CircleBorder(),
+                                        child: Material(
+                                          color: AppColors.carta,
+                                          shape: const CircleBorder(),
+                                          child: InkWell(
+                                            customBorder: const CircleBorder(),
                                           onTap: terminada ||
                                                   _animandoTirada ||
                                                   _pausandoResultado
-                                              ? null
+                                                ? null
                                               : _pedirDadosForzados,
-                                          child: Container(
-                                            width: 40,
-                                            height: 40,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
+                                            child: Container(
+                                              width: 40,
+                                              height: 40,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: _dadosForzados != null
+                                                      ? AppColors.mint
+                                                      : AppColors.textoSuave
+                                                          .withValues(
+                                                              alpha: 0.5),
+                                                  width: _dadosForzados != null
+                                                      ? 2
+                                                      : 1,
+                                                ),
+                                              boxShadow: _dadosForzados != null
+                                                        ? neonGlow(
+                                                            AppColors.mint,
+                                                            blur: 10)
+                                                        : null,
+                                              ),
+                                              child: Icon(
+                                                Icons.bug_report,
+                                                size: 20,
                                                 color: _dadosForzados != null
                                                     ? AppColors.mint
-                                                    : AppColors.textoSuave
-                                                        .withValues(
-                                                            alpha: 0.5),
-                                                width: _dadosForzados != null
-                                                    ? 2
-                                                    : 1,
-                                              ),
-                                              boxShadow: _dadosForzados != null
-                                                  ? neonGlow(
-                                                      AppColors.mint,
-                                                      blur: 10)
-                                                  : null,
-                                            ),
-                                            child: Icon(
-                                              Icons.bug_report,
-                                              size: 20,
-                                              color: _dadosForzados != null
-                                                  ? AppColors.mint
-                                                  : AppColors.textoSuave,
+                                                    : AppColors.textoSuave,
                                             ),
                                           ),
                                         ),
@@ -983,14 +983,14 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   !_modoAnotar &&
                                   !_turnoDeLaPc &&
                                   !_esperandoRivalOnline)
-                                const Padding(
+                                  const Padding(
                                   padding: EdgeInsets.only(top: 4),
-                                  child: Text(
+                                    child: Text(
                                     'Tocá para guardar (amarillo, a la izquierda)',
-                                    style: TextStyle(
-                                      color: AppColors.textoSuave,
+                                      style: TextStyle(
+                                        color: AppColors.textoSuave,
                                       fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
@@ -1010,30 +1010,30 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                 ],
-                                _ArcadeButton(
+                                  _ArcadeButton(
                                   label: _t.puedeTirar
                                       ? (_debeForzarAnotarTemprano
                                           ? 'NO CONVIENE TIRAR'
                                           : 'TIRAR DADOS · ${_t.tiradasHechas}/$maxTiradasGenerala')
                                       : 'SIN TIRADAS',
-                                  icon: Icons.casino,
-                                  tono: _BotonTono.dorado,
+                                    icon: Icons.casino,
+                                    tono: _BotonTono.dorado,
                                   onPressed: _puedeTirarAhora &&
                                           !_animandoTirada &&
                                           !_pausandoResultado
                                       ? () => _tirar()
                                       : null,
-                                ),
-                                const SizedBox(height: 6),
-                                _ArcadeButton(
+                                  ),
+                                  const SizedBox(height: 6),
+                                  _ArcadeButton(
                                   label: 'VER TABLERO',
                                   icon: Icons.grid_view_rounded,
-                                  tono: _BotonTono.violeta,
+                                    tono: _BotonTono.violeta,
                                   onPressed: !_animandoTirada &&
                                           !_pausandoResultado
                                       ? () => _abrirTablero()
-                                      : null,
-                                ),
+                                        : null,
+                                  ),
                               ] else if (!terminada &&
                                   (_turnoDeLaPc || _esperandoRivalOnline))
                                 Padding(
@@ -1101,7 +1101,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                         Navigator.of(context).pop();
                       }
                     : (widget.contraPc
-                        ? _salirGuardandoResumeYVolverAlMenu
+                    ? _salirGuardandoResumeYVolverAlMenu
                         : () => setState(() => _confirmarRendicion = true)),
                 onConfirmarRendicion: _rendirse,
                 onCancelarRendicion: () =>
@@ -1354,54 +1354,54 @@ class _PlayerCard extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: puedeRenombrar ? onRenombrar : null,
-          borderRadius: BorderRadius.circular(10),
-          child: Ink(
-            padding: EdgeInsets.symmetric(
-              vertical: puedeRenombrar ? 4 : 2,
-              horizontal: puedeRenombrar ? 8 : 2,
-            ),
-            decoration: puedeRenombrar
-                ? BoxDecoration(
-                    color: const Color(0xFF0E061C),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: AppColors.violeta.withValues(alpha: 0.7),
-                      width: 1.2,
-                    ),
-                  )
-                : null,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    jugador.nombre.toUpperCase(),
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: puedeRenombrar ? onRenombrar : null,
+        borderRadius: BorderRadius.circular(10),
+        child: Ink(
+          padding: EdgeInsets.symmetric(
+            vertical: puedeRenombrar ? 4 : 2,
+            horizontal: puedeRenombrar ? 8 : 2,
+          ),
+          decoration: puedeRenombrar
+              ? BoxDecoration(
+                  color: const Color(0xFF0E061C),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.violeta.withValues(alpha: 0.7),
+                    width: 1.2,
+                  ),
+                )
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  jugador.nombre.toUpperCase(),
                     maxLines: 2,
                     softWrap: true,
-                    overflow: TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w900,
                       fontSize: 14,
-                      letterSpacing: 0.5,
+                    letterSpacing: 0.5,
                       height: 1.15,
-                    ),
                   ),
                 ),
-                if (puedeRenombrar) ...[
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.edit_rounded,
-                    size: 14,
-                    color: AppColors.violeta.withValues(alpha: 0.95),
-                  ),
-                ],
+              ),
+              if (puedeRenombrar) ...[
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.edit_rounded,
+                  size: 14,
+                  color: AppColors.violeta.withValues(alpha: 0.95),
+                ),
               ],
-            ),
+            ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -1410,7 +1410,7 @@ class _PlayerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
+            decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             AppColors.carta.withValues(alpha: 0.95),
@@ -1437,7 +1437,7 @@ class _PlayerCard extends StatelessWidget {
               children: [
                 _nombre(),
                 if (jugador.rendido) ...[
-                  const SizedBox(height: 4),
+        const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Container(
@@ -1452,9 +1452,9 @@ class _PlayerCard extends StatelessWidget {
                       ),
                       child: const Text(
                         'RENDIDO',
-                        style: TextStyle(
+            style: TextStyle(
                           color: AppColors.peligro,
-                          fontSize: 9,
+              fontSize: 9,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -1484,24 +1484,24 @@ class _PlayerCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  ),
+              ),
                 ],
-                Text(
+              Text(
                   '${jugador.total} PTS',
-                  style: TextStyle(
-                    color: accent,
+                style: TextStyle(
+                  color: accent,
                     fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    shadows: [
-                      Shadow(
+                  fontWeight: FontWeight.w900,
+                  shadows: [
+                    Shadow(
                         color: accent.withValues(alpha: 0.75),
                         blurRadius: 10,
                       ),
                     ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
           ),
         ],
       ),
@@ -1529,44 +1529,44 @@ class _TurnoBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
+            Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                AppColors.violeta,
-                AppColors.rosa,
-                AppColors.acentoSuave,
-              ],
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    AppColors.violeta,
+                    AppColors.rosa,
+                    AppColors.acentoSuave,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(99),
+                boxShadow: neonGlow(AppColors.rosa, blur: 14),
+              ),
+              child: Text(
+                terminada
+                    ? '★ GANÓ: ${nombre.toUpperCase()} ★'
+                    : '★ TURNO DE: ${nombre.toUpperCase()} ★',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  color: Colors.white,
+                ),
+              ),
             ),
-            borderRadius: BorderRadius.circular(99),
-            boxShadow: neonGlow(AppColors.rosa, blur: 14),
-          ),
-          child: Text(
-            terminada
-                ? '★ GANÓ: ${nombre.toUpperCase()} ★'
-                : '★ TURNO DE: ${nombre.toUpperCase()} ★',
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
-              color: Colors.white,
-            ),
-          ),
-        ),
         if (!terminada) ...[
           const SizedBox(height: 6),
           Text(
             'TIRADA $tirada / $maxTiradasGenerala',
-            style: TextStyle(
-              color: AppColors.mint,
-              fontWeight: FontWeight.w800,
+                style: TextStyle(
+                  color: AppColors.mint,
+                  fontWeight: FontWeight.w800,
               fontSize: 12,
-              shadows: [
-                Shadow(
-                  color: AppColors.mint.withValues(alpha: 0.7),
+                  shadows: [
+                    Shadow(
+                      color: AppColors.mint.withValues(alpha: 0.7),
                   blurRadius: 8,
-                ),
-              ],
+                    ),
+                  ],
             ),
           ),
         ],
@@ -1655,19 +1655,19 @@ class _MenuOverlay extends StatelessWidget {
         child: SafeArea(
           child: Center(
             child: GestureDetector(
-              onTap: () {},
+        onTap: () {},
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 380),
                 child: Padding(
                   padding: const EdgeInsets.all(18),
                   child: Container(
-                    width: double.infinity,
+          width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
+              colors: [
                           Color(0xFF3B1D6E),
                           Color(0xFF1A0A33),
                           Color(0xFF2A1050),
@@ -1679,16 +1679,16 @@ class _MenuOverlay extends StatelessWidget {
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      children: [
+            children: [
                         Row(
                           children: [
                             const Expanded(
                               child: Text(
                                 'MENÚ',
-                                style: TextStyle(
+                style: TextStyle(
                                   color: AppColors.acento,
                                   fontSize: 18,
-                                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w900,
                                   letterSpacing: 1.2,
                                 ),
                               ),
@@ -1706,11 +1706,11 @@ class _MenuOverlay extends StatelessWidget {
                         Text(
                           jugador.toUpperCase(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                  style: TextStyle(
                             color: AppColors.texto,
                             fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
                             shadows: [
                               Shadow(
                                 color: AppColors.acento.withValues(alpha: 0.7),
@@ -1752,12 +1752,12 @@ class _MenuOverlay extends StatelessWidget {
                             onPressed: onSalirORendirse,
                           )
                         else ...[
-                          const Text(
+                  const Text(
                             '¿Confirmás tu derrota?',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                    style: TextStyle(
                               color: AppColors.peligro,
-                              fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w800,
                               fontSize: 14,
                             ),
                           ),

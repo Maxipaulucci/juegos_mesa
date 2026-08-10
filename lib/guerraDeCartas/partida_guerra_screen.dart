@@ -46,6 +46,8 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
   bool _jugando = false;
+  /// Evita seguir la guerra en el mismo toque / doble Espacio.
+  bool _pausaTrasEmpate = false;
 
   bool get _modoDiosActivo => widget.modoDios && widget.contraPc;
   bool get _esLocalHotSeat => !widget.contraPc;
@@ -61,12 +63,23 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
   }
 
   bool get _puedeJugarRonda {
-    if (_partida.terminada || _jugando) return false;
+    if (_partida.terminada || _jugando || _pausaTrasEmpate) return false;
+    if (_partida.hayGuerraPendiente) return true;
     return _partida.conCartas.length >= 2;
   }
 
   String get _textoEstado {
     if (_partida.terminada) return '';
+    final gp = _partida.guerraPendiente;
+    if (gp != null) {
+      final nombres = gp.nombresEnGuerra.join(' y ');
+      final mezcla = gp.mezclaron.isEmpty
+          ? ''
+          : ' · ${gp.mezclaron.join(', ')} mezcló su pozo';
+      return '¡Empate entre $nombres! Las cartas quedan en la mesa. '
+          'Tocá “${TextosGuerra.jugar}” para sacar la siguiente '
+          '(${gp.pot.length} en juego)$mezcla';
+    }
     final ur = _partida.ultimaRonda;
     if (ur != null) {
       final mezcla = ur.mezclaronPozo.isEmpty
@@ -113,7 +126,9 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
     if (!mounted) return false;
     if (_mostrarMenu || _mostrarAjustes || _confirmarRendicion) return false;
     if (_partida.terminada) return false;
-    if (_partida.conCartas.length < 2 || _puedeJugarRonda) {
+    if (_partida.hayGuerraPendiente ||
+        _partida.conCartas.length < 2 ||
+        _puedeJugarRonda) {
       _jugarRonda();
       return true;
     }
@@ -298,8 +313,8 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
 
   Future<void> _jugarRonda() async {
     if (_partida.terminada) return;
-    // Si ya no hay rivales con cartas, cerrar aunque el botón esté raro.
-    if (_partida.conCartas.length < 2) {
+    // Si ya no hay rivales con cartas, cerrar (salvo guerra en curso).
+    if (!_partida.hayGuerraPendiente && _partida.conCartas.length < 2) {
       setState(() => chequearFinGuerra(_partida));
       return;
     }
@@ -308,6 +323,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!mounted) return;
     final err = jugarRondaGuerra(_partida);
+    final quedoEmpate = _partida.hayGuerraPendiente;
     setState(() {
       _jugando = false;
       chequearFinGuerra(_partida);
@@ -315,6 +331,12 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       }
     });
+    // Tras un empate, dejá ver las cartas antes de permitir el siguiente toque.
+    if (quedoEmpate && mounted) {
+      setState(() => _pausaTrasEmpate = true);
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+      if (mounted) setState(() => _pausaTrasEmpate = false);
+    }
   }
 
   void _reiniciar() {
@@ -340,6 +362,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
       _mostrarAjustes = false;
       _confirmarRendicion = false;
       _jugando = false;
+      _pausaTrasEmpate = false;
     });
   }
 
@@ -631,6 +654,48 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
     );
   }
 
+  Widget _montonMesa({
+    required String nombre,
+    required List<CartaGuerra> cartas,
+    required bool enGuerra,
+  }) {
+    if (cartas.isEmpty) {
+      return _cartaMini(null, bocaArriba: true);
+    }
+    final offset = (_cartaW * 0.18).clamp(8.0, 14.0);
+    final totalW = _cartaW + offset * (cartas.length - 1);
+    final totalH = _cartaH + offset * (cartas.length - 1) * 0.35;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          nombre,
+          style: TextStyle(
+            color: enGuerra ? AppColors.peligro : AppColors.textoSuave,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: totalW,
+          height: totalH,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              for (var i = 0; i < cartas.length; i++)
+                Positioned(
+                  left: offset * i,
+                  top: offset * i * 0.35,
+                  child: _cartaMini(cartas[i], bocaArriba: true),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _vidasWidget(JugadorGuerra j) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -839,15 +904,25 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_partida.terminada && _partida.conCartas.length < 2) {
+    if (!_partida.terminada &&
+        !_partida.hayGuerraPendiente &&
+        _partida.conCartas.length < 2) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _partida.terminada) return;
+        if (!mounted || _partida.terminada || _partida.hayGuerraPendiente) {
+          return;
+        }
         if (_partida.conCartas.length >= 2) return;
         setState(() => chequearFinGuerra(_partida));
       });
     }
 
     final ur = _partida.ultimaRonda;
+    final gp = _partida.guerraPendiente;
+    final cartasMesa = gp?.visibles ?? ur?.cartasJugadas;
+    final mesaEnGuerra = gp != null || (ur?.huboGuerra ?? false);
+    final tituloMesa = gp != null
+        ? '¡EMPATE! — tocá Jugar carta'
+        : (ur?.huboGuerra == true ? '¡GUERRA!' : 'Mesa');
     final humano = _humanoPrincipal;
     final rivales = [
       for (final j in _partida.jugadores)
@@ -989,7 +1064,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
                             child: Center(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
-                                child: ur == null
+                                child: cartasMesa == null
                                     ? Text(
                                         'Mesa vacía',
                                         style: TextStyle(
@@ -1002,11 +1077,9 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
-                                            ur.huboGuerra
-                                                ? '¡GUERRA!'
-                                                : 'Mesa',
+                                            tituloMesa,
                                             style: TextStyle(
-                                              color: ur.huboGuerra
+                                              color: mesaEnGuerra
                                                   ? AppColors.peligro
                                                   : AppColors.textoSuave,
                                               fontWeight: FontWeight.w900,
@@ -1017,35 +1090,61 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              for (final e
-                                                  in ur.cartasJugadas.entries)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                    right: 10,
-                                                  ),
-                                                  child: Column(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Text(
-                                                        e.key,
-                                                        style: const TextStyle(
-                                                          color: AppColors
-                                                              .textoSuave,
-                                                          fontSize: 10,
-                                                          fontWeight:
-                                                              FontWeight.w700,
+                                              if (gp != null)
+                                                for (final nombre
+                                                    in gp.nombresEnGuerra)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                      right: 10,
+                                                    ),
+                                                    child: _montonMesa(
+                                                      nombre: nombre,
+                                                      cartas: gp.montones[
+                                                              nombre] ??
+                                                          [
+                                                            if (gp.visibles[
+                                                                    nombre] !=
+                                                                null)
+                                                              gp.visibles[
+                                                                  nombre]!,
+                                                          ],
+                                                      enGuerra: true,
+                                                    ),
+                                                  )
+                                              else
+                                                for (final e
+                                                    in cartasMesa.entries)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                      right: 10,
+                                                    ),
+                                                    child: Column(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          e.key,
+                                                          style: const TextStyle(
+                                                            color: AppColors
+                                                                .textoSuave,
+                                                            fontSize: 10,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .w700,
+                                                          ),
                                                         ),
-                                                      ),
-                                                      const SizedBox(height: 4),
-                                                      _cartaMini(
-                                                        e.value,
-                                                        bocaArriba: true,
-                                                      ),
-                                                    ],
+                                                        const SizedBox(
+                                                          height: 4,
+                                                        ),
+                                                        _cartaMini(
+                                                          e.value,
+                                                          bocaArriba: true,
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
-                                                ),
                                             ],
                                           ),
                                         ],

@@ -46,7 +46,8 @@ abstract final class TextosGuerra {
 · En cada ronda todos vuelven la carta de arriba. Quien tenga la más
   alta se lleva todas las cartas jugadas a su pozo.
 
-· Si hay empate en la más alta, hay guerra: esos jugadores vuelven
+· Si hay empate en la más alta, esas cartas quedan en la mesa y
+  hay que tocar “Jugar carta” otra vez: solo los empatados vuelven
   otra carta. El que gane se lleva todo el pozo de la mesa.
   Excepción: si empatan y uno ya no tiene cartas para seguir,
   gana quien sí pueda tirar.
