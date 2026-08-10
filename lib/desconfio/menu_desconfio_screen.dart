@@ -46,6 +46,11 @@ class MenuDesconfioScreen extends StatelessWidget {
       opcionesCantidadPc: const [1, 2, 3],
       onCantidadPcChanged: (_) => DesconfioStandByStore.limpiar(),
       textoInfoModoDios: TextosDesconfio.infoModoDios,
+      textosInfoDificultad: const {
+        DificultadPc.facil: TextosDesconfio.infoDificultadFacil,
+        DificultadPc.medio: TextosDesconfio.infoDificultadMedio,
+        DificultadPc.dificil: TextosDesconfio.infoDificultadDificil,
+      },
       onPartidaRapida: (ctx, estado, _) async {
         await _abrir(ctx: ctx, nombres: estado.nombres);
       },

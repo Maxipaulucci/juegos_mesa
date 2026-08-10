@@ -16,6 +16,21 @@ abstract final class TextosDesconfio {
       'Durante la partida ves boca arriba las cartas que tira la PC '
       'al pozo (las tuyas siguen ocultas para el bluff).';
 
+  static const infoDificultadFacil =
+      'La PC miente poco y casi no dice «¡Desconfío!».\n\n'
+      'Es más previsible y se equivoca más al dudar: ideal para aprender '
+      'el juego o ganar con más facilidad.';
+
+  static const infoDificultadMedio =
+      'Equilibrio. La PC miente de vez en cuando y desconfía cuando '
+      'las cartas del palo declarado empiezan a escasear.\n\n'
+      'Calcula mejor que en Fácil, pero todavía no es agresiva todo el tiempo.';
+
+  static const infoDificultadDificil =
+      'La PC miente más seguido y desconfía más agresivo.\n\n'
+      'Usa mejor cuántas cartas del palo quedan fuera de su mano, '
+      'así que conviene mentir poco y con cuidado.';
+
   static const reglaCorta =
       'Mazo español de 48 (12 por palo). Se reparte todo. Declarás un palo y '
       'cada uno tira una carta boca abajo. Si alguien dice desconfío y mentiste, '

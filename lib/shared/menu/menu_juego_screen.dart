@@ -53,6 +53,8 @@ class MenuJuegoScreen extends StatefulWidget {
     this.mostrarModoDiosEnSolo = false,
     /// Texto del diálogo de ayuda de Modo Dios (si null, usa el genérico de dados).
     this.textoInfoModoDios,
+    /// Si no es null, muestra “?” dentro de cada botón de dificultad.
+    this.textosInfoDificultad,
     /// Contenido extra debajo de Jugar solo / vs PC (p. ej. Modificar partida).
     this.extraTrasModoLocal,
     /// Si false, oculta Multijugador local (decidir orden, partida rápida, nombres).
@@ -94,6 +96,8 @@ class MenuJuegoScreen extends StatefulWidget {
   final bool jugarSoloEnLugarDePc;
   final bool mostrarModoDiosEnSolo;
   final String? textoInfoModoDios;
+  /// Explicación por nivel para el “?” dentro de cada botón de dificultad.
+  final Map<DificultadPc, String>? textosInfoDificultad;
   final Widget? extraTrasModoLocal;
   final bool mostrarMultijugadorLocal;
   final bool mostrarJugadoresVsPc;
@@ -440,6 +444,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   }
 
   Future<void> _elegirDificultad() async {
+    final infos = widget.textosInfoDificultad;
     final elegida = await showDialog<DificultadPc>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -465,22 +470,55 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                     width: 3,
                   ),
                 ),
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(d),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: d.color,
-                    foregroundColor: const Color(0xFF1A0A00),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
-                    shadowColor: Colors.transparent,
-                  ),
-                  child: Text(
-                    d.etiqueta,
-                    style: const TextStyle(
-                      color: Color(0xFF1A0A00),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      letterSpacing: 0.6,
+                child: Material(
+                  color: d.color,
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    onTap: () => Navigator.of(dialogContext).pop(d),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 28),
+                          Expanded(
+                            child: Text(
+                              d.etiqueta,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFF1A0A00),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: infos != null &&
+                                    (infos[d]?.isNotEmpty ?? false)
+                                ? Material(
+                                    color: Colors.black.withValues(alpha: 0.18),
+                                    shape: const CircleBorder(),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: InkWell(
+                                      customBorder: const CircleBorder(),
+                                      onTap: () => _explicarDificultad(d),
+                                      child: const Icon(
+                                        Icons.help,
+                                        size: 18,
+                                        color: Color(0xFF1A0A00),
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -579,6 +617,36 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
           ElevatedButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _explicarDificultad(DificultadPc nivel) {
+    final texto = widget.textosInfoDificultad?[nivel];
+    if (texto == null || texto.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Dificultad · ${nivel.etiqueta}',
+          style: const TextStyle(color: AppColors.acento, fontSize: 18),
+        ),
+        content: SingleChildScrollView(
+          child: Text(
+            texto,
+            style: const TextStyle(color: AppColors.texto, height: 1.45),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cerrar'),
           ),
         ],
       ),
