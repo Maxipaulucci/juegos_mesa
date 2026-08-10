@@ -167,19 +167,19 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasInglesas,
     ),
     _JuegoHome(
+      tipo: _TipoJuegoHome.desconfio,
+      titulo: 'Desconfío',
+      subtitulo: 'Cartas españolas · bluff',
+      accent: AppColors.azulSuave,
+      categoria: _CategoriaHome.cartasEspanolas,
+    ),
+    _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
       titulo: 'Canasta',
       subtitulo: 'Próximamente',
       accent: AppColors.violeta,
       categoria: _CategoriaHome.cartasInglesas,
       enabled: false,
-    ),
-    _JuegoHome(
-      tipo: _TipoJuegoHome.desconfio,
-      titulo: 'Desconfío',
-      subtitulo: 'Cartas españolas · bluff',
-      accent: AppColors.azulSuave,
-      categoria: _CategoriaHome.cartasEspanolas,
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.jodete,
