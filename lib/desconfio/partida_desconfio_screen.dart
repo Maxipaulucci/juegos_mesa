@@ -1268,45 +1268,43 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
                     final c = widget.cartas[i];
                     final sel = widget.seleccion == i;
                     final skin = widget.buildCarta(c, sel: sel);
-                    // Slot fijo: al seleccionar, la carta sube (como Chancho va).
-                    final tarjeta = SizedBox(
-                      width: widget.cartaW,
-                      height: widget.cartaH + _deslizamiento,
-                      child: AnimatedAlign(
-                        duration: const Duration(milliseconds: 160),
-                        curve: Curves.easeOutCubic,
-                        alignment: sel
-                            ? Alignment.topCenter
-                            : Alignment.bottomCenter,
-                        child: skin,
-                      ),
-                    );
-                    if (!widget.puedeElegir) return tarjeta;
-                    // Sin hover si no está seleccionada.
-                    // Con selección, el InkWell pinta la sombra en el hueco de abajo.
-                    if (!sel) {
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => widget.onTapIndex(i),
-                        child: tarjeta,
-                      );
-                    }
+                    // Árbol estable: si el padre cambia al seleccionar,
+                    // AnimatedAlign se reinicia y la carta “teletransporta”.
                     return Material(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                       child: InkWell(
-                        onTap: () => widget.onTapIndex(i),
+                        onTap: widget.puedeElegir
+                            ? () => widget.onTapIndex(i)
+                            : null,
                         borderRadius: BorderRadius.circular(14),
-                        splashColor: colorSeleccionCartaEspanola.withValues(
-                          alpha: 0.25,
+                        splashColor: sel
+                            ? colorSeleccionCartaEspanola.withValues(
+                                alpha: 0.25,
+                              )
+                            : Colors.transparent,
+                        highlightColor: sel
+                            ? colorSeleccionCartaEspanola.withValues(
+                                alpha: 0.18,
+                              )
+                            : Colors.transparent,
+                        hoverColor: sel
+                            ? colorSeleccionCartaEspanola.withValues(
+                                alpha: 0.22,
+                              )
+                            : Colors.transparent,
+                        child: SizedBox(
+                          width: widget.cartaW,
+                          height: widget.cartaH + _deslizamiento,
+                          child: AnimatedAlign(
+                            duration: const Duration(milliseconds: 380),
+                            curve: Curves.easeOutCubic,
+                            alignment: sel
+                                ? Alignment.topCenter
+                                : Alignment.bottomCenter,
+                            child: skin,
+                          ),
                         ),
-                        highlightColor: colorSeleccionCartaEspanola.withValues(
-                          alpha: 0.18,
-                        ),
-                        hoverColor: colorSeleccionCartaEspanola.withValues(
-                          alpha: 0.22,
-                        ),
-                        child: tarjeta,
                       ),
                     );
                   },
