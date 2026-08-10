@@ -1639,6 +1639,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                                           ? () => _toggleCarta(mano[i])
                                           : null,
                                       palo: _paloVisual(mano[i].palo),
+                                      animaciones: _ajustes.animaciones,
                                     ),
                                   ],
                                 ],
@@ -2395,12 +2396,14 @@ class _CartaManoChancho extends StatelessWidget {
     required this.carta,
     required this.seleccionada,
     required this.palo,
+    required this.animaciones,
     this.onTap,
   });
 
   final CartaChancho carta;
   final bool seleccionada;
   final PaloEspanolVisual palo;
+  final bool animaciones;
   final VoidCallback? onTap;
 
   static const double _cardW = 78;
@@ -2417,38 +2420,36 @@ class _CartaManoChancho extends StatelessWidget {
       width: _cardW,
       height: _cardH,
     );
-    // Slot fijo: al seleccionar, la carta queda arriba (como en Escoba).
-    final tarjeta = SizedBox(
-      width: _cardW,
-      height: _cardH + _deslizamiento,
-      child: AnimatedAlign(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        alignment:
-            seleccionada ? Alignment.topCenter : Alignment.bottomCenter,
-        child: skin,
-      ),
-    );
-    if (onTap == null) return tarjeta;
-    // Sin hover si no está seleccionada (evita el rectángulo feo).
-    // Con selección, el InkWell pinta el sombreado en el hueco de abajo.
-    if (!seleccionada) {
-      return GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: tarjeta,
-      );
-    }
+    // Árbol estable + AnimatedAlign: si el padre cambia al seleccionar,
+    // la animación se reinicia y la carta “teletransporta”.
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        splashColor: colorSeleccionCartaEspanola.withValues(alpha: 0.25),
-        highlightColor: colorSeleccionCartaEspanola.withValues(alpha: 0.18),
-        hoverColor: colorSeleccionCartaEspanola.withValues(alpha: 0.22),
-        child: tarjeta,
+        splashColor: seleccionada
+            ? colorSeleccionCartaEspanola.withValues(alpha: 0.25)
+            : Colors.transparent,
+        highlightColor: seleccionada
+            ? colorSeleccionCartaEspanola.withValues(alpha: 0.18)
+            : Colors.transparent,
+        hoverColor: seleccionada
+            ? colorSeleccionCartaEspanola.withValues(alpha: 0.22)
+            : Colors.transparent,
+        child: SizedBox(
+          width: _cardW,
+          height: _cardH + _deslizamiento,
+          child: AnimatedAlign(
+            duration: animaciones
+                ? const Duration(milliseconds: 380)
+                : Duration.zero,
+            curve: Curves.easeOutCubic,
+            alignment:
+                seleccionada ? Alignment.topCenter : Alignment.bottomCenter,
+            child: skin,
+          ),
+        ),
       ),
     );
   }
