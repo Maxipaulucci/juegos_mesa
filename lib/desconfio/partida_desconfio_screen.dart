@@ -78,7 +78,9 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     if (resume != null) {
       _partida = resume.partida;
       _nombres = List.of(resume.nombres);
-      _modoDios = resume.modoDios || widget.modoDios;
+      // Seguir con el modo dios de la partida guardada; el del menú
+      // solo se aplica al reiniciar / actualizar partida.
+      _modoDios = resume.modoDios;
     } else {
       _nombres = List.of(widget.nombres);
       _partida = nuevaPartidaDesconfio(

@@ -50,6 +50,10 @@ class MenuDesconfioScreen extends StatelessWidget {
         await _abrir(ctx: ctx, nombres: estado.nombres);
       },
       onVsPc: (ctx, estado, _) {
+        registrarModoDiosMenu(
+          MenuJuegoScreen.juegoIdDesconfio,
+          estado.modoDios,
+        );
         final resumeRaw = DesconfioStandByStore.consumir();
         final resume = resumeRaw != null &&
                 coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
@@ -67,7 +71,9 @@ class MenuDesconfioScreen extends StatelessWidget {
           ctx: ctx,
           nombres: nombres,
           contraPc: true,
-          modoDios: estado.modoDios,
+          // Si reanudás, el modo dios de la partida guardada manda;
+          // el del menú se aplica en partida nueva o al reiniciar.
+          modoDios: resume?.modoDios ?? estado.modoDios,
           dificultad: estado.dificultad,
           resume: resume,
         );
