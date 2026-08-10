@@ -610,10 +610,46 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
             ),
             if (_partida.fase == FaseDesconfio.elegirPalo &&
                 _partida.jugadorActual.nombre == vista.nombre &&
-                !_turnoDePc)
+                !_turnoDePc) ...[
               Positioned.fill(
                 child: _overlayElegirPalo(),
               ),
+              // Solo menú y ajustes por encima del oscuro (no reiniciar).
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => setState(() {
+                            _mostrarMenu = true;
+                            _confirmarRendicion = false;
+                            _mostrarAjustes = false;
+                          }),
+                          icon: const Icon(Icons.menu, color: AppColors.texto),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => setState(() {
+                            _mostrarAjustes = true;
+                            _mostrarMenu = false;
+                          }),
+                          icon: const Icon(
+                            Icons.settings,
+                            color: AppColors.textoSuave,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
             if (_partida.fase == FaseDesconfio.revelando && ur != null)
               Positioned.fill(
                 child: _overlayRevelacion(ur),
