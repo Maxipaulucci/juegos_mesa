@@ -70,6 +70,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   late OpcionesChanchoVa _opciones;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
+  bool _mostrarCartelNumeros = false;
+  final List<int> _borradorNumeros = [];
   late final AnimationController _cronoChancho;
   Timer? _timerChanchaPc;
   Timer? _timerNotiTope;
@@ -659,110 +661,33 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   Future<void> _abrirCartelNumeros() async {
     if (!_puedoElegirNumeros) return;
     if (_partida.fase != FaseChancho.eligiendoNumeros) return;
-
-    final elegidos = <int>[];
-    final cupo = _partida.cantidadJugadores;
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialog) {
-            return AlertDialog(
-              backgroundColor: AppColors.carta,
-              title: Text(
-                '${TextosChancho.eligeNumeros} ($cupo)',
-                style: const TextStyle(
-                  color: AppColors.acento,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final n in numerosChanchoDisponibles)
-                          Builder(
-                            builder: (context) {
-                              final sel = elegidos.contains(n);
-                              return Opacity(
-                                opacity: sel ? 0.4 : 1,
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    setDialog(() {
-                                      if (sel) {
-                                        elegidos.remove(n);
-                                      } else if (elegidos.length < cupo) {
-                                        elegidos.add(n);
-                                      }
-                                    });
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.texto,
-                                    side: BorderSide(
-                                      color: sel
-                                          ? AppColors.acento
-                                          : AppColors.cartaBorde,
-                                      width: sel ? 2 : 1.2,
-                                    ),
-                                    minimumSize: const Size(44, 44),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '$n',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      elegidos.isEmpty
-                          ? 'Cartas con N°:'
-                          : 'Cartas con N°: ${elegidos.join('-')}',
-                      style: const TextStyle(
-                        color: AppColors.texto,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                FilledButton(
-                  onPressed: elegidos.length == cupo
-                      ? () => Navigator.pop(ctx, true)
-                      : null,
-                  child: const Text(TextosChancho.confirmarNumeros),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-    if (ok != true || !mounted) return;
-    final err = aplicarNumerosElegidosChancho(
-      _partida,
-      List.of(elegidos),
-    );
+    if (_mostrarCartelNumeros) return;
     setState(() {
+      _borradorNumeros.clear();
+      _mostrarCartelNumeros = true;
+    });
+  }
+
+  void _toggleNumeroBorrador(int n) {
+    final cupo = _partida.cantidadJugadores;
+    setState(() {
+      if (_borradorNumeros.contains(n)) {
+        _borradorNumeros.remove(n);
+      } else if (_borradorNumeros.length < cupo) {
+        _borradorNumeros.add(n);
+      }
+    });
+  }
+
+  void _confirmarNumerosCartel() {
+    if (!_mostrarCartelNumeros) return;
+    final cupo = _partida.cantidadJugadores;
+    if (_borradorNumeros.length != cupo) return;
+    final elegidos = List<int>.of(_borradorNumeros);
+    final err = aplicarNumerosElegidosChancho(_partida, elegidos);
+    setState(() {
+      _mostrarCartelNumeros = false;
+      _borradorNumeros.clear();
       _numerosElegidos
         ..clear()
         ..addAll(elegidos);
@@ -1359,6 +1284,8 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
       _objetivoChancha = null;
       _mostrarMenu = false;
       _mostrarAjustes = false;
+      _mostrarCartelNumeros = false;
+      _borradorNumeros.clear();
     });
     if (_esOnline) {
       unawaited(_publicarEstadoOnline(forzar: true));
@@ -1891,6 +1818,75 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                   ),
                 ),
               ),
+            if (_mostrarCartelNumeros)
+              Positioned.fill(
+                child: _overlayElegirNumeros(),
+              ),
+            if (_partida.enFinRonda)
+              Positioned.fill(
+                child: _conBarraSuperiorLibre(
+                  child: FinRondaChanchoOverlay(
+                    partida: _partida,
+                    onContinuar: _continuarTrasFinRonda,
+                    continuarHabilitado: !_esOnline || _soyAnfitrionOnline,
+                    labelContinuar: _esOnline && !_soyAnfitrionOnline
+                        ? 'ESPERANDO AL ANFITRIÓN…'
+                        : null,
+                  ),
+                ),
+              ),
+            // Copia de menú/ajustes encima de carteles (números, fin de ronda).
+            if (!_partida.terminada &&
+                (_mostrarCartelNumeros || _partida.enFinRonda) &&
+                !_mostrarMenu &&
+                !_mostrarAjustes)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => setState(() {
+                            _mostrarMenu = true;
+                            _mostrarAjustes = false;
+                          }),
+                          icon: const Icon(Icons.menu, color: AppColors.texto),
+                        ),
+                        const Spacer(),
+                        if (widget.contraPc && !_esOnline)
+                          BotonReiniciarPartidaPc(
+                            onPressed: _pedirReiniciarVsPc,
+                          ),
+                        IconButton(
+                          onPressed: () => setState(() {
+                            _mostrarAjustes = true;
+                            _mostrarMenu = false;
+                          }),
+                          icon: const Icon(
+                            Icons.settings,
+                            color: AppColors.textoSuave,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (_partida.terminada)
+              Positioned.fill(
+                child: VictoriaChanchoOverlay(
+                  partida: _partida,
+                  animaciones: _ajustes.animaciones,
+                  onVolverAJugar: _reiniciar,
+                  onVolver: () => _salir(guardar: false),
+                ),
+              ),
+            // Menú y ajustes por encima de carteles de juego.
             if (_mostrarAjustes)
               Positioned.fill(
                 child: AjustesOverlay(
@@ -1918,27 +1914,129 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                   },
                 ),
               ),
-            if (_partida.enFinRonda)
-              Positioned.fill(
-                child: FinRondaChanchoOverlay(
-                  partida: _partida,
-                  onContinuar: _continuarTrasFinRonda,
-                  continuarHabilitado: !_esOnline || _soyAnfitrionOnline,
-                  labelContinuar: _esOnline && !_soyAnfitrionOnline
-                      ? 'ESPERANDO AL ANFITRIÓN…'
-                      : null,
-                ),
-              ),
-            if (_partida.terminada)
-              Positioned.fill(
-                child: VictoriaChanchoOverlay(
-                  partida: _partida,
-                  animaciones: _ajustes.animaciones,
-                  onVolverAJugar: _reiniciar,
-                  onVolver: () => _salir(guardar: false),
-                ),
-              ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Deja clickeable la barra superior (menú / ajustes).
+  Widget _conBarraSuperiorLibre({required Widget child}) {
+    final topLibre = MediaQuery.paddingOf(context).top + 56;
+    return Column(
+      children: [
+        IgnorePointer(child: SizedBox(height: topLibre)),
+        Expanded(child: child),
+      ],
+    );
+  }
+
+  /// Cartel de números: deja libre la barra superior (menú / ajustes).
+  Widget _overlayElegirNumeros() {
+    final cupo = _partida.cantidadJugadores;
+    return _conBarraSuperiorLibre(
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.72),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF3B1D6E),
+                      Color(0xFF1A0A33),
+                      Color(0xFF2A1050),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppColors.acento, width: 2),
+                  boxShadow: neonGlow(AppColors.acento, blur: 18),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '${TextosChancho.eligeNumeros} ($cupo)',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.acento,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (final n in numerosChanchoDisponibles)
+                          Builder(
+                            builder: (context) {
+                              final sel = _borradorNumeros.contains(n);
+                              return Opacity(
+                                opacity: sel ? 0.45 : 1,
+                                child: OutlinedButton(
+                                  onPressed: () => _toggleNumeroBorrador(n),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.texto,
+                                    side: BorderSide(
+                                      color: sel
+                                          ? AppColors.acento
+                                          : AppColors.cartaBorde,
+                                      width: sel ? 2 : 1.2,
+                                    ),
+                                    minimumSize: const Size(44, 44),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$n',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _borradorNumeros.isEmpty
+                          ? 'Cartas con N°:'
+                          : 'Cartas con N°: ${_borradorNumeros.join('-')}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.texto,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _borradorNumeros.length == cupo
+                          ? _confirmarNumerosCartel
+                          : null,
+                      child: const Text(TextosChancho.confirmarNumeros),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
