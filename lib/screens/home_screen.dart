@@ -14,6 +14,7 @@ import '../casitaRobada/menu_casita_robada_screen.dart';
 import '../chanchoVa/menu_chancho_va_screen.dart';
 import '../desconfio/menu_desconfio_screen.dart';
 import '../guerraDeCartas/menu_guerra_screen.dart';
+import '../jodete/menu_jodete_screen.dart';
 import '../unoSolo/menu_uno_solo_screen.dart';
 
 enum _CategoriaHome {
@@ -184,10 +185,9 @@ class _HomeScreenState extends State<HomeScreen>
     _JuegoHome(
       tipo: _TipoJuegoHome.jodete,
       titulo: 'Jodete',
-      subtitulo: 'Próximamente',
+      subtitulo: 'Españolas · 50 cartas',
       accent: AppColors.peligro,
       categoria: _CategoriaHome.cartasEspanolas,
-      enabled: false,
     ),
   ];
 
@@ -361,8 +361,13 @@ class _HomeScreenState extends State<HomeScreen>
               acento: AppColors.azulSuave,
               mensaje: 'Desconfío',
             );
-      case _TipoJuegoHome.canasta:
       case _TipoJuegoHome.jodete:
+        return () => _abrirJuego(
+              menu: const MenuJodeteScreen(),
+              acento: AppColors.peligro,
+              mensaje: 'Jodete',
+            );
+      case _TipoJuegoHome.canasta:
         return null;
     }
   }
