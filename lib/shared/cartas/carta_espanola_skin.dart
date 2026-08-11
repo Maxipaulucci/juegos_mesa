@@ -177,59 +177,82 @@ class CartaEspanolaSkin extends StatelessWidget {
             ),
         ],
       ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: compacta ? 2 : 4,
-          vertical: compacta ? 2 : 6,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            iconoPaloEspanol(
-              palo,
-              size: compacta ? 14 : 26,
-              color: color,
-            ),
-            SizedBox(height: compacta ? 2 : 6),
-            Text(
-              compacta ? '$numero' : etiqueta,
-              textAlign: TextAlign.center,
-              maxLines: compacta ? 1 : 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: resaltarPeligro ? AppColors.peligro : AppColors.texto,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
-              ),
-            ),
-            if (subtitulo != null && !compacta) ...[
-              const SizedBox(height: 3),
-              Text(
-                subtitulo!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: color.withValues(alpha: 0.95),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 10,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Con manos chicas (p. ej. 3 PCs) el alto real puede ser < 80.
+          final alto = constraints.maxHeight;
+          final usarCompacto = compacta || alto < 78;
+          final padH = usarCompacto ? 2.0 : 4.0;
+          final padV = usarCompacto ? 2.0 : (alto < 90 ? 4.0 : 6.0);
+          final iconSize = usarCompacto ? 14.0 : (alto < 90 ? 20.0 : 26.0);
+          final gap = usarCompacto ? 2.0 : (alto < 90 ? 4.0 : 6.0);
+          final mostrarPeligro =
+              resaltarPeligro && !usarCompacto && subtitulo == null && alto >= 78;
+
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: (constraints.maxWidth - padH * 2).clamp(1, 400),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    iconoPaloEspanol(
+                      palo,
+                      size: iconSize,
+                      color: color,
+                    ),
+                    SizedBox(height: gap),
+                    Text(
+                      usarCompacto ? '$numero' : etiqueta,
+                      textAlign: TextAlign.center,
+                      maxLines: usarCompacto ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: resaltarPeligro
+                            ? AppColors.peligro
+                            : AppColors.texto,
+                        fontSize: usarCompacto ? 11 : 11,
+                        fontWeight: FontWeight.w900,
+                        height: 1.1,
+                      ),
+                    ),
+                    if (subtitulo != null && !usarCompacto) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitulo!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: color.withValues(alpha: 0.95),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                    if (mostrarPeligro) ...[
+                      const SizedBox(height: 3),
+                      const Text(
+                        '¡CULO SUCIO!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.peligro,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 7,
+                          letterSpacing: 0.4,
+                          height: 1.0,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ],
-            if (resaltarPeligro && !compacta && subtitulo == null) ...[
-              const SizedBox(height: 4),
-              const Text(
-                '¡CULO SUCIO!',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.peligro,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 7,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ],
-          ],
-        ),
+            ),
+          );
+        },
       ),
     );
   }
