@@ -46,6 +46,82 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
               ),
               info: TextosJodete.infoLevantarHastaTirar,
             ),
+            const SizedBox(height: 8),
+            FilaToggleModificarPartida(
+              titulo: 'Puntaje por cartas (a 100)',
+              activo: draft.puntajePorCartas,
+              onChanged: (v) => setDialogState(
+                () => draft = draft.copyWith(puntajePorCartas: v),
+              ),
+              info: TextosJodete.infoPuntajePorCartas,
+            ),
+            const SizedBox(height: 14),
+            Opacity(
+              opacity: draft.puntajePorCartas ? 0.45 : 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          draft.puntajePorCartas
+                              ? 'Jugar a (modo cartas: 100)'
+                              : 'Jugar a',
+                          style: const TextStyle(
+                            color: AppColors.texto,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Ayuda',
+                        onPressed: () => mostrarInfoModificarPartida(
+                          dialogContext,
+                          titulo: 'Jugar a',
+                          cuerpo: TextosJodete.infoObjetivo,
+                        ),
+                        icon: const Icon(
+                          Icons.help_outline_rounded,
+                          color: AppColors.textoSuave,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final pts in OpcionesJodete.objetivosPermitidos)
+                        ChoiceChip(
+                          label: Text(
+                            '$pts puntos',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: !draft.puntajePorCartas &&
+                                      draft.objetivoClamped == pts
+                                  ? const Color(0xFF062018)
+                                  : AppColors.texto,
+                            ),
+                          ),
+                          selected: !draft.puntajePorCartas &&
+                              draft.objetivoClamped == pts,
+                          selectedColor: AppColors.mint,
+                          backgroundColor: const Color(0xFF3A2A58),
+                          onSelected: draft.puntajePorCartas
+                              ? null
+                              : (_) => setDialogState(
+                                    () =>
+                                        draft = draft.copyWith(objetivo: pts),
+                                  ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
         );
       },

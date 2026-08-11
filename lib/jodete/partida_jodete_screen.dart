@@ -7,9 +7,11 @@ import 'package:app_juegos_mesa/jodete/ia_jodete.dart';
 import 'package:app_juegos_mesa/jodete/menu_partida_jodete.dart';
 import 'package:app_juegos_mesa/jodete/motor_jodete.dart';
 import 'package:app_juegos_mesa/jodete/opciones_jodete.dart';
+import 'package:app_juegos_mesa/jodete/resumen_ronda_jodete_overlay.dart';
 import 'package:app_juegos_mesa/jodete/standby_store.dart';
 import 'package:app_juegos_mesa/jodete/textos.dart';
 import 'package:app_juegos_mesa/jodete/victoria_jodete_overlay.dart';
+import 'package:app_juegos_mesa/escobaDel15/marcador_palitos.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
@@ -63,6 +65,9 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   bool _yaActuoEsteTurno = false;
   int _turnoDeLaAccion = -1;
 
+  /// Tras “VER GANADOR” en el resumen de la ronda final.
+  bool _resumenCerrado = false;
+
   /// Overlay central (estilo Culo sucio v2) cuando la PC tira o levanta.
   CartaJodete? _cartaOverlayPc;
   String? _tituloOverlayPc;
@@ -83,19 +88,28 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
 
   bool get _turnoDePc =>
       widget.contraPc &&
-      !_partida.terminada &&
+      _partida.jugando &&
       esNombrePc(_partida.jugadorActual.nombre);
 
   bool get _puedeJugarHumano {
     _asegurarFlagTurno();
-    return !_partida.terminada &&
+    return _partida.jugando &&
         !_turnoDePc &&
         !_jugandoPc &&
         !_esperandoCambioJugador &&
         !_eligiendoPalo &&
         !_yaActuoEsteTurno &&
-        _partida.jugadorActual.activo;
+        _partida.jugadorActual.enJuego;
   }
+
+  bool get _mostrarResumenRonda =>
+      _partida.ultimoResultado != null &&
+      !_resumenCerrado &&
+      (_partida.enFinRonda || _partida.terminada);
+
+  bool get _mostrarVictoria =>
+      _partida.terminada &&
+      (_resumenCerrado || _partida.ultimoResultado == null);
 
   void _asegurarFlagTurno() {
     final t = _partida.indiceTurno;
@@ -137,6 +151,8 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         contraPc: widget.contraPc,
         rng: _rng,
         incluirComodines: _opciones.comodines,
+        objetivo: _opciones.objetivoEfectivo,
+        puntajePorCartas: _opciones.puntajePorCartas,
       );
     }
     if (_esLocalHotSeat) {
@@ -191,6 +207,8 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         contraPc: widget.contraPc,
         rng: _rng,
         incluirComodines: _opciones.comodines,
+        objetivo: _opciones.objetivoEfectivo,
+        puntajePorCartas: _opciones.puntajePorCartas,
       );
       _seleccion = null;
       _mostrarMenu = false;
@@ -202,6 +220,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       _jugandoPc = false;
       _yaActuoEsteTurno = false;
       _turnoDeLaAccion = -1;
+      _resumenCerrado = false;
       _limpiarOverlayPc();
     });
     _talVezPc();
@@ -228,7 +247,11 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         ),
         content: SingleChildScrollView(
           child: Text(
-            reglasJodete(comodines: _opciones.comodines),
+            reglasJodete(
+              comodines: _opciones.comodines,
+              objetivo: _partida.objetivo,
+              puntajePorCartas: _partida.puntajePorCartas,
+            ),
             style: const TextStyle(color: AppColors.texto, height: 1.35),
           ),
         ),
@@ -370,8 +393,13 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   bool get _hastaPoderTirar => _opciones.levantarHastaTirar;
 
   void _despuesDeJugada(int indiceAntes) {
-    if (_partida.terminada) {
-      setState(() {});
+    if (_partida.terminada || _partida.enFinRonda) {
+      setState(() {
+        _seleccion = null;
+        _eligiendoPalo = false;
+        _cartaPendientePalo = null;
+        _esperandoCambioJugador = false;
+      });
       return;
     }
     if (_esLocalHotSeat &&
@@ -388,6 +416,28 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       return;
     }
     _talVezPc();
+  }
+
+  void _continuarRonda() {
+    if (_partida.terminada) {
+      setState(() => _resumenCerrado = true);
+      return;
+    }
+    if (!_partida.enFinRonda) return;
+    setState(() {
+      siguienteRondaJodete(_partida, _rng);
+      _seleccion = null;
+      _eligiendoPalo = false;
+      _cartaPendientePalo = null;
+      _yaActuoEsteTurno = false;
+      _turnoDeLaAccion = -1;
+      _resumenCerrado = false;
+      _limpiarOverlayPc();
+      _esperandoCambioJugador = _esLocalHotSeat;
+    });
+    if (!_esperandoCambioJugador) {
+      _talVezPc();
+    }
   }
 
   void _limpiarOverlayPc() {
@@ -414,7 +464,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   }
 
   Future<void> _talVezPc() async {
-    if (!_turnoDePc || _partida.terminada || _jugandoPc) return;
+    if (!_turnoDePc || !_partida.jugando || _jugandoPc) return;
     final token = ++_pcToken;
     _jugandoPc = true;
     await Future<void>.delayed(const Duration(milliseconds: 550));
@@ -426,7 +476,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     while (mounted &&
         token == _pcToken &&
         _turnoDePc &&
-        !_partida.terminada) {
+        _partida.jugando) {
       final plan = planificarJugadaPcJodete(
         _partida,
         dificultad: _dificultad,
@@ -468,7 +518,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       }
       if (!mounted || token != _pcToken) break;
       setState(() {});
-      if (_partida.terminada) break;
+      if (!_partida.jugando) break;
       // Misma PC sigue (no debería pasar con 1 carta/turno, salvo bug).
       if (_partida.indiceTurno == idxAntes && _turnoDePc) {
         await Future<void>.delayed(const Duration(milliseconds: 400));
@@ -790,7 +840,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                     paloVisual: _paloVisual,
                   ),
                 ),
-              if (_esperandoCambioJugador && !_partida.terminada)
+              if (_esperandoCambioJugador && _partida.jugando)
                 Positioned.fill(
                   child: CambioJugadorOverlay(
                     nombreJugador: actual.nombre,
@@ -802,6 +852,14 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                         _talVezPc();
                       }
                     },
+                  ),
+                ),
+              if (_mostrarResumenRonda)
+                Positioned.fill(
+                  child: ResumenRondaJodeteOverlay(
+                    resultado: _partida.ultimoResultado!,
+                    onContinuar: _continuarRonda,
+                    esFinPartida: _partida.terminada,
                   ),
                 ),
               if (_mostrarAjustes)
@@ -849,14 +907,14 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                         setState(() => _confirmarRendicion = false),
                   ),
                 ),
-              if (_partida.terminada)
+              if (_mostrarVictoria)
                 Positioned.fill(
                   child: VictoriaJodeteOverlay(
                     partida: _partida,
                     gane: !widget.contraPc ||
                         _partida.ganador == _humanoPrincipal.nombre,
                     animaciones: _ajustes.animaciones,
-                    onOtraVez: _reiniciar,
+                    onVolverAJugar: _reiniciar,
                     onVolver: () => _salirAlMenu(guardar: false),
                   ),
                 ),
@@ -870,34 +928,52 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   }
 
   Widget _chipJugador(JugadorJodete j) {
-    final turno = _partida.jugadorActual.nombre == j.nombre;
+    final turno = _partida.jugando &&
+        _partida.jugadorActual.nombre == j.nombre &&
+        j.enJuego;
     final ver = _modoDiosActivo && esNombrePc(j.nombre);
+    final fuera = j.rendido || j.puestoRonda != null;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
         color: AppColors.carta.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: turno ? AppColors.peligro : AppColors.cartaBorde,
+          color: turno
+              ? AppColors.mint
+              : AppColors.textoSuave.withValues(alpha: 0.3),
           width: turno ? 2 : 1,
         ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            j.rendido ? '${j.nombre} (X)' : j.nombre,
+            j.rendido
+                ? '${j.nombre} (fuera)'
+                : (j.puestoRonda != null
+                    ? '${j.nombre} (${j.puestoRonda}º)'
+                    : j.nombre),
             style: TextStyle(
-              color: j.rendido ? AppColors.textoSuave : AppColors.texto,
+              color: fuera ? AppColors.textoSuave : AppColors.texto,
               fontWeight: FontWeight.w800,
               fontSize: 12,
+              decoration: j.rendido ? TextDecoration.lineThrough : null,
             ),
           ),
+          const SizedBox(height: 4),
+          MarcadorPalitosEscoba(
+            puntos: j.puntos,
+            color: AppColors.acento,
+            tamanoGrupo: 22,
+          ),
           Text(
-            '${j.mano.length} cartas',
+            '${j.puntos} pts · ${j.mano.length} cartas',
             style: const TextStyle(
               color: AppColors.textoSuave,
-              fontSize: 11,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
             ),
           ),
           if (ver && j.mano.isNotEmpty)

@@ -32,17 +32,38 @@ abstract final class TextosJodete {
       'y te deja elegir el palo.\n\n'
       'Desactivado: mazo de 48 cartas, sin comodines.';
 
+  static const infoObjetivo =
+      'Puntos necesarios para ganar la partida (modo por puestos).\n\n'
+      'Por defecto se juega a 30. También podés elegir 15 '
+      '(partida más corta).\n\n'
+      'Si activás “Puntaje por cartas (a 100)”, este valor no aplica.';
+
+  static const infoPuntajePorCartas =
+      'Activado: al terminar la ronda, el 1º (quien se quedó sin cartas '
+      'primero) suma el valor de las cartas que quedan en las manos de '
+      'los demás. Gana quien llega a 100 puntos.\n\n'
+      'Valor de las cartas:\n'
+      '· Número (1, 3–9): su valor\n'
+      '· 2, 10, 11 y 12: 20 puntos\n'
+      '· Comodín: 50 puntos\n\n'
+      'Desactivado: se usan los puntos por puesto (15 o 30).';
+
   static const infoLevantarHastaTirar =
       'Activado: si no tenés ninguna carta para tirar, levantás del mazo '
       'hasta que te toque una jugable y podés tirarla en el mismo turno.\n\n'
       'Desactivado (clásico): levantás solo 1 carta y pasás el turno.';
 
   static const reglaCorta =
-      'Mazo español (con o sin comodines). Tirás mismo palo o número. '
-      'Gana quien se queda sin cartas.';
+      'Mazo español. Tirás mismo palo o número. '
+      'Se anotan puntos por ronda; gana quien llega al objetivo.';
 }
 
-String reglasJodete({bool comodines = true}) => '''
+String reglasJodete({
+  bool comodines = true,
+  int objetivo = 30,
+  bool puntajePorCartas = false,
+}) =>
+    '''
 · Se juega con mazo español de ${comodines ? '50' : '48'} cartas (1 al 12
   en oro, copa, espada y basto${comodines ? ', más 2 comodines' : ''}).
 
@@ -65,5 +86,17 @@ ${comodines ? '  - Comodín → el siguiente levanta 5, pierde el turno, y eleg�
   “Levantar hasta tirar” en Modificar partida, levantás hasta sacar una
   jugable y la tirás en el mismo turno).
 
-· Gana quien se queda sin cartas.
+${puntajePorCartas ? '''· Puntaje por cartas (activado): el 1º de la ronda suma el valor de las
+  cartas que quedan en las demás manos.
+  Valores: número = su cifra; 2/10/11/12 = 20; comodín = 50.
+  Gana quien primero llega a $objetivo puntos.''' : '''· Puntos por ronda (quien se queda sin cartas antes):
+  - 2 jugadores: 1º +1 · 2º +0
+  - 3 jugadores: 1º +2 · 2º +1 · 3º +0
+  - 4 jugadores: 1º +3 · 2º +2 · 3º +1 · 4º +0
+  Con 3 o 4, la ronda sigue hasta que quede uno con cartas.
+
+· Gana la partida quien primero llega a $objetivo puntos (15 o 30 en
+  Modificar partida).'''}
+
+· Los puntos se marcan con palitos en la tarjeta de cada jugador.
 '''.trim();

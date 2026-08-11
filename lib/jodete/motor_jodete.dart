@@ -4,7 +4,7 @@ import 'dart:math' as math;
 
 enum PaloJodete { oro, copa, espada, basto }
 
-enum FaseJodete { jugando, terminada }
+enum FaseJodete { jugando, finRonda, ganado }
 
 enum SentidoJodete { horario, antihorario }
 
@@ -77,8 +77,39 @@ class JugadorJodete {
   String nombre;
   final List<CartaJodete> mano = [];
   bool rendido = false;
+  /// Puntos acumulados de la partida.
+  int puntos = 0;
+  /// Puesto en la ronda actual (1 = primero en quedarse sin cartas).
+  int? puestoRonda;
 
   bool get activo => !rendido;
+
+  /// Sigue jugando esta ronda (no se rindió ni ya se quedó sin cartas).
+  bool get enJuego => !rendido && puestoRonda == null;
+}
+
+/// Detalle de un jugador al cerrar la ronda (para el overlay).
+class DetalleJugadorRondaJodete {
+  const DetalleJugadorRondaJodete({
+    required this.nombre,
+    required this.puesto,
+    required this.puntosGanados,
+    required this.puntosTrasRonda,
+    this.detallePuntos,
+  });
+
+  final String nombre;
+  final int puesto;
+  final int puntosGanados;
+  final int puntosTrasRonda;
+  /// Texto extra (p. ej. “cartas rivales”).
+  final String? detallePuntos;
+}
+
+class ResultadoRondaJodete {
+  const ResultadoRondaJodete({required this.detalles});
+
+  final List<DetalleJugadorRondaJodete> detalles;
 }
 
 class PartidaJodete {
@@ -95,6 +126,11 @@ class PartidaJodete {
     this.contraPc = false,
     this.ultimaJugada,
     this.pendienteDos = 0,
+    this.objetivo = 30,
+    this.incluirComodines = true,
+    this.cartasIniciales = 7,
+    this.puntajePorCartas = false,
+    this.ultimoResultado,
   });
 
   final List<JugadorJodete> jugadores;
@@ -110,8 +146,19 @@ class PartidaJodete {
   String? ultimaJugada;
   /// Cartas acumuladas por doses apilados; el turno actual debe tirar un 2 o levantarlas.
   int pendienteDos;
+  /// Primero en llegar a este puntaje gana la partida.
+  final int objetivo;
+  final bool incluirComodines;
+  final int cartasIniciales;
+  /// Si true, el 1º suma el valor de las cartas rivales (objetivo 100).
+  final bool puntajePorCartas;
+  ResultadoRondaJodete? ultimoResultado;
 
-  bool get terminada => fase == FaseJodete.terminada;
+  bool get terminada => fase == FaseJodete.ganado;
+
+  bool get enFinRonda => fase == FaseJodete.finRonda;
+
+  bool get jugando => fase == FaseJodete.jugando;
 
   bool get hayPendienteDos => pendienteDos > 0;
 
@@ -122,6 +169,33 @@ class PartidaJodete {
 
   List<JugadorJodete> get activos =>
       jugadores.where((j) => j.activo).toList();
+
+  List<JugadorJodete> get enJuego =>
+      jugadores.where((j) => j.enJuego).toList();
+}
+
+/// Valor de una carta para el modo “puntaje por cartas”.
+int valorCartaJodete(CartaJodete c) {
+  if (c.esComodin) return 50;
+  final n = c.numero;
+  if (n == null) return 0;
+  if (n == 2 || n == 10 || n == 11 || n == 12) return 20;
+  return n;
+}
+
+int valorManoJodete(Iterable<CartaJodete> mano) {
+  var t = 0;
+  for (final c in mano) {
+    t += valorCartaJodete(c);
+  }
+  return t;
+}
+
+/// Puntos según puesto (1º, 2º, …) y cantidad de jugadores de la ronda.
+/// 2j: 1-0 · 3j: 2-1-0 · 4j: 3-2-1-0
+int puntosPorPuestoJodete(int nJugadores, int puesto) {
+  if (puesto < 1 || nJugadores < 2) return 0;
+  return math.max(0, nJugadores - puesto);
 }
 
 List<CartaJodete> crearMazoJodete({
@@ -144,12 +218,76 @@ List<CartaJodete> crearMazoJodete({
 
 bool cartaEspecialParaInicio(CartaJodete c) => c.esEspecialInicio;
 
+void _repartirInicioJodete(PartidaJodete p, math.Random r) {
+  p.mazo
+    ..clear()
+    ..addAll(
+      crearMazoJodete(rng: r, incluirComodines: p.incluirComodines),
+    );
+  p.descarte.clear();
+  p.pendienteDos = 0;
+  p.sentido = SentidoJodete.horario;
+  p.ganador = null;
+  p.mensajeFin = null;
+
+  for (final j in p.jugadores) {
+    j.mano.clear();
+    j.puestoRonda = null;
+    // Rendidos quedan fuera de la partida entera.
+  }
+
+  final vivos = p.activos;
+  for (var i = 0; i < p.cartasIniciales; i++) {
+    for (final j in vivos) {
+      if (p.mazo.isEmpty) break;
+      j.mano.add(p.mazo.removeLast());
+    }
+  }
+
+  CartaJodete? inicio;
+  final reservadas = <CartaJodete>[];
+  while (p.mazo.isNotEmpty) {
+    final c = p.mazo.removeLast();
+    if (!cartaEspecialParaInicio(c)) {
+      inicio = c;
+      break;
+    }
+    reservadas.add(c);
+  }
+  p.mazo.addAll(reservadas);
+  p.mazo.shuffle(r);
+
+  inicio ??= () {
+    for (var i = p.mazo.length - 1; i >= 0; i--) {
+      if (!p.mazo[i].esComodin) {
+        return p.mazo.removeAt(i);
+      }
+    }
+    return p.mazo.removeLast();
+  }();
+
+  p.descarte.add(inicio);
+  p.paloVigente = inicio.palo ?? PaloJodete.oro;
+  p.ultimaJugada = 'Inicio: ${inicio.etiqueta}';
+  p.fase = FaseJodete.jugando;
+
+  // Empieza un vivo al azar (o el primero).
+  if (vivos.isEmpty) {
+    p.indiceTurno = 0;
+  } else {
+    final idx = p.jugadores.indexOf(vivos[r.nextInt(vivos.length)]);
+    p.indiceTurno = idx < 0 ? 0 : idx;
+  }
+}
+
 PartidaJodete nuevaPartidaJodete({
   required List<String> nombres,
   bool contraPc = false,
   math.Random? rng,
   int cartasIniciales = 7,
   bool incluirComodines = true,
+  int objetivo = 30,
+  bool puntajePorCartas = false,
 }) {
   final r = rng ?? math.Random();
   final lista = nombres.isEmpty
@@ -160,57 +298,31 @@ PartidaJodete nuevaPartidaJodete({
   }
 
   final jugadores = [for (final n in lista) JugadorJodete(n)];
-  final mazo = crearMazoJodete(
-    rng: r,
-    incluirComodines: incluirComodines,
-  );
-
-  for (var i = 0; i < cartasIniciales; i++) {
-    for (final j in jugadores) {
-      if (mazo.isEmpty) break;
-      j.mano.add(mazo.removeLast());
-    }
-  }
-
-  // Primera carta del descarte: no especial.
-  CartaJodete? inicio;
-  final reservadas = <CartaJodete>[];
-  while (mazo.isNotEmpty) {
-    final c = mazo.removeLast();
-    if (!cartaEspecialParaInicio(c)) {
-      inicio = c;
-      break;
-    }
-    reservadas.add(c);
-  }
-  mazo.addAll(reservadas);
-  mazo.shuffle(r);
-
-  // Si todo fue especial (casi imposible), forzar la primera no-comodín.
-  inicio ??= () {
-    for (var i = mazo.length - 1; i >= 0; i--) {
-      if (!mazo[i].esComodin) {
-        return mazo.removeAt(i);
-      }
-    }
-    return mazo.removeLast();
-  }();
-
-  final descarte = <CartaJodete>[inicio];
-  final palo = inicio.palo ?? PaloJodete.oro;
-
-  return PartidaJodete(
+  final p = PartidaJodete(
     jugadores: jugadores,
-    mazo: mazo,
-    descarte: descarte,
-    paloVigente: palo,
+    mazo: [],
+    descarte: [],
+    paloVigente: PaloJodete.oro,
     contraPc: contraPc,
-    ultimaJugada: 'Inicio: ${inicio.etiqueta}',
+    objetivo: objetivo,
+    incluirComodines: incluirComodines,
+    cartasIniciales: cartasIniciales,
+    puntajePorCartas: puntajePorCartas,
   );
+  _repartirInicioJodete(p, r);
+  return p;
+}
+
+/// Siguiente ronda: conserva puntos; vuelve a repartir.
+void siguienteRondaJodete(PartidaJodete p, [math.Random? rng]) {
+  if (p.fase == FaseJodete.ganado) return;
+  final r = rng ?? math.Random();
+  p.ultimoResultado = null;
+  _repartirInicioJodete(p, r);
 }
 
 bool puedeJugarCartaJodete(PartidaJodete p, CartaJodete c) {
-  if (p.terminada) return false;
+  if (!p.jugando) return false;
   // Con doses pendientes solo se puede responder con otro 2.
   if (p.hayPendienteDos) return c.esDos;
   if (c.esComodin) return true;
@@ -223,6 +335,7 @@ bool puedeJugarCartaJodete(PartidaJodete p, CartaJodete c) {
 }
 
 List<CartaJodete> cartasJugablesJodete(PartidaJodete p, JugadorJodete j) {
+  if (!p.jugando || !j.enJuego) return const [];
   return [for (final c in j.mano) if (puedeJugarCartaJodete(p, c)) c];
 }
 
@@ -237,7 +350,12 @@ void _reciclarMazoSiHaceFalta(PartidaJodete p, math.Random rng) {
   p.mazo.shuffle(rng);
 }
 
-List<CartaJodete> _robar(PartidaJodete p, JugadorJodete j, int n, math.Random rng) {
+List<CartaJodete> _robar(
+  PartidaJodete p,
+  JugadorJodete j,
+  int n,
+  math.Random rng,
+) {
   final robadas = <CartaJodete>[];
   for (var i = 0; i < n; i++) {
     _reciclarMazoSiHaceFalta(p, rng);
@@ -249,7 +367,7 @@ List<CartaJodete> _robar(PartidaJodete p, JugadorJodete j, int n, math.Random rn
   return robadas;
 }
 
-int _indiceSiguienteActivo(PartidaJodete p, {int desde = -1, int saltos = 1}) {
+int _indiceSiguienteEnJuego(PartidaJodete p, {int desde = -1, int saltos = 1}) {
   final n = p.jugadores.length;
   if (n == 0) return 0;
   var idx = desde < 0 ? p.indiceTurno : desde;
@@ -260,28 +378,140 @@ int _indiceSiguienteActivo(PartidaJodete p, {int desde = -1, int saltos = 1}) {
     guard++;
     idx = (idx + dir) % n;
     if (idx < 0) idx += n;
-    if (p.jugadores[idx].activo) hechos++;
+    if (p.jugadores[idx].enJuego) hechos++;
   }
   return idx;
 }
 
 void _avanzarTurno(PartidaJodete p, {int saltos = 1}) {
-  p.indiceTurno = _indiceSiguienteActivo(p, saltos: saltos);
+  p.indiceTurno = _indiceSiguienteEnJuego(p, saltos: saltos);
 }
 
-void _chequearVictoria(PartidaJodete p, JugadorJodete j) {
-  if (j.mano.isEmpty && j.activo) {
-    p.fase = FaseJodete.terminada;
-    p.ganador = j.nombre;
-    p.mensajeFin = '¡${j.nombre} se quedó sin cartas!';
-    return;
+int _siguientePuesto(PartidaJodete p) {
+  var maxP = 0;
+  for (final j in p.jugadores) {
+    final puesto = j.puestoRonda;
+    if (puesto != null && puesto > maxP) maxP = puesto;
   }
-  final vivos = p.activos;
-  if (vivos.length == 1) {
-    p.fase = FaseJodete.terminada;
-    p.ganador = vivos.first.nombre;
-    p.mensajeFin = '¡${vivos.first.nombre} gana por rendición!';
+  return maxP + 1;
+}
+
+void _registrarPuesto(PartidaJodete p, JugadorJodete j) {
+  if (j.puestoRonda != null) return;
+  j.puestoRonda = _siguientePuesto(p);
+}
+
+void puntuarRondaJodete(PartidaJodete p) {
+  // Completar puestos faltantes (p. ej. rendidos).
+  for (final j in p.jugadores) {
+    if (j.puestoRonda == null) {
+      _registrarPuesto(p, j);
+    }
   }
+
+  final nScore = math.max(2, p.jugadores.length);
+  final detalles = <DetalleJugadorRondaJodete>[];
+
+  if (p.puntajePorCartas) {
+    // El 1º suma el valor de las cartas que quedan en las demás manos.
+    JugadorJodete? primero;
+    for (final j in p.jugadores) {
+      if (j.puestoRonda == 1) {
+        primero = j;
+        break;
+      }
+    }
+    var pozoCartas = 0;
+    for (final j in p.jugadores) {
+      if (identical(j, primero)) continue;
+      pozoCartas += valorManoJodete(j.mano);
+    }
+    for (final j in p.jugadores) {
+      final puesto = j.puestoRonda ?? nScore;
+      final esPrimero = identical(j, primero);
+      final sumar = esPrimero ? pozoCartas : 0;
+      j.puntos += sumar;
+      detalles.add(
+        DetalleJugadorRondaJodete(
+          nombre: j.nombre,
+          puesto: puesto,
+          puntosGanados: sumar,
+          puntosTrasRonda: j.puntos,
+          detallePuntos: esPrimero && sumar > 0
+              ? 'Valor de cartas rivales'
+              : (esPrimero ? 'Sin cartas rivales' : null),
+        ),
+      );
+    }
+  } else {
+    for (final j in p.jugadores) {
+      final puesto = j.puestoRonda ?? nScore;
+      final sumar = puntosPorPuestoJodete(nScore, puesto);
+      j.puntos += sumar;
+      detalles.add(
+        DetalleJugadorRondaJodete(
+          nombre: j.nombre,
+          puesto: puesto,
+          puntosGanados: sumar,
+          puntosTrasRonda: j.puntos,
+        ),
+      );
+    }
+  }
+
+  detalles.sort((a, b) => a.puesto.compareTo(b.puesto));
+  p.ultimoResultado = ResultadoRondaJodete(detalles: detalles);
+
+  var maxPts = -1;
+  for (final j in p.jugadores) {
+    if (j.puntos > maxPts) maxPts = j.puntos;
+  }
+  final lideres = [
+    for (final j in p.jugadores)
+      if (j.puntos == maxPts && j.puntos >= p.objetivo) j,
+  ];
+  if (lideres.length == 1) {
+    p.fase = FaseJodete.ganado;
+    p.ganador = lideres.first.nombre;
+    p.mensajeFin =
+        '${lideres.first.nombre} llegó a ${lideres.first.puntos} puntos.';
+  } else {
+    p.fase = FaseJodete.finRonda;
+  }
+}
+
+void _cerrarRondaSiCorresponde(PartidaJodete p) {
+  if (!p.jugando) return;
+  final quedan = p.enJuego;
+  if (quedan.length > 1) return;
+
+  for (final j in quedan) {
+    _registrarPuesto(p, j);
+  }
+  for (final j in p.jugadores) {
+    if (j.puestoRonda == null) {
+      _registrarPuesto(p, j);
+    }
+  }
+  puntuarRondaJodete(p);
+}
+
+void _alQuedarseSinCartas(PartidaJodete p, JugadorJodete j) {
+  if (j.mano.isNotEmpty || j.puestoRonda != null) return;
+  _registrarPuesto(p, j);
+  p.ultimaJugada =
+      '${j.nombre} se quedó sin cartas (${_ordinal(j.puestoRonda!)})';
+  _cerrarRondaSiCorresponde(p);
+}
+
+String _ordinal(int puesto) {
+  return switch (puesto) {
+    1 => '1º',
+    2 => '2º',
+    3 => '3º',
+    4 => '4º',
+    _ => '$puestoº',
+  };
 }
 
 /// [paloElegido] obligatorio si la carta pide elegir palo (10 / comodín).
@@ -291,9 +521,9 @@ String? jugarCartaJodete(
   PaloJodete? paloElegido,
   math.Random? rng,
 }) {
-  if (p.terminada) return 'La partida ya terminó.';
+  if (!p.jugando) return 'La ronda no está en juego.';
   final j = p.jugadorActual;
-  if (!j.activo) return 'Este jugador no está activo.';
+  if (!j.enJuego) return 'Este jugador no está en juego.';
   if (!j.mano.contains(carta)) return 'Esa carta no está en tu mano.';
   if (!puedeJugarCartaJodete(p, carta)) {
     if (p.hayPendienteDos) {
@@ -322,14 +552,18 @@ String? jugarCartaJodete(
     msg += ' → palo ${paloElegido!.name}';
   }
 
-  _chequearVictoria(p, j);
-  if (p.terminada) {
-    p.ultimaJugada = msg;
-    return null;
+  final seFue = j.mano.isEmpty;
+  if (seFue) {
+    _alQuedarseSinCartas(p, j);
+    if (!p.jugando) {
+      p.ultimaJugada = msg;
+      return null;
+    }
+    msg += ' · ${_ordinal(j.puestoRonda!)}';
   }
 
   // Una carta por turno (salvo apilar doses).
-  final nActivos = p.activos.length;
+  final nEnJuego = p.enJuego.length;
   if (carta.esDos) {
     p.pendienteDos += 2;
     msg += ' · pendiente ${p.pendienteDos}';
@@ -338,8 +572,8 @@ String? jugarCartaJodete(
     p.sentido = p.sentido == SentidoJodete.horario
         ? SentidoJodete.antihorario
         : SentidoJodete.horario;
-    msg += nActivos == 2 ? ' (salteo)' : ' (sentido invertido)';
-    if (nActivos == 2) {
+    msg += nEnJuego == 2 ? ' (salteo)' : ' (sentido invertido)';
+    if (nEnJuego == 2) {
       _avanzarTurno(p, saltos: 2);
     } else {
       _avanzarTurno(p);
@@ -348,13 +582,18 @@ String? jugarCartaJodete(
     msg += ' · saltea';
     _avanzarTurno(p, saltos: 2);
   } else if (carta.esComodin) {
-    final victimaIdx = _indiceSiguienteActivo(p);
+    final victimaIdx = _indiceSiguienteEnJuego(p);
     final victima = p.jugadores[victimaIdx];
     final robadas = _robar(p, victima, 5, r);
     msg += ' · ${victima.nombre} levanta ${robadas.length}';
     p.indiceTurno = victimaIdx;
     _avanzarTurno(p);
   } else {
+    _avanzarTurno(p);
+  }
+
+  // Si el turno quedó en alguien fuera, avanzar.
+  if (!p.jugadorActual.enJuego && p.jugando) {
     _avanzarTurno(p);
   }
 
@@ -371,9 +610,9 @@ bool levantarPorNoJugarJodete(
   math.Random? rng,
   bool hastaPoderTirar = false,
 }) {
-  if (p.terminada) return false;
+  if (!p.jugando) return false;
   final j = p.jugadorActual;
-  if (!j.activo) return false;
+  if (!j.enJuego) return false;
   final r = rng ?? math.Random();
 
   if (p.hayPendienteDos) {
@@ -449,15 +688,24 @@ void rendirseJodete(PartidaJodete p, String nombre) {
 
   final vivos = p.activos;
   if (vivos.length <= 1) {
-    p.fase = FaseJodete.terminada;
-    p.ganador = vivos.isEmpty ? null : vivos.first.nombre;
-    p.mensajeFin = vivos.isEmpty
-        ? 'Todos se rindieron'
-        : '¡${vivos.first.nombre} gana por rendición!';
+    // Fin de partida por rendición (sin puntuar ronda a medias).
+    if (vivos.length == 1) {
+      p.fase = FaseJodete.ganado;
+      p.ganador = vivos.first.nombre;
+      p.mensajeFin = '¡${vivos.first.nombre} gana por rendición!';
+    } else {
+      p.fase = FaseJodete.ganado;
+      p.ganador = null;
+      p.mensajeFin = 'Todos se rindieron';
+    }
     return;
   }
 
-  if (!p.jugadorActual.activo) {
+  if (p.jugando) {
+    _cerrarRondaSiCorresponde(p);
+  }
+
+  if (p.jugando && !p.jugadorActual.enJuego) {
     _avanzarTurno(p);
   }
 }
