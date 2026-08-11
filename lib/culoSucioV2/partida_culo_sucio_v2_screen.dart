@@ -1126,8 +1126,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     final altoSlotGrande = compactaOponentes ? 108.0 : 132.0;
     final altoSlotChico = 64.0;
     // Prioridad visual: quien tiene el turno (si es rival) o a quién se roba.
+    // Durante el cartel “SE LLEVA” no agrandar rivales: el fondo es tu mano.
+    final overlayRoboActivo =
+        _cartaQueSeLlevaPc != null || _cartaQueTeSacaron != null;
     final nombreManoGrande = () {
       if (oponentes.isEmpty) return null;
+      if (overlayRoboActivo) return null;
       if (_esperandoDescartarPar) return objetivoRobo.nombre;
       final enTurno = oponentes
           .where((o) => o.nombre == _partida.jugadorActual.nombre)
@@ -1310,15 +1314,18 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                                                 oponente.nombre ==
                                                     _partida
                                                         .jugadorActual.nombre;
-                                        final manoGrande = compactaOponentes
-                                            ? oponente.nombre ==
-                                                nombreManoGrande
-                                            : true;
-                                        final manoDestacada = esTurnoDeEste ||
-                                            esObjetivoRoboHumano ||
-                                            (_esperandoDescartarPar &&
-                                                oponente.nombre ==
-                                                    objetivoRobo.nombre);
+                                        final manoGrande = overlayRoboActivo
+                                            ? false
+                                            : (compactaOponentes
+                                                ? oponente.nombre ==
+                                                    nombreManoGrande
+                                                : true);
+                                        final manoDestacada = !overlayRoboActivo &&
+                                            (esTurnoDeEste ||
+                                                esObjetivoRoboHumano ||
+                                                (_esperandoDescartarPar &&
+                                                    oponente.nombre ==
+                                                        objetivoRobo.nombre));
                                         final altoSlot = manoGrande
                                             ? altoSlotGrande
                                             : altoSlotChico;
@@ -1446,8 +1453,14 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                               cartas: manoAbajo.mano,
                               bocaArriba: !_cambioJugadorPendiente,
                               compacta: false,
-                              anchoCarta: destacarMiMano ? 76 : 68,
-                              altoCarta: destacarMiMano ? 114 : 102,
+                              anchoCarta:
+                                  (destacarMiMano || resaltandoRoboEnMiMano)
+                                      ? 76
+                                      : 68,
+                              altoCarta:
+                                  (destacarMiMano || resaltandoRoboEnMiMano)
+                                      ? 114
+                                      : 102,
                               colorPalo: _colorPalo,
                               iconoPalo: _iconoPalo,
                               seleccionados: _esperandoDescartarPar

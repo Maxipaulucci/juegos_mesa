@@ -124,14 +124,19 @@ class PartidaJodete {
       jugadores.where((j) => j.activo).toList();
 }
 
-List<CartaJodete> crearMazoJodete({math.Random? rng}) {
+List<CartaJodete> crearMazoJodete({
+  math.Random? rng,
+  bool incluirComodines = true,
+}) {
   final r = rng ?? math.Random();
   final mazo = <CartaJodete>[
     for (final palo in PaloJodete.values)
       for (var n = 1; n <= 12; n++)
         CartaJodete(numero: n, palo: palo, id: palo.index * 20 + n),
-    const CartaJodete(numero: null, palo: null, esComodin: true, id: 1001),
-    const CartaJodete(numero: null, palo: null, esComodin: true, id: 1002),
+    if (incluirComodines) ...const [
+      CartaJodete(numero: null, palo: null, esComodin: true, id: 1001),
+      CartaJodete(numero: null, palo: null, esComodin: true, id: 1002),
+    ],
   ];
   mazo.shuffle(r);
   return mazo;
@@ -144,6 +149,7 @@ PartidaJodete nuevaPartidaJodete({
   bool contraPc = false,
   math.Random? rng,
   int cartasIniciales = 7,
+  bool incluirComodines = true,
 }) {
   final r = rng ?? math.Random();
   final lista = nombres.isEmpty
@@ -154,7 +160,10 @@ PartidaJodete nuevaPartidaJodete({
   }
 
   final jugadores = [for (final n in lista) JugadorJodete(n)];
-  final mazo = crearMazoJodete(rng: r);
+  final mazo = crearMazoJodete(
+    rng: r,
+    incluirComodines: incluirComodines,
+  );
 
   for (var i = 0; i < cartasIniciales; i++) {
     for (final j in jugadores) {
@@ -353,24 +362,75 @@ String? jugarCartaJodete(
   return null;
 }
 
-/// Si hay doses pendientes, levanta esa cantidad; si no, 1 carta. Luego pasa.
-String? levantarPorNoJugarJodete(PartidaJodete p, {math.Random? rng}) {
-  if (p.terminada) return 'La partida ya terminó.';
+/// Si hay doses pendientes, levanta esa cantidad y pasa.
+/// Si [hastaPoderTirar] y no hay pendiente: levanta hasta tener jugada
+/// y **no** avanza el turno (podés tirar). Si no sacás ninguna jugable, pasa.
+/// Devuelve `true` si el turno sigue siendo del mismo jugador.
+bool levantarPorNoJugarJodete(
+  PartidaJodete p, {
+  math.Random? rng,
+  bool hastaPoderTirar = false,
+}) {
+  if (p.terminada) return false;
   final j = p.jugadorActual;
-  if (!j.activo) return 'Este jugador no está activo.';
+  if (!j.activo) return false;
   final r = rng ?? math.Random();
-  final n = p.hayPendienteDos ? p.pendienteDos : 1;
-  final robadas = _robar(p, j, n, r);
+
   if (p.hayPendienteDos) {
+    final n = p.pendienteDos;
+    final robadas = _robar(p, j, n, r);
     p.pendienteDos = 0;
+    if (robadas.isEmpty) {
+      p.ultimaJugada = '${j.nombre} no pudo levantar (mazo vacío)';
+    } else {
+      p.ultimaJugada = '${j.nombre} levantó ${robadas.length} carta(s)';
+    }
+    _avanzarTurno(p);
+    return false;
   }
-  if (robadas.isEmpty) {
-    p.ultimaJugada = '${j.nombre} no pudo levantar (mazo vacío)';
-  } else {
-    p.ultimaJugada = '${j.nombre} levantó ${robadas.length} carta(s)';
+
+  if (!hastaPoderTirar) {
+    final robadas = _robar(p, j, 1, r);
+    if (robadas.isEmpty) {
+      p.ultimaJugada = '${j.nombre} no pudo levantar (mazo vacío)';
+    } else {
+      p.ultimaJugada = '${j.nombre} levantó 1 carta';
+    }
+    _avanzarTurno(p);
+    return false;
   }
+
+  // Levantar hasta poder tirar.
+  // Si ya tenías jugada y igual elegiste levantar, es “paso”: 1 carta y listo.
+  if (cartasJugablesJodete(p, j).isNotEmpty) {
+    final robadas = _robar(p, j, 1, r);
+    if (robadas.isEmpty) {
+      p.ultimaJugada = '${j.nombre} no pudo levantar (mazo vacío)';
+    } else {
+      p.ultimaJugada = '${j.nombre} levantó 1 carta';
+    }
+    _avanzarTurno(p);
+    return false;
+  }
+
+  var total = 0;
+  while (cartasJugablesJodete(p, j).isEmpty) {
+    final robadas = _robar(p, j, 1, r);
+    if (robadas.isEmpty) break;
+    total++;
+    if (total > 80) break;
+  }
+
+  if (cartasJugablesJodete(p, j).isNotEmpty) {
+    p.ultimaJugada = '${j.nombre} levantó $total hasta poder tirar';
+    return true; // Sigue el mismo turno.
+  }
+
+  p.ultimaJugada = total == 0
+      ? '${j.nombre} no pudo levantar (mazo vacío)'
+      : '${j.nombre} levantó $total y no pudo tirar';
   _avanzarTurno(p);
-  return null;
+  return false;
 }
 
 void rendirseJodete(PartidaJodete p, String nombre) {

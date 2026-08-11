@@ -1,4 +1,5 @@
 import 'package:app_juegos_mesa/jodete/motor_jodete.dart';
+import 'package:app_juegos_mesa/jodete/opciones_jodete.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 
@@ -8,6 +9,7 @@ class PartidaJodeteResume {
     required this.nombres,
     required this.modoDios,
     required this.dificultad,
+    required this.opciones,
     this.ajustesIniciales,
   });
 
@@ -15,6 +17,7 @@ class PartidaJodeteResume {
   final List<String> nombres;
   final bool modoDios;
   final DificultadPc dificultad;
+  final OpcionesJodete opciones;
   final AjustesEstado? ajustesIniciales;
 }
 

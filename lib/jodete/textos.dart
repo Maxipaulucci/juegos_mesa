@@ -26,30 +26,44 @@ abstract final class TextosJodete {
       'La PC usa skips, reverses y cartas de levantar con más criterio '
       'y elige el palo más fuerte de su mano.';
 
+  static const infoComodines =
+      'Activado: el mazo lleva 50 cartas (48 + 2 comodines). '
+      'El comodín se puede tirar siempre, hace levantar 5 al siguiente '
+      'y te deja elegir el palo.\n\n'
+      'Desactivado: mazo de 48 cartas, sin comodines.';
+
+  static const infoLevantarHastaTirar =
+      'Activado: si no tenés ninguna carta para tirar, levantás del mazo '
+      'hasta que te toque una jugable y podés tirarla en el mismo turno.\n\n'
+      'Desactivado (clásico): levantás solo 1 carta y pasás el turno.';
+
   static const reglaCorta =
-      'Mazo español de 50 (48 + 2 comodines). Tirás mismo palo o número. '
+      'Mazo español (con o sin comodines). Tirás mismo palo o número. '
       'Gana quien se queda sin cartas.';
 }
 
-String reglasJodete() => '''
-· Se juega con mazo español de 50 cartas (1 al 12 en oro, copa, espada y
-  basto, más 2 comodines).
+String reglasJodete({bool comodines = true}) => '''
+· Se juega con mazo español de ${comodines ? '50' : '48'} cartas (1 al 12
+  en oro, copa, espada y basto${comodines ? ', más 2 comodines' : ''}).
 
 · Se reparte 7 cartas a cada jugador. La primera del descarte no es especial.
 
-· En tu turno tirás UNA carta del mismo palo o del mismo número que la cima
-  del descarte (o un comodín). Luego juega el siguiente.
+· En tu turno hacés UNA sola acción: tirás una carta (mismo palo o mismo
+  número${comodines ? ', o comodín' : ''}) O levantás del mazo. Después
+  juega el siguiente. No se tira de nuevo con el 4 ni con el 7.
 
 · Efectos:
-  - 2 → el siguiente debe tirar otro 2 (apila +2) o levantar las cartas
-    acumuladas (2, 4, 6…). Quien levanta pierde el turno.
+  - 2 → el siguiente debe tirar otro 2 (apila +2) o, si no tiene 2,
+    levanta automáticamente las cartas acumuladas (2, 4, 6…) y pierde
+    el turno.
   - 10 → elegís el palo vigente
   - 11 → saltea al siguiente jugador
   - 12 → invierte el sentido (con 2 jugadores funciona como salteo)
-  - Comodín → el siguiente levanta 5, pierde el turno, y elegís el palo
-  - 4 y 7 no tienen efecto especial (solo cuentan como número/palo)
+${comodines ? '  - Comodín → el siguiente levanta 5, pierde el turno, y elegís el palo\n' : ''}  - 4 y 7 no tienen efecto especial (solo cuentan como número/palo)
 
-· Si no podés tirar, levantás 1 del mazo y pasás.
+· Si no podés tirar, levantás 1 del mazo y pasás (o, si activaste
+  “Levantar hasta tirar” en Modificar partida, levantás hasta sacar una
+  jugable y la tirás en el mismo turno).
 
 · Gana quien se queda sin cartas.
 '''.trim();
