@@ -2413,18 +2413,23 @@ class _FilaCartasState extends State<_FilaCartas> {
                         horizontal: widget.compacta ? 28 : 34,
                         vertical: 4,
                       ),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: math.max(
-                            0,
-                            constraints.maxWidth -
-                                (widget.compacta ? 56 : 68),
-                          ),
-                        ),
-                        child: Row(
-                          key: _rowKey,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
+                      child: Builder(
+                        builder: (context) {
+                          final padH = widget.compacta ? 56.0 : 68.0;
+                          final minW = math.max(0.0, constraints.maxWidth - padH);
+                          final n = widget.cartas.length;
+                          final contentW =
+                              n == 0 ? 0.0 : n * w + (n - 1) * _gap;
+                          final filaW = math.max(minW, contentW);
+                          return SizedBox(
+                            width: filaW,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Row(
+                                  key: _rowKey,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
                             for (var index = 0;
                                 index < widget.cartas.length;
                                 index++) ...[
@@ -2492,24 +2497,15 @@ class _FilaCartasState extends State<_FilaCartas> {
                                           widget.seleccionados.isNotEmpty &&
                                           !seleccionada) ||
                                       (_arrastrandoCulo && !esLaQueArrastro);
-                                  // Slot fijo: al seleccionar sube sin achicarse.
-                                  Widget child = AnimatedOpacity(
-                                    duration:
-                                        const Duration(milliseconds: 180),
-                                    opacity: atenuar ? 0.34 : 1,
-                                    child: SizedBox(
+                                  Widget child = CartaOpacidadReorden(
+                                    esLaQueArrastro: esLaQueArrastro,
+                                    atenuar: atenuar,
+                                    child: CartaSlotSeleccion(
+                                      seleccionada: marcada,
                                       width: w,
-                                      height: h + _deslizamiento,
-                                      child: AnimatedAlign(
-                                        duration: const Duration(
-                                          milliseconds: 380,
-                                        ),
-                                        curve: Curves.easeOutCubic,
-                                        alignment: marcada
-                                            ? Alignment.topCenter
-                                            : Alignment.bottomCenter,
-                                        child: card,
-                                      ),
+                                      height: h,
+                                      deslizamiento: _deslizamiento,
+                                      child: card,
                                     ),
                                   );
 
@@ -2521,9 +2517,8 @@ class _FilaCartasState extends State<_FilaCartas> {
                                     child: child,
                                   );
 
-                                  // Árbol estable para el 1 de oro: si el
-                                  // Material se agrega al agarrar, AnimatedAlign
-                                  // se reinicia y la carta “teletransporta”.
+                                  // Árbol estable + slot oculto al arrastrar:
+                                  // la carta opaca se pinta encima (flotante).
                                   if (esCuloArrastrable) {
                                     return DetectorArrastreReorden(
                                       onPanStart: (details) =>
@@ -2538,6 +2533,7 @@ class _FilaCartasState extends State<_FilaCartas> {
                                         esLaQueArrastro: esLaQueArrastro,
                                         dragDx: _reorden.dragDx,
                                         dragDy: _reorden.dragDy,
+                                        ocultarEnSlot: true,
                                         borderRadius: BorderRadius.circular(
                                           widget.compacta ? 10 : 14,
                                         ),
@@ -2602,8 +2598,49 @@ class _FilaCartasState extends State<_FilaCartas> {
                                 },
                               ),
                             ],
-                          ],
-                        ),
+                                  ],
+                                ),
+                                if (_reorden.dragIndex != null)
+                                  CartaFlotanteReorden(
+                                    rowKey: _rowKey,
+                                    index: _reorden.dragIndex!,
+                                    cantidad: widget.cartas.length,
+                                    anchoCarta: w,
+                                    gap: _gap,
+                                    dragDx: _reorden.dragDx,
+                                    dragDy: _reorden.dragDy,
+                                    borderRadius: BorderRadius.circular(
+                                      widget.compacta ? 10 : 14,
+                                    ),
+                                    child: CartaSlotSeleccion(
+                                      seleccionada: true,
+                                      animaciones: false,
+                                      width: w,
+                                      height: h,
+                                      deslizamiento: _deslizamiento,
+                                      child: _CartaSkinV2(
+                                        carta: widget
+                                            .cartas[_reorden.dragIndex!],
+                                        bocaArriba: true,
+                                        compacta: widget.compacta,
+                                        seleccionada: true,
+                                        color: widget.colorPalo(
+                                          widget.cartas[_reorden.dragIndex!]
+                                              .palo,
+                                        ),
+                                        icono: widget.iconoPalo(
+                                          widget.cartas[_reorden.dragIndex!]
+                                              .palo,
+                                        ),
+                                        width: w,
+                                        height: h,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),

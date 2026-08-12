@@ -1597,7 +1597,6 @@ class _ManoJodeteState extends State<_ManoJodete> {
   final _rowKey = GlobalKey();
   final _reorden = ReordenarCartaManoDrag();
 
-  static const double _deslizamiento = 14;
   static const double _cardW = 68;
   static const double _cardH = 102;
   static const double _gap = 6;
@@ -1689,6 +1688,11 @@ class _ManoJodeteState extends State<_ManoJodete> {
       clipBehavior: Clip.hardEdge,
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final minW = constraints.maxWidth - 24;
+          final n = widget.cartas.length;
+          final contentW =
+              n == 0 ? 0.0 : n * _cardW + (n - 1) * _gap;
+          final filaW = math.max(minW, contentW);
           return SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
@@ -1696,99 +1700,125 @@ class _ManoJodeteState extends State<_ManoJodete> {
                 ? const NeverScrollableScrollPhysics()
                 : const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth - 24),
-              child: Row(
-                key: _rowKey,
-                mainAxisAlignment: MainAxisAlignment.center,
+            child: SizedBox(
+              width: filaW,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  for (var i = 0; i < widget.cartas.length; i++) ...[
-                    if (i > 0) const SizedBox(width: _gap),
-                    Builder(
-                      builder: (context) {
-                        final c = widget.cartas[i];
-                        final sel = widget.seleccion == c;
-                        final esLaQueArrastro = _reorden.dragIndex == i;
-                        final atenuar =
-                            _arrastrando && !esLaQueArrastro;
+                  Row(
+                    key: _rowKey,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (var i = 0; i < widget.cartas.length; i++) ...[
+                        if (i > 0) const SizedBox(width: _gap),
+                        Builder(
+                          builder: (context) {
+                            final c = widget.cartas[i];
+                            final sel = widget.seleccion == c;
+                            final esLaQueArrastro = _reorden.dragIndex == i;
+                            final atenuar =
+                                _arrastrando && !esLaQueArrastro;
 
-                        Widget child = AnimatedOpacity(
-                          duration: const Duration(milliseconds: 180),
-                          opacity: atenuar ? 0.34 : 1,
-                          child: SizedBox(
-                            width: _cardW,
-                            height: _cardH + _deslizamiento,
-                            child: AnimatedAlign(
+                            // Árbol estable: mismos padres al seleccionar.
+                            Widget child = CartaOpacidadReorden(
+                              esLaQueArrastro: esLaQueArrastro,
+                              atenuar: atenuar,
+                              child: CartaSlotSeleccion(
+                                seleccionada: sel,
+                                animaciones: widget.animaciones,
+                                width: _cardW,
+                                height: _cardH,
+                                child: widget.buildCarta(c, sel: sel),
+                              ),
+                            );
+
+                            child = CartaConHuecoReorden(
+                              arrastrandoMano: _arrastrando,
+                              esLaQueArrastro: esLaQueArrastro,
+                              shiftX: _reorden.shiftX(i, _cardW + _gap),
                               duration: widget.animaciones
-                                  ? const Duration(milliseconds: 380)
+                                  ? kDuracionHuecoReordenMano
                                   : Duration.zero,
-                              curve: Curves.easeOutCubic,
-                              alignment: sel
-                                  ? Alignment.topCenter
-                                  : Alignment.bottomCenter,
-                              child: widget.buildCarta(c, sel: sel),
-                            ),
-                          ),
-                        );
+                              child: child,
+                            );
 
-                        child = CartaConHuecoReorden(
-                          arrastrandoMano: _arrastrando,
-                          esLaQueArrastro: esLaQueArrastro,
-                          shiftX: _reorden.shiftX(i, _cardW + _gap),
-                          duration: widget.animaciones
-                              ? kDuracionHuecoReordenMano
-                              : Duration.zero,
-                          child: child,
-                        );
-
-                        // Carta seleccionada: se puede arrastrar para reordenar.
-                        if (sel && _puedeReordenar) {
-                          return DetectorArrastreReorden(
-                            onTap: () => widget.onTap(c),
-                            onPanStart: (details) =>
-                                _iniciarDrag(i, details.localPosition),
-                            onPanUpdate: _actualizarDrag,
-                            onPanEnd: _soltarDrag,
-                            onPanCancel: _cancelarDrag,
-                            child: CartaArrastreVisualReorden(
+                            child = CartaArrastreVisualReorden(
                               esLaQueArrastro: esLaQueArrastro,
                               dragDx: _reorden.dragDx,
                               dragDy: _reorden.dragDy,
+                              ocultarEnSlot: true,
                               borderRadius: BorderRadius.circular(14),
                               child: child,
-                            ),
-                          );
-                        }
+                            );
 
-                        if (!widget.puedeElegir) return child;
+                            if (_puedeReordenar) {
+                              return DetectorArrastreReorden(
+                                onTap: widget.puedeElegir
+                                    ? () => widget.onTap(c)
+                                    : null,
+                                onPanStart: (details) {
+                                  if (!sel) return;
+                                  _iniciarDrag(i, details.localPosition);
+                                },
+                                onPanUpdate: _actualizarDrag,
+                                onPanEnd: _soltarDrag,
+                                onPanCancel: _cancelarDrag,
+                                child: child,
+                              );
+                            }
 
-                        return Material(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                          child: InkWell(
-                            onTap: () => widget.onTap(c),
-                            borderRadius: BorderRadius.circular(14),
-                            splashColor: sel
-                                ? colorSeleccionCartaEspanola.withValues(
-                                    alpha: 0.25,
-                                  )
-                                : Colors.transparent,
-                            highlightColor: sel
-                                ? colorSeleccionCartaEspanola.withValues(
-                                    alpha: 0.18,
-                                  )
-                                : Colors.transparent,
-                            hoverColor: sel
-                                ? colorSeleccionCartaEspanola.withValues(
-                                    alpha: 0.22,
-                                  )
-                                : Colors.transparent,
-                            child: child,
-                          ),
-                        );
-                      },
+                            if (!widget.puedeElegir) return child;
+
+                            return Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
+                                onTap: () => widget.onTap(c),
+                                borderRadius: BorderRadius.circular(14),
+                                splashColor: sel
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.25,
+                                      )
+                                    : Colors.transparent,
+                                highlightColor: sel
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.18,
+                                      )
+                                    : Colors.transparent,
+                                hoverColor: sel
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.22,
+                                      )
+                                    : Colors.transparent,
+                                child: child,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (_reorden.dragIndex != null)
+                    CartaFlotanteReorden(
+                      rowKey: _rowKey,
+                      index: _reorden.dragIndex!,
+                      cantidad: widget.cartas.length,
+                      anchoCarta: _cardW,
+                      gap: _gap,
+                      dragDx: _reorden.dragDx,
+                      dragDy: _reorden.dragDy,
+                      borderRadius: BorderRadius.circular(14),
+                      child: CartaSlotSeleccion(
+                        seleccionada: true,
+                        animaciones: false,
+                        width: _cardW,
+                        height: _cardH,
+                        child: widget.buildCarta(
+                          widget.cartas[_reorden.dragIndex!],
+                          sel: true,
+                        ),
+                      ),
                     ),
-                  ],
                 ],
               ),
             ),
