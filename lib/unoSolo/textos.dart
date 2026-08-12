@@ -24,4 +24,5 @@ CONTRA OTRA PERSONA
 · Se turnan los saltos sobre el mismo tablero.
 · Quien deja la ficha única en el centro gana.
 · Si se traban sin lograrlo, ambos pierden.
+· Si alguien se rinde y queda uno solo, ese sigue jugando hasta ganar o perder.
 ''';

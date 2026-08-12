@@ -207,6 +207,8 @@ void _evaluarFinTrasJugada(PartidaUnoSolo p) {
 
 void _pasarTurnoUnoSolo(PartidaUnoSolo p) {
   if (p.solo || p.nombres.length < 2 || p.terminada) return;
+  // Un solo en pie: sigue moviendo sin rotar el turno.
+  if (p.jugadoresActivos.length <= 1) return;
   final n = p.nombres.length;
   for (var i = 0; i < n; i++) {
     p.indiceTurno = (p.indiceTurno + 1) % n;
@@ -214,7 +216,11 @@ void _pasarTurnoUnoSolo(PartidaUnoSolo p) {
   }
 }
 
-/// Marca [nombre] como rendido. Si queda ≤1 activo, gana por abandono.
+/// Marca [nombre] como rendido.
+///
+/// Si quedan 0 activos, termina la partida.
+/// Si queda 1 activo, **sigue jugando** solo hasta ganar o perder el tablero
+/// (no gana por abandono).
 /// Devuelve el ganador si la partida terminó; si no, null.
 String? rendirseUnoSolo(PartidaUnoSolo p, String nombre) {
   if (p.terminada || p.solo) return null;
@@ -224,25 +230,17 @@ String? rendirseUnoSolo(PartidaUnoSolo p, String nombre) {
   p.rendidos.add(nombre);
 
   final activos = p.jugadoresActivos;
-  if (activos.length <= 1) {
-    p.fase = FaseUnoSolo.ganado;
-    if (activos.isEmpty) {
-      p.ganador = null;
-      p.calificacion = null;
-      p.mensajeFin = '$nombre se rindió.';
-    } else {
-      p.ganador = activos.first;
-      p.calificacion = '¡Victoria!';
-      p.mensajeFin =
-          '$nombre se rindió. ¡${activos.first} gana por abandono!';
-    }
-    return p.ganador;
+  if (activos.isEmpty) {
+    p.fase = FaseUnoSolo.perdido;
+    p.ganador = null;
+    p.calificacion = null;
+    p.mensajeFin = '$nombre se rindió.';
+    return null;
   }
 
-  // Sigue la partida: si era su turno (o el actual ya está fuera), avanza.
+  // Sigue la partida (aunque quede uno solo en pie): si era su turno
+  // (o el actual ya está fuera), avanza al próximo activo.
   if (p.jugadorActual == nombre || p.estaRendido(p.jugadorActual)) {
-    // Retrocede uno y pasa: _pasarTurno avanza desde el índice actual.
-    // Si el actual es el rendido, solo hay que saltar al próximo activo.
     final n = p.nombres.length;
     for (var i = 0; i < n; i++) {
       if (!p.estaRendido(p.jugadorActual)) break;
@@ -307,8 +305,11 @@ String? deshacerUltimoUnoSolo(
   p.mensajeFin = null;
   p.calificacion = null;
   p.ganador = null;
-  // Solo se había pasado de turno si la partida seguía en juego.
-  if (!estabaTerminada && !p.solo && p.nombres.length >= 2) {
+  // Solo se había pasado de turno si seguían ≥2 activos en juego.
+  if (!estabaTerminada &&
+      !p.solo &&
+      p.nombres.length >= 2 &&
+      p.jugadoresActivos.length >= 2) {
     p.indiceTurno =
         (p.indiceTurno - 1 + p.nombres.length) % p.nombres.length;
   }
