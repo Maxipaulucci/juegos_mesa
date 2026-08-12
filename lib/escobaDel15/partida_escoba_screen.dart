@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -15,6 +16,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
@@ -652,6 +654,22 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
     });
   }
 
+  void _reordenarMano(int desde, int hacia) {
+    if (_bloquearHumano || _partida.fase != FaseEscoba.jugando) return;
+    final mano = _manoVisible.mano;
+    if (desde < 0 ||
+        hacia < 0 ||
+        desde >= mano.length ||
+        hacia >= mano.length) {
+      return;
+    }
+    if (desde == hacia) return;
+    final carta = mano.removeAt(desde);
+    mano.insert(hacia, carta);
+    setState(() {});
+    if (_esOnline) unawaited(_publicarEstadoOnline());
+  }
+
   void _toggleMesa(CartaEscoba c) {
     if (_partida.fase != FaseEscoba.jugando || _bloquearHumano) return;
     setState(() {
@@ -1013,199 +1031,251 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     onRenombrar: _renombrarJugador,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    _textoEstadoPartida,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _pcMostrandoJugada ||
-                              _puedeCapturar ||
-                              (_esOnline && !_esMiTurno && !_esperandoMazoOnline)
-                          ? AppColors.mint
-                          : AppColors.textoSuave,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 44,
-                    child: _faltaCartaMano && !_bloquearHumano
-                        ? Container(
-                            width: double.infinity,
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: AppColors.acento.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: AppColors.acento,
-                                width: 1.8,
-                              ),
-                              boxShadow: neonGlow(AppColors.acento, blur: 10),
-                            ),
-                            child: const Text(
-                              '👆 ¡Debés elegir una carta de tu mano sí o sí!',
-                      textAlign: TextAlign.center,
-                              style: TextStyle(
-                        color: AppColors.acento,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                              ),
-                            ),
-                          )
-                        : (_mensajePc != null || _aviso != null)
-                            ? Container(
-                                width: double.infinity,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          _textoEstadoPartida,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: _pcMostrandoJugada ||
+                                    _puedeCapturar ||
+                                    (_esOnline &&
+                                        !_esMiTurno &&
+                                        !_esperandoMazoOnline)
+                                ? AppColors.mint
+                                : AppColors.textoSuave,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        if ((_faltaCartaMano && !_bloquearHumano) ||
+                            _mensajePc != null ||
+                            _aviso != null) ...[
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 40,
+                            child: _faltaCartaMano && !_bloquearHumano
+                                ? Container(
+                                    width: double.infinity,
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.acento
+                                          .withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: AppColors.acento,
+                                        width: 1.8,
+                                      ),
+                                      boxShadow:
+                                          neonGlow(AppColors.acento, blur: 10),
+                                    ),
+                                    child: const Text(
+                                      '👆 ¡Debés elegir una carta de tu mano sí o sí!',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: AppColors.acento,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  )
+                                : Container(
+                                    width: double.infinity,
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    decoration: _mensajePc != null
+                                        ? BoxDecoration(
+                                            color: AppColors.rosa
+                                                .withValues(alpha: 0.16),
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            border: Border.all(
+                                              color: AppColors.rosa,
+                                              width: 1.6,
+                                            ),
+                                          )
+                                        : null,
+                                    child: Text(
+                                      _mensajePc ?? _aviso!,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: _mensajePc != null
+                                            ? AppColors.rosa
+                                            : (_puedeCapturar
+                                                ? AppColors.mint
+                                                : AppColors.acento),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final mesaLabel = _pcMostrandoJugada &&
+                                      _mesaSeleccion.isNotEmpty
+                                  ? 'MESA · PC elige ${_mesaSeleccion.length}'
+                                  : _mesaSeleccion.isEmpty
+                                      ? 'MESA (pozo)'
+                                      : 'MESA · ${_mesaSeleccion.length} seleccionada(s)';
+                              final mostrarPcCarta = _pcMostrandoJugada &&
+                                  _cartaSeleccionada != null;
+                              final mostrarZonaPc = widget.contraPc ||
+                                  (_esOnline && !_esperandoMazoOnline);
+                              final textoPc = widget.contraPc
+                                  ? (_esPcTurno ? 'PC está eligiendo…' : '')
+                                  : (_esMiTurno
+                                      ? 'Tu turno'
+                                      : (_mensajePc ??
+                                          'Esperando a ${_partida.jugadorActual.nombre}…'));
+                              return FittedBox(
+                                fit: BoxFit.scaleDown,
                                 alignment: Alignment.center,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: _mensajePc != null
-                                    ? BoxDecoration(
-                                        color: AppColors.rosa
-                                            .withValues(alpha: 0.16),
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(
-                                          color: AppColors.rosa,
-                                          width: 1.6,
+                                child: SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      SizedBox(
+                                        height: 28,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Text(
+                                              mesaLabel,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                color: AppColors.azul,
+                                                fontWeight: FontWeight.w900,
+                                                letterSpacing: 1,
+                                              ),
+                                            ),
+                                            if (widget.modoDios && !_esOnline)
+                                              Align(
+                                                alignment:
+                                                    Alignment.centerRight,
+                                                child: Material(
+                                                  color: AppColors.carta,
+                                                  shape: const CircleBorder(),
+                                                  child: InkWell(
+                                                    customBorder:
+                                                        const CircleBorder(),
+                                                    onTap: (_partida
+                                                                .terminada ||
+                                                            _bloquearHumano ||
+                                                            _partida.fase !=
+                                                                FaseEscoba
+                                                                    .jugando)
+                                                        ? null
+                                                        : _abrirForzarCartas,
+                                                    child: Container(
+                                                      width: 36,
+                                                      height: 36,
+                                                      decoration:
+                                                          BoxDecoration(
+                                                        shape:
+                                                            BoxShape.circle,
+                                                        border: Border.all(
+                                                          color: AppColors
+                                                              .textoSuave
+                                                              .withValues(
+                                                                  alpha: 0.5),
+                                                        ),
+                                                      ),
+                                                      child: const Icon(
+                                                        Icons.bug_report,
+                                                        size: 18,
+                                                        color: AppColors
+                                                            .textoSuave,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                      )
-                                    : null,
-                                child: Text(
-                                  _mensajePc ?? _aviso!,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: _mensajePc != null
-                                        ? AppColors.rosa
-                                        : (_puedeCapturar
-                                            ? AppColors.mint
-                                            : AppColors.acento),
-                                    fontWeight: FontWeight.w900,
-                        fontSize: 13,
-                      ),
-                    ),
-                              )
-                            : const SizedBox.shrink(),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _pcMostrandoJugada && _mesaSeleccion.isNotEmpty
-                              ? 'MESA · PC elige ${_mesaSeleccion.length}'
-                              : _mesaSeleccion.isEmpty
-                                  ? 'MESA (pozo)'
-                                  : 'MESA · ${_mesaSeleccion.length} seleccionada(s)',
-                          style: const TextStyle(
-                      color: AppColors.azul,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                        ),
-                      ),
-                      Text(
-                        'Mazo: ${_partida.mazo.length}',
-                        style: const TextStyle(
-                          color: AppColors.textoSuave,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (widget.modoDios && !_esOnline) ...[
-                        const SizedBox(width: 8),
-                        Material(
-                          color: AppColors.carta,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: (_partida.terminada ||
-                                    _bloquearHumano ||
-                                    _partida.fase != FaseEscoba.jugando)
-                                ? null
-                                : _abrirForzarCartas,
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.textoSuave
-                                      .withValues(alpha: 0.5),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      SizedBox(
+                                        height: 112,
+                                        child: _ZonaCartas(
+                                          cartas: _mesaParaMostrar,
+                                          seleccionadas: _mesaSeleccion,
+                                          animaciones: _ajustes.animaciones,
+                                          onTap: (_bloquearHumano ||
+                                                  _partida.fase !=
+                                                      FaseEscoba.jugando)
+                                              ? null
+                                              : _toggleMesa,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Center(child: _mazoEscobaWidget()),
+                                      if (mostrarZonaPc) ...[
+                                        const SizedBox(height: 8),
+                                        if (mostrarPcCarta)
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              const Text(
+                                                'LA PC JUEGA CON',
+                                                style: TextStyle(
+                                                  color: AppColors.rosa,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 11,
+                                                  letterSpacing: 0.8,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              _CartaTexto(
+                                                carta: _cartaSeleccionada!,
+                                                seleccionada: true,
+                                                animaciones:
+                                                    _ajustes.animaciones,
+                                              ),
+                                            ],
+                                          )
+                                        else if (textoPc.isNotEmpty)
+                                          Text(
+                                            textoPc,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: _esOnline && !_esMiTurno
+                                                  ? AppColors.rosa
+                                                  : AppColors.textoSuave,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              child: const Icon(
-                                Icons.bug_report,
-                                size: 20,
-                                color: AppColors.textoSuave,
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Expanded(
-                    flex: 2,
-                    child: _ZonaCartas(
-                      cartas: _mesaParaMostrar,
-                      seleccionadas: _mesaSeleccion,
-                      animaciones: _ajustes.animaciones,
-                      onTap: (_bloquearHumano ||
-                              _partida.fase != FaseEscoba.jugando)
-                          ? null
-                          : _toggleMesa,
                     ),
                   ),
-                    const SizedBox(height: 8),
-                  if (widget.contraPc || (_esOnline && !_esperandoMazoOnline))
-                    SizedBox(
-                      height: 126,
-                      child: _pcMostrandoJugada && _cartaSeleccionada != null
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                                const Text(
-                                  'LA PC JUEGA CON',
-                                  style: TextStyle(
-                                    color: AppColors.rosa,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 11,
-                                    letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                                _CartaTexto(
-                                  carta: _cartaSeleccionada!,
-                                  seleccionada: true,
-                                  animaciones: _ajustes.animaciones,
-                                ),
-                              ],
-                            )
-                          : Center(
-                              child: Text(
-                                widget.contraPc
-                                    ? (_esPcTurno ? 'PC está eligiendo…' : '')
-                                    : (_esMiTurno
-                                        ? 'Tu turno'
-                                        : (_mensajePc ??
-                                            'Esperando a ${_partida.jugadorActual.nombre}…')),
-                                style: TextStyle(
-                                  color: _esOnline && !_esMiTurno
-                                      ? AppColors.rosa
-                                      : AppColors.textoSuave,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                    ),
-                  if (widget.contraPc || (_esOnline && !_esperandoMazoOnline))
-                    const SizedBox(height: 8),
                   Text(
                     'TU MANO · ${mano.nombre}',
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppColors.mint,
                       fontWeight: FontWeight.w900,
@@ -1213,23 +1283,20 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Expanded(
-                    flex: 2,
-                    child: _ZonaCartas(
+                  SizedBox(
+                    // Alto fijo: carta completa + subida de selección + padding.
+                    height: 160,
+                    child: _ManoEscoba(
                       cartas: mano.mano,
-                      seleccionadas: _bloquearHumano
-                          ? const []
-                          : [
-                              if (_cartaSeleccionada != null)
-                                _cartaSeleccionada!,
-                            ],
+                      seleccion: _bloquearHumano ? null : _cartaSeleccionada,
                       animaciones: _ajustes.animaciones,
-                      onTap: (_bloquearHumano ||
+                      puedeElegir: !(_bloquearHumano ||
+                          _partida.fase != FaseEscoba.jugando),
+                      onTap: (c) => unawaited(_seleccionarMano(c)),
+                      onReordenar: (_bloquearHumano ||
                               _partida.fase != FaseEscoba.jugando)
                           ? null
-                          : (c) {
-                              unawaited(_seleccionarMano(c));
-                            },
+                          : _reordenarMano,
                     ),
                   ),
                     const SizedBox(height: 10),
@@ -1370,6 +1437,40 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  /// Mazo visual (mismo estilo que Jodete); solo muestra cuántas quedan.
+  Widget _mazoEscobaWidget() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 72,
+          height: 112,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF3B1D6E), Color(0xFF1A0A33)],
+            ),
+            border: Border.all(color: AppColors.acento, width: 2),
+          ),
+          child: const Center(
+            child: Icon(Icons.style, color: AppColors.acento, size: 32),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Mazo ${_partida.mazo.length}',
+          style: const TextStyle(
+            color: AppColors.textoSuave,
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1674,24 +1775,309 @@ class _ZonaCartas extends StatelessWidget {
         ),
       );
     }
-    return Center(
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minW = constraints.maxWidth;
+        final n = cartas.length;
+        const cardW = 72.0;
+        const gap = 8.0;
+        final contentW = n == 0 ? 0.0 : n * cardW + (n - 1) * gap;
+        final filaW = math.max(minW, contentW);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: filaW,
+            height: constraints.maxHeight,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < cartas.length; i++) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  _CartaTexto(
+                    carta: cartas[i],
+                    seleccionada: seleccionadas.contains(cartas[i]),
+                    animaciones: animaciones,
+                    onTap: onTap == null ? null : () => onTap!(cartas[i]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Mano del jugador con arrastre para reordenar (misma lógica shared).
+class _ManoEscoba extends StatefulWidget {
+  const _ManoEscoba({
+    required this.cartas,
+    required this.seleccion,
+    required this.animaciones,
+    required this.puedeElegir,
+    required this.onTap,
+    this.onReordenar,
+  });
+
+  final List<CartaEscoba> cartas;
+  final CartaEscoba? seleccion;
+  final bool animaciones;
+  final bool puedeElegir;
+  final ValueChanged<CartaEscoba> onTap;
+  final void Function(int desde, int hacia)? onReordenar;
+
+  @override
+  State<_ManoEscoba> createState() => _ManoEscobaState();
+}
+
+class _ManoEscobaState extends State<_ManoEscoba> {
+  final _scroll = ScrollController();
+  final _rowKey = GlobalKey();
+  final _reorden = ReordenarCartaManoDrag();
+
+  static const double _cardW = 72;
+  static const double _cardH = 112;
+  static const double _gap = 8;
+
+  bool get _arrastrando => _reorden.arrastrando;
+  bool get _puedeReordenar =>
+      widget.onReordenar != null && widget.puedeElegir;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  int _indiceInsercionDesdeGlobal(double globalX) {
+    return indiceInsercionDesdeGlobalReorden(
+      rowKey: _rowKey,
+      drag: _reorden,
+      globalX: globalX,
+      cantidad: widget.cartas.length,
+      anchoCarta: _cardW,
+      gap: _gap,
+    );
+  }
+
+  void _iniciarDrag(int index, Offset localPosition) {
+    setState(() {
+      _reorden.iniciar(
+        index: index,
+        localPosition: localPosition,
+        anchoCarta: _cardW,
+      );
+    });
+  }
+
+  void _actualizarDrag(DragUpdateDetails details) {
+    if (!_reorden.arrastrando) return;
+    autoScrollDuranteDragReorden(
+      scroll: _scroll,
+      context: context,
+      globalX: details.globalPosition.dx,
+    );
+    setState(() {
+      _reorden.actualizar(
+        details: details,
+        indiceInsercionDesdeGlobal: _indiceInsercionDesdeGlobal,
+      );
+    });
+  }
+
+  void _soltarDrag() {
+    final resultado = _reorden.soltar();
+    if (resultado != null) {
+      widget.onReordenar?.call(resultado.desde, resultado.hacia);
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _cancelarDrag() {
+    setState(_reorden.cancelar);
+  }
+
+  Widget _skin(CartaEscoba c, {required bool sel}) {
+    return CartaEspanolaSkin(
+      numero: c.numero,
+      etiqueta: c.etiqueta,
+      palo: paloEspanolDeEscoba(c.palo),
+      seleccionada: sel,
+      subtitulo: 'vale ${c.valorSuma}',
+      width: _cardW,
+      height: _cardH,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final altoSlot = _cardH + kDeslizamientoSeleccionCarta;
+
+    final contenedor = BoxDecoration(
+      color: const Color(0xFF1A0A33).withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: AppColors.violeta.withValues(alpha: 0.55),
+        width: 1.2,
+      ),
+    );
+    if (widget.cartas.isEmpty) {
+      return Container(
+        decoration: contenedor,
         alignment: Alignment.center,
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 12,
-          alignment: WrapAlignment.center,
-          children: [
-            for (final c in cartas)
-              _CartaTexto(
-                carta: c,
-                seleccionada: seleccionadas.contains(c),
-                animaciones: animaciones,
-                onTap: onTap == null ? null : () => onTap!(c),
-              ),
-          ],
+        child: Text(
+          '— vacía —',
+          style: TextStyle(
+            color: AppColors.textoSuave.withValues(alpha: 0.7),
+            fontWeight: FontWeight.w700,
+          ),
         ),
+      );
+    }
+    return Container(
+      decoration: contenedor,
+      clipBehavior: Clip.hardEdge,
+      alignment: Alignment.bottomCenter,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final minW = constraints.maxWidth - 24;
+          final n = widget.cartas.length;
+          final contentW = n == 0 ? 0.0 : n * _cardW + (n - 1) * _gap;
+          final filaW = math.max(minW, contentW);
+          return SingleChildScrollView(
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            physics: _arrastrando
+                ? const NeverScrollableScrollPhysics()
+                : const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+            child: SizedBox(
+              width: filaW,
+              height: altoSlot,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Row(
+                    key: _rowKey,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (var i = 0; i < widget.cartas.length; i++) ...[
+                        if (i > 0) const SizedBox(width: _gap),
+                        Builder(
+                          builder: (context) {
+                            final c = widget.cartas[i];
+                            final sel = widget.seleccion == c;
+                            final esLaQueArrastro = _reorden.dragIndex == i;
+                            final atenuar =
+                                _arrastrando && !esLaQueArrastro;
+
+                            Widget child = CartaOpacidadReorden(
+                              esLaQueArrastro: esLaQueArrastro,
+                              atenuar: atenuar,
+                              child: CartaSlotSeleccion(
+                                seleccionada: sel,
+                                animaciones: widget.animaciones,
+                                width: _cardW,
+                                height: _cardH,
+                                child: _skin(c, sel: sel),
+                              ),
+                            );
+
+                            child = CartaConHuecoReorden(
+                              arrastrandoMano: _arrastrando,
+                              esLaQueArrastro: esLaQueArrastro,
+                              shiftX: _reorden.shiftX(i, _cardW + _gap),
+                              duration: widget.animaciones
+                                  ? kDuracionHuecoReordenMano
+                                  : Duration.zero,
+                              child: child,
+                            );
+
+                            child = CartaArrastreVisualReorden(
+                              esLaQueArrastro: esLaQueArrastro,
+                              dragDx: _reorden.dragDx,
+                              dragDy: _reorden.dragDy,
+                              ocultarEnSlot: true,
+                              borderRadius: BorderRadius.circular(14),
+                              child: child,
+                            );
+
+                            if (_puedeReordenar) {
+                              return DetectorArrastreReorden(
+                                onTap: widget.puedeElegir
+                                    ? () => widget.onTap(c)
+                                    : null,
+                                onPanStart: (details) {
+                                  if (!sel) return;
+                                  _iniciarDrag(i, details.localPosition);
+                                },
+                                onPanUpdate: _actualizarDrag,
+                                onPanEnd: _soltarDrag,
+                                onPanCancel: _cancelarDrag,
+                                child: child,
+                              );
+                            }
+
+                            if (!widget.puedeElegir) return child;
+
+                            return Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
+                                onTap: () => widget.onTap(c),
+                                borderRadius: BorderRadius.circular(14),
+                                splashColor: sel
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.25,
+                                      )
+                                    : Colors.transparent,
+                                highlightColor: sel
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.18,
+                                      )
+                                    : Colors.transparent,
+                                hoverColor: sel
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.22,
+                                      )
+                                    : Colors.transparent,
+                                child: child,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (_reorden.dragIndex != null)
+                    CartaFlotanteReorden(
+                      rowKey: _rowKey,
+                      index: _reorden.dragIndex!,
+                      cantidad: widget.cartas.length,
+                      anchoCarta: _cardW,
+                      gap: _gap,
+                      dragDx: _reorden.dragDx,
+                      dragDy: _reorden.dragDy,
+                      borderRadius: BorderRadius.circular(14),
+                      child: CartaSlotSeleccion(
+                        seleccionada: true,
+                        animaciones: false,
+                        width: _cardW,
+                        height: _cardH,
+                        child: _skin(
+                          widget.cartas[_reorden.dragIndex!],
+                          sel: true,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
