@@ -223,18 +223,21 @@ class DetectorArrastreReorden extends StatelessWidget {
     required this.onPanEnd,
     required this.onPanCancel,
     required this.child,
+    this.onTap,
   });
 
   final void Function(DragStartDetails details) onPanStart;
   final void Function(DragUpdateDetails details) onPanUpdate;
   final VoidCallback onPanEnd;
   final VoidCallback onPanCancel;
+  final VoidCallback? onTap;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       onPanStart: onPanStart,
       onPanUpdate: onPanUpdate,
       onPanEnd: (_) => onPanEnd(),
