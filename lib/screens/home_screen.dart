@@ -175,19 +175,19 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
     ),
     _JuegoHome(
+      tipo: _TipoJuegoHome.jodete,
+      titulo: 'Jodete',
+      subtitulo: 'Españolas · 50 cartas',
+      accent: AppColors.peligro,
+      categoria: _CategoriaHome.cartasEspanolas,
+    ),
+    _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
       titulo: 'Canasta',
       subtitulo: 'Próximamente',
       accent: AppColors.violeta,
       categoria: _CategoriaHome.cartasInglesas,
       enabled: false,
-    ),
-    _JuegoHome(
-      tipo: _TipoJuegoHome.jodete,
-      titulo: 'Jodete',
-      subtitulo: 'Españolas · 50 cartas',
-      accent: AppColors.peligro,
-      categoria: _CategoriaHome.cartasEspanolas,
     ),
   ];
 
