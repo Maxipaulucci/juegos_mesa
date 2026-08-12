@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
@@ -2195,15 +2196,9 @@ class _FilaCartas extends StatefulWidget {
 class _FilaCartasState extends State<_FilaCartas> {
   final _scroll = ScrollController();
   final _rowKey = GlobalKey();
+  final _reorden = ReordenarCartaManoDrag();
   bool _hayIzquierda = false;
   bool _hayDerecha = false;
-
-  int? _dragCuloIndex;
-  int? _insertCuloIndex;
-  double _dragDx = 0;
-  double _dragDy = 0;
-  /// Punto X local donde se agarró la carta (para no saltar si tocás la derecha).
-  double _grabLocalX = 0;
 
   double get _anchoCarta =>
       widget.anchoCarta ?? (widget.compacta ? 40.0 : 68.0);
@@ -2212,7 +2207,7 @@ class _FilaCartasState extends State<_FilaCartas> {
   double get _gap => widget.compacta ? 4.0 : 6.0;
   double get _pasoScroll => _anchoCarta + _gap;
   static const double _deslizamiento = 14;
-  bool get _arrastrandoCulo => _dragCuloIndex != null;
+  bool get _arrastrandoCulo => _reorden.arrastrando;
 
   @override
   void initState() {
@@ -2273,103 +2268,51 @@ class _FilaCartasState extends State<_FilaCartas> {
     );
   }
 
-  double _shiftXParaIndice(int index) {
-    final from = _dragCuloIndex;
-    final to = _insertCuloIndex;
-    if (from == null || to == null || from == to) return 0;
-    final paso = _pasoScroll;
-    if (from < to) {
-      // Mueve a la derecha: las cartas (from, to] corren a la izquierda.
-      if (index > from && index <= to) return -paso;
-    } else {
-      // Mueve a la izquierda: las cartas [to, from) corren a la derecha.
-      if (index >= to && index < from) return paso;
-    }
-    return 0;
-  }
-
   int _indiceInsercionDesdeGlobal(double globalX) {
-    final box = _rowKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return _dragCuloIndex ?? 0;
-    // Referencia = borde izquierdo de la carta, no el dedo/cursor.
-    final localX =
-        box.globalToLocal(Offset(globalX - _grabLocalX, 0)).dx;
-    final n = widget.cartas.length;
-    if (n <= 0) return 0;
-    final paso = _pasoScroll;
-    final w = _anchoCarta;
-    // Las cartas están centradas en el Row (no pegadas a la izquierda).
-    final contenido = n * w + (n - 1) * _gap;
-    final origen = math.max(0.0, (box.size.width - contenido) / 2);
-    var idx = 0;
-    for (var i = 0; i < n; i++) {
-      final mid = origen + i * paso + w / 2;
-      if (localX < mid) {
-        idx = i;
-        break;
-      }
-      idx = i;
-    }
-    return idx.clamp(0, n - 1);
-  }
-
-  void _autoScrollDuranteDrag(double globalX) {
-    if (!_scroll.hasClients) return;
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final local = box.globalToLocal(Offset(globalX, 0)).dx;
-    const margen = 40.0;
-    final ancho = box.size.width;
-    double delta = 0;
-    if (local < margen) {
-      delta = -10;
-    } else if (local > ancho - margen) {
-      delta = 10;
-    }
-    if (delta == 0) return;
-    final destino = (_scroll.offset + delta)
-        .clamp(0.0, _scroll.position.maxScrollExtent);
-    _scroll.jumpTo(destino);
+    return indiceInsercionDesdeGlobalReorden(
+      rowKey: _rowKey,
+      drag: _reorden,
+      globalX: globalX,
+      cantidad: widget.cartas.length,
+      anchoCarta: _anchoCarta,
+      gap: _gap,
+    );
   }
 
   void _iniciarDragCulo(int index, Offset localPosition) {
     // Primero marcar selección: misma subida lenta que el modo sin arrastre.
     widget.onArrastrandoCulo?.call(widget.indiceBase + index);
     setState(() {
-      _dragCuloIndex = index;
-      _insertCuloIndex = index;
-      _dragDx = 0;
-      _dragDy = 0;
-      _grabLocalX = localPosition.dx.clamp(0.0, _anchoCarta);
+      _reorden.iniciar(
+        index: index,
+        localPosition: localPosition,
+        anchoCarta: _anchoCarta,
+      );
     });
   }
 
   void _actualizarDragCulo(DragUpdateDetails details) {
-    if (_dragCuloIndex == null) return;
-    final nuevo = _indiceInsercionDesdeGlobal(details.globalPosition.dx);
-    _autoScrollDuranteDrag(details.globalPosition.dx);
+    if (!_reorden.arrastrando) return;
+    autoScrollDuranteDragReorden(
+      scroll: _scroll,
+      context: context,
+      globalX: details.globalPosition.dx,
+    );
     setState(() {
-      _dragDx += details.delta.dx;
-      _dragDy = (_dragDy + details.delta.dy).clamp(0.0, 16.0);
-      if (nuevo != _insertCuloIndex) {
-        _insertCuloIndex = nuevo;
-      }
+      _reorden.actualizar(
+        details: details,
+        indiceInsercionDesdeGlobal: _indiceInsercionDesdeGlobal,
+      );
     });
   }
 
   void _soltarDragCulo() {
-    final from = _dragCuloIndex;
-    final to = _insertCuloIndex;
-    _dragCuloIndex = null;
-    _insertCuloIndex = null;
-    _dragDx = 0;
-    _dragDy = 0;
-    _grabLocalX = 0;
+    final resultado = _reorden.soltar();
     widget.onArrastrandoCulo?.call(null);
-    if (from != null && to != null && from != to) {
+    if (resultado != null) {
       widget.onReordenarCulo?.call(
-        widget.indiceBase + from,
-        widget.indiceBase + to,
+        widget.indiceBase + resultado.desde,
+        widget.indiceBase + resultado.hacia,
       );
     } else if (mounted) {
       setState(() {});
@@ -2377,13 +2320,7 @@ class _FilaCartasState extends State<_FilaCartas> {
   }
 
   void _cancelarDragCulo() {
-    setState(() {
-      _dragCuloIndex = null;
-      _insertCuloIndex = null;
-      _dragDx = 0;
-      _dragDy = 0;
-      _grabLocalX = 0;
-    });
+    setState(_reorden.cancelar);
     widget.onArrastrandoCulo?.call(null);
   }
 
@@ -2507,7 +2444,7 @@ class _FilaCartasState extends State<_FilaCartas> {
                                           c.esCuloSucio &&
                                           visible;
                                   final esLaQueArrastro =
-                                      _dragCuloIndex == index;
+                                      _reorden.dragIndex == index;
                                   final card = AnimatedSwitcher(
                                     duration:
                                         const Duration(milliseconds: 320),
@@ -2576,52 +2513,36 @@ class _FilaCartasState extends State<_FilaCartas> {
                                     ),
                                   );
 
-                                  final shift = _shiftXParaIndice(index);
-                                  if (_arrastrandoCulo && !esLaQueArrastro) {
-                                    child = AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 200,
-                                      ),
-                                      curve: Curves.easeOutCubic,
-                                      transform: Matrix4.translationValues(
-                                        shift,
-                                        0,
-                                        0,
-                                      ),
-                                      child: child,
-                                    );
-                                  }
+                                  child = CartaConHuecoReorden(
+                                    arrastrandoMano: _arrastrandoCulo,
+                                    esLaQueArrastro: esLaQueArrastro,
+                                    shiftX:
+                                        _reorden.shiftX(index, _pasoScroll),
+                                    child: child,
+                                  );
 
                                   // Árbol estable para el 1 de oro: si el
                                   // Material se agrega al agarrar, AnimatedAlign
                                   // se reinicia y la carta “teletransporta”.
                                   if (esCuloArrastrable) {
-                                    child = Transform.translate(
-                                      offset: Offset(
-                                        esLaQueArrastro ? _dragDx : 0,
-                                        esLaQueArrastro ? _dragDy : 0,
-                                      ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        elevation: esLaQueArrastro ? 10 : 0,
-                                        shadowColor: Colors.black54,
-                                        borderRadius: BorderRadius.circular(
-                                          widget.compacta ? 10 : 14,
-                                        ),
-                                        child: child,
-                                      ),
-                                    );
-                                    return GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
+                                    return DetectorArrastreReorden(
                                       onPanStart: (details) =>
                                           _iniciarDragCulo(
                                         index,
                                         details.localPosition,
                                       ),
                                       onPanUpdate: _actualizarDragCulo,
-                                      onPanEnd: (_) => _soltarDragCulo(),
+                                      onPanEnd: _soltarDragCulo,
                                       onPanCancel: _cancelarDragCulo,
-                                      child: child,
+                                      child: CartaArrastreVisualReorden(
+                                        esLaQueArrastro: esLaQueArrastro,
+                                        dragDx: _reorden.dragDx,
+                                        dragDy: _reorden.dragDy,
+                                        borderRadius: BorderRadius.circular(
+                                          widget.compacta ? 10 : 14,
+                                        ),
+                                        child: child,
+                                      ),
                                     );
                                   }
 
