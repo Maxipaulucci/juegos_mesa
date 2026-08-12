@@ -2078,8 +2078,8 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
                             child: const Text(
                               'Cancelar',
                               style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                          ),
+                      ),
+                    ),
                   ],
                       ),
                 ),

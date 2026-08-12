@@ -187,7 +187,7 @@ class _VolumenSlider extends StatelessWidget {
   final double valor;
   final ValueChanged<double> onChanged;
 
-  @override
+  @override           
   Widget build(BuildContext context) {
     return Row(
       children: [

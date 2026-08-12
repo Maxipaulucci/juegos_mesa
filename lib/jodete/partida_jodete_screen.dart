@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/jodete/modo_dios_jodete.dart';
 import 'package:app_juegos_mesa/jodete/motor_jodete.dart';
 import 'package:app_juegos_mesa/jodete/opciones_jodete.dart';
 import 'package:app_juegos_mesa/jodete/resumen_ronda_jodete_overlay.dart';
+import 'package:app_juegos_mesa/jodete/historial_jodete.dart';
 import 'package:app_juegos_mesa/jodete/standby_store.dart';
 import 'package:app_juegos_mesa/jodete/textos.dart';
 import 'package:app_juegos_mesa/jodete/victoria_jodete_overlay.dart';
@@ -19,6 +20,7 @@ import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -66,6 +68,8 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   bool _yaActuoEsteTurno = false;
   int _turnoDeLaAccion = -1;
 
+  static const int _maxNombre = 15;
+
   /// Overlay central (estilo Culo sucio v2) cuando la PC tira o levanta.
   CartaJodete? _cartaOverlayPc;
   String? _tituloOverlayPc;
@@ -109,6 +113,115 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       _puedeJugarHumano &&
       _seleccion != null &&
       puedeJugarCartaJodete(_partida, _seleccion!);
+
+  bool _puedeRenombrar(JugadorJodete j) {
+    if (_partida.terminada) return false;
+    if (j.rendido) return false;
+    if (j.puestoRonda != null) return false;
+    return !esNombrePc(j.nombre);
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    final t = nombre.trim();
+    if (t.isEmpty) return 'El nombre no puede estar vacío.';
+    if (t.length > _maxNombre) return 'Máximo $_maxNombre caracteres.';
+    if (esNombrePc(t)) return 'Ese nombre está reservado para la PC.';
+    final ocupado = _partida.jugadores.asMap().entries.any(
+          (e) => e.key != index && e.value.nombre == t,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarJugador(int index) async {
+    if (index < 0 || index >= _partida.jugadores.length) return;
+    final j = _partida.jugadores[index];
+    if (!_puedeRenombrar(j)) return;
+    final actual = j.nombre;
+
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle: const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  final err = _validarNombre(t, index);
+                  if (err != null) {
+                    setDialogState(() => error = err);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final t = ctrl.text.trim();
+                  final err = _validarNombre(t, index);
+                  if (err != null) {
+                    setDialogState(() => error = err);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+                child: const Text('Guardar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+    setState(() {
+      _partida.jugadores[index].nombre = nuevo;
+      if (_partida.ganador == actual) _partida.ganador = nuevo;
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
+    });
+  }
 
   void _asegurarFlagTurno() {
     final t = _partida.indiceTurno;
@@ -715,8 +828,9 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                       runSpacing: 6,
                       alignment: WrapAlignment.center,
                       children: [
-                        for (final j in _partida.jugadores)
-                          _chipJugador(j),
+                        for (final entry
+                            in _partida.jugadores.asMap().entries)
+                          _chipJugador(entry.value, entry.key),
                       ],
                     ),
                   ),
@@ -757,13 +871,39 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
+                                        // Equilibra el ancho del historial para
+                                        // que mazo + pozo queden en el mismo centro.
+                                        const SizedBox(width: 38),
                                         _mazoWidget(),
                                         const SizedBox(width: 18),
-                                        _descarteWidget(),
-                                        if (_modoDiosActivo) ...[
-                                          const SizedBox(width: 12),
-                                          _botonModoDios(),
-                                        ],
+                                        SizedBox(
+                                          width: 116,
+                                          height: 140,
+                                          child: Stack(
+                                            children: [
+                                              SizedBox(
+                                                width: 78,
+                                                child: _descarteWidget(),
+                                              ),
+                                              Positioned(
+                                                top: 36,
+                                                left: 84,
+                                                child: _botonHistorial(),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (_modoDiosActivo)
+                                          Transform.translate(
+                                            offset: const Offset(-38, 0),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const SizedBox(width: 12),
+                                                _botonModoDios(),
+                                              ],
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ],
@@ -1011,7 +1151,12 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     );
   }
 
-  Widget _chipJugador(JugadorJodete j) {
+  Widget _chipJugador(JugadorJodete j, int index) {
+    final esMio = _esLocalHotSeat
+        ? (widget.nombres.isNotEmpty
+            ? j.nombre == widget.nombres.first
+            : j.nombre == _partida.jugadores.first.nombre)
+        : j.nombre == _humanoPrincipal.nombre;
     final turno = _partida.jugando &&
         _partida.jugadorActual.nombre == j.nombre &&
         j.enJuego;
@@ -1033,17 +1178,25 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            j.rendido
-                ? '${j.nombre} (fuera)'
-                : (j.puestoRonda != null
-                    ? '${j.nombre} (${j.puestoRonda}º)'
-                    : j.nombre),
-            style: TextStyle(
-              color: fuera ? AppColors.textoSuave : AppColors.texto,
-              fontWeight: FontWeight.w800,
+          // Cuando el nombre es editable, `NombreJugadorEditable` agrega padding
+          // (icono lápiz). Para que todas las tarjetas tengan la misma altura,
+          // fijamos el alto del área del nombre.
+          SizedBox(
+            height: 30,
+            child: NombreJugadorEditable(
+              nombre: j.rendido
+                  ? '${j.nombre} (fuera)'
+                  : (j.puestoRonda != null
+                      ? '${j.nombre} (${j.puestoRonda}º)'
+                      : j.nombre),
+              puedeRenombrar: _puedeRenombrar(j),
+              onRenombrar: _puedeRenombrar(j)
+                  ? () => _renombrarJugador(index)
+                  : null,
+              colorTexto: fuera ? AppColors.textoSuave : AppColors.texto,
               fontSize: 12,
-              decoration: j.rendido ? TextDecoration.lineThrough : null,
+              tachado: j.rendido,
+              mayusculas: false,
             ),
           ),
           const SizedBox(height: 2),
@@ -1072,6 +1225,23 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                 ),
               ),
             ],
+          ),
+          Visibility(
+            visible: !esMio,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '${j.mano.length} carta${j.mano.length == 1 ? '' : 's'}',
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
           if (ver && j.mano.isNotEmpty)
             SizedBox(
@@ -1164,6 +1334,31 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _botonHistorial() {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          mostrarCartasTiradasJodete(
+            context: context,
+            partida: _partida,
+          );
+        },
+        child: const SizedBox(
+          width: 34,
+          height: 34,
+          child: Icon(
+            Icons.history_rounded,
+            color: AppColors.textoSuave,
+            size: 22,
+          ),
+        ),
+      ),
     );
   }
 
