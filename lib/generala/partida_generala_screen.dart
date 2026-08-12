@@ -644,7 +644,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
+      backgroundColor: AppColors.carta,
         title: const Text(
           'Reglas',
           style: TextStyle(

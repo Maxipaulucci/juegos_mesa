@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -9,6 +10,7 @@ import 'package:app_juegos_mesa/casitaRobada/textos.dart';
 import 'package:app_juegos_mesa/casitaRobada/victoria_casita_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
@@ -464,6 +466,31 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     });
   }
 
+  void _reordenarMano(int desde, int hacia) {
+    if (_bloquearHumano) return;
+    final mano = _vistaAbajo.mano;
+    if (desde < 0 ||
+        hacia < 0 ||
+        desde >= mano.length ||
+        hacia >= mano.length) {
+      return;
+    }
+    if (desde == hacia) return;
+    final carta = mano.removeAt(desde);
+    mano.insert(hacia, carta);
+    setState(() {
+      final sel = _cartaSeleccionada;
+      if (sel == null) return;
+      if (sel == desde) {
+        _cartaSeleccionada = hacia;
+      } else if (desde < hacia && sel > desde && sel <= hacia) {
+        _cartaSeleccionada = sel - 1;
+      } else if (hacia < desde && sel >= hacia && sel < desde) {
+        _cartaSeleccionada = sel + 1;
+      }
+    });
+  }
+
   void _seleccionarMesa(CartaCasita carta) {
     if (_bloquearHumano) return;
     final mano = _cartaManoSel;
@@ -587,12 +614,13 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     final asientos = _asientosCasitasRival;
     final pozoAbajo = manoAbajo;
 
-    Widget pozoRival(JugadorCasita j) {
+    Widget pozoRival(JugadorCasita j, {bool textoALaIzquierda = false}) {
       return _PozoCasita(
         titulo: TextosCasita.casitaRivalDe(j.nombre),
         jugador: j,
         paloVisual: _paloVisual,
         seleccionada: _nombreCasitaRobo == j.nombre,
+        textoALaIzquierda: textoALaIzquierda,
         onTap: _esTurnoHumano && !_jugando && !j.rendido
             ? () => _tocarCasitaRival(j)
             : null,
@@ -719,158 +747,214 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Stack(
-                        clipBehavior: Clip.none,
+                      child: Column(
                         children: [
-                          Column(
-                            children: [
-                              SizedBox(
-                                height: 148,
-                                width: double.infinity,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '${TextosCasita.manoRival}: ${manoArriba.nombre}',
-                                      style: const TextStyle(
-                                        color: AppColors.textoSuave,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    SizedBox(
-                                      height: 116,
-                                      width: double.infinity,
-                                      child: _FilaCartas(
-                                        cartas: manoArriba.mano,
-                                        bocaArriba: _modoDiosActivo,
-                                        paloVisual: _paloVisual,
-                                        animaciones: _ajustes.animaciones,
-                                        seleccionIndex: _esTurnoPc
-                                            ? _cartaSeleccionada
-                                            : null,
-                                        indiceRevelado: _esTurnoPc
-                                            ? _cartaSeleccionada
-                                            : null,
-                                      ),
-                                    ),
-                                  ],
+                          SizedBox(
+                            height: 170,
+                            width: double.infinity,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  '${TextosCasita.manoRival}: ${manoArriba.nombre}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.textoSuave,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
                                 ),
+                                const SizedBox(height: 6),
+                                Expanded(
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      // Mismo margen lateral que arriba/abajo
+                                      // (carta casita = 102).
+                                      final margen = ((constraints.maxHeight -
+                                                  102) /
+                                              2)
+                                          .clamp(0.0, 40.0);
+                                      return Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          _FilaCartas(
+                                            cartas: manoArriba.mano,
+                                            bocaArriba: _modoDiosActivo,
+                                            paloVisual: _paloVisual,
+                                            animaciones: _ajustes.animaciones,
+                                            seleccionIndex: _esTurnoPc
+                                                ? _cartaSeleccionada
+                                                : null,
+                                            indiceRevelado: _esTurnoPc
+                                                ? _cartaSeleccionada
+                                                : null,
+                                          ),
+                                          if (asientos.arribaIzq != null)
+                                            Positioned(
+                                              left: margen,
+                                              top: 0,
+                                              bottom: 0,
+                                              child: Align(
+                                                alignment:
+                                                    Alignment.centerLeft,
+                                                child: pozoRival(
+                                                  asientos.arribaIzq!,
+                                                ),
+                                              ),
+                                            ),
+                                          if (asientos.arribaDer != null)
+                                            Positioned(
+                                              right: margen,
+                                              top: 0,
+                                              bottom: 0,
+                                              child: Align(
+                                                alignment:
+                                                    Alignment.centerRight,
+                                                child: pozoRival(
+                                                  asientos.arribaDer!,
+                                                  textoALaIzquierda: true,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${TextosCasita.mesa} · mazo ${_partida.mazo.length}',
+                            style: const TextStyle(
+                              color: AppColors.textoSuave,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 116,
+                            width: double.infinity,
+                            child: _FilaCartas(
+                              cartas: _partida.mesa,
+                              bocaArriba: true,
+                              paloVisual: _paloVisual,
+                              animaciones: _ajustes.animaciones,
+                              cartasSeleccionadas: _mesaSeleccion,
+                              onTapCarta: _esTurnoHumano && !_jugando
+                                  ? _seleccionarMesa
+                                  : null,
+                            ),
+                          ),
+                          if (_partida.ultimaJugada != null) ...[
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 72,
                               ),
-                              const Spacer(),
-                              Text(
-                                '${TextosCasita.mesa} · mazo ${_partida.mazo.length}',
+                              child: Text(
+                                _partida.ultimaJugada!.descripcion,
+                                textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  color: AppColors.textoSuave,
+                                  color: AppColors.acento,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 12,
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              SizedBox(
-                                height: 116,
-                                width: double.infinity,
-                                child: _FilaCartas(
-                                  cartas: _partida.mesa,
-                                  bocaArriba: true,
-                                  paloVisual: _paloVisual,
-                                  animaciones: _ajustes.animaciones,
-                                  cartasSeleccionadas: _mesaSeleccion,
-                                  onTapCarta: _esTurnoHumano && !_jugando
-                                      ? _seleccionarMesa
-                                      : null,
-                                ),
-                              ),
-                              if (_partida.ultimaJugada != null) ...[
-                                const SizedBox(height: 8),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 72,
-                                  ),
-                                  child: Text(
-                                    _partida.ultimaJugada!.descripcion,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: AppColors.acento,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
+                            ),
+                          ],
+                          const Spacer(),
+                          SizedBox(
+                            height: 170,
+                            width: double.infinity,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: AppColors.mint,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
                                   ),
                                 ),
-                              ],
-                              const Spacer(),
-                              SizedBox(
-                                height: 160,
-                                width: double.infinity,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
-                                      style: const TextStyle(
-                                        color: AppColors.mint,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    SizedBox(
-                                      height: 116,
-                                      width: double.infinity,
-                                      child: _FilaCartas(
-                                        cartas: manoAbajo.mano,
-                                        bocaArriba: true,
-                                        paloVisual: _paloVisual,
-                                        animaciones: _ajustes.animaciones,
-                                        seleccionIndex: _esTurnoHumano
-                                            ? _cartaSeleccionada
-                                            : null,
-                                        onTapIndex:
-                                            _esTurnoHumano && !_jugando
+                                const SizedBox(height: 6),
+                                Expanded(
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final margen = ((constraints.maxHeight -
+                                                  102) /
+                                              2)
+                                          .clamp(0.0, 40.0);
+                                      return Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          _FilaCartas(
+                                            cartas: manoAbajo.mano,
+                                            bocaArriba: true,
+                                            paloVisual: _paloVisual,
+                                            animaciones: _ajustes.animaciones,
+                                            seleccionIndex: _esTurnoHumano
+                                                ? _cartaSeleccionada
+                                                : null,
+                                            onTapIndex: _esTurnoHumano &&
+                                                    !_jugando
                                                 ? (i) async =>
                                                     _seleccionarMano(i)
                                                 : null,
-                                      ),
-                                    ),
-                                  ],
+                                            onReordenar: _esTurnoHumano &&
+                                                    !_jugando
+                                                ? _reordenarMano
+                                                : null,
+                                          ),
+                                          Positioned(
+                                            left: margen,
+                                            top: 0,
+                                            bottom: 0,
+                                            child: Align(
+                                              alignment:
+                                                  Alignment.centerLeft,
+                                              child: _PozoCasita(
+                                                titulo: widget.contraPc
+                                                    ? TextosCasita.tuCasita
+                                                    : TextosCasita
+                                                        .tuCasitaDe(
+                                                        pozoAbajo.nombre,
+                                                      ),
+                                                jugador: pozoAbajo,
+                                                paloVisual: _paloVisual,
+                                                resaltar: true,
+                                                seleccionada:
+                                                    _nombreCasitaRobo ==
+                                                        pozoAbajo.nombre,
+                                              ),
+                                            ),
+                                          ),
+                                          if (asientos.abajoDer != null)
+                                            Positioned(
+                                              right: margen,
+                                              top: 0,
+                                              bottom: 0,
+                                              child: Align(
+                                                alignment:
+                                                    Alignment.centerRight,
+                                                child: pozoRival(
+                                                  asientos.abajoDer!,
+                                                  textoALaIzquierda: true,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          // Pozos: 1.º arriba-izq, 2.º arriba-der, 3.º abajo-der.
-                          if (asientos.arribaIzq != null)
-                            Positioned(
-                              left: 0,
-                              top: 18,
-                              child: pozoRival(asientos.arribaIzq!),
-                            ),
-                          if (asientos.arribaDer != null)
-                            Positioned(
-                              right: 0,
-                              top: 18,
-                              child: pozoRival(asientos.arribaDer!),
-                            ),
-                          Positioned(
-                            left: 0,
-                            bottom: 0,
-                            child: _PozoCasita(
-                              titulo: widget.contraPc
-                                  ? TextosCasita.tuCasita
-                                  : TextosCasita.tuCasitaDe(pozoAbajo.nombre),
-                              jugador: pozoAbajo,
-                              paloVisual: _paloVisual,
-                              resaltar: true,
-                              seleccionada:
-                                  _nombreCasitaRobo == pozoAbajo.nombre,
+                              ],
                             ),
                           ),
-                          if (asientos.abajoDer != null)
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: pozoRival(asientos.abajoDer!),
-                            ),
                         ],
                       ),
                     ),
@@ -982,7 +1066,8 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                   gane: widget.contraPc
                       ? (_partida.ganador == _yo.nombre)
                       : (_partida.ganador != null),
-                  onOtraVez: _reiniciar,
+                  animaciones: _ajustes.animaciones,
+                  onVolverAJugar: _reiniciar,
                   onVolver: () => _salirAlMenu(guardar: false),
                 ),
               ),
@@ -1058,6 +1143,8 @@ class _PozoCasita extends StatelessWidget {
     this.resaltar = false,
     this.seleccionada = false,
     this.onTap,
+    /// Si true, el texto va a la izquierda de la carta (casitas del lado derecho).
+    this.textoALaIzquierda = false,
   });
 
   final String titulo;
@@ -1066,6 +1153,7 @@ class _PozoCasita extends StatelessWidget {
   final bool resaltar;
   final bool seleccionada;
   final VoidCallback? onTap;
+  final bool textoALaIzquierda;
 
   @override
   Widget build(BuildContext context) {
@@ -1104,37 +1192,48 @@ class _PozoCasita extends StatelessWidget {
       );
     }
 
-    final cuerpo = SizedBox(
-      width: 86,
+    final texto = SizedBox(
+      width: 72,
       child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          titulo,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: seleccionada
-                ? colorSeleccionCartaEspanola
-                : (resaltar ? AppColors.mint : AppColors.textoSuave),
-            fontWeight: FontWeight.w800,
-            fontSize: 11,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: textoALaIzquierda
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            textAlign:
+                textoALaIzquierda ? TextAlign.right : TextAlign.left,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: seleccionada
+                  ? colorSeleccionCartaEspanola
+                  : (resaltar ? AppColors.mint : AppColors.textoSuave),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              height: 1.15,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${jugador.cartasPozo}',
-          style: const TextStyle(
-            color: AppColors.textoSuave,
-            fontWeight: FontWeight.w700,
-            fontSize: 11,
+          const SizedBox(height: 2),
+          Text(
+            '${jugador.cartasPozo}',
+            style: const TextStyle(
+              color: AppColors.textoSuave,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        cartaWidget,
-      ],
+        ],
       ),
+    );
+
+    final cuerpo = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: textoALaIzquierda
+          ? [texto, const SizedBox(width: 6), cartaWidget]
+          : [cartaWidget, const SizedBox(width: 6), texto],
     );
 
     if (onTap == null) return cuerpo;
@@ -1149,7 +1248,7 @@ class _PozoCasita extends StatelessWidget {
   }
 }
 
-class _FilaCartas extends StatelessWidget {
+class _FilaCartas extends StatefulWidget {
   const _FilaCartas({
     required this.cartas,
     required this.bocaArriba,
@@ -1160,6 +1259,7 @@ class _FilaCartas extends StatelessWidget {
     this.seleccionIndex,
     this.indiceRevelado,
     this.cartasSeleccionadas = const [],
+    this.onReordenar,
   });
 
   final List<CartaCasita> cartas;
@@ -1172,132 +1272,303 @@ class _FilaCartas extends StatelessWidget {
   /// Carta tapada que se muestra boca arriba (preview de la PC).
   final int? indiceRevelado;
   final List<CartaCasita> cartasSeleccionadas;
+  final void Function(int desde, int hacia)? onReordenar;
+
+  @override
+  State<_FilaCartas> createState() => _FilaCartasState();
+}
+
+class _FilaCartasState extends State<_FilaCartas> {
+  final _scroll = ScrollController();
+  final _rowKey = GlobalKey();
+  final _reorden = ReordenarCartaManoDrag();
+
+  static const double _cardW = 68;
+  static const double _cardH = 102;
+  static const double _gap = 6;
+
+  bool get _arrastrando => _reorden.arrastrando;
+  bool get _puedeReordenar =>
+      widget.onReordenar != null &&
+      (widget.onTapIndex != null || widget.onTapCarta != null);
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  int _indiceInsercionDesdeGlobal(double globalX) {
+    return indiceInsercionDesdeGlobalReorden(
+      rowKey: _rowKey,
+      drag: _reorden,
+      globalX: globalX,
+      cantidad: widget.cartas.length,
+      anchoCarta: _cardW,
+      gap: _gap,
+    );
+  }
+
+  void _iniciarDrag(int index, Offset localPosition) {
+    setState(() {
+      _reorden.iniciar(
+        index: index,
+        localPosition: localPosition,
+        anchoCarta: _cardW,
+      );
+    });
+  }
+
+  void _actualizarDrag(DragUpdateDetails details) {
+    if (!_reorden.arrastrando) return;
+    autoScrollDuranteDragReorden(
+      scroll: _scroll,
+      context: context,
+      globalX: details.globalPosition.dx,
+    );
+    setState(() {
+      _reorden.actualizar(
+        details: details,
+        indiceInsercionDesdeGlobal: _indiceInsercionDesdeGlobal,
+      );
+    });
+  }
+
+  void _soltarDrag() {
+    final resultado = _reorden.soltar();
+    if (resultado != null) {
+      widget.onReordenar?.call(resultado.desde, resultado.hacia);
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _cancelarDrag() {
+    setState(_reorden.cancelar);
+  }
+
+  Widget _skin(CartaCasita c, {required bool seleccionada, required bool visible}) {
+    if (!visible) {
+      return Container(
+        width: _cardW,
+        height: _cardH,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A0A33),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: seleccionada
+                ? colorSeleccionCartaEspanola
+                : AppColors.acento,
+            width: seleccionada ? 2.4 : 2,
+          ),
+        ),
+        child: const Center(
+          child: Text(
+            '?',
+            style: TextStyle(
+              color: AppColors.acento,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      );
+    }
+    return CartaEspanolaSkin(
+      numero: c.numero,
+      etiqueta: c.etiqueta,
+      palo: widget.paloVisual(c.palo),
+      seleccionada: seleccionada,
+      width: _cardW,
+      height: _cardH,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (cartas.isEmpty) {
+    if (widget.cartas.isEmpty) {
       return const Center(
         child: Text('—', style: TextStyle(color: AppColors.textoSuave)),
       );
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final anchoFila = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : (cartas.length * 74.0).clamp(68.0, 900.0);
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: anchoFila),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < cartas.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 6),
-                  Builder(
-                    builder: (context) {
-                      final c = cartas[i];
-                      final seleccionada = seleccionIndex == i ||
-                          cartasSeleccionadas.contains(c);
-                      final visible =
-                          bocaArriba || indiceRevelado == i;
-                      const deslizamiento = 14.0;
-                      const cardW = 68.0;
-                      const cardH = 102.0;
-                      Widget card;
-                      if (!visible) {
-                        card = Container(
-                          width: cardW,
-                          height: cardH,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A0A33),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: seleccionada
-                                  ? colorSeleccionCartaEspanola
-                                  : AppColors.acento,
-                              width: seleccionada ? 2.4 : 2,
-                            ),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              '?',
-                              style: TextStyle(
-                                color: AppColors.acento,
-                                fontSize: 28,
-                                fontWeight: FontWeight.w900,
+
+    final altoSlot = _cardH + kDeslizamientoSeleccionCarta;
+    final contenedor = BoxDecoration(
+      color: const Color(0xFF1A0A33).withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: AppColors.violeta.withValues(alpha: 0.55),
+        width: 1.2,
+      ),
+    );
+
+    return Container(
+      decoration: contenedor,
+      clipBehavior: Clip.hardEdge,
+      alignment: Alignment.bottomCenter,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final minW = math.max(0.0, constraints.maxWidth - 24);
+          final n = widget.cartas.length;
+          final contentW = n == 0 ? 0.0 : n * _cardW + (n - 1) * _gap;
+          final filaW = math.max(minW, contentW);
+          return SingleChildScrollView(
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            physics: _arrastrando
+                ? const NeverScrollableScrollPhysics()
+                : const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+            child: SizedBox(
+              width: filaW,
+              height: altoSlot,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Row(
+                    key: _rowKey,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (var i = 0; i < widget.cartas.length; i++) ...[
+                        if (i > 0) const SizedBox(width: _gap),
+                        Builder(
+                          builder: (context) {
+                            final c = widget.cartas[i];
+                            final seleccionada =
+                                widget.seleccionIndex == i ||
+                                    widget.cartasSeleccionadas.contains(c);
+                            final visible =
+                                widget.bocaArriba ||
+                                    widget.indiceRevelado == i;
+                            final esLaQueArrastro = _reorden.dragIndex == i;
+                            final atenuar =
+                                _arrastrando && !esLaQueArrastro;
+                            final puedeTocar = widget.onTapIndex != null ||
+                                widget.onTapCarta != null;
+
+                            Widget child = CartaOpacidadReorden(
+                              esLaQueArrastro: esLaQueArrastro,
+                              atenuar: atenuar,
+                              child: CartaSlotSeleccion(
+                                seleccionada: seleccionada,
+                                animaciones: widget.animaciones,
+                                width: _cardW,
+                                height: _cardH,
+                                child: _skin(
+                                  c,
+                                  seleccionada: seleccionada,
+                                  visible: visible,
+                                ),
                               ),
-                            ),
-                          ),
-                        );
-                      } else {
-                        card = CartaEspanolaSkin(
-                          numero: c.numero,
-                          etiqueta: c.etiqueta,
-                          palo: paloVisual(c.palo),
-                          seleccionada: seleccionada,
-                          width: cardW,
-                          height: cardH,
-                        );
-                      }
-                      final puedeTocar =
-                          onTapIndex != null || onTapCarta != null;
-                      // Árbol estable + AnimatedAlign: si el padre cambia al
-                      // seleccionar, la animación se reinicia y teletransporta.
-                      return Material(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                        child: InkWell(
-                          onTap: !puedeTocar
-                              ? null
-                              : () {
-                                  if (onTapIndex != null) {
-                                    onTapIndex!(i);
-                                  } else if (onTapCarta != null) {
-                                    onTapCarta!(c);
+                            );
+
+                            child = CartaConHuecoReorden(
+                              arrastrandoMano: _arrastrando,
+                              esLaQueArrastro: esLaQueArrastro,
+                              shiftX: _reorden.shiftX(i, _cardW + _gap),
+                              duration: widget.animaciones
+                                  ? kDuracionHuecoReordenMano
+                                  : Duration.zero,
+                              child: child,
+                            );
+
+                            child = CartaArrastreVisualReorden(
+                              esLaQueArrastro: esLaQueArrastro,
+                              dragDx: _reorden.dragDx,
+                              dragDy: _reorden.dragDy,
+                              ocultarEnSlot: true,
+                              borderRadius: BorderRadius.circular(14),
+                              child: child,
+                            );
+
+                            if (_puedeReordenar) {
+                              return DetectorArrastreReorden(
+                                onTap: !puedeTocar
+                                    ? null
+                                    : () {
+                                        if (widget.onTapIndex != null) {
+                                          widget.onTapIndex!(i);
+                                        } else if (widget.onTapCarta !=
+                                            null) {
+                                          widget.onTapCarta!(c);
+                                        }
+                                      },
+                                onPanStart: (details) {
+                                  if (!seleccionada) return;
+                                  _iniciarDrag(i, details.localPosition);
+                                },
+                                onPanUpdate: _actualizarDrag,
+                                onPanEnd: _soltarDrag,
+                                onPanCancel: _cancelarDrag,
+                                child: child,
+                              );
+                            }
+
+                            if (!puedeTocar) return child;
+
+                            return Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                              child: InkWell(
+                                onTap: () {
+                                  if (widget.onTapIndex != null) {
+                                    widget.onTapIndex!(i);
+                                  } else if (widget.onTapCarta != null) {
+                                    widget.onTapCarta!(c);
                                   }
                                 },
-                          borderRadius: BorderRadius.circular(14),
-                          splashColor: seleccionada
-                              ? colorSeleccionCartaEspanola.withValues(
-                                  alpha: 0.25,
-                                )
-                              : Colors.transparent,
-                          highlightColor: seleccionada
-                              ? colorSeleccionCartaEspanola.withValues(
-                                  alpha: 0.18,
-                                )
-                              : Colors.transparent,
-                          hoverColor: seleccionada
-                              ? colorSeleccionCartaEspanola.withValues(
-                                  alpha: 0.22,
-                                )
-                              : Colors.transparent,
-                          child: SizedBox(
-                            width: cardW,
-                            height: cardH + deslizamiento,
-                            child: AnimatedAlign(
-                              duration: animaciones
-                                  ? const Duration(milliseconds: 380)
-                                  : Duration.zero,
-                              curve: Curves.easeOutCubic,
-                              alignment: seleccionada
-                                  ? Alignment.topCenter
-                                  : Alignment.bottomCenter,
-                              child: card,
-                            ),
-                          ),
+                                borderRadius: BorderRadius.circular(14),
+                                splashColor: seleccionada
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.25,
+                                      )
+                                    : Colors.transparent,
+                                highlightColor: seleccionada
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.18,
+                                      )
+                                    : Colors.transparent,
+                                hoverColor: seleccionada
+                                    ? colorSeleccionCartaEspanola.withValues(
+                                        alpha: 0.22,
+                                      )
+                                    : Colors.transparent,
+                                child: child,
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ],
+                    ],
                   ),
+                  if (_reorden.dragIndex != null)
+                    CartaFlotanteReorden(
+                      rowKey: _rowKey,
+                      index: _reorden.dragIndex!,
+                      cantidad: widget.cartas.length,
+                      anchoCarta: _cardW,
+                      gap: _gap,
+                      dragDx: _reorden.dragDx,
+                      dragDy: _reorden.dragDy,
+                      borderRadius: BorderRadius.circular(14),
+                      child: CartaSlotSeleccion(
+                        seleccionada: true,
+                        animaciones: false,
+                        width: _cardW,
+                        height: _cardH,
+                        child: _skin(
+                          widget.cartas[_reorden.dragIndex!],
+                          seleccionada: true,
+                          visible: true,
+                        ),
+                      ),
+                    ),
                 ],
-              ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
