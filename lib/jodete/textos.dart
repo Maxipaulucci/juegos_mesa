@@ -53,6 +53,12 @@ abstract final class TextosJodete {
       'hasta que te toque una jugable y podés tirarla en el mismo turno.\n\n'
       'Desactivado (clásico): levantás solo 1 carta y pasás el turno.';
 
+  static const infoApilarDoses =
+      'Activado: si te tiran un 2, podés responder con otro 2 y se apila '
+      '(+2, +4, +6…). Si no, levantás lo acumulado.\n\n'
+      'Desactivado: el 2 no se puede tapar con otro 2; el siguiente '
+      'levanta 2 y pierde el turno.';
+
   static const reglaCorta =
       'Mazo español. Tirás mismo palo o número. '
       'Se anotan puntos por ronda; gana quien llega al objetivo.';
@@ -62,6 +68,7 @@ String reglasJodete({
   bool comodines = true,
   int objetivo = 30,
   bool puntajePorCartas = false,
+  bool apilarDoses = true,
 }) =>
     '''
 · Se juega con mazo español de ${comodines ? '50' : '48'} cartas (1 al 12
@@ -69,18 +76,16 @@ String reglasJodete({
 
 · Se reparte 7 cartas a cada jugador. La primera del descarte no es especial.
 
-· En tu turno hacés UNA sola acción: tirás una carta (mismo palo o mismo
-  número${comodines ? ', o comodín' : ''}) O levantás del mazo. Después
-  juega el siguiente. No se tira de nuevo con el 4 ni con el 7.
+· En tu turno tirás una carta (mismo palo o mismo número${comodines ? ', o comodín' : ''})
+  O levantás del mazo. El 4 y el 7 te dejan tirar de nuevo.
 
 · Efectos:
-  - 2 → el siguiente debe tirar otro 2 (apila +2) o, si no tiene 2,
-    levanta automáticamente las cartas acumuladas (2, 4, 6…) y pierde
-    el turno.
+  - 2 → ${apilarDoses ? 'el siguiente puede tirar otro 2 (apila +2) o levantar las cartas acumuladas (2, 4, 6…). Si no tiene un 2, las levanta solo a los 2 segundos' : 'el siguiente levanta 2 (no se puede tapar con otro 2). Si no responde, las levanta solo a los 2 segundos'}
+  - 4 y 7 → tirás otra carta (o levantás) en el mismo turno
   - 10 → elegís el palo vigente
   - 11 → saltea al siguiente jugador
   - 12 → invierte el sentido (con 2 jugadores funciona como salteo)
-${comodines ? '  - Comodín → el siguiente levanta 5, pierde el turno, y elegís el palo\n' : ''}  - 4 y 7 no tienen efecto especial (solo cuentan como número/palo)
+${comodines ? '  - Comodín → el siguiente levanta 5, pierde el turno, y elegís el palo\n' : ''}
 
 · Si no podés tirar, levantás 1 del mazo y pasás (o, si activaste
   “Levantar hasta tirar” en Modificar partida, levantás hasta sacar una

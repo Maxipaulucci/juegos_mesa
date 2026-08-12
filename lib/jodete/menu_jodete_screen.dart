@@ -48,6 +48,15 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
             ),
             const SizedBox(height: 8),
             FilaToggleModificarPartida(
+              titulo: 'Tirar 2 sobre 2',
+              activo: draft.apilarDoses,
+              onChanged: (v) => setDialogState(
+                () => draft = draft.copyWith(apilarDoses: v),
+              ),
+              info: TextosJodete.infoApilarDoses,
+            ),
+            const SizedBox(height: 8),
+            FilaToggleModificarPartida(
               titulo: 'Puntaje por cartas (a 100)',
               activo: draft.puntajePorCartas,
               onChanged: (v) => setDialogState(
@@ -91,32 +100,49 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 8,
+                  Row(
                     children: [
-                      for (final pts in OpcionesJodete.objetivosPermitidos)
-                        ChoiceChip(
-                          label: Text(
-                            '$pts puntos',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: !draft.puntajePorCartas &&
-                                      draft.objetivoClamped == pts
-                                  ? const Color(0xFF062018)
-                                  : AppColors.texto,
+                      for (final pts in OpcionesJodete.objetivosPermitidos) ...[
+                        if (pts != OpcionesJodete.objetivosPermitidos.first)
+                          const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: draft.puntajePorCartas
+                                ? null
+                                : () => setDialogState(
+                                      () => draft =
+                                          draft.copyWith(objetivo: pts),
+                                    ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor:
+                                  !draft.puntajePorCartas &&
+                                          draft.objetivoClamped == pts
+                                      ? const Color(0xFF062018)
+                                      : AppColors.texto,
+                              backgroundColor:
+                                  !draft.puntajePorCartas &&
+                                          draft.objetivoClamped == pts
+                                      ? AppColors.mint
+                                      : const Color(0xFF3A2A58),
+                              side: BorderSide(
+                                color: !draft.puntajePorCartas &&
+                                        draft.objetivoClamped == pts
+                                    ? AppColors.mint
+                                    : AppColors.violeta.withValues(alpha: 0.45),
+                                width: 1.6,
+                              ),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: Text(
+                              '$pts puntos',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
-                          selected: !draft.puntajePorCartas &&
-                              draft.objetivoClamped == pts,
-                          selectedColor: AppColors.mint,
-                          backgroundColor: const Color(0xFF3A2A58),
-                          onSelected: draft.puntajePorCartas
-                              ? null
-                              : (_) => setDialogState(
-                                    () =>
-                                        draft = draft.copyWith(objetivo: pts),
-                                  ),
                         ),
+                      ],
                     ],
                   ),
                 ],
@@ -129,9 +155,8 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
     if (ok && mounted) {
       setState(() => _opciones = draft);
       JodeteMenuConfig.actualizar(_opciones);
-      if (JodeteStandByStore.peek()?.opciones != _opciones) {
-        JodeteStandByStore.limpiar();
-      }
+      // No se limpia el standby: la partida vs PC sigue hasta que
+      // el jugador reinicie con el botón de la partida.
     }
   }
 
@@ -169,7 +194,6 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
       opcionesCantidadPc: const [1, 2, 3],
-      onCantidadPcChanged: (_) => JodeteStandByStore.limpiar(),
       textoInfoModoDios: TextosJodete.infoModoDios,
       textosInfoDificultad: const {
         DificultadPc.facil: TextosJodete.infoDificultadFacil,
@@ -188,11 +212,10 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
           MenuJuegoScreen.juegoIdJodete,
           estado.modoDios,
         );
-        final resumeRaw = JodeteStandByStore.consumir();
+        final resumeRaw = JodeteStandByStore.peek();
         final resume = resumeRaw != null &&
-                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc) &&
-                resumeRaw.opciones == _opciones
-            ? resumeRaw
+                coincideCantidadPc(resumeRaw.nombres, estado.cantidadPc)
+            ? JodeteStandByStore.consumir()
             : null;
         final humano = estado.nombres.isNotEmpty
             ? estado.nombres.first

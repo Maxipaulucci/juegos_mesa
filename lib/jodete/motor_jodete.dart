@@ -43,6 +43,9 @@ class CartaJodete {
 
   bool get invierte => !esComodin && numero == 12;
 
+  /// 4 y 7: el mismo jugador tira de nuevo.
+  bool get juegaDeNuevo => !esComodin && (numero == 4 || numero == 7);
+
   String get nombrePalo => switch (palo) {
         PaloJodete.oro => 'oro',
         PaloJodete.copa => 'copa',
@@ -130,8 +133,10 @@ class PartidaJodete {
     this.incluirComodines = true,
     this.cartasIniciales = 7,
     this.puntajePorCartas = false,
+    this.apilarDoses = true,
     this.ultimoResultado,
-  });
+    List<ResultadoRondaJodete>? historialRondas,
+  }) : historialRondas = historialRondas ?? [];
 
   final List<JugadorJodete> jugadores;
   final List<CartaJodete> mazo;
@@ -152,7 +157,11 @@ class PartidaJodete {
   final int cartasIniciales;
   /// Si true, el 1º suma el valor de las cartas rivales (objetivo 100).
   final bool puntajePorCartas;
+  /// Si true, se puede responder un 2 con otro 2 (apila +2).
+  final bool apilarDoses;
   ResultadoRondaJodete? ultimoResultado;
+  /// Resultados de todas las rondas (para el historial de victoria).
+  final List<ResultadoRondaJodete> historialRondas;
 
   bool get terminada => fase == FaseJodete.ganado;
 
@@ -288,6 +297,7 @@ PartidaJodete nuevaPartidaJodete({
   bool incluirComodines = true,
   int objetivo = 30,
   bool puntajePorCartas = false,
+  bool apilarDoses = true,
 }) {
   final r = rng ?? math.Random();
   final lista = nombres.isEmpty
@@ -308,6 +318,7 @@ PartidaJodete nuevaPartidaJodete({
     incluirComodines: incluirComodines,
     cartasIniciales: cartasIniciales,
     puntajePorCartas: puntajePorCartas,
+    apilarDoses: apilarDoses,
   );
   _repartirInicioJodete(p, r);
   return p;
@@ -323,8 +334,8 @@ void siguienteRondaJodete(PartidaJodete p, [math.Random? rng]) {
 
 bool puedeJugarCartaJodete(PartidaJodete p, CartaJodete c) {
   if (!p.jugando) return false;
-  // Con doses pendientes solo se puede responder con otro 2.
-  if (p.hayPendienteDos) return c.esDos;
+  // Con doses pendientes: solo otro 2, y solo si está permitido apilar.
+  if (p.hayPendienteDos) return p.apilarDoses && c.esDos;
   if (c.esComodin) return true;
   final cima = p.cimaDescarte;
   if (cima == null) return true;
@@ -460,7 +471,9 @@ void puntuarRondaJodete(PartidaJodete p) {
   }
 
   detalles.sort((a, b) => a.puesto.compareTo(b.puesto));
-  p.ultimoResultado = ResultadoRondaJodete(detalles: detalles);
+  final resultado = ResultadoRondaJodete(detalles: detalles);
+  p.ultimoResultado = resultado;
+  p.historialRondas.add(resultado);
 
   var maxPts = -1;
   for (final j in p.jugadores) {
@@ -527,7 +540,9 @@ String? jugarCartaJodete(
   if (!j.mano.contains(carta)) return 'Esa carta no está en tu mano.';
   if (!puedeJugarCartaJodete(p, carta)) {
     if (p.hayPendienteDos) {
-      return 'Hay un ${p.pendienteDos} pendiente: tirás un 2 o levantás.';
+      return p.apilarDoses
+          ? 'Hay un ${p.pendienteDos} pendiente: tirás un 2 o levantás.'
+          : 'Hay un ${p.pendienteDos} pendiente: tenés que levantar.';
     }
     return 'Debés tirar del mismo palo (${p.paloVigente.name}) o el mismo número.';
   }
@@ -562,9 +577,11 @@ String? jugarCartaJodete(
     msg += ' · ${_ordinal(j.puestoRonda!)}';
   }
 
-  // Una carta por turno (salvo apilar doses).
+  // Una carta por turno (salvo 4/7: tira de nuevo).
   final nEnJuego = p.enJuego.length;
-  if (carta.esDos) {
+  if (carta.juegaDeNuevo) {
+    msg += ' · tira de nuevo';
+  } else if (carta.esDos) {
     p.pendienteDos += 2;
     msg += ' · pendiente ${p.pendienteDos}';
     _avanzarTurno(p);

@@ -65,9 +65,6 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   bool _yaActuoEsteTurno = false;
   int _turnoDeLaAccion = -1;
 
-  /// Tras “VER GANADOR” en el resumen de la ronda final.
-  bool _resumenCerrado = false;
-
   /// Overlay central (estilo Culo sucio v2) cuando la PC tira o levanta.
   CartaJodete? _cartaOverlayPc;
   String? _tituloOverlayPc;
@@ -103,13 +100,14 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   }
 
   bool get _mostrarResumenRonda =>
-      _partida.ultimoResultado != null &&
-      !_resumenCerrado &&
-      (_partida.enFinRonda || _partida.terminada);
+      _partida.enFinRonda && _partida.ultimoResultado != null;
 
-  bool get _mostrarVictoria =>
-      _partida.terminada &&
-      (_resumenCerrado || _partida.ultimoResultado == null);
+  bool get _mostrarVictoria => _partida.terminada;
+
+  bool get _puedeTirarSeleccion =>
+      _puedeJugarHumano &&
+      _seleccion != null &&
+      puedeJugarCartaJodete(_partida, _seleccion!);
 
   void _asegurarFlagTurno() {
     final t = _partida.indiceTurno;
@@ -153,6 +151,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         incluirComodines: _opciones.comodines,
         objetivo: _opciones.objetivoEfectivo,
         puntajePorCartas: _opciones.puntajePorCartas,
+        apilarDoses: _opciones.apilarDoses,
       );
     }
     if (_esLocalHotSeat) {
@@ -192,6 +191,8 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         MenuJuegoScreen.juegoIdJodete,
         fallback: widget.modoDios,
       );
+      _opciones = JodeteMenuConfig.opciones;
+      _dificultad = widget.dificultad;
       if (widget.contraPc) {
         final pcs = cantidadPcElegidaEnMenu(
               MenuJuegoScreen.juegoIdJodete,
@@ -209,6 +210,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         incluirComodines: _opciones.comodines,
         objetivo: _opciones.objetivoEfectivo,
         puntajePorCartas: _opciones.puntajePorCartas,
+        apilarDoses: _opciones.apilarDoses,
       );
       _seleccion = null;
       _mostrarMenu = false;
@@ -220,7 +222,6 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       _jugandoPc = false;
       _yaActuoEsteTurno = false;
       _turnoDeLaAccion = -1;
-      _resumenCerrado = false;
       _limpiarOverlayPc();
     });
     _talVezPc();
@@ -251,6 +252,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
               comodines: _opciones.comodines,
               objetivo: _partida.objetivo,
               puntajePorCartas: _partida.puntajePorCartas,
+              apilarDoses: _partida.apilarDoses,
             ),
             style: const TextStyle(color: AppColors.texto, height: 1.35),
           ),
@@ -274,9 +276,15 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
 
   void _toggleCarta(CartaJodete c) {
     if (!_puedeJugarHumano) return;
-    setState(() {
-      _seleccion = _seleccion == c ? null : c;
-    });
+    if (_seleccion == c) {
+      if (puedeJugarCartaJodete(_partida, c)) {
+        unawaited(_confirmarTirar());
+        return;
+      }
+      setState(() => _seleccion = null);
+      return;
+    }
+    setState(() => _seleccion = c);
   }
 
   Future<void> _confirmarTirar() async {
@@ -287,8 +295,6 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       return;
     }
     if (carta.pideElegirPalo) {
-      // La elección de palo completa la única jugada del turno.
-      _marcarAccionDeTurno();
       setState(() {
         _cartaPendientePalo = carta;
         _eligiendoPalo = true;
@@ -306,7 +312,17 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       _eligiendoPalo = false;
       _cartaPendientePalo = null;
     });
+    _marcarAccionDeTurno();
     _aplicarJugada(carta, palo);
+  }
+
+  void _cancelarElegirPalo() {
+    if (!_eligiendoPalo) return;
+    setState(() {
+      _eligiendoPalo = false;
+      _cartaPendientePalo = null;
+      _yaActuoEsteTurno = false;
+    });
   }
 
   void _aplicarJugada(CartaJodete carta, PaloJodete? palo) {
@@ -366,16 +382,17 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     _despuesDeJugada(antes);
   }
 
-  /// Si hay doses pendientes y no tenés un 2, levantás solo.
+  /// Si hay doses pendientes y no podés responder con un 2, levantás (tras 2 s).
   bool get _debeAutoLevantarPendienteDos {
     if (!_puedeJugarHumano || !_partida.hayPendienteDos) return false;
+    if (!_partida.apilarDoses) return true;
     return !_partida.jugadorActual.mano.any((c) => c.esDos);
   }
 
   Future<void> _talVezAutoLevantarPendienteDos() async {
     if (!_debeAutoLevantarPendienteDos) return;
-    // Un instante para leer el aviso antes de levantar.
-    await Future<void>.delayed(const Duration(milliseconds: 450));
+    // 2 s para que no se note al toque si tenías un 2 o no.
+    await Future<void>.delayed(const Duration(seconds: 2));
     if (!mounted || !_debeAutoLevantarPendienteDos) return;
     _marcarAccionDeTurno();
     final antes = _partida.indiceTurno;
@@ -419,10 +436,6 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   }
 
   void _continuarRonda() {
-    if (_partida.terminada) {
-      setState(() => _resumenCerrado = true);
-      return;
-    }
     if (!_partida.enFinRonda) return;
     setState(() {
       siguienteRondaJodete(_partida, _rng);
@@ -431,7 +444,6 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       _cartaPendientePalo = null;
       _yaActuoEsteTurno = false;
       _turnoDeLaAccion = -1;
-      _resumenCerrado = false;
       _limpiarOverlayPc();
       _esperandoCambioJugador = _esLocalHotSeat;
     });
@@ -701,15 +713,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                               children: [
                                 _mazoWidget(),
                                 const SizedBox(width: 18),
-                                if (_partida.cimaDescarte != null)
-                                  _cartaWidget(
-                                    _partida.cimaDescarte!,
-                                    seleccionada: false,
-                                    w: 78,
-                                    h: 118,
-                                  )
-                                else
-                                  const SizedBox(width: 78, height: 118),
+                                _descarteWidget(),
                               ],
                             ),
                           ],
@@ -719,7 +723,9 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                           _turnoDePc
                               ? '${actual.nombre} está pensando…'
                               : (_partida.hayPendienteDos
-                                  ? '¡${vista.nombre}! Tirás un 2 o levantás ${_partida.pendienteDos}'
+                                  ? (_partida.apilarDoses
+                                      ? '¡${vista.nombre}! Tirás un 2 o levantás ${_partida.pendienteDos}'
+                                      : '¡${vista.nombre}! Levantás ${_partida.pendienteDos}')
                                   : 'Turno de ${actual.nombre}'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
@@ -775,12 +781,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: FilledButton(
-                                    onPressed: _puedeJugarHumano &&
-                                            _seleccion != null &&
-                                            puedeJugarCartaJodete(
-                                              _partida,
-                                              _seleccion!,
-                                            )
+                                    onPressed: _puedeTirarSeleccion
                                         ? () => unawaited(_confirmarTirar())
                                         : null,
                                     style: FilledButton.styleFrom(
@@ -837,6 +838,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                 Positioned.fill(
                   child: _OverlayElegirPalo(
                     onElegir: _elegirPalo,
+                    onCerrar: _cancelarElegirPalo,
                     paloVisual: _paloVisual,
                   ),
                 ),
@@ -859,7 +861,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                   child: ResumenRondaJodeteOverlay(
                     resultado: _partida.ultimoResultado!,
                     onContinuar: _continuarRonda,
-                    esFinPartida: _partida.terminada,
+                    objetivo: _partida.objetivo,
                   ),
                 ),
               if (_mostrarAjustes)
@@ -934,7 +936,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     final ver = _modoDiosActivo && esNombrePc(j.nombre);
     final fuera = j.rendido || j.puestoRonda != null;
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.carta.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(12),
@@ -962,19 +964,32 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
               decoration: j.rendido ? TextDecoration.lineThrough : null,
             ),
           ),
-          const SizedBox(height: 4),
-          MarcadorPalitosEscoba(
-            puntos: j.puntos,
-            color: AppColors.acento,
-            tamanoGrupo: 22,
-          ),
-          Text(
-            '${j.puntos} pts · ${j.mano.length} cartas',
-            style: const TextStyle(
-              color: AppColors.textoSuave,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 14,
+                child: MarcadorPalitosEscoba(
+                  puntos: j.puntos,
+                  color: _partida.objetivo == 30
+                      ? Colors.white
+                      : AppColors.acento,
+                  colorDesdeUmbral:
+                      _partida.objetivo == 30 ? AppColors.azul : null,
+                  umbralColor: _partida.objetivo == 30 ? 15 : null,
+                  tamanoGrupo: 14,
+                ),
+              ),
+              if (j.puntos > 0) const SizedBox(width: 6),
+              Text(
+                '${j.puntos} pts',
+                style: const TextStyle(
+                  color: AppColors.textoSuave,
+                  fontSize: 11,
+                ),
+              ),
+            ],
           ),
           if (ver && j.mano.isNotEmpty)
             SizedBox(
@@ -1052,6 +1067,35 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     );
   }
 
+  Widget _descarteWidget() {
+    final cima = _partida.cimaDescarte;
+    final puedeTirar = _puedeTirarSeleccion;
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: puedeTirar ? () => unawaited(_confirmarTirar()) : null,
+          child: cima != null
+              ? _cartaWidget(
+                  cima,
+                  seleccionada: puedeTirar,
+                  w: 78,
+                  h: 118,
+                )
+              : const SizedBox(width: 78, height: 118),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          TextosJodete.descarte,
+          style: TextStyle(
+            color: puedeTirar ? AppColors.mint : AppColors.textoSuave,
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _mazoWidget() {
     final puede = _puedeJugarHumano;
     return Column(
@@ -1097,84 +1141,117 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
 class _OverlayElegirPalo extends StatelessWidget {
   const _OverlayElegirPalo({
     required this.onElegir,
+    required this.onCerrar,
     required this.paloVisual,
   });
 
   final ValueChanged<PaloJodete> onElegir;
+  final VoidCallback onCerrar;
   final PaloEspanolVisual Function(PaloJodete) paloVisual;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.72),
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF3B1D6E),
-                Color(0xFF1A0A33),
-                Color(0xFF2A1050),
-              ],
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onCerrar,
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.72),
+              ),
             ),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.acento, width: 2),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                TextosJodete.elegirPalo,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.acento,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 20,
+          Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF3B1D6E),
+                      Color(0xFF1A0A33),
+                      Color(0xFF2A1050),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppColors.acento, width: 2),
                 ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Tocá una carta para declarar el palo',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textoSuave,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 16),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final p in PaloJodete.values) ...[
-                      if (p != PaloJodete.values.first)
-                        const SizedBox(width: 10),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => onElegir(p),
-                          borderRadius: BorderRadius.circular(14),
-                          child: CartaEspanolaSkin(
-                            numero: 0,
-                            etiqueta: nombrePaloJodete(p).toLowerCase(),
-                            palo: paloVisual(p),
-                            width: 78,
-                            height: 118,
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 6),
+                            child: Text(
+                              TextosJodete.elegirPalo,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.acento,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 20,
+                              ),
+                            ),
                           ),
                         ),
+                        IconButton(
+                          onPressed: onCerrar,
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.texto,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Text(
+                      'Tocá una carta para declarar el palo',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.textoSuave,
+                        fontSize: 13,
                       ),
-                    ],
+                    ),
+                    const SizedBox(height: 16),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (final p in PaloJodete.values) ...[
+                            if (p != PaloJodete.values.first)
+                              const SizedBox(width: 10),
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => onElegir(p),
+                                borderRadius: BorderRadius.circular(14),
+                                child: CartaEspanolaSkin(
+                                  numero: 0,
+                                  etiqueta: nombrePaloJodete(p).toLowerCase(),
+                                  palo: paloVisual(p),
+                                  width: 78,
+                                  height: 118,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

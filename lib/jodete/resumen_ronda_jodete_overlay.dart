@@ -13,12 +13,14 @@ class ResumenRondaJodeteOverlay extends StatefulWidget {
     required this.onContinuar,
     this.esFinPartida = false,
     this.labelContinuar,
+    this.objetivo = 30,
   });
 
   final ResultadoRondaJodete resultado;
   final VoidCallback onContinuar;
   final bool esFinPartida;
   final String? labelContinuar;
+  final int objetivo;
 
   @override
   State<ResumenRondaJodeteOverlay> createState() =>
@@ -149,6 +151,7 @@ class _ResumenRondaJodeteOverlayState extends State<ResumenRondaJodeteOverlay> {
                                     }
                                   }),
                                   ordinal: _ordinal(resultado.detalles[i].puesto),
+                                  objetivo: widget.objetivo,
                                 ),
                               ],
                               const SizedBox(height: 14),
@@ -265,6 +268,7 @@ class _BotonJugadorExpandible extends StatelessWidget {
     required this.expandido,
     required this.onTap,
     required this.ordinal,
+    this.objetivo = 30,
   });
 
   final DetalleJugadorRondaJodete detalle;
@@ -272,6 +276,7 @@ class _BotonJugadorExpandible extends StatelessWidget {
   final bool expandido;
   final VoidCallback onTap;
   final String ordinal;
+  final int objetivo;
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +346,10 @@ class _BotonJugadorExpandible extends StatelessWidget {
                               ),
                               MarcadorPalitosEscoba(
                                 puntos: detalle.puntosTrasRonda,
-                                color: color,
+                                color: objetivo == 30 ? Colors.white : color,
+                                colorDesdeUmbral:
+                                    objetivo == 30 ? AppColors.azul : null,
+                                umbralColor: objetivo == 30 ? 15 : null,
                                 tamanoGrupo: 18,
                               ),
                               Text(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/jodete/historial_jodete.dart';
 import 'package:app_juegos_mesa/jodete/motor_jodete.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/theme/victoria_celebration.dart';
@@ -139,6 +140,7 @@ class _VictoriaJodeteOverlayState extends State<VictoriaJodeteOverlay>
                             child: Padding(
                               padding: const EdgeInsets.all(18),
                               child: _FinCardJodete(
+                                partida: widget.partida,
                                 gane: widget.gane,
                                 ganador: _ganadorTexto,
                                 subtitulo: _subtitulo,
@@ -180,6 +182,7 @@ class _VictoriaJodeteOverlayState extends State<VictoriaJodeteOverlay>
 
 class _FinCardJodete extends StatelessWidget {
   const _FinCardJodete({
+    required this.partida,
     required this.gane,
     required this.ganador,
     required this.subtitulo,
@@ -189,6 +192,7 @@ class _FinCardJodete extends StatelessWidget {
     this.animaciones = true,
   });
 
+  final PartidaJodete partida;
   final bool gane;
   final String ganador;
   final String subtitulo;
@@ -289,6 +293,16 @@ class _FinCardJodete extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
+            GlowButtonVictoria(
+              label: 'HISTORIAL',
+              icon: Icons.history_rounded,
+              color: AppColors.azul,
+              onPressed: () => mostrarHistorialJodete(
+                context: context,
+                partida: partida,
+              ),
+            ),
+            const SizedBox(height: 10),
             GlowButtonVictoria(
               label: 'VOLVER A JUGAR',
               icon: Icons.replay_rounded,

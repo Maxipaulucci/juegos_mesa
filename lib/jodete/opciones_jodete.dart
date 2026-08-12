@@ -5,6 +5,7 @@ class OpcionesJodete {
     this.levantarHastaTirar = false,
     this.objetivo = 30,
     this.puntajePorCartas = false,
+    this.apilarDoses = true,
   });
 
   static const objetivosPermitidos = [15, 30];
@@ -24,6 +25,9 @@ class OpcionesJodete {
   /// en las demás manos; gana quien llega a 100.
   final bool puntajePorCartas;
 
+  /// Si true, se puede responder un 2 con otro 2 (apila +2).
+  final bool apilarDoses;
+
   int get objetivoClamped =>
       objetivosPermitidos.contains(objetivo) ? objetivo : 30;
 
@@ -36,12 +40,14 @@ class OpcionesJodete {
     bool? levantarHastaTirar,
     int? objetivo,
     bool? puntajePorCartas,
+    bool? apilarDoses,
   }) {
     return OpcionesJodete(
       comodines: comodines ?? this.comodines,
       levantarHastaTirar: levantarHastaTirar ?? this.levantarHastaTirar,
       objetivo: objetivo ?? this.objetivo,
       puntajePorCartas: puntajePorCartas ?? this.puntajePorCartas,
+      apilarDoses: apilarDoses ?? this.apilarDoses,
     );
   }
 
@@ -51,7 +57,8 @@ class OpcionesJodete {
       other.comodines == comodines &&
       other.levantarHastaTirar == levantarHastaTirar &&
       other.objetivo == objetivo &&
-      other.puntajePorCartas == puntajePorCartas;
+      other.puntajePorCartas == puntajePorCartas &&
+      other.apilarDoses == apilarDoses;
 
   @override
   int get hashCode => Object.hash(
@@ -59,6 +66,7 @@ class OpcionesJodete {
         levantarHastaTirar,
         objetivo,
         puntajePorCartas,
+        apilarDoses,
       );
 }
 

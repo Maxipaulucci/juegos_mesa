@@ -10,27 +10,51 @@ class MarcadorPalitosEscoba extends StatelessWidget {
     required this.puntos,
     this.color = AppColors.acento,
     this.tamanoGrupo = 28,
+    this.colorDesdeUmbral,
+    this.umbralColor,
   });
 
   final int puntos;
   final Color color;
   final double tamanoGrupo;
+  /// Color de los palitos a partir de [umbralColor] (p. ej. azul tras 15).
+  final Color? colorDesdeUmbral;
+  final int? umbralColor;
+
+  List<Widget> _grupos(int cantidad, Color c) {
+    if (cantidad <= 0) return const [];
+    final completos = cantidad ~/ 5;
+    final resto = cantidad % 5;
+    return [
+      for (var i = 0; i < completos; i++)
+        _GrupoPalitos(valor: 5, color: c, size: tamanoGrupo),
+      if (resto > 0) _GrupoPalitos(valor: resto, color: c, size: tamanoGrupo),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     final n = puntos.clamp(0, 99);
     if (n == 0) return const SizedBox.shrink();
-    final completos = n ~/ 5;
-    final resto = n % 5;
+
+    final umbral = umbralColor;
+    final segundo = colorDesdeUmbral;
+    final List<Widget> hijos;
+    if (umbral != null && segundo != null && umbral > 0) {
+      final primeros = n < umbral ? n : umbral;
+      final extras = n > umbral ? n - umbral : 0;
+      hijos = [
+        ..._grupos(primeros, color),
+        ..._grupos(extras, segundo),
+      ];
+    } else {
+      hijos = _grupos(n, color);
+    }
+
     return Wrap(
       spacing: 6,
       runSpacing: 6,
-      children: [
-        for (var i = 0; i < completos; i++)
-          _GrupoPalitos(valor: 5, color: color, size: tamanoGrupo),
-        if (resto > 0)
-          _GrupoPalitos(valor: resto, color: color, size: tamanoGrupo),
-      ],
+      children: hijos,
     );
   }
 }
