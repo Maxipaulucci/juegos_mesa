@@ -44,6 +44,22 @@ JugadaPcJodete planificarJugadaPcJodete(
     return JugadaPcJodete.jugar(carta: doses[r.nextInt(doses.length)]);
   }
 
+  // Pendiente de comodines: mismo criterio que los 2.
+  if (p.hayPendienteComodin) {
+    final comodines = jugables.where((c) => c.esComodin).toList();
+    if (comodines.isEmpty) {
+      return const JugadaPcJodete.levantar();
+    }
+    if (dificultad == DificultadPc.facil && r.nextDouble() < 0.35) {
+      return const JugadaPcJodete.levantar();
+    }
+    final carta = comodines[r.nextInt(comodines.length)];
+    return JugadaPcJodete.jugar(
+      carta: carta,
+      paloElegido: _elegirPaloPc(j, dificultad: dificultad, rng: r),
+    );
+  }
+
   CartaJodete elegir() {
     switch (dificultad) {
       case DificultadPc.facil:

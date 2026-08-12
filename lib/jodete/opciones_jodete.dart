@@ -25,7 +25,8 @@ class OpcionesJodete {
   /// en las demás manos; gana quien llega a 100.
   final bool puntajePorCartas;
 
-  /// Si true, se puede responder un 2 con otro 2 (apila +2).
+  /// Si true, se puede responder un 2 con otro 2 (apila +2)
+  /// y un comodín con otro comodín (apila +5).
   final bool apilarDoses;
 
   int get objetivoClamped =>

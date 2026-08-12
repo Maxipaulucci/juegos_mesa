@@ -2,7 +2,7 @@
 abstract final class TextosJodete {
   static const titulo = 'Jodete';
   static const tuMano = 'Tu mano';
-  static const descarte = 'Descarte';
+  static const descarte = 'Pozo';
   static const paloVigente = 'Palo vigente';
   static const levantar = 'Levantar';
   static const tirar = 'Tirar';
@@ -12,7 +12,9 @@ abstract final class TextosJodete {
   static const onlineProximamente = 'Online de Jodete próximamente';
   static const infoModoDios =
       'Solo aplica a “Jugar vs PC”.\n\n'
-      'Durante la partida ves boca arriba las manos de las PCs.';
+      'Durante la partida ves boca arriba las manos de las PCs.\n\n'
+      'También aparece el botón de forzar cartas (araña): '
+      'elegís la cima del pozo y las cartas de tu mano.';
 
   static const infoDificultadFacil =
       'La PC tira casi al azar entre las cartas válidas '
@@ -29,7 +31,8 @@ abstract final class TextosJodete {
   static const infoComodines =
       'Activado: el mazo lleva 50 cartas (48 + 2 comodines). '
       'El comodín se puede tirar siempre, hace levantar 5 al siguiente '
-      'y te deja elegir el palo.\n\n'
+      'y te deja elegir el palo. Si “Tirar 2 sobre 2” está activado, '
+      'también se puede tapar un comodín con otro (apila +5).\n\n'
       'Desactivado: mazo de 48 cartas, sin comodines.';
 
   static const infoObjetivo =
@@ -56,8 +59,10 @@ abstract final class TextosJodete {
   static const infoApilarDoses =
       'Activado: si te tiran un 2, podés responder con otro 2 y se apila '
       '(+2, +4, +6…). Si no, levantás lo acumulado.\n\n'
-      'Desactivado: el 2 no se puede tapar con otro 2; el siguiente '
-      'levanta 2 y pierde el turno.';
+      'Si también hay comodines, se apilan igual: comodín sobre comodín '
+      '(+5, +10…). Si no tapás, levantás lo acumulado.\n\n'
+      'Desactivado: el 2 no se puede tapar con otro 2 ni el comodín con '
+      'otro comodín; el siguiente levanta y pierde el turno.';
 
   static const reglaCorta =
       'Mazo español. Tirás mismo palo o número. '
@@ -74,7 +79,7 @@ String reglasJodete({
 · Se juega con mazo español de ${comodines ? '50' : '48'} cartas (1 al 12
   en oro, copa, espada y basto${comodines ? ', más 2 comodines' : ''}).
 
-· Se reparte 7 cartas a cada jugador. La primera del descarte no es especial.
+· Se reparte 7 cartas a cada jugador. La primera del pozo no es especial.
 
 · En tu turno tirás una carta (mismo palo o mismo número${comodines ? ', o comodín' : ''})
   O levantás del mazo. El 4 y el 7 te dejan tirar de nuevo.
@@ -85,7 +90,9 @@ String reglasJodete({
   - 10 → elegís el palo vigente
   - 11 → saltea al siguiente jugador
   - 12 → invierte el sentido (con 2 jugadores funciona como salteo)
-${comodines ? '  - Comodín → el siguiente levanta 5, pierde el turno, y elegís el palo\n' : ''}
+${comodines ? (apilarDoses
+      ? '  - Comodín → el siguiente puede tirar otro comodín (apila +5) o levantar lo acumulado (5, 10…). Si no tiene comodín, las levanta solo a los 2 segundos. Elegís el palo.\n'
+      : '  - Comodín → el siguiente levanta 5, pierde el turno, y elegís el palo\n') : ''}
 
 · Si no podés tirar, levantás 1 del mazo y pasás (o, si activaste
   “Levantar hasta tirar” en Modificar partida, levantás hasta sacar una

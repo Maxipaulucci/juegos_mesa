@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/jodete/ia_jodete.dart';
 import 'package:app_juegos_mesa/jodete/menu_partida_jodete.dart';
+import 'package:app_juegos_mesa/jodete/modo_dios_jodete.dart';
 import 'package:app_juegos_mesa/jodete/motor_jodete.dart';
 import 'package:app_juegos_mesa/jodete/opciones_jodete.dart';
 import 'package:app_juegos_mesa/jodete/resumen_ronda_jodete_overlay.dart';
@@ -234,6 +235,34 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     _reiniciar();
   }
 
+  int get _idxManoForzar => _partida.jugadores.indexOf(_humanoPrincipal);
+
+  Future<void> _abrirForzarCartas() async {
+    if (!_modoDiosActivo || !_partida.jugando || _jugandoPc) return;
+    final idx = _idxManoForzar;
+    if (idx < 0) return;
+
+    final resultado = await mostrarForzarCartasJodete(
+      context: context,
+      disponibles: cartasDisponiblesForzarJodete(_partida),
+      manoInicial: List.of(_humanoPrincipal.mano),
+      pozoInicial: _partida.cimaDescarte,
+    );
+    if (resultado == null || !mounted) return;
+
+    final antes = _partida.indiceTurno;
+    setState(() {
+      _seleccion = null;
+      _eligiendoPalo = false;
+      _cartaPendientePalo = null;
+      if (resultado.pozo != null) {
+        forzarCimaDescarteJodete(_partida, resultado.pozo!);
+      }
+      forzarManoJodete(_partida, idx, resultado.mano);
+    });
+    _despuesDeJugada(antes);
+  }
+
   void _mostrarReglas() {
     showDialog<void>(
       context: context,
@@ -382,11 +411,18 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     _despuesDeJugada(antes);
   }
 
-  /// Si hay doses pendientes y no podés responder con un 2, levantás (tras 2 s).
+  /// Si hay 2/comodín pendientes y no podés responder, levantás (tras 2 s).
   bool get _debeAutoLevantarPendienteDos {
-    if (!_puedeJugarHumano || !_partida.hayPendienteDos) return false;
-    if (!_partida.apilarDoses) return true;
-    return !_partida.jugadorActual.mano.any((c) => c.esDos);
+    if (!_puedeJugarHumano) return false;
+    if (_partida.hayPendienteDos) {
+      if (!_partida.apilarDoses) return true;
+      return !_partida.jugadorActual.mano.any((c) => c.esDos);
+    }
+    if (_partida.hayPendienteComodin) {
+      if (!_partida.apilaComodines) return true;
+      return !_partida.jugadorActual.mano.any((c) => c.esComodin);
+    }
+    return false;
   }
 
   Future<void> _talVezAutoLevantarPendienteDos() async {
@@ -498,8 +534,8 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       final nombrePc = _partida.jugadorActual.nombre.toUpperCase();
 
       if (plan.levantar) {
-        final n = _partida.hayPendienteDos
-            ? _partida.pendienteDos
+        final n = _partida.hayPendienteLevantar
+            ? _partida.cantidadPendienteLevantar
             : (_hastaPoderTirar ? 0 : 1);
         await _mostrarOverlayPc(
           titulo: n > 1
@@ -700,102 +736,148 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                     ),
                   const SizedBox(height: 10),
                   Expanded(
-                    child: Column(
-                      children: [
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _paloVigenteIndicador(),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                _mazoWidget(),
-                                const SizedBox(width: 18),
-                                _descarteWidget(),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _paloVigenteIndicador(),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _mazoWidget(),
+                                        const SizedBox(width: 18),
+                                        _descarteWidget(),
+                                        if (_modoDiosActivo) ...[
+                                          const SizedBox(width: 12),
+                                          _botonModoDios(),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      child: Text(
+                                        _turnoDePc
+                                            ? '${actual.nombre} está pensando…'
+                                            : (_partida.hayPendienteComodin
+                                                ? (_partida.apilaComodines
+                                                    ? '¡${vista.nombre}! Tirás un comodín o levantás ${_partida.pendienteComodin}'
+                                                    : '¡${vista.nombre}! Levantás ${_partida.pendienteComodin}')
+                                                : (_partida.hayPendienteDos
+                                                    ? (_partida.apilarDoses
+                                                        ? '¡${vista.nombre}! Tirás un 2 o levantás ${_partida.pendienteDos}'
+                                                        : '¡${vista.nombre}! Levantás ${_partida.pendienteDos}')
+                                                    : 'Turno de ${actual.nombre}')),
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: _partida.hayPendienteLevantar
+                                              ? AppColors.peligro
+                                              : (_turnoDePc
+                                                  ? AppColors.rosa
+                                                  : AppColors.mint),
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Tu mano - ${mano.length} carta${mano.length == 1 ? '' : 's'}',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: AppColors.textoSuave,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      height: 140,
+                                      child: _ManoJodete(
+                                        cartas: mano,
+                                        seleccion: _seleccion,
+                                        animaciones: _ajustes.animaciones,
+                                        puedeElegir: _puedeJugarHumano,
+                                        onTap: _toggleCarta,
+                                        buildCarta: (c, {required sel}) =>
+                                            _cartaWidget(
+                                          c,
+                                          seleccionada: sel,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        12,
+                                        0,
+                                        12,
+                                        12,
+                                      ),
+                                      child: SizedBox(
+                                        height: 48,
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(
+                                              child: OutlinedButton(
+                                                onPressed: _puedeJugarHumano
+                                                    ? _levantar
+                                                    : null,
+                                                child: Text(
+                                                  _partida.hayPendienteLevantar
+                                                      ? 'Levantar ${_partida.cantidadPendienteLevantar}'
+                                                      : TextosJodete.levantar,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: FilledButton(
+                                                onPressed: _puedeTirarSeleccion
+                                                    ? () => unawaited(
+                                                          _confirmarTirar(),
+                                                        )
+                                                    : null,
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor:
+                                                      AppColors.azul,
+                                                  foregroundColor: Colors.black,
+                                                ),
+                                                child: const Text(
+                                                  TextosJodete.tirar,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
-                          ],
-                        ),
-                        const Spacer(),
-                        Text(
-                          _turnoDePc
-                              ? '${actual.nombre} está pensando…'
-                              : (_partida.hayPendienteDos
-                                  ? (_partida.apilarDoses
-                                      ? '¡${vista.nombre}! Tirás un 2 o levantás ${_partida.pendienteDos}'
-                                      : '¡${vista.nombre}! Levantás ${_partida.pendienteDos}')
-                                  : 'Turno de ${actual.nombre}'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: _partida.hayPendienteDos
-                                ? AppColors.peligro
-                                : (_turnoDePc
-                                    ? AppColors.rosa
-                                    : AppColors.mint),
-                            fontWeight: FontWeight.w900,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tu mano - ${mano.length} carta${mano.length == 1 ? '' : 's'}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.textoSuave,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          height: 140,
-                          child: _ManoJodete(
-                            cartas: mano,
-                            seleccion: _seleccion,
-                            animaciones: _ajustes.animaciones,
-                            puedeElegir: _puedeJugarHumano,
-                            onTap: _toggleCarta,
-                            buildCarta: (c, {required sel}) =>
-                                _cartaWidget(c, seleccionada: sel),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                          child: SizedBox(
-                            height: 48,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed:
-                                        _puedeJugarHumano ? _levantar : null,
-                                    child: Text(
-                                      _partida.hayPendienteDos
-                                          ? 'Levantar ${_partida.pendienteDos}'
-                                          : TextosJodete.levantar,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: FilledButton(
-                                    onPressed: _puedeTirarSeleccion
-                                        ? () => unawaited(_confirmarTirar())
-                                        : null,
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: AppColors.azul,
-                                      foregroundColor: Colors.black,
-                                    ),
-                                    child: const Text(TextosJodete.tirar),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -1011,8 +1093,6 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   /// Indicador de palo (mismo estilo que el de Desconfío / Pozo).
   Widget _paloVigenteIndicador() {
     final palo = _partida.paloVigente;
-    final sentido =
-        _partida.sentido == SentidoJodete.horario ? '→' : '←';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1030,15 +1110,6 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
           palo: _paloVisual(palo),
           width: 56,
           height: 84,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          sentido,
-          style: const TextStyle(
-            color: AppColors.textoSuave,
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-          ),
         ),
       ],
     );
@@ -1093,6 +1164,37 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _botonModoDios() {
+    final activo =
+        _modoDiosActivo && _partida.jugando && !_jugandoPc && !_eligiendoPalo;
+    return Padding(
+      padding: const EdgeInsets.only(top: 38),
+      child: Material(
+        color: AppColors.carta,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: activo ? () => unawaited(_abrirForzarCartas()) : null,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.textoSuave.withValues(alpha: 0.5),
+              ),
+            ),
+            child: const Icon(
+              Icons.bug_report,
+              size: 20,
+              color: AppColors.textoSuave,
+            ),
+          ),
+        ),
+      ),
     );
   }
 

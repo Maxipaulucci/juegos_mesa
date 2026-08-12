@@ -129,6 +129,7 @@ class PartidaJodete {
     this.contraPc = false,
     this.ultimaJugada,
     this.pendienteDos = 0,
+    this.pendienteComodin = 0,
     this.objetivo = 30,
     this.incluirComodines = true,
     this.cartasIniciales = 7,
@@ -151,13 +152,16 @@ class PartidaJodete {
   String? ultimaJugada;
   /// Cartas acumuladas por doses apilados; el turno actual debe tirar un 2 o levantarlas.
   int pendienteDos;
+  /// Cartas acumuladas por comodines apilados; el turno actual debe tirar un comodín o levantarlas.
+  int pendienteComodin;
   /// Primero en llegar a este puntaje gana la partida.
   final int objetivo;
   final bool incluirComodines;
   final int cartasIniciales;
   /// Si true, el 1º suma el valor de las cartas rivales (objetivo 100).
   final bool puntajePorCartas;
-  /// Si true, se puede responder un 2 con otro 2 (apila +2).
+  /// Si true, se puede responder un 2 con otro 2 (apila +2)
+  /// y un comodín con otro comodín (apila +5).
   final bool apilarDoses;
   ResultadoRondaJodete? ultimoResultado;
   /// Resultados de todas las rondas (para el historial de victoria).
@@ -170,6 +174,16 @@ class PartidaJodete {
   bool get jugando => fase == FaseJodete.jugando;
 
   bool get hayPendienteDos => pendienteDos > 0;
+
+  bool get hayPendienteComodin => pendienteComodin > 0;
+
+  bool get hayPendienteLevantar => hayPendienteDos || hayPendienteComodin;
+
+  int get cantidadPendienteLevantar =>
+      hayPendienteDos ? pendienteDos : (hayPendienteComodin ? pendienteComodin : 0);
+
+  /// Con “Tirar 2 sobre 2” también se apilan comodines sobre comodines.
+  bool get apilaComodines => apilarDoses && incluirComodines;
 
   CartaJodete? get cimaDescarte =>
       descarte.isEmpty ? null : descarte.last;
@@ -235,6 +249,7 @@ void _repartirInicioJodete(PartidaJodete p, math.Random r) {
     );
   p.descarte.clear();
   p.pendienteDos = 0;
+  p.pendienteComodin = 0;
   p.sentido = SentidoJodete.horario;
   p.ganador = null;
   p.mensajeFin = null;
@@ -336,6 +351,8 @@ bool puedeJugarCartaJodete(PartidaJodete p, CartaJodete c) {
   if (!p.jugando) return false;
   // Con doses pendientes: solo otro 2, y solo si está permitido apilar.
   if (p.hayPendienteDos) return p.apilarDoses && c.esDos;
+  // Con comodines pendientes: solo otro comodín, si se puede apilar.
+  if (p.hayPendienteComodin) return p.apilaComodines && c.esComodin;
   if (c.esComodin) return true;
   final cima = p.cimaDescarte;
   if (cima == null) return true;
@@ -544,6 +561,11 @@ String? jugarCartaJodete(
           ? 'Hay un ${p.pendienteDos} pendiente: tirás un 2 o levantás.'
           : 'Hay un ${p.pendienteDos} pendiente: tenés que levantar.';
     }
+    if (p.hayPendienteComodin) {
+      return p.apilaComodines
+          ? 'Hay un ${p.pendienteComodin} pendiente: tirás un comodín o levantás.'
+          : 'Hay un ${p.pendienteComodin} pendiente: tenés que levantar.';
+    }
     return 'Debés tirar del mismo palo (${p.paloVigente.name}) o el mismo número.';
   }
   if (carta.pideElegirPalo && paloElegido == null) {
@@ -599,12 +621,18 @@ String? jugarCartaJodete(
     msg += ' · saltea';
     _avanzarTurno(p, saltos: 2);
   } else if (carta.esComodin) {
-    final victimaIdx = _indiceSiguienteEnJuego(p);
-    final victima = p.jugadores[victimaIdx];
-    final robadas = _robar(p, victima, 5, r);
-    msg += ' · ${victima.nombre} levanta ${robadas.length}';
-    p.indiceTurno = victimaIdx;
-    _avanzarTurno(p);
+    if (p.apilaComodines) {
+      p.pendienteComodin += 5;
+      msg += ' · pendiente ${p.pendienteComodin}';
+      _avanzarTurno(p);
+    } else {
+      final victimaIdx = _indiceSiguienteEnJuego(p);
+      final victima = p.jugadores[victimaIdx];
+      final robadas = _robar(p, victima, 5, r);
+      msg += ' · ${victima.nombre} levanta ${robadas.length}';
+      p.indiceTurno = victimaIdx;
+      _avanzarTurno(p);
+    }
   } else {
     _avanzarTurno(p);
   }
@@ -632,10 +660,11 @@ bool levantarPorNoJugarJodete(
   if (!j.enJuego) return false;
   final r = rng ?? math.Random();
 
-  if (p.hayPendienteDos) {
-    final n = p.pendienteDos;
+  if (p.hayPendienteLevantar) {
+    final n = p.cantidadPendienteLevantar;
     final robadas = _robar(p, j, n, r);
     p.pendienteDos = 0;
+    p.pendienteComodin = 0;
     if (robadas.isEmpty) {
       p.ultimaJugada = '${j.nombre} no pudo levantar (mazo vacío)';
     } else {
@@ -722,6 +751,87 @@ void rendirseJodete(PartidaJodete p, String nombre) {
     _cerrarRondaSiCorresponde(p);
   }
 
+  if (p.jugando && !p.jugadorActual.enJuego) {
+    _avanzarTurno(p);
+  }
+}
+
+/// Cartas que se pueden forzar (mazo, manos y descarte, incluida la cima).
+List<CartaJodete> cartasDisponiblesForzarJodete(PartidaJodete p) {
+  final out = <CartaJodete>[
+    ...p.mazo,
+    for (final j in p.jugadores) ...j.mano,
+    ...p.descarte,
+  ];
+  final seen = <int>{};
+  out.retainWhere((c) => seen.add(c.id));
+  out.sort((a, b) {
+    if (a.esComodin != b.esComodin) return a.esComodin ? 1 : -1;
+    final pa = a.palo?.index ?? 99;
+    final pb = b.palo?.index ?? 99;
+    if (pa != pb) return pa.compareTo(pb);
+    return (a.numero ?? 99).compareTo(b.numero ?? 99);
+  });
+  return out;
+}
+
+bool extraerCartaJodete(
+  PartidaJodete p,
+  CartaJodete carta, {
+  bool incluirCima = false,
+}) {
+  if (p.mazo.remove(carta)) return true;
+  for (final j in p.jugadores) {
+    if (j.mano.remove(carta)) return true;
+  }
+  if (p.descarte.isEmpty) return false;
+  final hasta = incluirCima ? p.descarte.length : p.descarte.length - 1;
+  for (var i = 0; i < hasta; i++) {
+    if (p.descarte[i] == carta) {
+      p.descarte.removeAt(i);
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Reemplaza la cima del pozo (descarte) y actualiza el palo vigente.
+void forzarCimaDescarteJodete(PartidaJodete p, CartaJodete carta) {
+  if (p.cimaDescarte == carta) {
+    if (carta.palo != null) p.paloVigente = carta.palo!;
+    return;
+  }
+  if (p.descarte.isNotEmpty) {
+    p.mazo.add(p.descarte.removeLast());
+  }
+  extraerCartaJodete(p, carta);
+  p.descarte.add(carta);
+  if (carta.palo != null) p.paloVigente = carta.palo!;
+  p.ultimaJugada = 'Modo Dios: pozo ${carta.etiqueta}';
+  for (final jugador in p.jugadores) {
+    _alQuedarseSinCartas(p, jugador);
+  }
+  if (p.jugando && !p.jugadorActual.enJuego) {
+    _avanzarTurno(p);
+  }
+}
+
+/// Reemplaza la mano del jugador [idx] por [cartas] (sin cupo).
+void forzarManoJodete(PartidaJodete p, int idx, List<CartaJodete> cartas) {
+  assert(idx >= 0 && idx < p.jugadores.length);
+  final j = p.jugadores[idx];
+  final cima = p.cimaDescarte;
+  p.mazo.addAll(j.mano);
+  j.mano.clear();
+  for (final c in cartas) {
+    if (c == cima) continue;
+    extraerCartaJodete(p, c);
+    j.mano.add(c);
+  }
+  p.ultimaJugada = 'Modo Dios: mano de ${j.nombre} (${j.mano.length})';
+  for (final jugador in p.jugadores) {
+    _alQuedarseSinCartas(p, jugador);
+  }
   if (p.jugando && !p.jugadorActual.enJuego) {
     _avanzarTurno(p);
   }
