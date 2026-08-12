@@ -2044,12 +2044,7 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
                               ),
                             ),
                           const Spacer(),
-                          FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.acento,
-                              foregroundColor: const Color(0xFF1A0A00),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
+                          ElevatedButton(
                             onPressed: () {
                               Navigator.of(context).pop(
                                 _ForzarCartasResult(
@@ -2058,6 +2053,13 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
                                 ),
                               );
                             },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.acento,
+                              foregroundColor: const Color(0xFF1A0A00),
+                              minimumSize: const Size.fromHeight(48),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                            ),
                             child: const Text(
                               'Aplicar',
                               style: TextStyle(fontWeight: FontWeight.w900),
@@ -2069,14 +2071,15 @@ class _DialogoForzarCartasEscobaState extends State<_DialogoForzarCartasEscoba> 
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.peligro,
                               foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(48),
                               padding:
                                   const EdgeInsets.symmetric(vertical: 14),
                             ),
                             child: const Text(
                               'Cancelar',
                               style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
+                            ),
+                          ),
                   ],
                       ),
                 ),
