@@ -11,6 +11,7 @@ import 'package:app_juegos_mesa/desconfio/textos.dart';
 import 'package:app_juegos_mesa/desconfio/victoria_desconfio_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
@@ -224,6 +225,31 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     if (err == null && widget.contraPc) {
       _talVezReaccionPc();
     }
+  }
+
+  void _reordenarMano(int desde, int hacia) {
+    if (_partida.terminada) return;
+    final mano = _vistaLocal.mano;
+    if (desde < 0 ||
+        hacia < 0 ||
+        desde >= mano.length ||
+        hacia >= mano.length) {
+      return;
+    }
+    if (desde == hacia) return;
+    final carta = mano.removeAt(desde);
+    mano.insert(hacia, carta);
+    setState(() {
+      final sel = _seleccionMano;
+      if (sel == null) return;
+      if (sel == desde) {
+        _seleccionMano = hacia;
+      } else if (desde < hacia && sel > desde && sel <= hacia) {
+        _seleccionMano = sel - 1;
+      } else if (hacia < desde && sel >= hacia && sel < desde) {
+        _seleccionMano = sel + 1;
+      }
+    });
   }
 
   /// No desconfío: paso el turno y tiro la carta elegida al pozo.
@@ -561,7 +587,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                           ),
                           const SizedBox(height: 6),
                           SizedBox(
-                            height: _cartaH + 22,
+                            height: _cartaH + 28,
                             child: _ManoConFlechas(
                               cartas: vista.mano,
                               seleccion: _seleccionMano,
@@ -573,6 +599,9 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                                 () => _seleccionMano =
                                     _seleccionMano == i ? null : i,
                               ),
+                              onReordenar: _partida.terminada
+                                  ? null
+                                  : _reordenarMano,
                               buildCarta: (c, {required sel}) => _carta(
                                 c,
                                 bocaArriba: true,
@@ -1095,7 +1124,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
   }
 }
 
-/// Mano horizontal con contenedor y flechas laterales para recorrer cartas.
+/// Mano horizontal con contenedor, flechas y reorden por arrastre.
 class _ManoConFlechas extends StatefulWidget {
   const _ManoConFlechas({
     required this.cartas,
@@ -1106,6 +1135,7 @@ class _ManoConFlechas extends StatefulWidget {
     required this.cartaW,
     required this.cartaH,
     required this.animaciones,
+    this.onReordenar,
   });
 
   final List<CartaDesconfio> cartas;
@@ -1116,6 +1146,7 @@ class _ManoConFlechas extends StatefulWidget {
   final double cartaW;
   final double cartaH;
   final bool animaciones;
+  final void Function(int desde, int hacia)? onReordenar;
 
   @override
   State<_ManoConFlechas> createState() => _ManoConFlechasState();
@@ -1124,11 +1155,16 @@ class _ManoConFlechas extends StatefulWidget {
 class _ManoConFlechasState extends State<_ManoConFlechas> {
   static const double _gap = 6;
   static const double _pasoScroll = 160;
-  static const double _deslizamiento = 14;
 
   final _scroll = ScrollController();
+  final _rowKey = GlobalKey();
+  final _reorden = ReordenarCartaManoDrag();
   bool _hayIzquierda = false;
   bool _hayDerecha = false;
+
+  bool get _arrastrando => _reorden.arrastrando;
+  bool get _puedeReordenar => widget.onReordenar != null;
+  double get _paso => widget.cartaW + _gap;
 
   @override
   void initState() {
@@ -1140,7 +1176,8 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
   @override
   void didUpdateWidget(covariant _ManoConFlechas oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.cartas.length != widget.cartas.length) {
+    if (oldWidget.cartas.length != widget.cartas.length ||
+        oldWidget.cartaW != widget.cartaW) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _actualizarFlechas());
     }
   }
@@ -1175,6 +1212,55 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
     );
+  }
+
+  int _indiceInsercionDesdeGlobal(double globalX) {
+    return indiceInsercionDesdeGlobalReorden(
+      rowKey: _rowKey,
+      drag: _reorden,
+      globalX: globalX,
+      cantidad: widget.cartas.length,
+      anchoCarta: widget.cartaW,
+      gap: _gap,
+    );
+  }
+
+  void _iniciarDrag(int index, Offset localPosition) {
+    setState(() {
+      _reorden.iniciar(
+        index: index,
+        localPosition: localPosition,
+        anchoCarta: widget.cartaW,
+      );
+    });
+  }
+
+  void _actualizarDrag(DragUpdateDetails details) {
+    if (!_reorden.arrastrando) return;
+    autoScrollDuranteDragReorden(
+      scroll: _scroll,
+      context: context,
+      globalX: details.globalPosition.dx,
+    );
+    setState(() {
+      _reorden.actualizar(
+        details: details,
+        indiceInsercionDesdeGlobal: _indiceInsercionDesdeGlobal,
+      );
+    });
+  }
+
+  void _soltarDrag() {
+    final resultado = _reorden.soltar();
+    if (resultado != null) {
+      widget.onReordenar?.call(resultado.desde, resultado.hacia);
+    } else if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _cancelarDrag() {
+    setState(_reorden.cancelar);
   }
 
   Widget _flecha({required bool izquierda, required bool visible}) {
@@ -1219,6 +1305,8 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
       );
     }
 
+    final altoSlot = widget.cartaH + kDeslizamientoSeleccionCarta;
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1A0A33).withValues(alpha: 0.55),
@@ -1240,8 +1328,7 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
             child: Listener(
               onPointerSignal: (signal) {
                 if (signal is! PointerScrollEvent) return;
-                if (!_scroll.hasClients) return;
-                // Rueda vertical del mouse → desplazamiento horizontal de la mano.
+                if (!_scroll.hasClients || _arrastrando) return;
                 final delta =
                     signal.scrollDelta.dx.abs() > signal.scrollDelta.dy.abs()
                         ? signal.scrollDelta.dx
@@ -1255,60 +1342,155 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
               },
               child: ScrollConfiguration(
                 behavior: const _ManoScrollBehavior(),
-                child: ListView.separated(
-                  controller: _scroll,
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 34,
-                    vertical: 4,
-                  ),
-                  itemCount: widget.cartas.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: _gap),
-                  itemBuilder: (context, i) {
-                    final c = widget.cartas[i];
-                    final sel = widget.seleccion == i;
-                    final skin = widget.buildCarta(c, sel: sel);
-                    // Árbol estable: si el padre cambia al seleccionar,
-                    // AnimatedAlign se reinicia y la carta “teletransporta”.
-                    return Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        onTap: widget.puedeElegir
-                            ? () => widget.onTapIndex(i)
-                            : null,
-                        borderRadius: BorderRadius.circular(14),
-                        splashColor: sel
-                            ? colorSeleccionCartaEspanola.withValues(
-                                alpha: 0.25,
-                              )
-                            : Colors.transparent,
-                        highlightColor: sel
-                            ? colorSeleccionCartaEspanola.withValues(
-                                alpha: 0.18,
-                              )
-                            : Colors.transparent,
-                        hoverColor: sel
-                            ? colorSeleccionCartaEspanola.withValues(
-                                alpha: 0.22,
-                              )
-                            : Colors.transparent,
-                        child: SizedBox(
-                          width: widget.cartaW,
-                          height: widget.cartaH + _deslizamiento,
-                          child: AnimatedAlign(
-                            duration: widget.animaciones
-                                ? const Duration(milliseconds: 380)
-                                : Duration.zero,
-                            curve: Curves.easeOutCubic,
-                            alignment: sel
-                                ? Alignment.topCenter
-                                : Alignment.bottomCenter,
-                            child: skin,
-                          ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final minW = math.max(0.0, constraints.maxWidth - 68);
+                    final n = widget.cartas.length;
+                    final contentW =
+                        n == 0 ? 0.0 : n * widget.cartaW + (n - 1) * _gap;
+                    final filaW = math.max(minW, contentW);
+                    return SingleChildScrollView(
+                      controller: _scroll,
+                      scrollDirection: Axis.horizontal,
+                      physics: _arrastrando
+                          ? const NeverScrollableScrollPhysics()
+                          : const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
+                            ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 34,
+                        vertical: 4,
+                      ),
+                      child: SizedBox(
+                        width: filaW,
+                        height: altoSlot,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Row(
+                              key: _rowKey,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                for (var i = 0;
+                                    i < widget.cartas.length;
+                                    i++) ...[
+                                  if (i > 0) const SizedBox(width: _gap),
+                                  Builder(
+                                    builder: (context) {
+                                      final c = widget.cartas[i];
+                                      final sel = widget.seleccion == i;
+                                      final esLaQueArrastro =
+                                          _reorden.dragIndex == i;
+                                      final atenuar =
+                                          _arrastrando && !esLaQueArrastro;
+                                      final skin =
+                                          widget.buildCarta(c, sel: sel);
+
+                                      Widget child = CartaOpacidadReorden(
+                                        esLaQueArrastro: esLaQueArrastro,
+                                        atenuar: atenuar,
+                                        child: CartaSlotSeleccion(
+                                          seleccionada: sel,
+                                          animaciones: widget.animaciones,
+                                          width: widget.cartaW,
+                                          height: widget.cartaH,
+                                          child: skin,
+                                        ),
+                                      );
+
+                                      child = CartaConHuecoReorden(
+                                        arrastrandoMano: _arrastrando,
+                                        esLaQueArrastro: esLaQueArrastro,
+                                        shiftX: _reorden.shiftX(i, _paso),
+                                        duration: widget.animaciones
+                                            ? kDuracionHuecoReordenMano
+                                            : Duration.zero,
+                                        child: child,
+                                      );
+
+                                      child = CartaArrastreVisualReorden(
+                                        esLaQueArrastro: esLaQueArrastro,
+                                        dragDx: _reorden.dragDx,
+                                        dragDy: _reorden.dragDy,
+                                        ocultarEnSlot: true,
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                        child: child,
+                                      );
+
+                                      if (_puedeReordenar) {
+                                        return DetectorArrastreReorden(
+                                          onTap: widget.puedeElegir
+                                              ? () => widget.onTapIndex(i)
+                                              : null,
+                                          onPanStart: (details) {
+                                            if (widget.puedeElegir && !sel) {
+                                              return;
+                                            }
+                                            _iniciarDrag(
+                                              i,
+                                              details.localPosition,
+                                            );
+                                          },
+                                          onPanUpdate: _actualizarDrag,
+                                          onPanEnd: _soltarDrag,
+                                          onPanCancel: _cancelarDrag,
+                                          child: child,
+                                        );
+                                      }
+
+                                      if (!widget.puedeElegir) return child;
+
+                                      return Material(
+                                        color: Colors.transparent,
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                        child: InkWell(
+                                          onTap: () => widget.onTapIndex(i),
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          splashColor: sel
+                                              ? colorSeleccionCartaEspanola
+                                                  .withValues(alpha: 0.25)
+                                              : Colors.transparent,
+                                          highlightColor: sel
+                                              ? colorSeleccionCartaEspanola
+                                                  .withValues(alpha: 0.18)
+                                              : Colors.transparent,
+                                          hoverColor: sel
+                                              ? colorSeleccionCartaEspanola
+                                                  .withValues(alpha: 0.22)
+                                              : Colors.transparent,
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (_reorden.dragIndex != null)
+                              CartaFlotanteReorden(
+                                rowKey: _rowKey,
+                                index: _reorden.dragIndex!,
+                                cantidad: widget.cartas.length,
+                                anchoCarta: widget.cartaW,
+                                gap: _gap,
+                                dragDx: _reorden.dragDx,
+                                dragDy: _reorden.dragDy,
+                                borderRadius: BorderRadius.circular(14),
+                                child: CartaSlotSeleccion(
+                                  seleccionada: true,
+                                  animaciones: false,
+                                  width: widget.cartaW,
+                                  height: widget.cartaH,
+                                  child: widget.buildCarta(
+                                    widget.cartas[_reorden.dragIndex!],
+                                    sel: true,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     );
