@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/culoSucio/culo_sucio_online_codec.dart';
 import 'package:app_juegos_mesa/culoSucio/historial_culo_sucio.dart';
@@ -91,9 +92,16 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
   bool get _modoDiosActivo =>
       widget.modoDios && widget.contraPc && !_esOnline;
 
+  bool get _puedeSacar =>
+      !_partida.terminada &&
+      !_esTurnoPc &&
+      !_bloquearHumano &&
+      !_esperandoMazoOnline;
+
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_onTeclaSacar);
     _opciones = widget.opciones;
     final resume = widget.resume;
     _nombres = List.of(resume?.nombres ?? widget.nombres);
@@ -122,8 +130,27 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onTeclaSacar);
     _onlineSub?.cancel();
     super.dispose();
+  }
+
+  bool _onTeclaSacar(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.space) return false;
+    if (!mounted) return false;
+    if (_mostrarMenu || _mostrarAjustes || _confirmarRendicion) return false;
+    // Diálogos (renombrar / modo dios) o campos de texto: no interceptar.
+    if (ModalRoute.of(context)?.isCurrent != true) return false;
+    final focusCtx = FocusManager.instance.primaryFocus?.context;
+    if (focusCtx != null &&
+        (focusCtx.widget is EditableText ||
+            focusCtx.findAncestorWidgetOfExactType<EditableText>() != null)) {
+      return false;
+    }
+    if (!_puedeSacar) return false;
+    unawaited(_sacar());
+    return true;
   }
 
   bool get _esLocalHotSeat => !_esOnline && !widget.contraPc;
@@ -575,10 +602,7 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
     final carta = _partida.ultimaCarta;
     final proxima =
         _modoDiosActivo ? proximaCartaCuloSucio(_partida) : null;
-    final puedeSacar = !_partida.terminada &&
-        !_esTurnoPc &&
-        !_bloquearHumano &&
-        !_esperandoMazoOnline;
+    final puedeSacar = _puedeSacar;
 
     return PopScope(
       canPop: false,
