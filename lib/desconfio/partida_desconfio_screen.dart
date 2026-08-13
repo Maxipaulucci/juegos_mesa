@@ -227,6 +227,27 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     }
   }
 
+  /// Segundo toque a la misma carta, o toque al pozo con carta seleccionada.
+  void _tirarSeleccionSiCorresponde() {
+    if (_seleccionMano == null || !_puedeElegirCartaParaTirar) return;
+    if (_partida.fase == FaseDesconfio.jugando) {
+      _tirarSeleccionada();
+      return;
+    }
+    if (_partida.fase == FaseDesconfio.esperandoReaccion) {
+      _tirarSinDesconfiar();
+    }
+  }
+
+  void _alTocarCartaMano(int i) {
+    if (!_puedeElegirCartaParaTirar) return;
+    if (_seleccionMano == i) {
+      _tirarSeleccionSiCorresponde();
+      return;
+    }
+    setState(() => _seleccionMano = i);
+  }
+
   void _reordenarMano(int desde, int hacia) {
     if (_partida.terminada) return;
     final mano = _vistaLocal.mano;
@@ -595,10 +616,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                               cartaW: _cartaW,
                               cartaH: _cartaH,
                               animaciones: _ajustes.animaciones,
-                              onTapIndex: (i) => setState(
-                                () => _seleccionMano =
-                                    _seleccionMano == i ? null : i,
-                              ),
+                              onTapIndex: _alTocarCartaMano,
                               onReordenar: _partida.terminada
                                   ? null
                                   : _reordenarMano,
@@ -789,14 +807,82 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     final palo = _partida.paloDeclarado;
     bool verCartaPozo(CartaEnPozoDesconfio c) =>
         _modoDiosActivo && esNombrePc(c.jugador);
+    final puedeTirarAlPozo =
+        _seleccionMano != null && _puedeElegirCartaParaTirar;
+
+    Widget pila;
+    if (n == 0) {
+      pila = Container(
+        width: _cartaW,
+        height: _cartaH,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: puedeTirarAlPozo
+                ? colorSeleccionCartaEspanola
+                : AppColors.cartaBorde,
+            width: puedeTirarAlPozo ? 2.2 : 1,
+          ),
+          color: const Color(0xFF1A0A33),
+        ),
+        child: const Text(
+          '—',
+          style: TextStyle(color: AppColors.textoSuave),
+        ),
+      );
+    } else {
+      pila = SizedBox(
+        width: _cartaW + 16,
+        height: _cartaH + 10,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            for (var i = 0; i < (n - 1).clamp(0, 3); i++)
+              Transform.translate(
+                offset: Offset(i * 3.0, i * 2.0),
+                child: _carta(
+                  _partida.pozo[i].carta,
+                  bocaArriba: verCartaPozo(_partida.pozo[i]),
+                ),
+              ),
+            Transform.translate(
+              offset: Offset(
+                (n - 1).clamp(0, 3) * 3.0,
+                (n - 1).clamp(0, 3) * 2.0,
+              ),
+              child: _carta(
+                _partida.pozo.last.carta,
+                bocaArriba: verCartaPozo(_partida.pozo.last),
+                sel: puedeTirarAlPozo,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (puedeTirarAlPozo) {
+      pila = Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: _tirarSeleccionSiCorresponde,
+          borderRadius: BorderRadius.circular(14),
+          child: pila,
+        ),
+      );
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
+        Text(
           TextosDesconfio.pozo,
           style: TextStyle(
-            color: AppColors.textoSuave,
+            color: puedeTirarAlPozo
+                ? colorSeleccionCartaEspanola
+                : AppColors.textoSuave,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -805,56 +891,28 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
           _cartaPaloIndicador(palo),
         ],
         const SizedBox(height: 8),
-        if (n == 0)
-          Container(
-            width: _cartaW,
-            height: _cartaH,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cartaBorde),
-              color: const Color(0xFF1A0A33),
-            ),
-            child: const Text(
-              '—',
-              style: TextStyle(color: AppColors.textoSuave),
-            ),
-          )
-        else
-          SizedBox(
-            width: _cartaW + 16,
-            height: _cartaH + 10,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                for (var i = 0; i < (n - 1).clamp(0, 3); i++)
-                  Transform.translate(
-                    offset: Offset(i * 3.0, i * 2.0),
-                    child: _carta(
-                      _partida.pozo[i].carta,
-                      bocaArriba: verCartaPozo(_partida.pozo[i]),
-                    ),
-                  ),
-                Transform.translate(
-                  offset: Offset(
-                    (n - 1).clamp(0, 3) * 3.0,
-                    (n - 1).clamp(0, 3) * 2.0,
-                  ),
-                  child: _carta(
-                    _partida.pozo.last.carta,
-                    bocaArriba: verCartaPozo(_partida.pozo.last),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        pila,
         if (n > 0) ...[
           const SizedBox(height: 6),
           Text(
-            '$n en el pozo',
-            style: const TextStyle(
-              color: AppColors.textoSuave,
+            puedeTirarAlPozo ? 'Tocá para tirar' : '$n en el pozo',
+            style: TextStyle(
+              color: puedeTirarAlPozo
+                  ? colorSeleccionCartaEspanola
+                  : AppColors.textoSuave,
               fontSize: 12,
+              fontWeight:
+                  puedeTirarAlPozo ? FontWeight.w800 : FontWeight.w400,
+            ),
+          ),
+        ] else if (puedeTirarAlPozo) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Tocá para tirar',
+            style: TextStyle(
+              color: colorSeleccionCartaEspanola,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
