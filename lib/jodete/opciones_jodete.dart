@@ -6,7 +6,7 @@ class OpcionesJodete {
     this.objetivo = 30,
     this.puntajePorCartas = false,
     this.apilarDoses = true,
-    this.ganarConEspecial = false,
+    this.ganarConEspecial = true,
   });
 
   static const objetivosPermitidos = [15, 30];

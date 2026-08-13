@@ -147,7 +147,7 @@ class PartidaJodete {
     this.cartasIniciales = 7,
     this.puntajePorCartas = false,
     this.apilarDoses = true,
-    this.ganarConEspecial = false,
+    this.ganarConEspecial = true,
     this.ultimoResultado,
     List<ResultadoRondaJodete>? historialRondas,
   }) : historialRondas = historialRondas ?? [];
@@ -329,7 +329,7 @@ PartidaJodete nuevaPartidaJodete({
   int objetivo = 30,
   bool puntajePorCartas = false,
   bool apilarDoses = true,
-  bool ganarConEspecial = false,
+  bool ganarConEspecial = true,
 }) {
   final r = rng ?? math.Random();
   final lista = nombres.isEmpty

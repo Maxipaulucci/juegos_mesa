@@ -81,7 +81,7 @@ String reglasJodete({
   int objetivo = 30,
   bool puntajePorCartas = false,
   bool apilarDoses = true,
-  bool ganarConEspecial = false,
+  bool ganarConEspecial = true,
 }) =>
     '''
 · Se juega con mazo español de ${comodines ? '50' : '48'} cartas (1 al 12
