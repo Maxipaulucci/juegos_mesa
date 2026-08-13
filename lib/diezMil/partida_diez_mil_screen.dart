@@ -136,6 +136,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_onTeclaTirar);
     if (widget.resume != null) {
       final r = widget.resume!;
       _nombres = r.nombres;
@@ -177,8 +178,39 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onTeclaTirar);
     _onlineSub?.cancel();
     super.dispose();
+  }
+
+  bool _onTeclaTirar(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.space) return false;
+    if (!mounted) return false;
+    if (_mostrarMenu ||
+        _mostrarAjustes ||
+        _confirmarRendicion ||
+        _mostrarVictoria ||
+        _mostrarListaJugadores ||
+        _standBy ||
+        _turnoDeLaPc ||
+        _esperandoRivalOnline ||
+        _animandoTirada ||
+        _esperandoCambioDeTurno ||
+        _partida.ganador != null ||
+        !_esMiTurno) {
+      return false;
+    }
+    // Diálogos (renombrar / modo dios) o campos de texto: no interceptar.
+    if (ModalRoute.of(context)?.isCurrent != true) return false;
+    final focusCtx = FocusManager.instance.primaryFocus?.context;
+    if (focusCtx != null &&
+        (focusCtx.widget is EditableText ||
+            focusCtx.findAncestorWidgetOfExactType<EditableText>() != null)) {
+      return false;
+    }
+    _tirar();
+    return true;
   }
 
   void _iniciarSincronizacionOnline() {
