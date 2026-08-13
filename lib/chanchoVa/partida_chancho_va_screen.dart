@@ -2557,7 +2557,8 @@ class _ManoChanchoState extends State<_ManoChancho> {
           return SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
-            physics: _arrastrando
+            // Con carta(s) seleccionada(s) no scrollear: el pan reordena.
+            physics: (_arrastrando || widget.seleccionadas.isNotEmpty)
                 ? const NeverScrollableScrollPhysics()
                 : const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),

@@ -1696,7 +1696,8 @@ class _ManoJodeteState extends State<_ManoJodete> {
           return SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
-            physics: _arrastrando
+            // Con carta seleccionada no scrollear: el pan reordena.
+            physics: (_arrastrando || widget.seleccion != null)
                 ? const NeverScrollableScrollPhysics()
                 : const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

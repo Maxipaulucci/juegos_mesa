@@ -1328,7 +1328,11 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
             child: Listener(
               onPointerSignal: (signal) {
                 if (signal is! PointerScrollEvent) return;
-                if (!_scroll.hasClients || _arrastrando) return;
+                if (!_scroll.hasClients ||
+                    _arrastrando ||
+                    widget.seleccion != null) {
+                  return;
+                }
                 final delta =
                     signal.scrollDelta.dx.abs() > signal.scrollDelta.dy.abs()
                         ? signal.scrollDelta.dx
@@ -1352,7 +1356,8 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
                     return SingleChildScrollView(
                       controller: _scroll,
                       scrollDirection: Axis.horizontal,
-                      physics: _arrastrando
+                      // Con carta seleccionada no scrollear: el pan reordena.
+                      physics: (_arrastrando || widget.seleccion != null)
                           ? const NeverScrollableScrollPhysics()
                           : const BouncingScrollPhysics(
                               parent: AlwaysScrollableScrollPhysics(),

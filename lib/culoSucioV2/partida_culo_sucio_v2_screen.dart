@@ -2387,7 +2387,11 @@ class _FilaCartasState extends State<_FilaCartas> {
                 child: Listener(
                   onPointerSignal: (signal) {
                     if (signal is! PointerScrollEvent) return;
-                    if (!_scroll.hasClients) return;
+                    if (!_scroll.hasClients ||
+                        _arrastrandoCulo ||
+                        widget.seleccionados.isNotEmpty) {
+                      return;
+                    }
                     // Rueda vertical → desplazamiento horizontal de la mano.
                     final delta = signal.scrollDelta.dx.abs() >
                             signal.scrollDelta.dy.abs()
@@ -2405,8 +2409,10 @@ class _FilaCartasState extends State<_FilaCartas> {
                     child: SingleChildScrollView(
                       controller: _scroll,
                       scrollDirection: Axis.horizontal,
+                      // Con selección o reorden activo no scrollear.
                       physics: (widget.onReordenarCulo != null ||
-                              _arrastrandoCulo)
+                              _arrastrandoCulo ||
+                              widget.seleccionados.isNotEmpty)
                           ? const NeverScrollableScrollPhysics()
                           : const BouncingScrollPhysics(),
                       padding: EdgeInsets.symmetric(

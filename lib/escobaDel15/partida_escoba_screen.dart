@@ -1950,7 +1950,8 @@ class _ManoEscobaState extends State<_ManoEscoba> {
           return SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
-            physics: _arrastrando
+            // Con carta seleccionada no scrollear: el pan reordena.
+            physics: (_arrastrando || widget.seleccion != null)
                 ? const NeverScrollableScrollPhysics()
                 : const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),

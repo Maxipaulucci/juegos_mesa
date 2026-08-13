@@ -1415,7 +1415,8 @@ class _FilaCartasState extends State<_FilaCartas> {
           return SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
-            physics: _arrastrando
+            // Con carta seleccionada no scrollear: el pan reordena.
+            physics: (_arrastrando || widget.seleccionIndex != null)
                 ? const NeverScrollableScrollPhysics()
                 : const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
