@@ -67,8 +67,19 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     return _partida.jugadorActual;
   }
 
-  JugadorDesconfio get _vistaLocal =>
-      _esLocalHotSeat ? _partida.jugadorActual : _humanoPrincipal;
+  JugadorDesconfio get _vistaLocal {
+    if (widget.contraPc) return _humanoPrincipal;
+    // En reacción local: ve el que puede desconfiar / seguir (no el que tiró).
+    if (_partida.fase == FaseDesconfio.esperandoReaccion) {
+      final d = _desafianteActual;
+      if (d != null) {
+        for (final j in _partida.jugadores) {
+          if (j.nombre == d) return j;
+        }
+      }
+    }
+    return _partida.jugadorActual;
+  }
 
   @override
   void initState() {
@@ -312,6 +323,15 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
   }
 
   void _desconfiar(String nombre) {
+    if (_partida.pozo.isEmpty) {
+      _snack('No hay carta en el pozo para desconfiar.');
+      return;
+    }
+    final tirador = _partida.ultimaDelPozo?.jugador;
+    if (tirador != null && tirador == _vistaLocal.nombre) {
+      _snack('No podés desconfiar de tu propia carta.');
+      return;
+    }
     final err = desconfiarDesconfio(_partida, nombre);
     setState(() => _seleccionMano = null);
     _snack(err);
@@ -592,9 +612,6 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                           // Pozo
                           Expanded(child: Center(child: _pozoWidget())),
                           const SizedBox(height: 8),
-                          // Acciones de fase
-                          _accionesFase(vista),
-                          const SizedBox(height: 8),
                           // Mano
                           Center(
                             child: Text(
@@ -627,27 +644,10 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                               ),
                             ),
                           ),
-                          if (_partida.fase == FaseDesconfio.jugando &&
-                              _partida.jugadorActual.nombre == vista.nombre &&
-                              !_turnoDePc) ...[
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.azul,
-                                ),
-                                onPressed: _seleccionMano == null
-                                    ? null
-                                    : _tirarSeleccionada,
-                                child: const Text(
-                                  TextosDesconfio.tirar,
-                                  style: TextStyle(fontWeight: FontWeight.w900),
-                                ),
-                              ),
-                            ),
-                          ],
+                          const SizedBox(height: 8),
+                          // Desconfío / Tirar: siempre debajo de la mano (también
+                          // al elegir palo); se habilitan según la fase.
+                          _botonesDesconfioYTirar(vista),
                           const SizedBox(height: 8),
                         ],
                       ),
@@ -931,119 +931,150 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     );
   }
 
-  Widget _accionesFase(JugadorDesconfio vista) {
+  /// Nombre de quien puede decir «¡Desconfío!» en la fase de reacción, o null.
+  String? get _desafianteActual {
+    if (_partida.fase != FaseDesconfio.esperandoReaccion) return null;
+    final tirador = _partida.ultimaDelPozo?.jugador;
+    if (tirador == null) return null;
+    if (widget.contraPc) {
+      // Tras mi tiro la PC decide sola.
+      if (!esNombrePc(tirador)) return null;
+      return _humanoPrincipal.nombre;
+    }
+    final otros = [
+      for (final j in _partida.jugadores)
+        if (!j.rendido && j.nombre != tirador) j.nombre,
+    ];
+    return otros.isEmpty ? null : otros.first;
+  }
+
+  /// Fila fija ¡Desconfío! / Tirar debajo de la mano (visible desde elegir palo).
+  Widget _botonesDesconfioYTirar(JugadorDesconfio vista) {
     if (_partida.terminada) return const SizedBox.shrink();
 
-    if (_partida.fase == FaseDesconfio.elegirPalo &&
-        _partida.jugadorActual.nombre == vista.nombre &&
-        !_turnoDePc) {
-      // El cartel de elección se muestra como overlay.
-      return const SizedBox.shrink();
-    }
+    VoidCallback? onDesconfio;
+    VoidCallback? onTirar;
+    String? aviso;
 
     if (_partida.fase == FaseDesconfio.esperandoReaccion) {
       final tirador = _partida.ultimaDelPozo?.jugador;
-      // Vs PC: si tiró el humano, la PC decide sola (desconfiar o seguir).
       if (widget.contraPc &&
           tirador != null &&
           !esNombrePc(tirador)) {
-        return Text(
-          _pcPensando ? 'La PC está pensando…' : 'La PC decide…',
-          style: const TextStyle(
-            color: AppColors.textoSuave,
-            fontWeight: FontWeight.w700,
-          ),
-        );
-      }
-
-      // Reacción del humano (tras tiro de la PC) o hot-seat local.
-      final String desafiante;
-      if (widget.contraPc) {
-        desafiante = _humanoPrincipal.nombre;
-        // Tras mi tiro la PC decide sola: no muestro botones.
-        if (tirador == desafiante) {
-          return const SizedBox.shrink();
-        }
+        aviso = _pcPensando ? 'La PC está pensando…' : 'La PC decide…';
       } else {
-        // Local: desconfía el siguiente jugador que no tiró.
-        final otros = [
-          for (final j in _partida.jugadores)
-            if (!j.rendido && j.nombre != tirador) j.nombre,
-        ];
-        if (otros.isEmpty) return const SizedBox.shrink();
-        desafiante = otros.first;
+        final desafiante = _desafianteActual;
+        // Sin cartas en el pozo (p. ej. antes de la 1ª tirada) no se puede
+        // desconfiar; tampoco quien acaba de tirar.
+        final puedeDesconfiar = desafiante != null &&
+            !_pcPensando &&
+            _partida.pozo.isNotEmpty &&
+            vista.nombre == desafiante &&
+            vista.nombre != tirador;
+        if (puedeDesconfiar) {
+          onDesconfio = () => _desconfiar(desafiante);
+          onTirar =
+              _seleccionMano == null ? null : _tirarSinDesconfiar;
+        }
       }
+    } else if (_partida.fase == FaseDesconfio.jugando) {
+      if (_turnoDePc || _pcPensando) {
+        aviso =
+            _pcPensando ? 'La PC está pensando…' : 'La PC está jugando…';
+      } else if (_partida.jugadorActual.nombre == vista.nombre) {
+        // Primera carta (u otra) con pozo vacío: solo Tirar, nunca Desconfío.
+        onTirar =
+            _seleccionMano == null ? null : _tirarSeleccionada;
+      }
+    } else if (_turnoDePc || _pcPensando) {
+      aviso = _pcPensando ? 'La PC está pensando…' : 'La PC está jugando…';
+    }
 
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.peligro,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(52),
-                    maximumSize: const Size.fromHeight(52),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: () => _desconfiar(desafiante),
-                  child: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      TextosDesconfio.desconfio,
-                      maxLines: 1,
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (aviso != null) ...[
+          Text(
+            aviso,
+            style: const TextStyle(
+              color: AppColors.textoSuave,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.peligro,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          AppColors.peligro.withValues(alpha: 0.35),
+                      disabledForegroundColor:
+                          Colors.white.withValues(alpha: 0.55),
+                      minimumSize: const Size.fromHeight(52),
+                      maximumSize: const Size.fromHeight(52),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: onDesconfio,
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        TextosDesconfio.desconfio,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.azul,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(52),
-                    maximumSize: const Size.fromHeight(52),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed:
-                      _seleccionMano == null ? null : _tirarSinDesconfiar,
-                  child: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      TextosDesconfio.tirar,
-                      maxLines: 1,
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.azul,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          AppColors.azul.withValues(alpha: 0.35),
+                      disabledForegroundColor:
+                          Colors.white.withValues(alpha: 0.55),
+                      minimumSize: const Size.fromHeight(52),
+                      maximumSize: const Size.fromHeight(52),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: onTirar,
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        TextosDesconfio.tirar,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      );
-    }
-
-    if (_turnoDePc || _pcPensando) {
-      return Text(
-        _pcPensando ? 'La PC está pensando…' : 'La PC está jugando…',
-        style: const TextStyle(
-          color: AppColors.textoSuave,
-          fontWeight: FontWeight.w700,
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
+      ],
+    );
   }
 
   Widget _overlayElegirPalo() {
