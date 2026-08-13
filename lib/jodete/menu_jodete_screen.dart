@@ -57,6 +57,15 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
             ),
             const SizedBox(height: 8),
             FilaToggleModificarPartida(
+              titulo: 'Finalizar mano con especial',
+              activo: draft.ganarConEspecial,
+              onChanged: (v) => setDialogState(
+                () => draft = draft.copyWith(ganarConEspecial: v),
+              ),
+              info: TextosJodete.infoGanarConEspecial,
+            ),
+            const SizedBox(height: 8),
+            FilaToggleModificarPartida(
               titulo: 'Puntaje por cartas (a 100)',
               activo: draft.puntajePorCartas,
               onChanged: (v) => setDialogState(

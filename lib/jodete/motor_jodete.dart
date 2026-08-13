@@ -46,6 +46,18 @@ class CartaJodete {
   /// 4 y 7: el mismo jugador tira de nuevo.
   bool get juegaDeNuevo => !esComodin && (numero == 4 || numero == 7);
 
+  /// Especiales: 2, 4, 7, 10, 11, 12 y comodín.
+  bool get esCartaEspecial {
+    if (esComodin) return true;
+    final n = numero;
+    return n == 2 ||
+        n == 4 ||
+        n == 7 ||
+        n == 10 ||
+        n == 11 ||
+        n == 12;
+  }
+
   String get nombrePalo => switch (palo) {
         PaloJodete.oro => 'oro',
         PaloJodete.copa => 'copa',
@@ -135,6 +147,7 @@ class PartidaJodete {
     this.cartasIniciales = 7,
     this.puntajePorCartas = false,
     this.apilarDoses = true,
+    this.ganarConEspecial = false,
     this.ultimoResultado,
     List<ResultadoRondaJodete>? historialRondas,
   }) : historialRondas = historialRondas ?? [];
@@ -163,6 +176,9 @@ class PartidaJodete {
   /// Si true, se puede responder un 2 con otro 2 (apila +2)
   /// y un comodín con otro comodín (apila +5).
   final bool apilarDoses;
+  /// Si true, no se puede terminar la mano con carta especial
+  /// (2, 4, 7, 10, 11, 12 o comodín).
+  final bool ganarConEspecial;
   ResultadoRondaJodete? ultimoResultado;
   /// Resultados de todas las rondas (para el historial de victoria).
   final List<ResultadoRondaJodete> historialRondas;
@@ -313,6 +329,7 @@ PartidaJodete nuevaPartidaJodete({
   int objetivo = 30,
   bool puntajePorCartas = false,
   bool apilarDoses = true,
+  bool ganarConEspecial = false,
 }) {
   final r = rng ?? math.Random();
   final lista = nombres.isEmpty
@@ -334,6 +351,7 @@ PartidaJodete nuevaPartidaJodete({
     cartasIniciales: cartasIniciales,
     puntajePorCartas: puntajePorCartas,
     apilarDoses: apilarDoses,
+    ganarConEspecial: ganarConEspecial,
   );
   _repartirInicioJodete(p, r);
   return p;
@@ -349,6 +367,11 @@ void siguienteRondaJodete(PartidaJodete p, [math.Random? rng]) {
 
 bool puedeJugarCartaJodete(PartidaJodete p, CartaJodete c) {
   if (!p.jugando) return false;
+  final j = p.jugadorActual;
+  // No se puede cerrar la mano con especial si la opción está activa.
+  if (p.ganarConEspecial && j.mano.length == 1 && c.esCartaEspecial) {
+    return false;
+  }
   // Con doses pendientes: solo otro 2, y solo si está permitido apilar.
   if (p.hayPendienteDos) return p.apilarDoses && c.esDos;
   // Con comodines pendientes: solo otro comodín, si se puede apilar.
@@ -556,6 +579,11 @@ String? jugarCartaJodete(
   if (!j.enJuego) return 'Este jugador no está en juego.';
   if (!j.mano.contains(carta)) return 'Esa carta no está en tu mano.';
   if (!puedeJugarCartaJodete(p, carta)) {
+    if (p.ganarConEspecial &&
+        j.mano.length == 1 &&
+        carta.esCartaEspecial) {
+      return 'No podés terminar con una carta especial (2, 4, 7, 10, 11, 12 o comodín).';
+    }
     if (p.hayPendienteDos) {
       return p.apilarDoses
           ? 'Hay un ${p.pendienteDos} pendiente: tirás un 2 o levantás.'

@@ -64,6 +64,13 @@ abstract final class TextosJodete {
       'Desactivado: el 2 no se puede tapar con otro 2 ni el comodín con '
       'otro comodín; el siguiente levanta y pierde el turno.';
 
+  static const infoGanarConEspecial =
+      'Activado: nadie puede terminar la mano con una carta especial '
+      '(2, 4, 7, 10, 11, 12 o comodín). La última carta tiene que ser '
+      'un número “normal” (1, 3, 5, 6, 8 o 9).\n\n'
+      'Desactivado: se puede ganar tirando cualquier carta válida, '
+      'incluida una especial.';
+
   static const reglaCorta =
       'Mazo español. Tirás mismo palo o número. '
       'Se anotan puntos por ronda; gana quien llega al objetivo.';
@@ -74,6 +81,7 @@ String reglasJodete({
   int objetivo = 30,
   bool puntajePorCartas = false,
   bool apilarDoses = true,
+  bool ganarConEspecial = false,
 }) =>
     '''
 · Se juega con mazo español de ${comodines ? '50' : '48'} cartas (1 al 12
@@ -93,7 +101,8 @@ String reglasJodete({
 ${comodines ? (apilarDoses
       ? '  - Comodín → el siguiente puede tirar otro comodín (apila +5) o levantar lo acumulado (5, 10…). Si no tiene comodín, las levanta solo a los 2 segundos. Elegís el palo.\n'
       : '  - Comodín → el siguiente levanta 5, pierde el turno, y elegís el palo\n') : ''}
-
+${ganarConEspecial ? '· Finalizar mano con especial (activado): no se puede terminar la mano con '
+      '2, 4, 7, 10, 11, 12 o comodín.\n' : ''}
 · Si no podés tirar, levantás 1 del mazo y pasás (o, si activaste
   “Levantar hasta tirar” en Modificar partida, levantás hasta sacar una
   jugable y la tirás en el mismo turno).

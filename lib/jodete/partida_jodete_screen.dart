@@ -267,6 +267,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         objetivo: _opciones.objetivoEfectivo,
         puntajePorCartas: _opciones.puntajePorCartas,
         apilarDoses: _opciones.apilarDoses,
+        ganarConEspecial: _opciones.ganarConEspecial,
       );
     }
     if (_esLocalHotSeat) {
@@ -326,6 +327,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
         objetivo: _opciones.objetivoEfectivo,
         puntajePorCartas: _opciones.puntajePorCartas,
         apilarDoses: _opciones.apilarDoses,
+        ganarConEspecial: _opciones.ganarConEspecial,
       );
       _seleccion = null;
       _mostrarMenu = false;
@@ -396,6 +398,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
               objetivo: _partida.objetivo,
               puntajePorCartas: _partida.puntajePorCartas,
               apilarDoses: _partida.apilarDoses,
+              ganarConEspecial: _partida.ganarConEspecial,
             ),
             style: const TextStyle(color: AppColors.texto, height: 1.35),
           ),
