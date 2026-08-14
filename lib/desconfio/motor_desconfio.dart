@@ -252,6 +252,9 @@ String? elegirPaloDesconfio(PartidaDesconfio p, PaloDesconfio palo) {
 }
 
 /// Tira una carta de la mano al pozo (boca abajo).
+///
+/// Si el jugador se queda sin cartas, gana de inmediato (sin fase de
+/// desconfiar / seguir).
 String? tirarCartaDesconfio(PartidaDesconfio p, int indiceMano) {
   if (p.terminada) return 'La partida ya terminó.';
   if (p.fase != FaseDesconfio.jugando) {
@@ -271,6 +274,11 @@ String? tirarCartaDesconfio(PartidaDesconfio p, int indiceMano) {
       paloDeclarado: p.paloDeclarado!,
     ),
   );
+  // Última carta: victoria automática (no hay reacción del rival).
+  if (j.sinCartas) {
+    _chequearVictoriaPorManoVacia(p, j);
+    return null;
+  }
   p.fase = FaseDesconfio.esperandoReaccion;
   p.ultimoMensaje =
       '${j.nombre} tiró una carta. ¿Desconfío o tirás?';
@@ -331,6 +339,12 @@ String? desconfiarDesconfio(PartidaDesconfio p, String nombreDesconfiador) {
   }
   if (desconfiador == null) return 'Jugador inválido.';
   if (tirador == null) return 'No se encontró al que tiró.';
+  // Por si la UI quedó en reacción tras una última carta: no se puede
+  // desconfiar de quien ya ganó quedándose sin cartas.
+  if (tirador.sinCartas) {
+    _chequearVictoriaPorManoVacia(p, tirador);
+    return null;
+  }
 
   final palo = p.paloDeclarado!;
   final eraDelPalo = ultima.carta.palo == palo;

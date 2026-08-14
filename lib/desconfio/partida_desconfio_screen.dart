@@ -18,6 +18,7 @@ import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -45,6 +46,7 @@ class PartidaDesconfioScreen extends StatefulWidget {
 class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
   static const double _cartaW = 64;
   static const double _cartaH = 96;
+  static const int _maxNombre = 15;
 
   late PartidaDesconfio _partida;
   late List<String> _nombres;
@@ -135,6 +137,161 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
   void _snack(String? err) {
     if (err == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+  }
+
+  bool _puedeRenombrar(JugadorDesconfio j) {
+    if (_partida.terminada) return false;
+    if (j.rendido) return false;
+    return !esNombrePc(j.nombre);
+  }
+
+  String? _validarNombre(String nombre, int index) {
+    final t = nombre.trim();
+    if (t.isEmpty) return 'El nombre no puede estar vacío.';
+    if (t.length > _maxNombre) return 'Máximo $_maxNombre caracteres.';
+    if (esNombrePc(t)) return 'Ese nombre está reservado para la PC.';
+    final ocupado = _partida.jugadores.asMap().entries.any(
+          (e) => e.key != index && e.value.nombre == t,
+        );
+    if (ocupado) return 'Ese nombre ya está en uso.';
+    return null;
+  }
+
+  Future<void> _renombrarJugador(int index) async {
+    if (index < 0 || index >= _partida.jugadores.length) return;
+    final j = _partida.jugadores[index];
+    if (!_puedeRenombrar(j)) return;
+    final actual = j.nombre;
+    final ctrl = TextEditingController(text: actual);
+    String? error;
+
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.carta,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Cambiar nombre',
+            style: TextStyle(color: AppColors.acento, fontSize: 18),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Máximo 15 caracteres.',
+                style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLength: _maxNombre,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: AppColors.texto),
+                decoration: InputDecoration(
+                  hintText: 'Nombre del jugador',
+                  errorText: error,
+                  counterStyle: const TextStyle(color: AppColors.textoSuave),
+                ),
+                onSubmitted: (_) {
+                  final t = ctrl.text.trim();
+                  final err = _validarNombre(t, index);
+                  if (err != null) {
+                    setDialogState(() => error = err);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final t = ctrl.text.trim();
+                  final err = _validarNombre(t, index);
+                  if (err != null) {
+                    setDialogState(() => error = err);
+                    return;
+                  }
+                  Navigator.of(context).pop(t);
+                },
+                child: const Text('Guardar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (nuevo == null || nuevo == actual || !mounted) return;
+    setState(() {
+      _partida.jugadores[index].nombre = nuevo;
+      if (index < _nombres.length) _nombres[index] = nuevo;
+      if (_partida.ganador == actual) _partida.ganador = nuevo;
+      for (var i = 0; i < _partida.pozo.length; i++) {
+        final c = _partida.pozo[i];
+        if (c.jugador == actual) {
+          _partida.pozo[i] =
+              CartaEnPozoDesconfio(carta: c.carta, jugador: nuevo);
+        }
+      }
+      for (var i = 0; i < _partida.historial.length; i++) {
+        final h = _partida.historial[i];
+        if (h.jugador != actual &&
+            h.desconfiador != actual &&
+            h.quienSeLleva != actual) {
+          continue;
+        }
+        _partida.historial[i] = EntradaHistorialDesconfio(
+          jugador: h.jugador == actual ? nuevo : h.jugador,
+          carta: h.carta,
+          paloDeclarado: h.paloDeclarado,
+          desconfiador:
+              h.desconfiador == actual ? nuevo : h.desconfiador,
+          eraDelPalo: h.eraDelPalo,
+          quienSeLleva:
+              h.quienSeLleva == actual ? nuevo : h.quienSeLleva,
+          cartasLlevadas: h.cartasLlevadas,
+        );
+      }
+      final ur = _partida.ultimoResultado;
+      if (ur != null &&
+          (ur.desconfiador == actual ||
+              ur.tirador == actual ||
+              ur.quienSeLleva == actual)) {
+        _partida.ultimoResultado = ResultadoDesconfio(
+          desconfiador:
+              ur.desconfiador == actual ? nuevo : ur.desconfiador,
+          tirador: ur.tirador == actual ? nuevo : ur.tirador,
+          carta: ur.carta,
+          eraDelPalo: ur.eraDelPalo,
+          quienSeLleva:
+              ur.quienSeLleva == actual ? nuevo : ur.quienSeLleva,
+          cartasLlevadas: ur.cartasLlevadas,
+        );
+      }
+      final msg = _partida.mensajeFin;
+      if (msg != null && msg.contains(actual)) {
+        _partida.mensajeFin = msg.replaceAll(actual, nuevo);
+      }
+      final um = _partida.ultimoMensaje;
+      if (um != null && um.contains(actual)) {
+        _partida.ultimoMensaje = um.replaceAll(actual, nuevo);
+      }
+    });
+    _guardarResumeSiCorresponde();
   }
 
   void _guardarResumeSiCorresponde() {
@@ -631,23 +788,32 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                       ),
                       child: Column(
                         children: [
-                          // Rivales
+                          // Tarjetas de todos los jugadores, centradas.
                           SizedBox(
-                            height: 72,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                for (final j in _partida.jugadores)
-                                  if (j.nombre != vista.nombre)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 12),
-                                      child: _chipRival(j),
-                                    ),
-                              ],
+                            height: 80,
+                            width: double.infinity,
+                            child: Center(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (var i = 0;
+                                        i < _partida.jugadores.length;
+                                        i++) ...[
+                                      if (i > 0) const SizedBox(width: 12),
+                                      _chipJugador(
+                                        _partida.jugadores[i],
+                                        i,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Pozo
+                          // Pozo (aviso de PC arriba del pozo)
                           Expanded(child: Center(child: _pozoWidget())),
                           const SizedBox(height: 8),
                           // Mano
@@ -821,28 +987,54 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     );
   }
 
-  Widget _chipRival(JugadorDesconfio j) {
-    final turno = _partida.jugadorActual.nombre == j.nombre;
+  /// Quién debe actuar ahora (para el contorno amarillo de la tarjeta).
+  String? get _nombreTurnoResaltado {
+    if (_partida.terminada) return null;
+    if (_partida.fase == FaseDesconfio.esperandoReaccion) {
+      final tirador = _partida.ultimaDelPozo?.jugador;
+      if (tirador == null) return _partida.jugadorActual.nombre;
+      // Reacciona quien no tiró (desconfiar / tirar), no el tirador.
+      if (widget.contraPc) {
+        if (!esNombrePc(tirador)) {
+          for (final j in _partida.jugadores) {
+            if (!j.rendido && esNombrePc(j.nombre)) return j.nombre;
+          }
+          return null;
+        }
+        return _humanoPrincipal.nombre;
+      }
+      return _desafianteActual ?? _partida.jugadorActual.nombre;
+    }
+    return _partida.jugadorActual.nombre;
+  }
+
+  Widget _chipJugador(JugadorDesconfio j, int index) {
+    final turno = _nombreTurnoResaltado == j.nombre;
     final verCartas = _modoDiosActivo && esNombrePc(j.nombre);
+    final puedeRenombrar = _puedeRenombrar(j);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.carta.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: turno ? AppColors.acento : AppColors.cartaBorde,
-          width: turno ? 2 : 1,
+          width: turno ? 2.4 : 1,
         ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            j.nombre,
-            style: TextStyle(
-              color: turno ? AppColors.acento : AppColors.texto,
-              fontWeight: FontWeight.w800,
+          SizedBox(
+            height: 30,
+            child: NombreJugadorEditable(
+              nombre: j.nombre,
+              puedeRenombrar: puedeRenombrar,
+              onRenombrar:
+                  puedeRenombrar ? () => _renombrarJugador(index) : null,
+              colorTexto: turno ? AppColors.acento : AppColors.texto,
               fontSize: 12,
+              mayusculas: false,
             ),
           ),
           Text(
@@ -859,9 +1051,34 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
     );
   }
 
+  /// Aviso de turno/pensamiento de la PC (se muestra arriba del pozo).
+  String? get _textoEstadoPc {
+    if (_partida.terminada) return null;
+    if (_partida.fase == FaseDesconfio.esperandoReaccion) {
+      final tirador = _partida.ultimaDelPozo?.jugador;
+      if (widget.contraPc &&
+          tirador != null &&
+          !esNombrePc(tirador)) {
+        return 'La PC está pensando…';
+      }
+      return null;
+    }
+    if (_partida.fase == FaseDesconfio.jugando) {
+      if (_turnoDePc || _pcPensando) {
+        return 'La PC está pensando…';
+      }
+      return null;
+    }
+    if (_turnoDePc || _pcPensando) {
+      return 'La PC está pensando…';
+    }
+    return null;
+  }
+
   Widget _pozoWidget() {
     final n = _partida.pozo.length;
     final palo = _partida.paloDeclarado;
+    final avisoPc = _textoEstadoPc;
     bool verCartaPozo(CartaEnPozoDesconfio c) =>
         _modoDiosActivo && esNombrePc(c.jugador);
     final puedeTirarAlPozo =
@@ -931,48 +1148,69 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
       children: [
-        Text(
-          TextosDesconfio.pozo,
-          style: TextStyle(
-            color: puedeTirarAlPozo
-                ? colorSeleccionCartaEspanola
-                : AppColors.textoSuave,
-            fontWeight: FontWeight.w800,
-          ),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              TextosDesconfio.pozo,
+              style: TextStyle(
+                color: puedeTirarAlPozo
+                    ? colorSeleccionCartaEspanola
+                    : AppColors.textoSuave,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (palo != null) ...[
+              const SizedBox(height: 6),
+              _cartaPaloIndicador(palo),
+            ],
+            const SizedBox(height: 8),
+            pila,
+            if (n > 0) ...[
+              const SizedBox(height: 6),
+              Text(
+                puedeTirarAlPozo ? 'Tocá para tirar' : '$n en el pozo',
+                style: TextStyle(
+                  color: puedeTirarAlPozo
+                      ? colorSeleccionCartaEspanola
+                      : AppColors.textoSuave,
+                  fontSize: 12,
+                  fontWeight:
+                      puedeTirarAlPozo ? FontWeight.w800 : FontWeight.w400,
+                ),
+              ),
+            ] else if (puedeTirarAlPozo) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Tocá para tirar',
+                style: TextStyle(
+                  color: colorSeleccionCartaEspanola,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
         ),
-        if (palo != null) ...[
-          const SizedBox(height: 6),
-          _cartaPaloIndicador(palo),
-        ],
-        const SizedBox(height: 8),
-        pila,
-        if (n > 0) ...[
-          const SizedBox(height: 6),
-          Text(
-            puedeTirarAlPozo ? 'Tocá para tirar' : '$n en el pozo',
-            style: TextStyle(
-              color: puedeTirarAlPozo
-                  ? colorSeleccionCartaEspanola
-                  : AppColors.textoSuave,
-              fontSize: 12,
-              fontWeight:
-                  puedeTirarAlPozo ? FontWeight.w800 : FontWeight.w400,
+        // Flota arriba del “Pozo” sin empujar el layout.
+        if (avisoPc != null)
+          Positioned(
+            top: -26,
+            left: -40,
+            right: -40,
+            child: Text(
+              avisoPc,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textoSuave,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-        ] else if (puedeTirarAlPozo) ...[
-          const SizedBox(height: 6),
-          Text(
-            'Tocá para tirar',
-            style: TextStyle(
-              color: colorSeleccionCartaEspanola,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -1011,15 +1249,12 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
 
     VoidCallback? onDesconfio;
     VoidCallback? onTirar;
-    String? aviso;
 
     if (_partida.fase == FaseDesconfio.esperandoReaccion) {
       final tirador = _partida.ultimaDelPozo?.jugador;
-      if (widget.contraPc &&
+      if (!(widget.contraPc &&
           tirador != null &&
-          !esNombrePc(tirador)) {
-        aviso = _pcPensando ? 'La PC está pensando…' : 'La PC decide…';
-      } else {
+          !esNombrePc(tirador))) {
         final desafiante = _desafianteActual;
         // Sin cartas en el pozo (p. ej. antes de la 1ª tirada) no se puede
         // desconfiar; tampoco quien acaba de tirar.
@@ -1035,102 +1270,83 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
         }
       }
     } else if (_partida.fase == FaseDesconfio.jugando) {
-      if (_turnoDePc || _pcPensando) {
-        aviso =
-            _pcPensando ? 'La PC está pensando…' : 'La PC está jugando…';
-      } else if (_partida.jugadorActual.nombre == vista.nombre) {
+      if (!(_turnoDePc || _pcPensando) &&
+          _partida.jugadorActual.nombre == vista.nombre) {
         // Primera carta (u otra) con pozo vacío: solo Tirar, nunca Desconfío.
         onTirar =
             _seleccionMano == null ? null : _tirarSeleccionada;
       }
-    } else if (_turnoDePc || _pcPensando) {
-      aviso = _pcPensando ? 'La PC está pensando…' : 'La PC está jugando…';
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (aviso != null) ...[
-          Text(
-            aviso,
-            style: const TextStyle(
-              color: AppColors.textoSuave,
-              fontWeight: FontWeight.w700,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.peligro,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      AppColors.peligro.withValues(alpha: 0.35),
+                  disabledForegroundColor:
+                      Colors.white.withValues(alpha: 0.55),
+                  minimumSize: const Size.fromHeight(52),
+                  maximumSize: const Size.fromHeight(52),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: onDesconfio,
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    TextosDesconfio.desconfio,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 6),
-        ],
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.peligro,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          AppColors.peligro.withValues(alpha: 0.35),
-                      disabledForegroundColor:
-                          Colors.white.withValues(alpha: 0.55),
-                      minimumSize: const Size.fromHeight(52),
-                      maximumSize: const Size.fromHeight(52),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: onDesconfio,
-                    child: const FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        TextosDesconfio.desconfio,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
-                      ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.azul,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      AppColors.azul.withValues(alpha: 0.35),
+                  disabledForegroundColor:
+                      Colors.white.withValues(alpha: 0.55),
+                  minimumSize: const Size.fromHeight(52),
+                  maximumSize: const Size.fromHeight(52),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: onTirar,
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    TextosDesconfio.tirar,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.azul,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          AppColors.azul.withValues(alpha: 0.35),
-                      disabledForegroundColor:
-                          Colors.white.withValues(alpha: 0.55),
-                      minimumSize: const Size.fromHeight(52),
-                      maximumSize: const Size.fromHeight(52),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: onTirar,
-                    child: const FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        TextosDesconfio.tirar,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
