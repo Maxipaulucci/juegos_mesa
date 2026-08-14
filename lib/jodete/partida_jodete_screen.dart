@@ -15,7 +15,10 @@ import 'package:app_juegos_mesa/jodete/textos.dart';
 import 'package:app_juegos_mesa/jodete/victoria_jodete_overlay.dart';
 import 'package:app_juegos_mesa/escobaDel15/marcador_palitos.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
+import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
@@ -55,6 +58,12 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   AjustesEstado _ajustes = const AjustesEstado();
 
   CartaJodete? _seleccion;
+  /// Último modo de orden aplicado con el botón (null = aún no se usó).
+  ModoOrdenManoCartas? _modoOrdenMano;
+  /// Se incrementa al ordenar para disparar la animación de deslizamiento.
+  int _ordenAnimGen = 0;
+  /// Copia del orden de la mano justo antes del último ordenado automático.
+  List<CartaJodete>? _ordenAntesAnim;
   bool _mostrarMenu = false;
   bool _confirmarRendicion = false;
   bool _mostrarAjustes = false;
@@ -442,6 +451,27 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
     final carta = mano.removeAt(desde);
     mano.insert(hacia, carta);
     setState(() {});
+  }
+
+  void _ciclarOrdenMano() {
+    final mano = _vistaLocal.mano;
+    if (mano.length < 2) return;
+    // Copia antes de ordenar in-place: sin esto no hay deltas ni animación.
+    final ordenAntes = List<CartaJodete>.of(mano);
+    final modo = ciclarOrdenManoCartas(
+      mano,
+      modoActual: _modoOrdenMano,
+      claves: (c) => ClavesOrdenCarta(
+        numero: c.numero ?? 0,
+        palo: c.palo?.index ?? 0,
+        esComodin: c.esComodin,
+      ),
+    );
+    setState(() {
+      _modoOrdenMano = modo;
+      _ordenAntesAnim = ordenAntes;
+      _ordenAnimGen++;
+    });
   }
 
   Future<void> _confirmarTirar() async {
@@ -954,15 +984,38 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                                       ),
                                     ),
                                     const SizedBox(height: 8),
-                                    Text(
-                                      'Tu mano - ${mano.length} carta${mano.length == 1 ? '' : 's'}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: AppColors.textoSuave,
-                                        fontWeight: FontWeight.w700,
+                                    SizedBox(
+                                      height: 40,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          Text(
+                                            'Tu mano - ${mano.length} carta${mano.length == 1 ? '' : 's'}',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: AppColors.textoSuave,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          // Fuera del contenedor de cartas, arriba a la derecha.
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 10,
+                                              ),
+                                              child: BotonOrdenarMano(
+                                                size: 38,
+                                                onPressed: mano.length < 2
+                                                    ? null
+                                                    : _ciclarOrdenMano,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(height: 6),
+                                    const SizedBox(height: 4),
                                     SizedBox(
                                       height: 140,
                                       child: _ManoJodete(
@@ -971,9 +1024,9 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                                         animaciones: _ajustes.animaciones,
                                         puedeElegir: _puedeJugarHumano,
                                         onTap: _toggleCarta,
-                                        onReordenar: _puedeJugarHumano
-                                            ? _reordenarMano
-                                            : null,
+                                        onReordenar: _reordenarMano,
+                                        ordenAnimGen: _ordenAnimGen,
+                                        ordenAntesAnim: _ordenAntesAnim,
                                         buildCarta: (c, {required sel}) =>
                                             _cartaWidget(
                                           c,
@@ -1581,6 +1634,8 @@ class _ManoJodete extends StatefulWidget {
     required this.onTap,
     required this.buildCarta,
     this.onReordenar,
+    this.ordenAnimGen = 0,
+    this.ordenAntesAnim,
   });
 
   final List<CartaJodete> cartas;
@@ -1590,6 +1645,11 @@ class _ManoJodete extends StatefulWidget {
   final ValueChanged<CartaJodete> onTap;
   final void Function(int desde, int hacia)? onReordenar;
   final Widget Function(CartaJodete c, {required bool sel}) buildCarta;
+  /// Generación de ordenado automático (botón); 0 = sin animación de sort.
+  final int ordenAnimGen;
+
+  /// Orden de la mano justo antes del último sort (copia; no la lista viva).
+  final List<CartaJodete>? ordenAntesAnim;
 
   @override
   State<_ManoJodete> createState() => _ManoJodeteState();
@@ -1600,14 +1660,16 @@ class _ManoJodeteState extends State<_ManoJodete> {
   final _rowKey = GlobalKey();
   final _reorden = ReordenarCartaManoDrag();
   bool _priorizarReorden = false;
+  Map<Object, double> _dxOrden = const {};
+  int _genOrden = 0;
 
   static const double _cardW = 68;
   static const double _cardH = 102;
   static const double _gap = 6;
 
   bool get _arrastrando => _reorden.arrastrando;
-  bool get _puedeReordenar =>
-      widget.onReordenar != null && widget.puedeElegir;
+  /// Capacidad de reorden (no depende del turno: el árbol de widgets se mantiene).
+  bool get _tieneReorden => widget.onReordenar != null;
   bool get _bloquearScroll => _arrastrando || _priorizarReorden;
 
   void _setPriorizarReorden(bool v) {
@@ -1615,6 +1677,58 @@ class _ManoJodeteState extends State<_ManoJodete> {
     if (!v && _arrastrando) return;
     if (_priorizarReorden == v) return;
     setState(() => _priorizarReorden = v);
+  }
+
+  void _limpiarAnimOrden() {
+    if (_dxOrden.isEmpty) return;
+    _dxOrden = const {};
+  }
+
+  @override
+  void didUpdateWidget(covariant _ManoJodete oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final mismoGen = widget.ordenAnimGen == oldWidget.ordenAnimGen;
+    final largoCambio = oldWidget.cartas.length != widget.cartas.length;
+    final turnoCambio = oldWidget.puedeElegir != widget.puedeElegir;
+
+    // Turno / robar / tirar: la mano no debe “resbalar” por deltas viejos.
+    if (turnoCambio || (mismoGen && largoCambio)) {
+      _limpiarAnimOrden();
+      if (largoCambio &&
+          widget.cartas.length > oldWidget.cartas.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_scroll.hasClients) return;
+          _scroll.animateTo(
+            _scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+          );
+        });
+      }
+      if (mismoGen) return;
+    }
+
+    if (!mismoGen &&
+        widget.ordenAnimGen > 0 &&
+        widget.animaciones &&
+        widget.ordenAntesAnim != null &&
+        widget.ordenAntesAnim!.length == widget.cartas.length &&
+        widget.cartas.isNotEmpty) {
+      // Usar la copia previa: la lista viva ya está ordenada in-place.
+      _dxOrden = deltasInicioOrdenMano(
+        antes: <Object>[for (final c in widget.ordenAntesAnim!) c],
+        despues: <Object>[for (final c in widget.cartas) c],
+        paso: _cardW + _gap,
+      );
+      _genOrden = widget.ordenAnimGen;
+      // Tras la animación, descartar deltas para que un rebuild no las repita.
+      Future<void>.delayed(kDuracionAnimacionOrdenMano, () {
+        if (!mounted) return;
+        if (_genOrden != widget.ordenAnimGen) return;
+        setState(_limpiarAnimOrden);
+      });
+    }
   }
 
   @override
@@ -1727,6 +1841,7 @@ class _ManoJodeteState extends State<_ManoJodete> {
                       for (var i = 0; i < widget.cartas.length; i++) ...[
                         if (i > 0) const SizedBox(width: _gap),
                         Builder(
+                          key: ValueKey<String>('slot_${widget.cartas[i].id}'),
                           builder: (context) {
                             final c = widget.cartas[i];
                             final sel = widget.seleccion == c;
@@ -1740,11 +1855,22 @@ class _ManoJodeteState extends State<_ManoJodete> {
                               atenuar: atenuar,
                               child: CartaSlotSeleccion(
                                 seleccionada: sel,
-                                animaciones: widget.animaciones,
+                                // Sin animar subida/bajada al cambiar de turno.
+                                animaciones:
+                                    widget.animaciones && widget.puedeElegir,
                                 width: _cardW,
                                 height: _cardH,
                                 child: widget.buildCarta(c, sel: sel),
                               ),
+                            );
+
+                            child = CartaDeslizOrdenMano(
+                              key: ValueKey<String>(
+                                'ord_${c.id}_$_genOrden',
+                              ),
+                              dxInicial: _dxOrden[c] ?? 0,
+                              animaciones: widget.animaciones,
+                              child: child,
                             );
 
                             child = CartaConHuecoReorden(
@@ -1766,49 +1892,47 @@ class _ManoJodeteState extends State<_ManoJodete> {
                               child: child,
                             );
 
-                            if (_puedeReordenar && sel) {
-                              return PriorizarReordenSobreScroll(
-                                onCambiar: _setPriorizarReorden,
-                                child: DetectorArrastreReorden(
-                                  onTap: widget.puedeElegir
-                                      ? () => widget.onTap(c)
-                                      : null,
-                                  onPanStart: (details) => _iniciarDrag(
-                                    i,
-                                    details.localPosition,
-                                  ),
-                                  onPanUpdate: _actualizarDrag,
-                                  onPanEnd: _soltarDrag,
-                                  onPanCancel: _cancelarDrag,
-                                  child: child,
-                                ),
-                              );
-                            }
-
-                            if (!widget.puedeElegir) return child;
+                            // Árbol estable en cambios de turno/selección:
+                            // mismos padres siempre; solo cambian los callbacks.
+                            final puedeInteractuar = widget.puedeElegir;
+                            final puedeArrastrar =
+                                _tieneReorden && sel && puedeInteractuar;
 
                             return Material(
                               color: Colors.transparent,
                               borderRadius: BorderRadius.circular(14),
-                              child: InkWell(
-                                onTap: () => widget.onTap(c),
-                                borderRadius: BorderRadius.circular(14),
-                                splashColor: sel
-                                    ? colorSeleccionCartaEspanola.withValues(
-                                        alpha: 0.25,
-                                      )
-                                    : Colors.transparent,
-                                highlightColor: sel
-                                    ? colorSeleccionCartaEspanola.withValues(
-                                        alpha: 0.18,
-                                      )
-                                    : Colors.transparent,
-                                hoverColor: sel
-                                    ? colorSeleccionCartaEspanola.withValues(
-                                        alpha: 0.22,
-                                      )
-                                    : Colors.transparent,
-                                child: child,
+                              child: Listener(
+                                onPointerDown: puedeArrastrar
+                                    ? (_) => _setPriorizarReorden(true)
+                                    : null,
+                                onPointerUp: puedeArrastrar
+                                    ? (_) => _setPriorizarReorden(false)
+                                    : null,
+                                onPointerCancel: puedeArrastrar
+                                    ? (_) => _setPriorizarReorden(false)
+                                    : null,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: puedeInteractuar
+                                      ? () => widget.onTap(c)
+                                      : null,
+                                  onPanStart: puedeArrastrar
+                                      ? (details) => _iniciarDrag(
+                                            i,
+                                            details.localPosition,
+                                          )
+                                      : null,
+                                  onPanUpdate: _arrastrando
+                                      ? _actualizarDrag
+                                      : null,
+                                  onPanEnd: _arrastrando
+                                      ? (_) => _soltarDrag()
+                                      : null,
+                                  onPanCancel: _arrastrando
+                                      ? _cancelarDrag
+                                      : null,
+                                  child: child,
+                                ),
                               ),
                             );
                           },
