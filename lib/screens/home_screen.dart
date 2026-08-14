@@ -72,10 +72,13 @@ class _JuegoHome {
     required this.portadaAsset,
     this.enabled = true,
     this.destacadoFuego = false,
-    this.tarjetaCuadrada = false,
+    this.tarjetaCuadrada = true,
     this.eslogan,
-    this.aspectPortada,
+    this.aspectPortada = aspectPortadaHome,
   });
+
+  /// Misma proporción de tarjeta que Diez Mil (todas iguales).
+  static const double aspectPortadaHome = 1448 / 1086;
 
   final _TipoJuegoHome tipo;
   final String titulo;
@@ -106,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen>
       'assets/img/portadas/portadaProximamente.png';
   static const _portadaDiezMil = 'assets/img/portadas/portadaDiezMil.png';
   static const _portadaGenerala = 'assets/img/portadas/portadaGenerala.png';
+  static const _portadaLaPapa = 'assets/img/portadas/portadaLaPapa.jpg';
 
   bool _navegando = false;
   _CategoriaHome _categoria = _CategoriaHome.todo;
@@ -126,8 +130,6 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.acento,
       categoria: _CategoriaHome.dados,
       portadaAsset: _portadaDiezMil,
-      tarjetaCuadrada: true,
-      aspectPortada: 1448 / 1086,
       eslogan:
           'Seis dados, una meta imposible de 10.000 y esa vocecita '
           'que te dice “una tirada más”. Sumás de a poco, arriesgás de más y, '
@@ -142,7 +144,12 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.violeta,
       categoria: _CategoriaHome.dados,
       portadaAsset: _portadaGenerala,
-      tarjetaCuadrada: true,
+      eslogan:
+          'Cinco dados, una tablita traicionera y ese “¡casi generala!” '
+          'que duele más que perder. Escalera, full, póker… o tachás con cara '
+          'de póker. Ideal para pelear el puntaje con amigos o en familia, '
+          'culpar a los dados y jurar que “la próxima sale”. '
+          '¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.tuttiFrutti,
@@ -151,6 +158,11 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.rosa,
       categoria: _CategoriaHome.papel,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'Una letra, mil categorías y el reloj que no perdona. Pensás '
+          '“fruta con M…” y se te va la mente. Ideal para pelear en familia, '
+          'inventar palabras dudosas y pelear el punto hasta el final. '
+          '¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.laPapa,
@@ -158,7 +170,13 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Hoja · uní los números',
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaLaPapa,
+      eslogan:
+          'Una hoja llena de números, un lápiz tembloroso y esa línea que '
+          'jurás no va a tocar… hasta que toca. Unís del 1 en adelante sin '
+          'cruzarte, pedís puente si hace falta y, si te animás, modo infernal. '
+          'Ideal para pelear la hoja con amigos o en familia, culpar al dedo '
+          'y decir “era imposible”. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.escobaDel15,
@@ -167,6 +185,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.azul,
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'Cartas españolas, sumas a 15 y esa escoba que te saca una sonrisa '
+          'malvada. Ideal para pelear la mesa con amigos o en familia y '
+          'fingir que “sabías la cuenta”. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.unoSolo,
@@ -175,6 +197,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'Una ficha en el centro y un tablero que pide estrategia (o suerte '
+          'disfrazada). Ideal para pensar dos jugadas… o improvisar y '
+          'culpar al destino. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.culoSucioV2,
@@ -184,6 +210,10 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaProximamente,
       destacadoFuego: true,
+      eslogan:
+          'Pares, el 1 de oro y esa tensión de no querer quedar “sucio”. '
+          'Ideal para pelear con amigos, reírse del que pierde y pedir '
+          'revancha al toque. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.culoSucioV1,
@@ -192,6 +222,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.peligro,
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'La versión clásica: el 1 de oro te hunde y nadie te tiene piedad. '
+          'Ideal para mesa rápida, insultos cariñosos y “una más”. '
+          '¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.casitaRobada,
@@ -200,6 +234,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.mint,
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'Armás casitas, robás la del otro y mirás inocente. Ideal para '
+          'pelear el montoncito con amigos o en familia y decir “era mía”. '
+          '¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.chanchoVa,
@@ -208,6 +246,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.acentoSuave,
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'Cuartetos, manos rápidas y el grito sagrado: ¡CHANCHO VA! Ideal '
+          'para el caos controlado con amigos y quedar como el más lento '
+          'de la mesa. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.guerraDeCartas,
@@ -216,6 +258,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.azul,
       categoria: _CategoriaHome.cartasInglesas,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'Carta contra carta, el AS manda y la suerte decide. Ideal para '
+          'partidas cortas, dramas innecesarios y “¡guerra!”. '
+          '¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.desconfio,
@@ -224,6 +270,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.azulSuave,
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          'Bluff, cara de póker y ese “desconfío” que te salva… o te hunde. '
+          'Ideal para mentir con estilo y pelear la mesa con amigos. '
+          '¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.jodete,
@@ -232,6 +282,10 @@ class _HomeScreenState extends State<HomeScreen>
       accent: AppColors.peligro,
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaProximamente,
+      eslogan:
+          '50 cartas españolas y el placer de decir “jodete” con la jugada '
+          'justa. Ideal para pelear turnos, reírse del rival y no soltar '
+          'la mesa. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
@@ -241,6 +295,10 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasInglesas,
       portadaAsset: _portadaProximamente,
       enabled: false,
+      eslogan:
+          'Melés, canastas y puntos que se acumulan con paciencia… o con '
+          'suerte. Estamos barajando esta mesa: pronto vas a poder jugar. '
+          '¿Estás listo para cuando llegue?',
     ),
   ];
 
@@ -669,17 +727,15 @@ class _HomeScreenState extends State<HomeScreen>
                                         final columnas =
                                             _columnasPara(constraints.maxWidth);
                                         const altoCompacta = 132.0;
-                                        const altoCuadrada = 248.0;
                                         const altoCuadradaConEslogan = 420.0;
                                         const gap = 10.0;
 
                                         double altoDe(_JuegoHome j) {
+                                          // Todas las tarjetas = tamaño Diez Mil.
                                           if (!j.tarjetaCuadrada) {
                                             return altoCompacta;
                                           }
-                                          return j.eslogan != null
-                                              ? altoCuadradaConEslogan
-                                              : altoCuadrada;
+                                          return altoCuadradaConEslogan;
                                         }
 
                                         final filas = <List<_JuegoHome>>[];
@@ -1511,8 +1567,8 @@ class _JuegoTileState extends State<_JuegoTile>
         final maxH = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : 420.0;
-        // Reserva segura para eslogan + Jugar + Reglas (evita overflow).
-        final chromeMin = widget.eslogan != null ? 196.0 : 92.0;
+        // Reserva fija (eslogan + botones) para que todas midan igual que Diez Mil.
+        const chromeMin = 196.0;
         final anchoIdeal = (maxH - chromeMin) * aspect;
         final ancho = math.min(maxW, math.max(120.0, anchoIdeal));
         final altoImg = math.min(ancho / aspect, maxH - chromeMin);
