@@ -2,6 +2,7 @@
 class OpcionesPapa {
   const OpcionesPapa({
     this.conVidas = false,
+    this.puentes = false,
     this.numerosAleatorios = true,
     this.cantidadNumeros = maxNumeroPapaDefault,
     this.modoFantasma = false,
@@ -19,6 +20,10 @@ class OpcionesPapa {
 
   /// Cada jugador empieza con [vidasIniciales] vidas.
   final bool conVidas;
+
+  /// Con vidas: al tocar una línea se marca una X (cuesta una vida) y se
+  /// puede seguir el trazo; cruzar por X ya marcadas no cuesta otra vida.
+  final bool puentes;
 
   /// Si false, los jugadores colocan los números a mano antes de jugar.
   final bool numerosAleatorios;
@@ -53,6 +58,9 @@ class OpcionesPapa {
 
   bool get conVidasEfectivas => !modoFantasma && conVidas;
 
+  /// Puentes solo aplica con vidas activas (y fuera de Modo infernal).
+  bool get puentesEfectivos => conVidasEfectivas && puentes;
+
   bool get numerosAleatoriosEfectivos => modoFantasma || numerosAleatorios;
 
   bool get mostrarCuadriculaEfectiva => !modoFantasma && mostrarCuadricula;
@@ -70,6 +78,7 @@ class OpcionesPapa {
 
   OpcionesPapa copyWith({
     bool? conVidas,
+    bool? puentes,
     bool? numerosAleatorios,
     int? cantidadNumeros,
     bool? modoFantasma,
@@ -79,8 +88,12 @@ class OpcionesPapa {
     bool? modificarGrosorTrazo,
     bool? excepcionGeneracionNumeros,
   }) {
+    final vidas = conVidas ?? this.conVidas;
+    final puente = puentes ?? this.puentes;
     return OpcionesPapa(
-      conVidas: conVidas ?? this.conVidas,
+      conVidas: vidas,
+      // Sin vidas, Puentes no tiene sentido.
+      puentes: vidas ? puente : false,
       numerosAleatorios: numerosAleatorios ?? this.numerosAleatorios,
       cantidadNumeros: cantidadNumeros ?? this.cantidadNumeros,
       modoFantasma: modoFantasma ?? this.modoFantasma,
@@ -101,6 +114,7 @@ class OpcionesPapa {
     return copyWith(
       modoFantasma: true,
       conVidas: false,
+      puentes: false,
       numerosAleatorios: true,
       cantidadNumeros: maxCantidadNumeros,
       mostrarCuadricula: false,

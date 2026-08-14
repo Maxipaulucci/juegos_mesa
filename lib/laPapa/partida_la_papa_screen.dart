@@ -49,6 +49,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
   final List<Offset> _trazoActual = [];
   /// Trazo con el que se perdió (o el último fallo con vidas).
   final List<Offset> _trazoFallido = [];
+  /// Puentes (X) de la partida, en coords normalizadas 0..1.
+  final List<Offset> _puentesNorm = [];
   final GlobalKey _hojaKey = GlobalKey();
   /// Posición de la lupa sin forzar rebuild de toda la pantalla.
   final ValueNotifier<Offset?> _lupaPunto = ValueNotifier<Offset?>(null);
@@ -342,6 +344,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       );
       _trazoActual.clear();
       _trazoFallido.clear();
+      _puentesNorm.clear();
       _dibujando = false;
       _inicioValido = false;
       _salioDelInicio = false;
@@ -362,6 +365,63 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     _pointerDibujoId = null;
     _lupaPunto.value = null;
     _aplicarPosicionLupa();
+  }
+
+  List<Offset> _puentesEnHoja(Size boardSize) =>
+      desnormalizarPuntosPapa(_puentesNorm, boardSize);
+
+  void _agregarPuenteNorm(Offset contacto, Size boardSize) {
+    final w = boardSize.width <= 1e-6 ? 1.0 : boardSize.width;
+    final h = boardSize.height <= 1e-6 ? 1.0 : boardSize.height;
+    _puentesNorm.add(
+      Offset(
+        (contacto.dx / w).clamp(0.0, 1.0),
+        (contacto.dy / h).clamp(0.0, 1.0),
+      ),
+    );
+  }
+
+  /// Coloca un puente, resta una vida y deja seguir el trazo si quedan vidas.
+  /// Devuelve true si hay que cortar (sin vidas / partida terminada).
+  bool _colocarPuenteYRestarVida(Offset contacto, Size boardSize) {
+    _agregarPuenteNorm(contacto, boardSize);
+    final quien = _partida.jugadorActual;
+    final termino = registrarFalloPapa(
+      _partida,
+      motivo: '$quien se quedó sin vidas al hacer un puente.',
+    );
+    if (termino || _partida.estaRendido(quien)) {
+      _trazoFallido
+        ..clear()
+        ..addAll(normalizarPuntosPapa(_trazoActual, boardSize));
+      _limpiarTrazo();
+      if (!termino && _partida.estaRendido(quien)) {
+        _avisoVida = '$quien quedó fuera · sigue la partida';
+      } else {
+        _avisoVida = null;
+      }
+      unawaited(_publicarEstadoOnline(forzar: true));
+      return true;
+    }
+    final quedan = _partida.vidasDelActual() ?? 0;
+    _avisoVida = '$quien hizo un puente · quedan $quedan';
+    unawaited(_publicarEstadoOnline(forzar: true));
+    return false;
+  }
+
+  /// Pasa por X existentes; cada X nueva resta una vida y puede seguir.
+  /// Devuelve true si hay que cortar el trazo.
+  bool _resolverChoquesConPuentes(
+    Iterable<Offset?> contactos,
+    Size boardSize,
+  ) {
+    final radio = radioPuentePapa(boardSize, _grosor);
+    for (final c in contactos) {
+      if (c == null) continue;
+      if (cercaDePuentePapa(c, _puentesEnHoja(boardSize), radio)) continue;
+      return _colocarPuenteYRestarVida(c, boardSize);
+    }
+    return false;
   }
 
   void _aplicarPosicionLupa() {
@@ -547,7 +607,22 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       );
       if (dist > math.max(72.0, cell * 1.35)) {
         final salto = [..._trazoActual, local];
-        if (trazoChocaConPreviosPapa(
+        if (_opciones.puentesEfectivos) {
+          final radio = radioPuentePapa(boardSize, _grosor);
+          final xs = _puentesEnHoja(boardSize);
+          final hit = primerChoqueConPreviosPapa(
+            _partida,
+            salto,
+            boardSize: boardSize,
+            grosorActual: _grosor,
+            puentesIgnorar: xs,
+            radioPuente: radio,
+          );
+          setState(() {
+            _trazoActual.add(local);
+            _resolverChoquesConPuentes([hit], boardSize);
+          });
+        } else if (trazoChocaConPreviosPapa(
           _partida,
           salto,
           boardSize: boardSize,
@@ -567,33 +642,70 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
     final de = _partida.siguienteConectar;
     final a = de + 1;
     final pts = [..._trazoActual, local];
-    final chocaPrevios = trazoChocaConPreviosPapa(
-      _partida,
-      pts,
-      boardSize: boardSize,
-      grosorActual: _grosor,
-    );
     // Solo evaluar autochoque después de salir del número de origen.
     final yaSalio = _salioDelInicio ||
         !cercaDeNumeroPapa(_partida, de, local, boardSize);
-    final chocaPropio = yaSalio &&
-        trazoSeTocaASiMismoPapa(
-          pts,
-          boardSize: boardSize,
-          grosor: _grosor,
-        );
+
+    final bool chocaPrevios;
+    final bool chocaPropio;
+    Offset? hitPrevios;
+    Offset? hitPropio;
+    if (_opciones.puentesEfectivos) {
+      final radio = radioPuentePapa(boardSize, _grosor);
+      final xs = _puentesEnHoja(boardSize);
+      hitPrevios = primerChoqueConPreviosPapa(
+        _partida,
+        pts,
+        boardSize: boardSize,
+        grosorActual: _grosor,
+        puentesIgnorar: xs,
+        radioPuente: radio,
+      );
+      hitPropio = yaSalio
+          ? primerAutochocquePapa(
+              pts,
+              boardSize: boardSize,
+              grosor: _grosor,
+              puentesIgnorar: xs,
+              radioPuente: radio,
+            )
+          : null;
+      chocaPrevios = hitPrevios != null;
+      chocaPropio = hitPropio != null;
+    } else {
+      chocaPrevios = trazoChocaConPreviosPapa(
+        _partida,
+        pts,
+        boardSize: boardSize,
+        grosorActual: _grosor,
+      );
+      chocaPropio = yaSalio &&
+          trazoSeTocaASiMismoPapa(
+            pts,
+            boardSize: boardSize,
+            grosor: _grosor,
+          );
+    }
 
     setState(() {
       _trazoActual.add(local);
 
       if (chocaPrevios || chocaPropio) {
-        _fallar(
-          chocaPropio
-              ? '${_partida.jugadorActual} tocó su propia línea. '
-                  'Fin de la partida.'
-              : '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
-        );
-        return;
+        if (_opciones.puentesEfectivos) {
+          final corto = _resolverChoquesConPuentes(
+            [hitPrevios, hitPropio],
+            boardSize,
+          );
+          if (corto) return;
+        } else {
+          _fallar(
+            chocaPropio
+                ? '${_partida.jugadorActual} tocó su propia línea. '
+                    'Fin de la partida.'
+                : '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
+          );
+          return;
+        }
       }
 
       if (!_salioDelInicio &&
@@ -625,10 +737,15 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           boardSize,
           grosorActual: _grosor,
         )) {
-          _fallar(
-            '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
-          );
-          return;
+          final radio = radioPuentePapa(boardSize, _grosor);
+          final sobrePuente = _opciones.puentesEfectivos &&
+              cercaDePuentePapa(local, _puentesEnHoja(boardSize), radio);
+          if (!sobrePuente) {
+            _fallar(
+              '${_partida.jugadorActual} tocó una línea. Fin de la partida.',
+            );
+            return;
+          }
         }
         if (!puntoEnZonaHabilitadaPapa(
           _partida,
@@ -1493,6 +1610,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                                     List.of(_trazoActual),
                                                 trazoFallido:
                                                     List.of(_trazoFallido),
+                                                puentes: List.of(_puentesNorm),
                                                 boardSize: boardSize,
                                                 numeroActual: de,
                                                 numeroSiguiente: a,
@@ -1524,6 +1642,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                                                     List.of(_trazoActual),
                                                 trazoFallido:
                                                     List.of(_trazoFallido),
+                                                puentes: List.of(_puentesNorm),
                                                 numeroActual: de,
                                                 numeroSiguiente: a,
                                                 grosorActual: _grosor,
@@ -1989,6 +2108,7 @@ class _LupaTrazoPapa extends StatelessWidget {
     required this.partida,
     required this.trazoActual,
     required this.trazoFallido,
+    required this.puentes,
     required this.numeroActual,
     required this.numeroSiguiente,
     required this.grosorActual,
@@ -2012,6 +2132,7 @@ class _LupaTrazoPapa extends StatelessWidget {
   final PartidaPapa partida;
   final List<Offset> trazoActual;
   final List<Offset> trazoFallido;
+  final List<Offset> puentes;
   final int numeroActual;
   final int? numeroSiguiente;
   final GrosorTrazoPapa grosorActual;
@@ -2038,6 +2159,7 @@ class _LupaTrazoPapa extends StatelessWidget {
               partida: partida,
               trazoActual: trazoActual,
               trazoFallido: trazoFallido,
+              puentes: puentes,
               boardSize: boardSize,
               numeroActual: numeroActual,
               numeroSiguiente: numeroSiguiente,
@@ -2154,6 +2276,7 @@ class _HojaPapaPainter extends CustomPainter {
     required this.partida,
     required this.trazoActual,
     required this.trazoFallido,
+    required this.puentes,
     required this.boardSize,
     required this.numeroActual,
     required this.numeroSiguiente,
@@ -2165,6 +2288,8 @@ class _HojaPapaPainter extends CustomPainter {
   final PartidaPapa partida;
   final List<Offset> trazoActual;
   final List<Offset> trazoFallido;
+  /// Puentes del intento (coords normalizadas 0..1).
+  final List<Offset> puentes;
   final Size boardSize;
   final int numeroActual;
   final int? numeroSiguiente;
@@ -2307,6 +2432,29 @@ class _HojaPapaPainter extends CustomPainter {
         math.max(2.0, grosorActual.ancho * 0.65),
         Paint()..color = AppColors.mint,
       );
+    }
+
+    if (puentes.isNotEmpty) {
+      final xs = puntosParecenNormalizadosPapa(puentes)
+          ? desnormalizarPuntosPapa(puentes, size)
+          : puentes;
+      final arm = radioPuentePapa(size, grosorActual) * 0.85;
+      final xPaint = Paint()
+        ..color = AppColors.peligro
+        ..strokeWidth = math.max(2.2, grosorActual.ancho * 0.55)
+        ..strokeCap = StrokeCap.round;
+      for (final p in xs) {
+        canvas.drawLine(
+          p.translate(-arm, -arm),
+          p.translate(arm, arm),
+          xPaint,
+        );
+        canvas.drawLine(
+          p.translate(arm, -arm),
+          p.translate(-arm, arm),
+          xPaint,
+        );
+      }
     }
   }
 

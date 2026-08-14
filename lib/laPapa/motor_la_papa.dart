@@ -330,6 +330,34 @@ double _distPuntoSegmento(Offset p, Offset a, Offset b) {
   return (p - proj).distance;
 }
 
+Offset _proyeccionEnSegmento(Offset p, Offset a, Offset b) {
+  final ab = b - a;
+  final len2 = ab.dx * ab.dx + ab.dy * ab.dy;
+  if (len2 < 1e-8) return a;
+  var t = ((p.dx - a.dx) * ab.dx + (p.dy - a.dy) * ab.dy) / len2;
+  t = t.clamp(0.0, 1.0);
+  return Offset(a.dx + ab.dx * t, a.dy + ab.dy * t);
+}
+
+bool cercaDePuentePapa(Offset p, List<Offset> puentes, double radio) {
+  if (puentes.isEmpty || radio <= 0) return false;
+  final r2 = radio * radio;
+  for (final q in puentes) {
+    final dx = p.dx - q.dx;
+    final dy = p.dy - q.dy;
+    if (dx * dx + dy * dy <= r2) return true;
+  }
+  return false;
+}
+
+double radioPuentePapa(Size boardSize, GrosorTrazoPapa grosor) {
+  final cell = math.min(
+    boardSize.width / columnasPapa,
+    boardSize.height / filasPapa,
+  );
+  return math.max(grosor.radioChoque * 2.2, cell * 0.2);
+}
+
 bool _segmentosCercanos(
   Offset a1,
   Offset a2,
@@ -429,6 +457,173 @@ bool _puntoCercaDeTrazos(
     }
   }
   return false;
+}
+
+/// Primer punto de choque del trazo actual con líneas previas (o null).
+/// Si [puentesIgnorar] no está vacío, ignora contactos cerca de esas X.
+Offset? primerChoqueConPreviosPapa(
+  PartidaPapa p,
+  List<Offset> trazoActual, {
+  required Size boardSize,
+  GrosorTrazoPapa grosorActual = GrosorTrazoPapa.normal,
+  List<Offset> puentesIgnorar = const [],
+  double radioPuente = 0,
+}) {
+  if (trazoActual.length < 2 || p.trazos.isEmpty) return null;
+  final cell = math.min(
+    boardSize.width / columnasPapa,
+    boardSize.height / filasPapa,
+  );
+  final idxInicio = p.indiceDeNumero(p.siguienteConectar);
+  final centroInicio =
+      idxInicio != null ? centroCasillaPapa(idxInicio, boardSize) : null;
+  final radioPunta = cell * 0.14;
+
+  bool enPuntaLibre(Offset pt) =>
+      centroInicio != null && (pt - centroInicio).distance <= radioPunta;
+
+  (Offset, Offset)? segmentoFueraPunta(Offset a, Offset b) {
+    final aIn = enPuntaLibre(a);
+    final bIn = enPuntaLibre(b);
+    if (aIn && bIn) return null;
+    if (!aIn) return (a, b);
+    if (centroInicio == null) return (a, b);
+    final crosses = _interseccionesSegmentoCirculo(
+      centroInicio,
+      radioPunta,
+      a,
+      b,
+    );
+    if (crosses.isEmpty) return (a, b);
+    crosses.sort(
+      (p, q) => (p - a).distanceSquared.compareTo((q - a).distanceSquared),
+    );
+    return (crosses.first, b);
+  }
+
+  final segsPrev = <(Offset, Offset, double)>[];
+  for (final t in p.trazos) {
+    final pts = puntosTrazoEnHojaPapa(t, boardSize);
+    final umbral = math.max(
+      2.0,
+      grosorActual.radioChoque + t.grosor.radioChoque,
+    );
+    for (var j = 1; j < pts.length; j++) {
+      final p1 = pts[j - 1];
+      final p2 = pts[j];
+      if (t.a == p.siguienteConectar &&
+          enPuntaLibre(p1) &&
+          enPuntaLibre(p2)) {
+        continue;
+      }
+      segsPrev.add((p1, p2, umbral));
+    }
+  }
+  if (segsPrev.isEmpty) return null;
+
+  for (var i = 1; i < trazoActual.length; i++) {
+    final raw = segmentoFueraPunta(trazoActual[i - 1], trazoActual[i]);
+    if (raw == null) continue;
+    final (a, b) = raw;
+    final segLen = (b - a).distance;
+    if (segLen < 1e-6) continue;
+
+    for (final (p1, p2, umbral) in segsPrev) {
+      if (!_segmentosCercanos(a, b, p1, p2, umbral)) continue;
+      final contacto = _proyeccionEnSegmento(
+        Offset.lerp(a, b, 0.5)!,
+        p1,
+        p2,
+      );
+      if (cercaDePuentePapa(contacto, puentesIgnorar, radioPuente)) {
+        continue;
+      }
+      return contacto;
+    }
+
+    final muestras = math.max(3, (segLen / 0.9).ceil());
+    for (var s = 0; s <= muestras; s++) {
+      final pt = Offset.lerp(a, b, s / muestras)!;
+      if (enPuntaLibre(pt)) continue;
+      for (final (p1, p2, umbral) in segsPrev) {
+        if (_distPuntoSegmento(pt, p1, p2) > umbral) continue;
+        final contacto = _proyeccionEnSegmento(pt, p1, p2);
+        if (cercaDePuentePapa(contacto, puentesIgnorar, radioPuente)) {
+          continue;
+        }
+        return contacto;
+      }
+    }
+  }
+  return null;
+}
+
+/// Primer autochoque del trazo (o null), respetando puentes.
+Offset? primerAutochocquePapa(
+  List<Offset> trazoActual, {
+  required Size boardSize,
+  GrosorTrazoPapa grosor = GrosorTrazoPapa.normal,
+  List<Offset> puentesIgnorar = const [],
+  double radioPuente = 0,
+}) {
+  if (trazoActual.length < 8) return null;
+  final cell = math.min(
+    boardSize.width / columnasPapa,
+    boardSize.height / filasPapa,
+  );
+  final umbral = math.max(2.0, grosor.radioChoque * 2);
+  final colaIgnorar = math.max(48.0, cell * 0.9);
+  const minIndicesDeSeparacion = 12;
+
+  var acumulado = 0.0;
+  var desde = trazoActual.length - 1;
+  while (desde > 0 && acumulado < colaIgnorar) {
+    acumulado += (trazoActual[desde] - trazoActual[desde - 1]).distance;
+    desde--;
+  }
+
+  for (var i = desde; i >= 1; i--) {
+    final a = trazoActual[i - 1];
+    final b = trazoActual[i];
+    for (var j = 1; j < i - minIndicesDeSeparacion; j++) {
+      final p1 = trazoActual[j - 1];
+      final p2 = trazoActual[j];
+      if (_cruzan(a, b, p1, p2, colinealesCuentan: false)) {
+        final contacto = _proyeccionEnSegmento(
+          Offset.lerp(a, b, 0.5)!,
+          p1,
+          p2,
+        );
+        if (!cercaDePuentePapa(contacto, puentesIgnorar, radioPuente)) {
+          return contacto;
+        }
+      }
+      if (_distPuntoSegmento(b, p1, p2) <= umbral) {
+        final contacto = _proyeccionEnSegmento(b, p1, p2);
+        if (!cercaDePuentePapa(contacto, puentesIgnorar, radioPuente)) {
+          return contacto;
+        }
+      }
+      if (_distPuntoSegmento(a, p1, p2) <= umbral * 0.85) {
+        final contacto = _proyeccionEnSegmento(a, p1, p2);
+        if (!cercaDePuentePapa(contacto, puentesIgnorar, radioPuente)) {
+          return contacto;
+        }
+      }
+      final segLen = (b - a).distance;
+      final muestras = math.max(2, (segLen / 1.2).ceil());
+      for (var s = 1; s < muestras; s++) {
+        final pt = Offset.lerp(a, b, s / muestras)!;
+        if (_distPuntoSegmento(pt, p1, p2) <= umbral) {
+          final contacto = _proyeccionEnSegmento(pt, p1, p2);
+          if (!cercaDePuentePapa(contacto, puentesIgnorar, radioPuente)) {
+            return contacto;
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /// True si el trazo actual cruza o roza una línea previa.

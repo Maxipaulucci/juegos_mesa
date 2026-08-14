@@ -16,6 +16,11 @@ String reglasLaPapa({OpcionesPapa opciones = const OpcionesPapa()}) {
       '· Vidas: cada jugador empieza con ${OpcionesPapa.vidasIniciales} '
           'vidas. Si fallás, perdés una vida y seguís tu turno. '
           'Sin vidas, terminás la partida.',
+    if (opciones.puentesEfectivos)
+      '· Puentes: al tocar una línea se marca una X y perdés una vida, '
+          'pero podés seguir hasta el número, levantar el lápiz o quedarte '
+          'sin vidas. Las X quedan toda la partida; cruzar por una ya '
+          'marcada no cuesta otra vida.',
     if (opciones.modoFantasma)
       '· Modo infernal: solo ves las líneas dibujadas, el número actual '
           'y el siguiente. Siempre hay 50 números al azar, sin cuadrícula, '

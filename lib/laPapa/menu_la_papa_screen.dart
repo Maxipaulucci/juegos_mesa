@@ -61,6 +61,17 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _FilaModoInfernal(
+              activo: infernal,
+              onChanged: (v) => setOpc(draft.conModoInfernal(v)),
+              info:
+                  'Solo ves las líneas, el número actual y el siguiente.\n\n'
+                  'Fuerza 50 números al azar, sin cuadrícula, sin vidas, '
+                  'sin puentes, sin lupa, sin cambiar grosor y sin trazar '
+                  'sobre números.\n\n'
+                  'Mientras esté activo no se pueden cambiar las demás opciones.',
+            ),
+            const SizedBox(height: 12),
             FilaToggleModificarPartida(
               titulo: 'Agregar 3 vidas',
               activo: draft.conVidasEfectivas,
@@ -72,14 +83,19 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
                   'No disponible en Modo infernal.',
             ),
             const SizedBox(height: 12),
-            _FilaModoInfernal(
-              activo: infernal,
-              onChanged: (v) => setOpc(draft.conModoInfernal(v)),
+            FilaToggleModificarPartida(
+              titulo: 'Puentes',
+              activo: draft.puentesEfectivos,
+              habilitado: draft.conVidasEfectivas,
+              onChanged: (v) => setOpc(draft.copyWith(puentes: v)),
               info:
-                  'Solo ves las líneas, el número actual y el siguiente.\n\n'
-                  'Fuerza 50 números al azar, sin cuadrícula, sin vidas, '
-                  'sin lupa, sin cambiar grosor y sin trazar sobre números.\n\n'
-                  'Mientras esté activo no se pueden cambiar las demás opciones.',
+                  'Requiere “Agregar 3 vidas”.\n\n'
+                  'Al tocar una línea se marca una X (puente) y perdés una '
+                  'vida, pero podés seguir dibujando hasta llegar al número, '
+                  'levantar el lápiz o quedarte sin vidas.\n\n'
+                  'Las X quedan en la hoja toda la partida: cruzar por una X '
+                  'ya marcada no cuesta otra vida.\n\n'
+                  'No disponible en Modo infernal.',
             ),
             const SizedBox(height: 12),
             FilaToggleModificarPartida(
@@ -165,56 +181,28 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
                   'columna, y tampoco como vecinos.\n\n'
                   'Desactivado (por defecto): los números se ubican al azar '
                   'en cualquier casilla libre del tablero de 50.',
-              tituloWidget: Builder(
-                builder: (ctx) {
-                  const estilo = TextStyle(
-                    color: AppColors.texto,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    height: 1.25,
-                  );
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Para la generación de números',
-                        style: estilo,
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('añadir excepción', style: estilo),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
-                            ),
-                            tooltip: 'Info',
-                            onPressed: () => mostrarInfoModificarPartida(
-                              ctx,
-                              titulo: 'Excepción en la generación',
-                              cuerpo:
-                                  'La excepción hace que, al generar (o colocar) '
-                                  'números consecutivos, no queden en la misma '
-                                  'fila ni en la misma columna, y tampoco como '
-                                  'vecinos.\n\n'
-                                  'Desactivado (por defecto): los números se '
-                                  'ubican al azar en cualquier casilla libre '
-                                  'del tablero de 50.',
-                            ),
-                            icon: const Icon(
-                              Icons.help,
-                              size: 18,
-                              color: AppColors.textoSuave,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
+              tituloWidget: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Para la generación de números',
+                    style: TextStyle(
+                      color: AppColors.texto,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      height: 1.25,
+                    ),
+                  ),
+                  Text(
+                    'añadir excepción',
+                    style: TextStyle(
+                      color: AppColors.texto,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -330,52 +318,58 @@ class _FilaModoInfernalState extends State<_FilaModoInfernal> {
     final fondo = _invertido ? AppColors.peligro : Colors.black;
     final texto = _invertido ? Colors.black : AppColors.peligro;
 
-    return Row(
-      children: [
-        Expanded(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: fondo,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.peligro, width: 1.6),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.peligro.withValues(alpha: 0.55),
-                  blurRadius: 10,
-                  spreadRadius: 0.5,
+    // Padding extra: el glow rojo no debe quedar contra el borde del
+    // diálogo (SingleChildScrollView / AlertDialog lo recortan).
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 4, 2, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: fondo,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.peligro, width: 1.6),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.peligro.withValues(alpha: 0.5),
+                    blurRadius: 8,
+                    spreadRadius: 0,
+                  ),
+                ],
+              ),
+              child: Text(
+                'Modo infernal',
+                style: TextStyle(
+                  color: texto,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  letterSpacing: 0.4,
                 ),
-              ],
-            ),
-            child: Text(
-              'Modo infernal',
-              style: TextStyle(
-                color: texto,
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
-                letterSpacing: 0.4,
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        SwitchNeon(activo: widget.activo, onChanged: widget.onChanged),
-        const SizedBox(width: 4),
-        IconButton(
-          tooltip: 'Info',
-          onPressed: () => mostrarInfoModificarPartida(
-            context,
-            titulo: 'Modo infernal',
-            cuerpo: widget.info,
+          const SizedBox(width: 8),
+          SwitchNeon(activo: widget.activo, onChanged: widget.onChanged),
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: 'Info',
+            onPressed: () => mostrarInfoModificarPartida(
+              context,
+              titulo: 'Modo infernal',
+              cuerpo: widget.info,
+            ),
+            icon: Icon(
+              Icons.help,
+              size: 18,
+              color: AppColors.peligro.withValues(alpha: 0.85),
+            ),
           ),
-          icon: Icon(
-            Icons.help,
-            size: 18,
-            color: AppColors.peligro.withValues(alpha: 0.85),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

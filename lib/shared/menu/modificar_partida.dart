@@ -44,6 +44,7 @@ Future<bool> mostrarCartelModificarPartida({
         builder: (context, setDialogState) {
           return AlertDialog(
             backgroundColor: AppColors.carta,
+            clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
@@ -59,23 +60,32 @@ Future<bool> mostrarCartelModificarPartida({
               width: 340,
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: maxAltura),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      buildOpciones(dialogContext, setDialogState),
-                      const SizedBox(height: 20),
-                      BotonListoModificarPartida(
-                        onPressed: () =>
-                            Navigator.of(dialogContext).pop(true),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      // Reserva espacio para Listo + Cancelar (~128 px).
+                      constraints: BoxConstraints(
+                        maxHeight: maxAltura > 140 ? maxAltura - 140 : maxAltura,
                       ),
-                      const SizedBox(height: 12),
-                      BotonCancelarModificarPartida(
-                        onPressed: () =>
-                            Navigator.of(dialogContext).pop(false),
+                      child: SingleChildScrollView(
+                        child: buildOpciones(
+                          dialogContext,
+                          setDialogState,
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+                    BotonListoModificarPartida(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop(true),
+                    ),
+                    const SizedBox(height: 12),
+                    BotonCancelarModificarPartida(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop(false),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -173,11 +183,11 @@ class FilaToggleModificarPartida extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final opacidad = habilitado ? 1.0 : 0.45;
-    return Opacity(
-      opacity: opacidad,
-      child: Row(
-        children: [
-          Expanded(
+    return Row(
+      children: [
+        Expanded(
+          child: Opacity(
+            opacity: opacidad,
             child: tituloWidget ??
                 Text(
                   titulo,
@@ -188,28 +198,29 @@ class FilaToggleModificarPartida extends StatelessWidget {
                   ),
                 ),
           ),
-          SwitchNeon(
+        ),
+        Opacity(
+          opacity: opacidad,
+          child: SwitchNeon(
             activo: activo,
             onChanged: habilitado ? onChanged : (_) {},
           ),
-          if (tituloWidget == null) ...[
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: 'Info',
-              onPressed: () => mostrarInfoModificarPartida(
-                context,
-                titulo: titulo,
-                cuerpo: info,
-              ),
-              icon: const Icon(
-                Icons.help,
-                size: 18,
-                color: AppColors.textoSuave,
-              ),
-            ),
-          ],
-        ],
-      ),
+        ),
+        const SizedBox(width: 4),
+        IconButton(
+          tooltip: 'Info',
+          onPressed: () => mostrarInfoModificarPartida(
+            context,
+            titulo: titulo,
+            cuerpo: info,
+          ),
+          icon: const Icon(
+            Icons.help,
+            size: 18,
+            color: AppColors.textoSuave,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -8,6 +8,7 @@ import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 
 Map<String, dynamic> encodePapaOpciones(OpcionesPapa o) => {
       'conVidas': o.conVidas,
+      'puentes': o.puentes,
       'numerosAleatorios': o.numerosAleatorios,
       'cantidadNumeros': o.cantidadNumeros,
       'modoFantasma': o.modoFantasma,
@@ -22,6 +23,7 @@ OpcionesPapa decodePapaOpciones(Map? raw) {
   if (raw == null) return const OpcionesPapa();
   return OpcionesPapa(
     conVidas: raw['conVidas'] == true,
+    puentes: raw['puentes'] == true && raw['conVidas'] == true,
     numerosAleatorios: raw['numerosAleatorios'] != false,
     cantidadNumeros: (raw['cantidadNumeros'] as num?)?.toInt() ??
         OpcionesPapa.maxNumeroPapaDefault,

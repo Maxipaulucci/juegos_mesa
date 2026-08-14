@@ -55,6 +55,7 @@ class PapaStandByStore {
 
   static bool _mismasOpciones(OpcionesPapa a, OpcionesPapa b) {
     return a.conVidas == b.conVidas &&
+        a.puentes == b.puentes &&
         a.numerosAleatorios == b.numerosAleatorios &&
         a.cantidadNumeros == b.cantidadNumeros &&
         a.modoFantasma == b.modoFantasma &&
