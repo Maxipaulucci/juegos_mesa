@@ -62,6 +62,14 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_SYSCOMMAND:
+      // Evita que Alt active el menú del sistema (SC_KEYMENU) y deje
+      // RawKeyboard en un estado inconsistente en Flutter Windows.
+      // https://github.com/flutter/flutter/issues/177822
+      if ((wparam & 0xfff0) == SC_KEYMENU) {
+        return 0;
+      }
+      break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
