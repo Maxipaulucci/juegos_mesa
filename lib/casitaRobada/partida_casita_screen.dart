@@ -9,7 +9,10 @@ import 'package:app_juegos_mesa/casitaRobada/standby_store.dart';
 import 'package:app_juegos_mesa/casitaRobada/textos.dart';
 import 'package:app_juegos_mesa/casitaRobada/victoria_casita_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
+import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -43,6 +46,12 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   int _pcToken = 0;
   int? _cartaSeleccionada;
   final List<CartaCasita> _mesaSeleccion = [];
+  /// Último modo de orden aplicado con el botón (null = aún no se usó).
+  ModoOrdenManoCartas? _modoOrdenMano;
+  /// Se incrementa al ordenar para disparar la animación de deslizamiento.
+  int _ordenAnimGen = 0;
+  /// Copia del orden de la mano justo antes del último ordenado automático.
+  List<CartaCasita>? _ordenAntesAnim;
   /// Nombre del dueño de la casita rival seleccionada para robar.
   String? _nombreCasitaRobo;
   bool _jugando = false;
@@ -491,6 +500,35 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
     });
   }
 
+  void _ciclarOrdenMano() {
+    if (_bloquearHumano) return;
+    final mano = _vistaAbajo.mano;
+    if (mano.length < 2) return;
+    final ordenAntes = List<CartaCasita>.of(mano);
+    CartaCasita? selCarta;
+    final selIdx = _cartaSeleccionada;
+    if (selIdx != null && selIdx >= 0 && selIdx < mano.length) {
+      selCarta = mano[selIdx];
+    }
+    final modo = ciclarOrdenManoCartas(
+      mano,
+      modoActual: _modoOrdenMano,
+      claves: (c) => ClavesOrdenCarta(
+        numero: c.numero,
+        palo: c.palo.index,
+      ),
+    );
+    setState(() {
+      _modoOrdenMano = modo;
+      _ordenAntesAnim = ordenAntes;
+      _ordenAnimGen++;
+      if (selCarta != null) {
+        final nuevo = mano.indexOf(selCarta);
+        _cartaSeleccionada = nuevo >= 0 ? nuevo : null;
+      }
+    });
+  }
+
   void _seleccionarMesa(CartaCasita carta) {
     if (_bloquearHumano) return;
     final mano = _cartaManoSel;
@@ -872,16 +910,40 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Text(
-                                  '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: AppColors.mint,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
+                                SizedBox(
+                                  height: 40,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Text(
+                                        '${TextosCasita.tuMano}: ${manoAbajo.nombre}',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: AppColors.mint,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 10,
+                                          ),
+                                          child: BotonOrdenarMano(
+                                            size: 38,
+                                            onPressed: manoAbajo.mano.length <
+                                                        2 ||
+                                                    _bloquearHumano
+                                                ? null
+                                                : _ciclarOrdenMano,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 4),
                                 Expanded(
                                   child: LayoutBuilder(
                                     builder: (context, constraints) {
@@ -900,15 +962,13 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                                             seleccionIndex: _esTurnoHumano
                                                 ? _cartaSeleccionada
                                                 : null,
-                                            onTapIndex: _esTurnoHumano &&
-                                                    !_jugando
-                                                ? (i) async =>
-                                                    _seleccionarMano(i)
-                                                : null,
-                                            onReordenar: _esTurnoHumano &&
-                                                    !_jugando
-                                                ? _reordenarMano
-                                                : null,
+                                            puedeElegir: _esTurnoHumano &&
+                                                !_jugando,
+                                            onTapIndex: (i) async =>
+                                                _seleccionarMano(i),
+                                            onReordenar: _reordenarMano,
+                                            ordenAnimGen: _ordenAnimGen,
+                                            ordenAntesAnim: _ordenAntesAnim,
                                           ),
                                           Positioned(
                                             left: margen,
@@ -1260,6 +1320,9 @@ class _FilaCartas extends StatefulWidget {
     this.indiceRevelado,
     this.cartasSeleccionadas = const [],
     this.onReordenar,
+    this.puedeElegir = true,
+    this.ordenAnimGen = 0,
+    this.ordenAntesAnim,
   });
 
   final List<CartaCasita> cartas;
@@ -1273,6 +1336,12 @@ class _FilaCartas extends StatefulWidget {
   final int? indiceRevelado;
   final List<CartaCasita> cartasSeleccionadas;
   final void Function(int desde, int hacia)? onReordenar;
+  /// Si false, no anima subida de selección (p. ej. cambio de turno).
+  final bool puedeElegir;
+  /// Generación de ordenado automático (botón); 0 = sin animación de sort.
+  final int ordenAnimGen;
+  /// Orden de la mano justo antes del último sort (copia; no la lista viva).
+  final List<CartaCasita>? ordenAntesAnim;
 
   @override
   State<_FilaCartas> createState() => _FilaCartasState();
@@ -1283,15 +1352,15 @@ class _FilaCartasState extends State<_FilaCartas> {
   final _rowKey = GlobalKey();
   final _reorden = ReordenarCartaManoDrag();
   bool _priorizarReorden = false;
+  Map<Object, double> _dxOrden = const {};
+  int _genOrden = 0;
 
   static const double _cardW = 68;
   static const double _cardH = 102;
   static const double _gap = 6;
 
   bool get _arrastrando => _reorden.arrastrando;
-  bool get _puedeReordenar =>
-      widget.onReordenar != null &&
-      (widget.onTapIndex != null || widget.onTapCarta != null);
+  bool get _tieneReorden => widget.onReordenar != null;
   bool get _bloquearScroll => _arrastrando || _priorizarReorden;
 
   void _setPriorizarReorden(bool v) {
@@ -1299,6 +1368,55 @@ class _FilaCartasState extends State<_FilaCartas> {
     if (!v && _arrastrando) return;
     if (_priorizarReorden == v) return;
     setState(() => _priorizarReorden = v);
+  }
+
+  void _limpiarAnimOrden() {
+    if (_dxOrden.isEmpty) return;
+    _dxOrden = const {};
+  }
+
+  @override
+  void didUpdateWidget(covariant _FilaCartas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final mismoGen = widget.ordenAnimGen == oldWidget.ordenAnimGen;
+    final largoCambio = oldWidget.cartas.length != widget.cartas.length;
+    final turnoCambio = oldWidget.puedeElegir != widget.puedeElegir;
+
+    if (turnoCambio || (mismoGen && largoCambio)) {
+      _limpiarAnimOrden();
+      if (largoCambio &&
+          widget.cartas.length > oldWidget.cartas.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_scroll.hasClients) return;
+          _scroll.animateTo(
+            _scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+          );
+        });
+      }
+      if (mismoGen) return;
+    }
+
+    if (!mismoGen &&
+        widget.ordenAnimGen > 0 &&
+        widget.animaciones &&
+        widget.ordenAntesAnim != null &&
+        widget.ordenAntesAnim!.length == widget.cartas.length &&
+        widget.cartas.isNotEmpty) {
+      _dxOrden = deltasInicioOrdenMano(
+        antes: <Object>[for (final c in widget.ordenAntesAnim!) c],
+        despues: <Object>[for (final c in widget.cartas) c],
+        paso: _cardW + _gap,
+      );
+      _genOrden = widget.ordenAnimGen;
+      Future<void>.delayed(kDuracionAnimacionOrdenMano, () {
+        if (!mounted) return;
+        if (_genOrden != widget.ordenAnimGen) return;
+        setState(_limpiarAnimOrden);
+      });
+    }
   }
 
   @override
@@ -1444,6 +1562,9 @@ class _FilaCartasState extends State<_FilaCartas> {
                       for (var i = 0; i < widget.cartas.length; i++) ...[
                         if (i > 0) const SizedBox(width: _gap),
                         Builder(
+                          key: ValueKey<String>(
+                            'slot_${widget.cartas[i].etiqueta}',
+                          ),
                           builder: (context) {
                             final c = widget.cartas[i];
                             final seleccionada =
@@ -1455,15 +1576,20 @@ class _FilaCartasState extends State<_FilaCartas> {
                             final esLaQueArrastro = _reorden.dragIndex == i;
                             final atenuar =
                                 _arrastrando && !esLaQueArrastro;
-                            final puedeTocar = widget.onTapIndex != null ||
-                                widget.onTapCarta != null;
+                            final puedeInteractuar = widget.puedeElegir &&
+                                (widget.onTapIndex != null ||
+                                    widget.onTapCarta != null);
+                            final puedeArrastrar = _tieneReorden &&
+                                seleccionada &&
+                                puedeInteractuar;
 
                             Widget child = CartaOpacidadReorden(
                               esLaQueArrastro: esLaQueArrastro,
                               atenuar: atenuar,
                               child: CartaSlotSeleccion(
                                 seleccionada: seleccionada,
-                                animaciones: widget.animaciones,
+                                animaciones: widget.animaciones &&
+                                    widget.puedeElegir,
                                 width: _cardW,
                                 height: _cardH,
                                 child: _skin(
@@ -1472,6 +1598,15 @@ class _FilaCartasState extends State<_FilaCartas> {
                                   visible: visible,
                                 ),
                               ),
+                            );
+
+                            child = CartaDeslizOrdenMano(
+                              key: ValueKey<String>(
+                                'ord_${c.etiqueta}_$_genOrden',
+                              ),
+                              dxInicial: _dxOrden[c] ?? 0,
+                              animaciones: widget.animaciones,
+                              child: child,
                             );
 
                             child = CartaConHuecoReorden(
@@ -1493,11 +1628,22 @@ class _FilaCartasState extends State<_FilaCartas> {
                               child: child,
                             );
 
-                            if (_puedeReordenar && seleccionada) {
-                              return PriorizarReordenSobreScroll(
-                                onCambiar: _setPriorizarReorden,
-                                child: DetectorArrastreReorden(
-                                  onTap: !puedeTocar
+                            return Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                              child: Listener(
+                                onPointerDown: puedeArrastrar
+                                    ? (_) => _setPriorizarReorden(true)
+                                    : null,
+                                onPointerUp: puedeArrastrar
+                                    ? (_) => _setPriorizarReorden(false)
+                                    : null,
+                                onPointerCancel: puedeArrastrar
+                                    ? (_) => _setPriorizarReorden(false)
+                                    : null,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: !puedeInteractuar
                                       ? null
                                       : () {
                                           if (widget.onTapIndex != null) {
@@ -1507,48 +1653,23 @@ class _FilaCartasState extends State<_FilaCartas> {
                                             widget.onTapCarta!(c);
                                           }
                                         },
-                                  onPanStart: (details) => _iniciarDrag(
-                                    i,
-                                    details.localPosition,
-                                  ),
-                                  onPanUpdate: _actualizarDrag,
-                                  onPanEnd: _soltarDrag,
-                                  onPanCancel: _cancelarDrag,
+                                  onPanStart: puedeArrastrar
+                                      ? (details) => _iniciarDrag(
+                                            i,
+                                            details.localPosition,
+                                          )
+                                      : null,
+                                  onPanUpdate: _arrastrando
+                                      ? _actualizarDrag
+                                      : null,
+                                  onPanEnd: _arrastrando
+                                      ? (_) => _soltarDrag()
+                                      : null,
+                                  onPanCancel: _arrastrando
+                                      ? _cancelarDrag
+                                      : null,
                                   child: child,
                                 ),
-                              );
-                            }
-
-                            if (!puedeTocar) return child;
-
-                            return Material(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                              child: InkWell(
-                                onTap: () {
-                                  if (widget.onTapIndex != null) {
-                                    widget.onTapIndex!(i);
-                                  } else if (widget.onTapCarta != null) {
-                                    widget.onTapCarta!(c);
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                splashColor: seleccionada
-                                    ? colorSeleccionCartaEspanola.withValues(
-                                        alpha: 0.25,
-                                      )
-                                    : Colors.transparent,
-                                highlightColor: seleccionada
-                                    ? colorSeleccionCartaEspanola.withValues(
-                                        alpha: 0.18,
-                                      )
-                                    : Colors.transparent,
-                                hoverColor: seleccionada
-                                    ? colorSeleccionCartaEspanola.withValues(
-                                        alpha: 0.22,
-                                      )
-                                    : Colors.transparent,
-                                child: child,
                               ),
                             );
                           },
