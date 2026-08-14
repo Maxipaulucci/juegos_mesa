@@ -1836,6 +1836,7 @@ class _ManoEscobaState extends State<_ManoEscoba> {
   final _scroll = ScrollController();
   final _rowKey = GlobalKey();
   final _reorden = ReordenarCartaManoDrag();
+  bool _priorizarReorden = false;
 
   static const double _cardW = 72;
   static const double _cardH = 112;
@@ -1844,6 +1845,14 @@ class _ManoEscobaState extends State<_ManoEscoba> {
   bool get _arrastrando => _reorden.arrastrando;
   bool get _puedeReordenar =>
       widget.onReordenar != null && widget.puedeElegir;
+  bool get _bloquearScroll => _arrastrando || _priorizarReorden;
+
+  void _setPriorizarReorden(bool v) {
+    if (!mounted) return;
+    if (!v && _arrastrando) return;
+    if (_priorizarReorden == v) return;
+    setState(() => _priorizarReorden = v);
+  }
 
   @override
   void dispose() {
@@ -1889,6 +1898,7 @@ class _ManoEscobaState extends State<_ManoEscoba> {
 
   void _soltarDrag() {
     final resultado = _reorden.soltar();
+    _priorizarReorden = false;
     if (resultado != null) {
       widget.onReordenar?.call(resultado.desde, resultado.hacia);
     } else if (mounted) {
@@ -1897,7 +1907,10 @@ class _ManoEscobaState extends State<_ManoEscoba> {
   }
 
   void _cancelarDrag() {
-    setState(_reorden.cancelar);
+    setState(() {
+      _reorden.cancelar();
+      _priorizarReorden = false;
+    });
   }
 
   Widget _skin(CartaEscoba c, {required bool sel}) {
@@ -1950,10 +1963,8 @@ class _ManoEscobaState extends State<_ManoEscoba> {
           return SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
-            // Con carta seleccionada no scrollear: el pan reordena.
-            physics: (_arrastrando || widget.seleccion != null)
-                ? const NeverScrollableScrollPhysics()
-                : const BouncingScrollPhysics(),
+            // Solo bloquea scroll al tocar/arrastrar la carta seleccionada.
+            physics: physicsScrollManoReorden(bloquearPorReorden: _bloquearScroll),
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
             child: SizedBox(
               width: filaW,
@@ -2006,19 +2017,24 @@ class _ManoEscobaState extends State<_ManoEscoba> {
                               child: child,
                             );
 
-                            if (_puedeReordenar) {
-                              return DetectorArrastreReorden(
-                                onTap: widget.puedeElegir
-                                    ? () => widget.onTap(c)
-                                    : null,
-                                onPanStart: (details) {
-                                  if (!sel) return;
-                                  _iniciarDrag(i, details.localPosition);
-                                },
-                                onPanUpdate: _actualizarDrag,
-                                onPanEnd: _soltarDrag,
-                                onPanCancel: _cancelarDrag,
-                                child: child,
+                            // Reordenar solo desde la carta seleccionada;
+                            // el resto permite scrollear la mano.
+                            if (_puedeReordenar && sel) {
+                              return PriorizarReordenSobreScroll(
+                                onCambiar: _setPriorizarReorden,
+                                child: DetectorArrastreReorden(
+                                  onTap: widget.puedeElegir
+                                      ? () => widget.onTap(c)
+                                      : null,
+                                  onPanStart: (details) => _iniciarDrag(
+                                    i,
+                                    details.localPosition,
+                                  ),
+                                  onPanUpdate: _actualizarDrag,
+                                  onPanEnd: _soltarDrag,
+                                  onPanCancel: _cancelarDrag,
+                                  child: child,
+                                ),
                               );
                             }
 

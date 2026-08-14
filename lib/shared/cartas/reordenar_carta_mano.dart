@@ -447,6 +447,39 @@ class DetectorArrastreReorden extends StatelessWidget {
   }
 }
 
+/// Mientras el dedo está sobre la carta a reordenar, avisa para bloquear el
+/// scroll de la mano (así el pan reordena). Si tocás otro punto, no avisa y
+/// la mano puede scrollear manteniendo la selección.
+class PriorizarReordenSobreScroll extends StatelessWidget {
+  const PriorizarReordenSobreScroll({
+    super.key,
+    required this.onCambiar,
+    required this.child,
+  });
+
+  final ValueChanged<bool> onCambiar;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => onCambiar(true),
+      onPointerUp: (_) => onCambiar(false),
+      onPointerCancel: (_) => onCambiar(false),
+      child: child,
+    );
+  }
+}
+
+/// Physics de mano horizontal: scrollea salvo al reordenar / priorizar carta.
+ScrollPhysics physicsScrollManoReorden({
+  required bool bloquearPorReorden,
+  ScrollPhysics? cuandoLibre,
+}) {
+  if (bloquearPorReorden) return const NeverScrollableScrollPhysics();
+  return cuandoLibre ?? const BouncingScrollPhysics();
+}
+
 /// Auto-scroll horizontal cerca de los bordes mientras se arrastra.
 void autoScrollDuranteDragReorden({
   required ScrollController scroll,

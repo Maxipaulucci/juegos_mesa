@@ -1250,10 +1250,19 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
   final _reorden = ReordenarCartaManoDrag();
   bool _hayIzquierda = false;
   bool _hayDerecha = false;
+  bool _priorizarReorden = false;
 
   bool get _arrastrando => _reorden.arrastrando;
   bool get _puedeReordenar => widget.onReordenar != null;
+  bool get _bloquearScroll => _arrastrando || _priorizarReorden;
   double get _paso => widget.cartaW + _gap;
+
+  void _setPriorizarReorden(bool v) {
+    if (!mounted) return;
+    if (!v && _arrastrando) return;
+    if (_priorizarReorden == v) return;
+    setState(() => _priorizarReorden = v);
+  }
 
   @override
   void initState() {
@@ -1341,6 +1350,7 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
 
   void _soltarDrag() {
     final resultado = _reorden.soltar();
+    _priorizarReorden = false;
     if (resultado != null) {
       widget.onReordenar?.call(resultado.desde, resultado.hacia);
     } else if (mounted) {
@@ -1349,7 +1359,10 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
   }
 
   void _cancelarDrag() {
-    setState(_reorden.cancelar);
+    setState(() {
+      _reorden.cancelar();
+      _priorizarReorden = false;
+    });
   }
 
   Widget _flecha({required bool izquierda, required bool visible}) {
@@ -1417,9 +1430,7 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
             child: Listener(
               onPointerSignal: (signal) {
                 if (signal is! PointerScrollEvent) return;
-                if (!_scroll.hasClients ||
-                    _arrastrando ||
-                    widget.seleccion != null) {
+                if (!_scroll.hasClients || _bloquearScroll) {
                   return;
                 }
                 final delta =
@@ -1445,12 +1456,13 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
                     return SingleChildScrollView(
                       controller: _scroll,
                       scrollDirection: Axis.horizontal,
-                      // Con carta seleccionada no scrollear: el pan reordena.
-                      physics: (_arrastrando || widget.seleccion != null)
-                          ? const NeverScrollableScrollPhysics()
-                          : const BouncingScrollPhysics(
-                              parent: AlwaysScrollableScrollPhysics(),
-                            ),
+                      // Solo bloquea scroll al tocar/arrastrar la seleccionada.
+                      physics: physicsScrollManoReorden(
+                        bloquearPorReorden: _bloquearScroll,
+                        cuandoLibre: const BouncingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
+                        ),
+                      ),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 34,
                         vertical: 4,
@@ -1512,24 +1524,23 @@ class _ManoConFlechasState extends State<_ManoConFlechas> {
                                         child: child,
                                       );
 
-                                      if (_puedeReordenar) {
-                                        return DetectorArrastreReorden(
-                                          onTap: widget.puedeElegir
-                                              ? () => widget.onTapIndex(i)
-                                              : null,
-                                          onPanStart: (details) {
-                                            if (widget.puedeElegir && !sel) {
-                                              return;
-                                            }
-                                            _iniciarDrag(
+                                      if (_puedeReordenar && sel) {
+                                        return PriorizarReordenSobreScroll(
+                                          onCambiar: _setPriorizarReorden,
+                                          child: DetectorArrastreReorden(
+                                            onTap: widget.puedeElegir
+                                                ? () => widget.onTapIndex(i)
+                                                : null,
+                                            onPanStart: (details) =>
+                                                _iniciarDrag(
                                               i,
                                               details.localPosition,
-                                            );
-                                          },
-                                          onPanUpdate: _actualizarDrag,
-                                          onPanEnd: _soltarDrag,
-                                          onPanCancel: _cancelarDrag,
-                                          child: child,
+                                            ),
+                                            onPanUpdate: _actualizarDrag,
+                                            onPanEnd: _soltarDrag,
+                                            onPanCancel: _cancelarDrag,
+                                            child: child,
+                                          ),
                                         );
                                       }
 

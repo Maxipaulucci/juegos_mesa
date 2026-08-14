@@ -2444,6 +2444,7 @@ class _ManoChanchoState extends State<_ManoChancho> {
   final _scroll = ScrollController();
   final _rowKey = GlobalKey();
   final _reorden = ReordenarCartaManoDrag();
+  bool _priorizarReorden = false;
 
   static const double _cardW = 78;
   static const double _cardH = 118;
@@ -2451,6 +2452,14 @@ class _ManoChanchoState extends State<_ManoChancho> {
 
   bool get _arrastrando => _reorden.arrastrando;
   bool get _puedeReordenar => widget.onReordenar != null;
+  bool get _bloquearScroll => _arrastrando || _priorizarReorden;
+
+  void _setPriorizarReorden(bool v) {
+    if (!mounted) return;
+    if (!v && _arrastrando) return;
+    if (_priorizarReorden == v) return;
+    setState(() => _priorizarReorden = v);
+  }
 
   @override
   void dispose() {
@@ -2496,6 +2505,7 @@ class _ManoChanchoState extends State<_ManoChancho> {
 
   void _soltarDrag() {
     final resultado = _reorden.soltar();
+    _priorizarReorden = false;
     if (resultado != null) {
       widget.onReordenar?.call(resultado.desde, resultado.hacia);
     } else if (mounted) {
@@ -2504,7 +2514,10 @@ class _ManoChanchoState extends State<_ManoChancho> {
   }
 
   void _cancelarDrag() {
-    setState(_reorden.cancelar);
+    setState(() {
+      _reorden.cancelar();
+      _priorizarReorden = false;
+    });
   }
 
   Widget _skin(CartaChancho c, {required bool sel}) {
@@ -2557,10 +2570,8 @@ class _ManoChanchoState extends State<_ManoChancho> {
           return SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
-            // Con carta(s) seleccionada(s) no scrollear: el pan reordena.
-            physics: (_arrastrando || widget.seleccionadas.isNotEmpty)
-                ? const NeverScrollableScrollPhysics()
-                : const BouncingScrollPhysics(),
+            // Solo bloquea scroll al tocar/arrastrar carta(s) a reordenar.
+            physics: physicsScrollManoReorden(bloquearPorReorden: _bloquearScroll),
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
             child: SizedBox(
               width: filaW,
@@ -2581,6 +2592,11 @@ class _ManoChanchoState extends State<_ManoChancho> {
                             final esLaQueArrastro = _reorden.dragIndex == i;
                             final atenuar =
                                 _arrastrando && !esLaQueArrastro;
+                            // Con selección: solo las elegidas. Sin fase de
+                            // elección: cualquier carta se puede reordenar.
+                            final puedeArrastrarEsta =
+                                _puedeReordenar &&
+                                    (!widget.puedeElegir || sel);
 
                             Widget child = CartaOpacidadReorden(
                               esLaQueArrastro: esLaQueArrastro,
@@ -2613,21 +2629,22 @@ class _ManoChanchoState extends State<_ManoChancho> {
                               child: child,
                             );
 
-                            if (_puedeReordenar) {
-                              return DetectorArrastreReorden(
-                                onTap: widget.puedeElegir
-                                    ? () => widget.onTap(c)
-                                    : null,
-                                onPanStart: (details) {
-                                  // Con selección activa: arrastrar la elegida.
-                                  // Sin fase de elección: se puede reordenar igual.
-                                  if (widget.puedeElegir && !sel) return;
-                                  _iniciarDrag(i, details.localPosition);
-                                },
-                                onPanUpdate: _actualizarDrag,
-                                onPanEnd: _soltarDrag,
-                                onPanCancel: _cancelarDrag,
-                                child: child,
+                            if (puedeArrastrarEsta) {
+                              return PriorizarReordenSobreScroll(
+                                onCambiar: _setPriorizarReorden,
+                                child: DetectorArrastreReorden(
+                                  onTap: widget.puedeElegir
+                                      ? () => widget.onTap(c)
+                                      : null,
+                                  onPanStart: (details) => _iniciarDrag(
+                                    i,
+                                    details.localPosition,
+                                  ),
+                                  onPanUpdate: _actualizarDrag,
+                                  onPanEnd: _soltarDrag,
+                                  onPanCancel: _cancelarDrag,
+                                  child: child,
+                                ),
                               );
                             }
 

@@ -2199,6 +2199,7 @@ class _FilaCartasState extends State<_FilaCartas> {
   final _reorden = ReordenarCartaManoDrag();
   bool _hayIzquierda = false;
   bool _hayDerecha = false;
+  bool _priorizarReorden = false;
 
   double get _anchoCarta =>
       widget.anchoCarta ?? (widget.compacta ? 40.0 : 68.0);
@@ -2208,6 +2209,14 @@ class _FilaCartasState extends State<_FilaCartas> {
   double get _pasoScroll => _anchoCarta + _gap;
   static const double _deslizamiento = 14;
   bool get _arrastrandoCulo => _reorden.arrastrando;
+  bool get _bloquearScroll => _arrastrandoCulo || _priorizarReorden;
+
+  void _setPriorizarReorden(bool v) {
+    if (!mounted) return;
+    if (!v && _arrastrandoCulo) return;
+    if (_priorizarReorden == v) return;
+    setState(() => _priorizarReorden = v);
+  }
 
   @override
   void initState() {
@@ -2308,6 +2317,7 @@ class _FilaCartasState extends State<_FilaCartas> {
 
   void _soltarDragCulo() {
     final resultado = _reorden.soltar();
+    _priorizarReorden = false;
     widget.onArrastrandoCulo?.call(null);
     if (resultado != null) {
       widget.onReordenarCulo?.call(
@@ -2320,7 +2330,10 @@ class _FilaCartasState extends State<_FilaCartas> {
   }
 
   void _cancelarDragCulo() {
-    setState(_reorden.cancelar);
+    setState(() {
+      _reorden.cancelar();
+      _priorizarReorden = false;
+    });
     widget.onArrastrandoCulo?.call(null);
   }
 
@@ -2387,9 +2400,7 @@ class _FilaCartasState extends State<_FilaCartas> {
                 child: Listener(
                   onPointerSignal: (signal) {
                     if (signal is! PointerScrollEvent) return;
-                    if (!_scroll.hasClients ||
-                        _arrastrandoCulo ||
-                        widget.seleccionados.isNotEmpty) {
+                    if (!_scroll.hasClients || _bloquearScroll) {
                       return;
                     }
                     // Rueda vertical → desplazamiento horizontal de la mano.
@@ -2409,12 +2420,10 @@ class _FilaCartasState extends State<_FilaCartas> {
                     child: SingleChildScrollView(
                       controller: _scroll,
                       scrollDirection: Axis.horizontal,
-                      // Con selección o reorden activo no scrollear.
-                      physics: (widget.onReordenarCulo != null ||
-                              _arrastrandoCulo ||
-                              widget.seleccionados.isNotEmpty)
-                          ? const NeverScrollableScrollPhysics()
-                          : const BouncingScrollPhysics(),
+                      // Solo bloquea al tocar/arrastrar el culo para reordenar.
+                      physics: physicsScrollManoReorden(
+                        bloquearPorReorden: _bloquearScroll,
+                      ),
                       padding: EdgeInsets.symmetric(
                         horizontal: widget.compacta ? 28 : 34,
                         vertical: 4,
@@ -2526,24 +2535,27 @@ class _FilaCartasState extends State<_FilaCartas> {
                                   // Árbol estable + slot oculto al arrastrar:
                                   // la carta opaca se pinta encima (flotante).
                                   if (esCuloArrastrable) {
-                                    return DetectorArrastreReorden(
-                                      onPanStart: (details) =>
-                                          _iniciarDragCulo(
-                                        index,
-                                        details.localPosition,
-                                      ),
-                                      onPanUpdate: _actualizarDragCulo,
-                                      onPanEnd: _soltarDragCulo,
-                                      onPanCancel: _cancelarDragCulo,
-                                      child: CartaArrastreVisualReorden(
-                                        esLaQueArrastro: esLaQueArrastro,
-                                        dragDx: _reorden.dragDx,
-                                        dragDy: _reorden.dragDy,
-                                        ocultarEnSlot: true,
-                                        borderRadius: BorderRadius.circular(
-                                          widget.compacta ? 10 : 14,
+                                    return PriorizarReordenSobreScroll(
+                                      onCambiar: _setPriorizarReorden,
+                                      child: DetectorArrastreReorden(
+                                        onPanStart: (details) =>
+                                            _iniciarDragCulo(
+                                          index,
+                                          details.localPosition,
                                         ),
-                                        child: child,
+                                        onPanUpdate: _actualizarDragCulo,
+                                        onPanEnd: _soltarDragCulo,
+                                        onPanCancel: _cancelarDragCulo,
+                                        child: CartaArrastreVisualReorden(
+                                          esLaQueArrastro: esLaQueArrastro,
+                                          dragDx: _reorden.dragDx,
+                                          dragDy: _reorden.dragDy,
+                                          ocultarEnSlot: true,
+                                          borderRadius: BorderRadius.circular(
+                                            widget.compacta ? 10 : 14,
+                                          ),
+                                          child: child,
+                                        ),
                                       ),
                                     );
                                   }
