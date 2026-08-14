@@ -15,7 +15,10 @@ import 'package:app_juegos_mesa/culoSucioV2/victoria_culo_sucio_v2_overlay.dart'
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
+import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
+import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -74,6 +77,12 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   bool _esperandoDescartarPar = false;
   /// Índice del 1 de oro seleccionado para reordenarlo en la mano.
   int? _indiceCuloMoviendo;
+  /// Último modo de orden aplicado con el botón (null = aún no se usó).
+  ModoOrdenManoCartas? _modoOrdenMano;
+  /// Se incrementa al ordenar para disparar la animación de deslizamiento.
+  int _ordenAnimGen = 0;
+  /// Copia del orden de la mano justo antes del último ordenado automático.
+  List<CartaCuloSucioV2>? _ordenAntesAnim;
   /// Índice en la mano del humano que la PC está por robar.
   int? _indiceRobadaPorPc;
   /// Carta que alguien se está llevando (overlay grande).
@@ -918,6 +927,60 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
     }
   }
 
+  JugadorCuloSucioV2 get _manoVistaOrden {
+    if (_esOnline || widget.contraPc || _esLocalHotSeat) return _yo;
+    return _partida.jugadorActual;
+  }
+
+  void _ciclarOrdenMano() {
+    if (_cambioJugadorPendiente || _robando) return;
+    final mano = _manoVistaOrden.mano;
+    if (mano.length < 2) return;
+    final ordenAntes = List<CartaCuloSucioV2>.of(mano);
+
+    CartaCuloSucioV2? cartaDe(int? i) {
+      if (i == null || i < 0 || i >= ordenAntes.length) return null;
+      return ordenAntes[i];
+    }
+
+    final selPar = <CartaCuloSucioV2>[
+      for (final i in _seleccionPar)
+        if (cartaDe(i) != null) cartaDe(i)!,
+    ];
+    final culo = cartaDe(_indiceCuloMoviendo);
+    final robada = cartaDe(_indiceRobadaPorPc);
+
+    final modo = ciclarOrdenManoCartas(
+      mano,
+      modoActual: _modoOrdenMano,
+      claves: (c) => ClavesOrdenCarta(
+        numero: c.numero,
+        palo: c.palo.index,
+      ),
+    );
+
+    int? idxDe(CartaCuloSucioV2? c) {
+      if (c == null) return null;
+      final i = mano.indexOf(c);
+      return i >= 0 ? i : null;
+    }
+
+    setState(() {
+      _modoOrdenMano = modo;
+      _ordenAntesAnim = ordenAntes;
+      _ordenAnimGen++;
+      _seleccionPar
+        ..clear()
+        ..addAll([
+          for (final c in selPar)
+            if (mano.contains(c)) mano.indexOf(c),
+        ]);
+      _indiceCuloMoviendo = idxDe(culo);
+      _indiceRobadaPorPc = idxDe(robada);
+    });
+    if (_esOnline) unawaited(_publicarEstadoOnline());
+  }
+
   void _tocarManoParaMoverCulo(int indice) {
     if (!_opciones.moverCuloSucio || _ajustes.animaciones) return;
     if (!_partida.enJuego || _robando || _esperandoDescartarPar) return;
@@ -1419,20 +1482,49 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                             : const SizedBox.shrink(),
                       ),
                     ),
-                    Text(
-                      '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: (destacarMiMano || resaltandoRoboEnMiMano)
-                            ? AppColors.acento
-                            : AppColors.mint.withValues(
-                                alpha: _esperandoDescartarPar ? 0 : 1,
+                    SizedBox(
+                      height: 40,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Text(
+                            '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: (destacarMiMano ||
+                                      resaltandoRoboEnMiMano)
+                                  ? AppColors.acento
+                                  : AppColors.mint.withValues(
+                                      alpha: _esperandoDescartarPar ? 0 : 1,
+                                    ),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: Opacity(
+                                opacity: _esperandoDescartarPar ? 0 : 1,
+                                child: IgnorePointer(
+                                  ignoring: _esperandoDescartarPar,
+                                  child: BotonOrdenarMano(
+                                    size: 38,
+                                    onPressed: manoAbajo.mano.length < 2 ||
+                                            _cambioJugadorPendiente ||
+                                            _robando
+                                        ? null
+                                        : _ciclarOrdenMano,
+                                  ),
+                                ),
                               ),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     SizedBox(
                       height: altoSlotMiMano,
                       width: double.infinity,
@@ -1492,6 +1584,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                                       ? (i) async =>
                                           _tocarManoParaMoverCulo(i)
                                       : null),
+                              ordenAnimGen: _ordenAnimGen,
+                              ordenAntesAnim: _ordenAntesAnim,
                             ),
                           ),
                         ),
@@ -1534,8 +1628,17 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                                     ),
                                   ),
                                 ),
+                                BotonOrdenarMano(
+                                  size: 34,
+                                  onPressed: manoAbajo.mano.length < 2 ||
+                                          _cambioJugadorPendiente ||
+                                          _robando
+                                      ? null
+                                      : _ciclarOrdenMano,
+                                ),
                                 if (_puedoDescartarPares &&
                                     _opciones.eliminarParesAuto) ...[
+                                  const SizedBox(width: 4),
                                   Material(
                                     color: Colors.transparent,
                                     shape: const CircleBorder(),
@@ -1638,6 +1741,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                               onTapIndex: _puedoDescartarPares
                                   ? (i) async => _tocarCartaManoParaPar(i)
                                   : null,
+                              ordenAnimGen: _ordenAnimGen,
+                              ordenAntesAnim: _ordenAntesAnim,
                             ),
                           ],
                         ),
@@ -1723,16 +1828,37 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.mint,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
+                      SizedBox(
+                        height: 40,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Text(
+                              '${TextosCuloSucioV2.tuMano}: ${manoAbajo.nombre}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.mint,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: BotonOrdenarMano(
+                                  size: 38,
+                                  onPressed: manoAbajo.mano.length < 2 ||
+                                          _robando
+                                      ? null
+                                      : _ciclarOrdenMano,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       SizedBox(
                         height: altoSlotMiMano,
                         width: double.infinity,
@@ -1748,6 +1874,8 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                           atenuarNoSeleccionados: true,
                           bloquearNoSeleccionados: true,
                           onTapIndex: (i) async => _tocarParTrasRobo(i),
+                          ordenAnimGen: _ordenAnimGen,
+                          ordenAntesAnim: _ordenAntesAnim,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2090,6 +2218,8 @@ class _ManoDosFilas extends StatelessWidget {
     required this.iconoPalo,
     this.onTapIndex,
     this.seleccionados = const [],
+    this.ordenAnimGen = 0,
+    this.ordenAntesAnim,
   });
 
   final List<CartaCuloSucioV2> cartas;
@@ -2097,6 +2227,8 @@ class _ManoDosFilas extends StatelessWidget {
   final IconData Function(PaloCuloSucioV2) iconoPalo;
   final Future<void> Function(int index)? onTapIndex;
   final List<int> seleccionados;
+  final int ordenAnimGen;
+  final List<CartaCuloSucioV2>? ordenAntesAnim;
 
   @override
   Widget build(BuildContext context) {
@@ -2120,6 +2252,8 @@ class _ManoDosFilas extends StatelessWidget {
         seleccionados: seleccionados,
         indiceBase: base,
         onTapIndex: onTapIndex,
+        ordenAnimGen: ordenAnimGen,
+        ordenAntesAnim: ordenAntesAnim,
       );
     }
 
@@ -2164,6 +2298,8 @@ class _FilaCartas extends StatefulWidget {
     this.altoCarta,
     this.onReordenarCulo,
     this.onArrastrandoCulo,
+    this.ordenAnimGen = 0,
+    this.ordenAntesAnim,
   });
 
   final List<CartaCuloSucioV2> cartas;
@@ -2188,6 +2324,10 @@ class _FilaCartas extends StatefulWidget {
   final void Function(int desde, int hacia)? onReordenarCulo;
   /// Notifica el índice del 1 de oro mientras se arrastra (null al soltar).
   final void Function(int? indice)? onArrastrandoCulo;
+  /// Generación de ordenado automático (botón); 0 = sin animación de sort.
+  final int ordenAnimGen;
+  /// Orden de la mano completa justo antes del último sort.
+  final List<CartaCuloSucioV2>? ordenAntesAnim;
 
   @override
   State<_FilaCartas> createState() => _FilaCartasState();
@@ -2200,6 +2340,8 @@ class _FilaCartasState extends State<_FilaCartas> {
   bool _hayIzquierda = false;
   bool _hayDerecha = false;
   bool _priorizarReorden = false;
+  Map<Object, double> _dxOrden = const {};
+  int _genOrden = 0;
 
   double get _anchoCarta =>
       widget.anchoCarta ?? (widget.compacta ? 40.0 : 68.0);
@@ -2218,6 +2360,11 @@ class _FilaCartasState extends State<_FilaCartas> {
     setState(() => _priorizarReorden = v);
   }
 
+  void _limpiarAnimOrden() {
+    if (_dxOrden.isEmpty) return;
+    _dxOrden = const {};
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2233,6 +2380,52 @@ class _FilaCartasState extends State<_FilaCartas> {
         oldWidget.anchoCarta != widget.anchoCarta ||
         oldWidget.altoCarta != widget.altoCarta) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _actualizarFlechas());
+    }
+
+    final mismoGen = widget.ordenAnimGen == oldWidget.ordenAnimGen;
+    final largoCambio = oldWidget.cartas.length != widget.cartas.length;
+
+    if (mismoGen && largoCambio) {
+      _limpiarAnimOrden();
+      if (widget.cartas.length > oldWidget.cartas.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_scroll.hasClients) return;
+          _scroll.animateTo(
+            _scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+          );
+        });
+      }
+      return;
+    }
+
+    if (!mismoGen &&
+        widget.ordenAnimGen > 0 &&
+        widget.ordenAntesAnim != null &&
+        widget.cartas.isNotEmpty) {
+      // Deltas locales: solo cartas de esta fila (sirve también en 2 filas).
+      final despues = <Object>[for (final c in widget.cartas) c];
+      final antes = <Object>[
+        for (final c in widget.ordenAntesAnim!)
+          if (despues.contains(c)) c,
+      ];
+      if (antes.length == despues.length) {
+        _dxOrden = deltasInicioOrdenMano(
+          antes: antes,
+          despues: despues,
+          paso: _pasoScroll,
+        );
+        _genOrden = widget.ordenAnimGen;
+        Future<void>.delayed(kDuracionAnimacionOrdenMano, () {
+          if (!mounted) return;
+          if (_genOrden != widget.ordenAnimGen) return;
+          setState(_limpiarAnimOrden);
+        });
+      } else {
+        _limpiarAnimOrden();
+        _genOrden = widget.ordenAnimGen;
+      }
     }
   }
 
@@ -2522,6 +2715,14 @@ class _FilaCartasState extends State<_FilaCartas> {
                                       deslizamiento: _deslizamiento,
                                       child: card,
                                     ),
+                                  );
+
+                                  child = CartaDeslizOrdenMano(
+                                    key: ValueKey<String>(
+                                      'ord_${c.etiqueta}_$_genOrden',
+                                    ),
+                                    dxInicial: _dxOrden[c] ?? 0,
+                                    child: child,
                                   );
 
                                   child = CartaConHuecoReorden(
