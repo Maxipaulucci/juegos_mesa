@@ -17,6 +17,7 @@ import 'diez_mil_online_codec.dart';
 import 'estadisticas.dart';
 import 'ia_diez_mil.dart';
 import 'motor.dart';
+import 'opciones_diez_mil.dart';
 import 'standby_store.dart';
 import 'textos.dart';
 import 'victoria_overlay.dart';
@@ -30,6 +31,7 @@ class PartidaDiezMilScreen extends StatefulWidget {
     super.key,
     required this.nombres,
     required this.modo,
+    this.opciones = const OpcionesDiezMil(),
     this.partidaRapida = false,
     this.contraPc = false,
     this.dificultadPc = DificultadPc.medio,
@@ -42,6 +44,7 @@ class PartidaDiezMilScreen extends StatefulWidget {
 
   final List<String> nombres;
   final Modo modo;
+  final OpcionesDiezMil opciones;
   /// Solo en partida rápida se puede editar el nombre tocando la tarjeta.
   final bool partidaRapida;
   /// Partida local contra la PC (segundo jugador).
@@ -81,6 +84,12 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   late AjustesEstado _ajustes;
   /// Pausa simple en modo vs PC: el juego queda en espera sin guardar.
   bool _standBy = false;
+
+  /// Config efectiva de esta partida (la del menú solo se aplica al reiniciar).
+  late OpcionesDiezMil _opcionesPartida;
+  late Modo _modoPartida;
+  late DificultadPc _dificultadPc;
+  late bool _modoDiosActivo;
 
   // TEMPORAL (testing): fuerza los valores de la próxima tirada.
   List<int>? _dadosForzados;
@@ -149,6 +158,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
       _mejorTiradaPartida = r.mejorTiradaPartida;
       _mejorTiradaJugador = r.mejorTiradaJugador;
       _ultimoTurnoHumano = r.ultimoTurnoHumano;
+      _opcionesPartida = r.opciones;
+      _modoPartida = r.modo;
+      _dificultadPc = r.dificultadPc;
+      _modoDiosActivo = r.modoDios;
 
       _mostrarVictoria = false;
       _mostrarMenu = false;
@@ -172,6 +185,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
 
     _nombres = List.of(widget.nombres);
     _ajustes = widget.ajustesIniciales;
+    _opcionesPartida = widget.opciones;
+    _modoPartida = widget.modo;
+    _dificultadPc = widget.dificultadPc;
+    _modoDiosActivo = widget.modoDios;
     _iniciarPartidaNueva();
     if (_esOnline) _iniciarSincronizacionOnline();
   }
@@ -290,7 +307,13 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
           cantidadPcEnNombres(_nombres);
       _nombres = reconstruirNombresVsPc(actuales: _nombres, cantidadPc: pcs);
     }
-    _partida = nuevaPartida(_nombres, widget.modo);
+    _partida = nuevaPartida(
+      _nombres,
+      _modoPartida,
+      combosEspeciales: _opcionesPartida.combosEspeciales,
+      escalera: _opcionesPartida.escalera,
+      escaleraCircular: _opcionesPartida.escaleraCircular,
+    );
     _stats = EstadisticasPartida(_nombres);
     iniciarTurno(_partida);
     _ultimaTirada = null;
@@ -312,7 +335,14 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _volverAJugar() {
-    if (widget.contraPc) DiezMilStandByStore.limpiar();
+    if (widget.contraPc) {
+      DiezMilStandByStore.limpiar();
+      // Al reiniciar sí aplicamos la config actual del menú.
+      _opcionesPartida = DiezMilMenuConfig.opciones;
+      _modoPartida = _opcionesPartida.modo;
+      _dificultadPc = DiezMilMenuConfig.dificultad;
+      _modoDiosActivo = DiezMilMenuConfig.modoDios;
+    }
     setState(_iniciarPartidaNueva);
     if (_turnoDeLaPc) _programarJugadaPc();
   }
@@ -342,7 +372,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         _partida.turno.puntosTurno > 0) {
       if (iaDebePlantarse(
         _partida,
-        dificultad: widget.dificultadPc,
+        dificultad: _dificultadPc,
         ultimoTurnoRival: _ultimoTurnoHumano,
       )) {
         _plantarse();
@@ -380,10 +410,11 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         partida: _partida,
         estadisticas: _stats,
         nombres: _nombres,
-        modo: widget.modo,
+        modo: _modoPartida,
+        opciones: _opcionesPartida,
         contraPc: true,
-        dificultadPc: widget.dificultadPc,
-        modoDios: widget.modoDios,
+        dificultadPc: _dificultadPc,
+        modoDios: _modoDiosActivo,
         ajustesIniciales: _ajustes,
         ultimaTirada: _ultimaTirada,
         ultimoResumen: _ultimoResumen,
@@ -536,7 +567,12 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
         ),
         content: SingleChildScrollView(
           child: Text(
-            reglasDe(_partida.modo),
+            reglasDe(
+              _partida.modo,
+              combosEspeciales: _partida.combosEspeciales,
+              escalera: _partida.escalera,
+              escaleraCircular: _partida.escaleraCircular,
+            ),
             style: const TextStyle(
               color: AppColors.texto,
               height: 1.35,
@@ -1051,7 +1087,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                   // testing está visible (Modo Dios).
                                   Padding(
                                     padding: EdgeInsets.symmetric(
-                                      horizontal: widget.modoDios ? 46 : 0,
+                                      horizontal: _modoDiosActivo ? 46 : 0,
                                     ),
                                     child: _DadosZona(
                                       cantidad: _partida.modo.dados,
@@ -1067,7 +1103,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                     ),
                                   ),
                                   // TEMPORAL (testing): forzar próxima tirada
-                                  if (widget.modoDios)
+                                  if (_modoDiosActivo)
                                     Positioned(
                                       right: 0,
                                       child: Material(
@@ -1121,6 +1157,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                     ? _ultimoResumen!.combos
                                     : const [],
                                 total: ptsTirada,
+                                combosEspeciales: _partida.combosEspeciales,
                               ),
                               const SizedBox(height: 6),
                               if (!terminada) ...[
@@ -2482,16 +2519,25 @@ class _DadosZona extends StatelessWidget {
 }
 
 class _CombosBar extends StatelessWidget {
-  const _CombosBar({required this.combos, required this.total});
+  const _CombosBar({
+    required this.combos,
+    required this.total,
+    required this.combosEspeciales,
+  });
 
   final List<Combo> combos;
   final int total;
+  final bool combosEspeciales;
 
   @override
   Widget build(BuildContext context) {
+    final chipGrande = !combosEspeciales;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: chipGrande ? 12 : 10,
+      ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [
@@ -2505,36 +2551,40 @@ class _CombosBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.star,
-            color: AppColors.acento,
-            size: 20,
-            shadows: [Shadow(color: AppColors.acento, blurRadius: 10)],
-          ),
-          const SizedBox(width: 8),
+          if (combosEspeciales) ...[
+            const Icon(
+              Icons.star,
+              color: AppColors.acento,
+              size: 20,
+              shadows: [Shadow(color: AppColors.acento, blurRadius: 10)],
+            ),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'COMBOS ACTIVOS',
-                  style: TextStyle(
-                    color: AppColors.acento,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if (combos.isEmpty)
+                if (combosEspeciales) ...[
                   const Text(
+                    'Combos especiales activos',
+                    style: TextStyle(
+                      color: AppColors.acento,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (combos.isEmpty)
+                  Text(
                     'Tirá los dados para sumar puntos',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: AppColors.textoSuave,
-                      fontSize: 12,
+                      fontSize: chipGrande ? 14 : 12,
                       fontWeight: FontWeight.w800,
                     ),
                   )
@@ -2544,8 +2594,8 @@ class _CombosBar extends StatelessWidget {
                     child: Row(
                       children: [
                         for (var i = 0; i < combos.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 10),
-                          _ComboChip(combo: combos[i]),
+                          if (i > 0) SizedBox(width: chipGrande ? 14 : 10),
+                          _ComboChip(combo: combos[i], grande: chipGrande),
                         ],
                       ],
                     ),
@@ -2558,7 +2608,7 @@ class _CombosBar extends StatelessWidget {
             'TOTAL +$total',
             style: TextStyle(
               color: AppColors.mint,
-              fontSize: 18,
+              fontSize: chipGrande ? 20 : 18,
               fontWeight: FontWeight.w900,
               shadows: [
                 Shadow(
@@ -2576,9 +2626,10 @@ class _CombosBar extends StatelessWidget {
 
 /// Chip visual: "3 [dado] (+500)" o etiqueta legible para especiales.
 class _ComboChip extends StatelessWidget {
-  const _ComboChip({required this.combo});
+  const _ComboChip({required this.combo, this.grande = false});
 
   final Combo combo;
+  final bool grande;
 
   static const _nombresEspeciales = {
     'escalera': 'Escalera',
@@ -2592,9 +2643,9 @@ class _ComboChip extends StatelessWidget {
     final caraUnica = combo.dadosUsados.isNotEmpty &&
         combo.dadosUsados.every((d) => d == combo.dadosUsados.first);
 
-    final estiloPts = const TextStyle(
+    final estiloPts = TextStyle(
       color: AppColors.mint,
-      fontSize: 12,
+      fontSize: grande ? 16 : 12,
       fontWeight: FontWeight.w900,
     );
 
@@ -2615,9 +2666,9 @@ class _ComboChip extends StatelessWidget {
           '$cantidad',
           style: estiloPts,
         ),
-        const SizedBox(width: 4),
-        DadoFace(valor: cara, suma: true, tamano: 18),
-        const SizedBox(width: 4),
+        SizedBox(width: grande ? 6 : 4),
+        DadoFace(valor: cara, suma: true, tamano: grande ? 28 : 18),
+        SizedBox(width: grande ? 6 : 4),
         Text('(+${combo.puntos})', style: estiloPts),
       ],
     );

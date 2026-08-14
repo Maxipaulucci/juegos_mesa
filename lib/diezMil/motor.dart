@@ -72,10 +72,21 @@ class Jugador {
 }
 
 class Partida {
-  Partida({required this.modo, required this.jugadores})
-      : turno = EstadoTurno(dadosEnMano: modo.dados);
+  Partida({
+    required this.modo,
+    required this.jugadores,
+    this.combosEspeciales = true,
+    this.escalera = true,
+    this.escaleraCircular = false,
+  }) : turno = EstadoTurno(dadosEnMano: modo.dados);
 
   final Modo modo;
+  /// Tres pares, cuatro+par, seis/cinco iguales “grandes”.
+  bool combosEspeciales;
+  /// Si false, las escaleras no suman.
+  bool escalera;
+  /// Escalera de 5 dados que da la vuelta (6→1).
+  bool escaleraCircular;
   final List<Jugador> jugadores;
   int indiceTurno = 0;
   String? ganador;
@@ -150,7 +161,37 @@ Map<int, int> _contar(List<int> dados) {
   return counts;
 }
 
-ResultadoTirada analizarTirada(List<int> dados, Modo modo) {
+/// Escaleras clásicas de 5 dados.
+const _escaleras5Clasicas = [
+  {1, 2, 3, 4, 5},
+  {2, 3, 4, 5, 6},
+];
+
+/// Con 6→1: también 3-4-5-6-1, 4-5-6-1-2, 5-6-1-2-3, 6-1-2-3-4.
+const _escaleras5Circulares = [
+  {1, 2, 3, 4, 5},
+  {2, 3, 4, 5, 6},
+  {3, 4, 5, 6, 1},
+  {4, 5, 6, 1, 2},
+  {5, 6, 1, 2, 3},
+  {6, 1, 2, 3, 4},
+];
+
+bool esEscalera5DiezMil(List<int> dados, {bool circular = false}) {
+  if (dados.length != 5) return false;
+  final set = dados.toSet();
+  if (set.length != 5) return false;
+  final targets = circular ? _escaleras5Circulares : _escaleras5Clasicas;
+  return targets.any((t) => set.containsAll(t));
+}
+
+ResultadoTirada analizarTirada(
+  List<int> dados,
+  Modo modo, {
+  bool combosEspeciales = true,
+  bool escalera = true,
+  bool escaleraCircular = false,
+}) {
   final counts = _contar(dados);
   final contadores = {for (var cara = 1; cara <= 6; cara++) cara: counts[cara] ?? 0};
   final n = dados.length;
@@ -158,7 +199,7 @@ ResultadoTirada analizarTirada(List<int> dados, Modo modo) {
   final auto = <Combo>[];
   final opcionales = <Combo>[];
 
-  if (modo == Modo.seis && n == 6) {
+  if (combosEspeciales && modo == Modo.seis && n == 6) {
     for (final entry in counts.entries) {
       if (entry.value == 6) {
         auto.add(
@@ -181,23 +222,19 @@ ResultadoTirada analizarTirada(List<int> dados, Modo modo) {
   }
 
   final unicos = dados.toSet();
-  if (modo == Modo.cinco && n == 5) {
-    final esEscaleraBaja =
-        unicos.length == 5 && unicos.containsAll({1, 2, 3, 4, 5});
-    final esEscaleraAlta =
-        unicos.length == 5 && unicos.containsAll({2, 3, 4, 5, 6});
-    if (esEscaleraBaja || esEscaleraAlta) {
-      final sorted = [...dados]..sort();
-      auto.add(Combo(nombre: 'escalera', puntos: 500, dadosUsados: sorted));
-      return ResultadoTirada(
-        dados: dados,
-        contadores: contadores,
-        combosAuto: auto,
-        combosOpcionales: opcionales,
-      );
-    }
+  if (escalera &&
+      n == 5 &&
+      esEscalera5DiezMil(dados, circular: escaleraCircular)) {
+    final sorted = [...dados]..sort();
+    auto.add(Combo(nombre: 'escalera', puntos: 500, dadosUsados: sorted));
+    return ResultadoTirada(
+      dados: dados,
+      contadores: contadores,
+      combosAuto: auto,
+      combosOpcionales: opcionales,
+    );
   }
-  if (modo == Modo.seis && n == 6 && unicos.length == 6) {
+  if (escalera && modo == Modo.seis && n == 6 && unicos.length == 6) {
     final sorted = [...dados]..sort();
     auto.add(Combo(nombre: 'escalera', puntos: 1500, dadosUsados: sorted));
     return ResultadoTirada(
@@ -208,7 +245,7 @@ ResultadoTirada analizarTirada(List<int> dados, Modo modo) {
     );
   }
 
-  if (modo == Modo.seis && n == 6) {
+  if (combosEspeciales && modo == Modo.seis && n == 6) {
     final valores = counts.values.toList()..sort();
     if (valores.length == 3 && valores.every((v) => v == 2)) {
       final sorted = [...dados]..sort();
@@ -236,34 +273,55 @@ ResultadoTirada analizarTirada(List<int> dados, Modo modo) {
     }
   }
 
-  for (final entry in counts.entries) {
-    final cara = entry.key;
-    final cant = entry.value;
-    if (cant >= 5 && (usados[cara] ?? 0) == 0) {
-      // Cinco 1 = 10.000 = meta → victoria instantánea (como seis iguales).
-      if (cara == 1) {
-        return ResultadoTirada(
-          dados: dados,
-          contadores: contadores,
-          combosAuto: [
-            Combo(nombre: 'cinco_1', puntos: meta, dadosUsados: _dadosDe(1, 5)),
-          ],
-          combosOpcionales: const [],
-          victoriaInmediata: true,
+  if (combosEspeciales) {
+    for (final entry in counts.entries) {
+      final cara = entry.key;
+      final cant = entry.value;
+      if (cant >= 5 && (usados[cara] ?? 0) == 0) {
+        // Cinco 1 = 10.000 = meta → victoria instantánea (como seis iguales).
+        if (cara == 1) {
+          return ResultadoTirada(
+            dados: dados,
+            contadores: contadores,
+            combosAuto: [
+              Combo(
+                nombre: 'cinco_1',
+                puntos: meta,
+                dadosUsados: _dadosDe(1, 5),
+              ),
+            ],
+            combosOpcionales: const [],
+            victoriaInmediata: true,
+          );
+        }
+        final pts = cara * 1000;
+        auto.add(
+          Combo(
+            nombre: 'cinco_$cara',
+            puntos: pts,
+            dadosUsados: _dadosDe(cara, 5),
+          ),
         );
+        usados[cara] = (usados[cara] ?? 0) + 5;
       }
-      final pts = cara * 1000;
-      auto.add(Combo(nombre: 'cinco_$cara', puntos: pts, dadosUsados: _dadosDe(cara, 5)));
-      usados[cara] = (usados[cara] ?? 0) + 5;
     }
   }
 
   for (var cara = 1; cara <= 6; cara++) {
     final disponibles = (counts[cara] ?? 0) - (usados[cara] ?? 0);
     if (disponibles >= 3) {
-      final pts = cara == 1 ? 1000 : cara * 100;
-      auto.add(Combo(nombre: 'tres_$cara', puntos: pts, dadosUsados: _dadosDe(cara, 3)));
-      usados[cara] = (usados[cara] ?? 0) + 3;
+      final cantidadTriples = disponibles ~/ 3;
+      for (var t = 0; t < cantidadTriples; t++) {
+        final pts = cara == 1 ? 1000 : cara * 100;
+        auto.add(
+          Combo(
+            nombre: 'tres_$cara',
+            puntos: pts,
+            dadosUsados: _dadosDe(cara, 3),
+          ),
+        );
+        usados[cara] = (usados[cara] ?? 0) + 3;
+      }
     }
   }
 
@@ -324,13 +382,22 @@ int dadosRestantes(List<int> dados, List<Combo> combos) {
   return (puntos: pts, quedan: quedan, combos: combos);
 }
 
-Partida nuevaPartida(List<String> nombres, Modo modo) {
+Partida nuevaPartida(
+  List<String> nombres,
+  Modo modo, {
+  bool combosEspeciales = true,
+  bool escalera = true,
+  bool escaleraCircular = false,
+}) {
   if (nombres.length < 2) {
     throw ArgumentError('Se necesitan al menos 2 jugadores');
   }
   return Partida(
     modo: modo,
     jugadores: nombres.map(Jugador.new).toList(),
+    combosEspeciales: combosEspeciales,
+    escalera: escalera,
+    escaleraCircular: escaleraCircular,
   );
 }
 
@@ -346,7 +413,13 @@ ResultadoTirada ejecutarTirada(
   final t = partida.turno;
   t.tiradaNro += 1;
   final dados = dadosForzados ?? tirar(t.dadosEnMano, rng);
-  return analizarTirada(dados, partida.modo);
+  return analizarTirada(
+    dados,
+    partida.modo,
+    combosEspeciales: partida.combosEspeciales,
+    escalera: partida.escalera,
+    escaleraCircular: partida.escaleraCircular,
+  );
 }
 
 ResumenTirada aplicarPuntosTirada(

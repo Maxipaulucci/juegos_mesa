@@ -1,8 +1,28 @@
 import 'motor.dart';
 
-String reglasDe(Modo modo) {
+String reglasDe(
+  Modo modo, {
+  bool combosEspeciales = true,
+  bool escalera = true,
+  bool escaleraCircular = false,
+}) {
+  final String lineaEscalera5;
+  if (!escalera) {
+    lineaEscalera5 = 'Escalera: desactivada (no suma).';
+  } else if (escaleraCircular) {
+    lineaEscalera5 =
+        'Escalera de 5 dados (1-2-3-4-5, 2-3-4-5-6 o dando la vuelta 6→1, '
+        'p. ej. 5-6-1-2-3): 500 puntos.';
+  } else {
+    lineaEscalera5 = 'Escalera 1-2-3-4-5 o 2-3-4-5-6: 500 puntos.';
+  }
+
   switch (modo) {
     case Modo.cinco:
+      final extras = combosEspeciales
+          ? '   - Cinco iguales: valor × 1000 (los 1 valen 10.000).\n'
+          : '   - (Combos especiales desactivados: cinco iguales no suman '
+              'valor × 1000; cuentan como triples / sueltos.)\n';
       return '''
 · El 10.000 se juega con 5 dados. El objetivo es llegar a exactamente $meta puntos.
 
@@ -10,8 +30,7 @@ String reglasDe(Modo modo) {
    - Cada 1 suma 100.
    - Cada 5 suma 50.
    - Tres iguales: valor × 100 (los 1 valen 1000).
-   - Cinco iguales: valor × 1000 (los 1 valen 10.000).
-   - Escalera 1-2-3-4-5 o 2-3-4-5-6: 500 puntos.
+$extras   - $lineaEscalera5
 
 · Para abrir (empezar a anotar) necesitás al menos ${modo.apertura} puntos en un solo turno.
 · Si una tirada no suma nada, perdés los puntos de ese turno (farkle).
@@ -19,6 +38,18 @@ String reglasDe(Modo modo) {
 · Si te pasás de $meta, se anula el turno. Hay que caer exactamente en $meta.
 '''.trim();
     case Modo.seis:
+      final extras = combosEspeciales
+          ? '''   - Tres pares: 1500 puntos (se aplica solo).
+   - Cuatro iguales + un par: 1500 puntos (se aplica solo).
+   - Cinco iguales: valor × 1000 (los 1 valen 10.000).
+   - Seis iguales: victoria inmediata.
+'''
+          : '''   - (Combos especiales desactivados: no valen tres pares, cuatro+par,
+     cinco iguales ×1000 ni seis iguales = victoria; se cuentan triples / sueltos.)
+''';
+      final lineaEscalera6 = escalera
+          ? '   - Escalera 1-2-3-4-5-6: 1500 puntos.\n   - $lineaEscalera5'
+          : '   - Escalera: desactivada (no suma).';
       return '''
 · El 10.000 se juega con 6 dados. El objetivo es llegar a exactamente $meta puntos.
 
@@ -26,11 +57,8 @@ String reglasDe(Modo modo) {
    - Cada 1 suma 100.
    - Cada 5 suma 50.
    - Tres iguales: valor × 100 (los 1 valen 1000).
-   - Escalera 1-2-3-4-5-6: 1500 puntos.
-   - Tres pares: 1500 puntos (se aplica solo).
-   - Cuatro iguales + un par: 1500 puntos (se aplica solo).
-   - Seis iguales: victoria inmediata.
-
+$lineaEscalera6
+$extras
 · Para abrir necesitás al menos ${modo.apertura} puntos en un solo turno.
 · Tirada en cero = perdés el turno. Pasarte de $meta anula el turno.
 · Hay que caer exactamente en $meta para ganar.

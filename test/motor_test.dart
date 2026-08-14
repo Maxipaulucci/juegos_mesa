@@ -51,6 +51,54 @@ void main() {
     expect(partida.jugadorActual.puntos, meta);
   });
 
+  test('sin combos especiales cinco 2 suman como triple', () {
+    final r = analizarTirada(
+      [2, 2, 2, 2, 2],
+      Modo.cinco,
+      combosEspeciales: false,
+    );
+    expect(r.victoriaInmediata, isFalse);
+    expect(puntosDeCombos(r.combosAuto), 200);
+  });
+
+  test('sin combos especiales seis 2 suman dos triples', () {
+    final r = analizarTirada(
+      [2, 2, 2, 2, 2, 2],
+      Modo.seis,
+      combosEspeciales: false,
+    );
+    expect(r.victoriaInmediata, isFalse);
+    expect(r.combosOpcionales, isEmpty);
+    expect(puntosDeCombos(r.combosAuto), 400);
+  });
+
+  test('escalera circular 5-6-1-2-3', () {
+    final sin = analizarTirada(
+      [5, 6, 1, 2, 3],
+      Modo.cinco,
+      escaleraCircular: false,
+    );
+    expect(sin.combosAuto.any((c) => c.nombre == 'escalera'), isFalse);
+
+    final con = analizarTirada(
+      [5, 6, 1, 2, 3],
+      Modo.cinco,
+      escaleraCircular: true,
+    );
+    expect(con.combosAuto.single.nombre, 'escalera');
+    expect(con.combosAuto.single.puntos, 500);
+  });
+
+  test('escalera desactivada no suma', () {
+    final r = analizarTirada(
+      [1, 2, 3, 4, 5],
+      Modo.cinco,
+      escalera: false,
+    );
+    expect(r.combosAuto.any((c) => c.nombre == 'escalera'), isFalse);
+    expect(puntosDeCombos(r.combosAuto), 150); // 1 + 5 sueltos
+  });
+
   test('apertura con 5 dados requiere 500', () {
     final partida = nuevaPartida(['A', 'B'], Modo.cinco);
     iniciarTurno(partida);

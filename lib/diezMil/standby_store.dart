@@ -2,6 +2,7 @@ import 'ajustes_overlay.dart';
 import 'estadisticas.dart';
 import 'ia_diez_mil.dart';
 import 'motor.dart';
+import 'opciones_diez_mil.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 
 /// Resume en memoria para "stand by" sin persistencia (se pierde si se cierra
@@ -12,6 +13,7 @@ class PartidaDiezMilResume {
     required this.estadisticas,
     required this.nombres,
     required this.modo,
+    this.opciones = const OpcionesDiezMil(),
     required this.contraPc,
     required this.dificultadPc,
     required this.modoDios,
@@ -28,6 +30,7 @@ class PartidaDiezMilResume {
   final EstadisticasPartida estadisticas;
   final List<String> nombres;
   final Modo modo;
+  final OpcionesDiezMil opciones;
   final bool contraPc;
   final DificultadPc dificultadPc;
   final bool modoDios;
@@ -51,22 +54,15 @@ class DiezMilStandByStore {
 
   static PartidaDiezMilResume? peek() => _resume;
 
-  /// Devuelve el resume y lo consume solo si el modo, la dificultad y la
-  /// cantidad de PC coinciden. Si cambió algo, descarta y parte de cero.
-  static PartidaDiezMilResume? consumirSiCoincide(
-    Modo modo,
-    DificultadPc dificultad, {
-    int? cantidadPc,
-  }) {
+  /// Reanuda la partida vs PC guardada.
+  ///
+  /// No exige que coincidan dificultad ni opciones del menú: esos cambios
+  /// solo aplican al reiniciar. Si cambia la cantidad de PCs, no reanuda
+  /// (pero conserva el resume por si vuelve a la cantidad anterior).
+  static PartidaDiezMilResume? consumirVsPc({int? cantidadPc}) {
     final r = _resume;
-    if (r == null) return null;
-    if (!r.contraPc) return null;
-    if (r.modo != modo || r.dificultadPc != dificultad) {
-      _resume = null;
-      return null;
-    }
+    if (r == null || !r.contraPc) return null;
     if (cantidadPc != null && !coincideCantidadPc(r.nombres, cantidadPc)) {
-      _resume = null;
       return null;
     }
     _resume = null;
@@ -77,4 +73,3 @@ class DiezMilStandByStore {
     _resume = null;
   }
 }
-

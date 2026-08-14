@@ -16,6 +16,9 @@ Map<String, dynamic> encodeDiezMilGameState({
     'version': version,
     'juego': 'diezMil',
     'modo': partida.modo.dados,
+    'combosEspeciales': partida.combosEspeciales,
+    'escalera': partida.escalera,
+    'escaleraCircular': partida.escaleraCircular,
     'indiceTurno': partida.indiceTurno,
     'ganador': partida.ganador,
     'jugadores': [
@@ -70,6 +73,15 @@ Map<String, dynamic> encodeDiezMilGameState({
 }) applyDiezMilGameState(Partida partida, Map raw) {
   partida.indiceTurno = (raw['indiceTurno'] as num?)?.toInt() ?? 0;
   partida.ganador = raw['ganador']?.toString();
+  if (raw.containsKey('combosEspeciales')) {
+    partida.combosEspeciales = raw['combosEspeciales'] == true;
+  }
+  if (raw.containsKey('escalera')) {
+    partida.escalera = raw['escalera'] == true;
+  }
+  if (raw.containsKey('escaleraCircular')) {
+    partida.escaleraCircular = raw['escaleraCircular'] == true;
+  }
 
   final jugadoresRaw = raw['jugadores'];
   if (jugadoresRaw is List) {
@@ -104,7 +116,13 @@ Map<String, dynamic> encodeDiezMilGameState({
     if (dados.isNotEmpty) {
       ultimaTirada = filtrarEspecialesQuePasanMeta(
         partida,
-        analizarTirada(dados, partida.modo),
+        analizarTirada(
+          dados,
+          partida.modo,
+          combosEspeciales: partida.combosEspeciales,
+          escalera: partida.escalera,
+          escaleraCircular: partida.escaleraCircular,
+        ),
       );
     }
   }
@@ -139,8 +157,20 @@ Map<String, dynamic> encodeDiezMilGameState({
   );
 }
 
-Map<String, dynamic> estadoInicialDiezMil(List<String> nombres, Modo modo) {
-  final partida = nuevaPartida(nombres, modo);
+Map<String, dynamic> estadoInicialDiezMil(
+  List<String> nombres,
+  Modo modo, {
+  bool combosEspeciales = true,
+  bool escalera = true,
+  bool escaleraCircular = false,
+}) {
+  final partida = nuevaPartida(
+    nombres,
+    modo,
+    combosEspeciales: combosEspeciales,
+    escalera: escalera,
+    escaleraCircular: escaleraCircular,
+  );
   iniciarTurno(partida);
   return encodeDiezMilGameState(
     partida: partida,
