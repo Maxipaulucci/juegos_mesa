@@ -936,15 +936,41 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
     });
   }
 
-  List<bool> _dadosQueSuman() {
+  /// Dados a mostrar tras la tirada: los que suman (dorados) van primero,
+  /// ordenados de menor a mayor; el resto conserva el orden original.
+  List<int>? _dadosParaMostrar() {
     final tirada = _ultimaTirada;
+    if (tirada == null) return null;
     final resumen = _ultimoResumen;
-    if (tirada == null) return const [];
+    if (resumen == null || resumen.bust || resumen.combos.isEmpty) {
+      return tirada.dados;
+    }
+    final marcas = marcarDadosQueSuman(
+      tirada.dados,
+      resumen.combos.map((c) => ComboUsados(c.dadosUsados)).toList(),
+    );
+    final seleccionados = <int>[];
+    final resto = <int>[];
+    for (var i = 0; i < tirada.dados.length; i++) {
+      if (i < marcas.length && marcas[i]) {
+        seleccionados.add(tirada.dados[i]);
+      } else {
+        resto.add(tirada.dados[i]);
+      }
+    }
+    seleccionados.sort();
+    return [...seleccionados, ...resto];
+  }
+
+  List<bool> _dadosQueSuman() {
+    final dados = _dadosParaMostrar();
+    final resumen = _ultimoResumen;
+    if (dados == null) return const [];
     if (resumen == null || resumen.bust) {
-      return List.filled(tirada.dados.length, false);
+      return List.filled(dados.length, false);
     }
     return marcarDadosQueSuman(
-      tirada.dados,
+      dados,
       resumen.combos.map((c) => ComboUsados(c.dadosUsados)).toList(),
     );
   }
@@ -1093,7 +1119,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                                       cantidad: _partida.modo.dados,
                                       dados: _animandoTirada
                                           ? _dadosAnimados
-                                          : _ultimaTirada?.dados,
+                                          : _dadosParaMostrar(),
                                       suman: _animandoTirada
                                           ? List.filled(
                                               _dadosAnimados?.length ?? 0,
@@ -1249,8 +1275,7 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
               child: _StandByOverlay(
                 onContinuar: _continuarDesdeStandBy,
                 onVolverAlMenu: () {
-                  _pcToken++;
-                  Navigator.of(context).pop();
+                  _salirGuardandoResumeYVolverAlMenu();
                 },
               ),
             ),
@@ -1262,7 +1287,10 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                 subtitulo: _subtituloVictoria,
                 animaciones: _ajustes.animaciones,
                 onVolverAJugar: _volverAJugar,
-                onVolver: () => Navigator.of(context).pop(),
+                onVolver: () {
+                  DiezMilStandByStore.limpiar();
+                  Navigator.of(context).pop();
+                },
               ),
             ),
           // Menú / ajustes encima de la victoria para poder usarlos con el ojo.

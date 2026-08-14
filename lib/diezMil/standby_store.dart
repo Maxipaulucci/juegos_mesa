@@ -62,11 +62,26 @@ class DiezMilStandByStore {
   static PartidaDiezMilResume? consumirVsPc({int? cantidadPc}) {
     final r = _resume;
     if (r == null || !r.contraPc) return null;
+    if (r.partida.ganador != null) {
+      _resume = null;
+      return null;
+    }
     if (cantidadPc != null && !coincideCantidadPc(r.nombres, cantidadPc)) {
       return null;
     }
     _resume = null;
     return r;
+  }
+
+  /// Hay una partida vs PC a medias para continuar.
+  static bool get hayPartidaVsPcPendiente {
+    final r = _resume;
+    if (r == null || !r.contraPc) return false;
+    if (r.partida.ganador != null) {
+      _resume = null;
+      return false;
+    }
+    return true;
   }
 
   static void limpiar() {

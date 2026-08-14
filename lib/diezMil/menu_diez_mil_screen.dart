@@ -78,9 +78,71 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
     }
   }
 
+  Future<void> _abrirPartidaVsPc({
+    required BuildContext ctx,
+    required MenuJuegoEstado estado,
+    PartidaDiezMilResume? resume,
+  }) async {
+    DiezMilMenuConfig.actualizar(
+      opciones: _opciones,
+      dificultad: estado.dificultad,
+      modoDios: estado.modoDios,
+    );
+    final humano = estado.nombres.isNotEmpty
+        ? estado.nombres.first
+        : 'Jugador 1';
+    final nombres = resume?.nombres ??
+        nombresPartidaVsPc(
+          humano: humano,
+          total: estado.totalVsPc,
+        );
+    await navegarConCarga<void>(
+      ctx,
+      mensaje: resume != null ? 'Reanudando partida' : 'Iniciando partida',
+      acento: AppColors.acento,
+      builder: (_) => PartidaDiezMilScreen(
+        nombres: nombres,
+        modo: resume?.modo ?? _opciones.modo,
+        opciones: resume?.opciones ?? _opciones,
+        contraPc: true,
+        dificultadPc: resume?.dificultadPc ?? estado.dificultad,
+        modoDios: resume?.modoDios ?? estado.modoDios,
+        ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
+        resume: resume,
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _continuarPartidaVsPc(BuildContext ctx) async {
+    final resume = DiezMilStandByStore.consumirVsPc();
+    if (resume == null) {
+      if (mounted) setState(() {});
+      return;
+    }
+    await navegarConCarga<void>(
+      ctx,
+      mensaje: 'Reanudando partida',
+      acento: AppColors.acento,
+      builder: (_) => PartidaDiezMilScreen(
+        nombres: resume.nombres,
+        modo: resume.modo,
+        opciones: resume.opciones,
+        contraPc: true,
+        dificultadPc: resume.dificultadPc,
+        modoDios: resume.modoDios,
+        ajustesIniciales: resume.ajustesIniciales,
+        resume: resume,
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final dados = _opciones.dados;
+    final puedeContinuar = DiezMilStandByStore.hayPartidaVsPcPendiente;
+
     return MenuJuegoScreen(
       titulo: 'Diez Mil',
       juegoId: MenuJuegoScreen.juegoIdDiezMil,
@@ -93,8 +155,34 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
         DificultadPc.medio: TextosDiezMil.infoDificultadMedio,
         DificultadPc.dificil: TextosDiezMil.infoDificultadDificil,
       },
-      extraTrasModoLocal: BotonModificarPartida(
-        onPressed: _abrirCartelModificar,
+      onCantidadPcChanged: (_) {
+        // No borramos el standby: podés volver a la cantidad anterior y
+        // seguir con Continuar partida.
+        if (mounted) setState(() {});
+      },
+      extraTrasModoLocal: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (puedeContinuar) ...[
+            OutlinedButton.icon(
+              onPressed: () => _continuarPartidaVsPc(context),
+              icon: const Icon(Icons.play_circle_outline_rounded),
+              label: const Text(
+                'Continuar partida',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.acento,
+                side: const BorderSide(color: AppColors.acento, width: 1.6),
+                backgroundColor: AppColors.acento.withValues(alpha: 0.12),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          BotonModificarPartida(
+            onPressed: _abrirCartelModificar,
+          ),
+        ],
       ),
       onPartidaRapida: (ctx, estado, _) async {
         DiezMilMenuConfig.actualizar(opciones: _opciones);
@@ -112,40 +200,9 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
         );
       },
       onVsPc: (ctx, estado, _) {
-        DiezMilMenuConfig.actualizar(
-          opciones: _opciones,
-          dificultad: estado.dificultad,
-          modoDios: estado.modoDios,
-        );
-        // Reanuda aunque hayan cambiado opciones/dificultad en el menú;
-        // eso solo aplica al reiniciar dentro de la partida.
-        final resume = DiezMilStandByStore.consumirVsPc(
-          cantidadPc: estado.cantidadPc,
-        );
-        final humano = estado.nombres.isNotEmpty
-            ? estado.nombres.first
-            : 'Jugador 1';
-        final nombres = resume?.nombres ??
-            nombresPartidaVsPc(
-              humano: humano,
-              total: estado.totalVsPc,
-            );
-        navegarConCarga<void>(
-          ctx,
-          mensaje:
-              resume != null ? 'Reanudando partida' : 'Iniciando partida',
-          acento: AppColors.acento,
-          builder: (_) => PartidaDiezMilScreen(
-            nombres: nombres,
-            modo: resume?.modo ?? _opciones.modo,
-            opciones: resume?.opciones ?? _opciones,
-            contraPc: true,
-            dificultadPc: resume?.dificultadPc ?? estado.dificultad,
-            modoDios: resume?.modoDios ?? estado.modoDios,
-            ajustesIniciales: resume?.ajustesIniciales ?? estado.ajustes,
-            resume: resume,
-          ),
-        );
+        // Siempre partida nueva: el resume se usa solo con "Continuar partida".
+        DiezMilStandByStore.limpiar();
+        _abrirPartidaVsPc(ctx: ctx, estado: estado);
       },
       onIniciarDesdeSala: (ctx, inicio) {
         final modo = inicio.dados == 6 ? Modo.seis : Modo.cinco;
