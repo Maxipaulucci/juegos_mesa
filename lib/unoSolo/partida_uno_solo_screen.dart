@@ -846,7 +846,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                     ],
                     const SizedBox(height: 8),
                     Align(
-                      alignment: Alignment.centerRight,
+                      alignment: Alignment.center,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
