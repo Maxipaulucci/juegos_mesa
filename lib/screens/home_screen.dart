@@ -27,6 +27,7 @@ import '../jodete/opciones_jodete.dart';
 import '../jodete/textos.dart';
 import '../laPapa/menu_la_papa_screen.dart';
 import '../laPapa/textos.dart';
+import '../shared/ajustes/ajustes_overlay.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
@@ -74,6 +75,7 @@ class _JuegoHome {
     this.destacadoFuego = false,
     this.tarjetaCuadrada = true,
     this.eslogan,
+    this.esloganExpandible = true,
     this.aspectPortada = aspectPortadaHome,
   });
 
@@ -92,6 +94,8 @@ class _JuegoHome {
   final bool tarjetaCuadrada;
   /// Texto estilo “caja de juego”, arriba de Jugar.
   final String? eslogan;
+  /// Eslogan en 1 línea + flecha para expandir.
+  final bool esloganExpandible;
   /// Ancho/alto de la portada: la tarjeta se estrecha al ancho de la foto.
   final double? aspectPortada;
 }
@@ -109,10 +113,13 @@ class _HomeScreenState extends State<HomeScreen>
       'assets/img/portadas/portadaProximamente.png';
   static const _portadaDiezMil = 'assets/img/portadas/portadaDiezMil.png';
   static const _portadaGenerala = 'assets/img/portadas/portadaGenerala.png';
-  static const _portadaLaPapa = 'assets/img/portadas/portadaLaPapa.jpg';
+  static const _portadaLaPapa = 'assets/img/portadas/portadaLaPapa.jpeg';
+  static const _portadaEscoba = 'assets/img/portadas/portadaEscoba.png';
 
   bool _navegando = false;
   _CategoriaHome _categoria = _CategoriaHome.todo;
+  bool _mostrarAjustes = false;
+  AjustesEstado _ajustes = const AjustesEstado();
   late final AnimationController _entrada;
   late final AnimationController _listaEntrada;
   late final Animation<double> _tituloOpacidad;
@@ -184,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas españolas · a 15',
       accent: AppColors.azul,
       categoria: _CategoriaHome.cartasEspanolas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaEscoba,
       eslogan:
           'Cartas españolas, sumas a 15 y esa escoba que te saca una sonrisa '
           'malvada. Ideal para pelear la mesa con amigos o en familia y '
@@ -651,34 +658,77 @@ class _HomeScreenState extends State<HomeScreen>
                     opacity: _tituloOpacidad,
                     child: SlideTransition(
                       position: _tituloDesliz,
-                      child: Column(
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          ShaderMask(
-                            shaderCallback: (bounds) => const LinearGradient(
-                              colors: [
-                                Colors.white,
-                                AppColors.acento,
-                                AppColors.azul,
-                              ],
-                            ).createShader(bounds),
-                            child: const Text(
-                              'JUEGOS DE MESA',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.2,
+                          Column(
+                            children: [
+                              ShaderMask(
+                                shaderCallback: (bounds) =>
+                                    const LinearGradient(
+                                  colors: [
+                                    Colors.white,
+                                    AppColors.acento,
+                                    AppColors.azul,
+                                  ],
+                                ).createShader(bounds),
+                                child: const Text(
+                                  'JUEGOS DE MESA',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Argentinos · multijugador',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.textoSuave,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Argentinos · multijugador',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppColors.textoSuave,
-                              fontWeight: FontWeight.w600,
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Tooltip(
+                              message: 'Ajustes',
+                              child: Material(
+                                color: AppColors.carta,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: () =>
+                                      setState(() => _mostrarAjustes = true),
+                                  child: Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.rosa
+                                            .withValues(alpha: 0.85),
+                                        width: 1.6,
+                                      ),
+                                      boxShadow: neonGlow(
+                                        AppColors.rosa,
+                                        blur: 10,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.settings,
+                                      color: AppColors.texto,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -837,6 +887,12 @@ class _HomeScreenState extends State<HomeScreen>
                                                                     eslogan: fila[
                                                                             c]
                                                                         .eslogan,
+                                                                    esloganExpandible:
+                                                                        fila[c]
+                                                                            .esloganExpandible,
+                                                                    animaciones:
+                                                                        _ajustes
+                                                                            .animaciones,
                                                                     aspectPortada:
                                                                         fila[c]
                                                                             .aspectPortada,
@@ -891,6 +947,14 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
           ),
+          if (_mostrarAjustes)
+            Positioned.fill(
+              child: AjustesOverlay(
+                ajustes: _ajustes,
+                onChanged: (a) => setState(() => _ajustes = a),
+                onCerrar: () => setState(() => _mostrarAjustes = false),
+              ),
+            ),
         ],
       ),
     );
@@ -994,6 +1058,8 @@ class _JuegoTile extends StatefulWidget {
     this.destacadoFuego = false,
     this.tarjetaCuadrada = false,
     this.eslogan,
+    this.esloganExpandible = true,
+    this.animaciones = true,
     this.aspectPortada,
   });
 
@@ -1007,6 +1073,8 @@ class _JuegoTile extends StatefulWidget {
   final bool destacadoFuego;
   final bool tarjetaCuadrada;
   final String? eslogan;
+  final bool esloganExpandible;
+  final bool animaciones;
   final double? aspectPortada;
 
   @override
@@ -1016,6 +1084,7 @@ class _JuegoTile extends StatefulWidget {
 class _JuegoTileState extends State<_JuegoTile>
     with SingleTickerProviderStateMixin {
   late final AnimationController _fuego;
+  bool _esloganExpandido = false;
 
   @override
   void initState() {
@@ -1163,54 +1232,121 @@ class _JuegoTileState extends State<_JuegoTile>
           );
 
     Widget pieConEsloganFlexible() {
+      final estiloEslogan = TextStyle(
+        color: AppColors.textoSuave.withValues(alpha: 0.98),
+        fontSize: 10.5,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+        fontStyle: FontStyle.italic,
+      );
+      final durEslogan = widget.animaciones
+          ? const Duration(milliseconds: 280)
+          : Duration.zero;
+
+      final botonesArcade = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _HomeArcadePill(
+            label: 'JUGAR',
+            icon: Icons.play_arrow_rounded,
+            colors: const [
+              Color(0xFFFFF3B0),
+              Color(0xFFFFD54F),
+              Color(0xFFFF9800),
+            ],
+            glow: AppColors.acento,
+            foreground: const Color(0xFF4A1B6D),
+            width: 118,
+            onPressed: activo ? widget.onJugar : null,
+          ),
+          const SizedBox(height: 6),
+          _HomeArcadePill(
+            label: 'REGLAS',
+            icon: Icons.menu_book_rounded,
+            colors: const [
+              Color(0xFF81D4FA),
+              Color(0xFF29B6F6),
+              Color(0xFF0277BD),
+            ],
+            glow: AppColors.azul,
+            foreground: Colors.white,
+            width: 118,
+            onPressed: widget.onReglas,
+          ),
+        ],
+      );
+
+      if (widget.eslogan != null && widget.esloganExpandible) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+          child: Column(
+            children: [
+              // Solo la altura del texto: el Expanded de abajo centra los botones.
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => setState(
+                    () => _esloganExpandido = !_esloganExpandido,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  child: AnimatedSize(
+                    duration: durEslogan,
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        crossAxisAlignment: _esloganExpandido
+                            ? CrossAxisAlignment.start
+                            : CrossAxisAlignment.center,
+                        children: [
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: Text(
+                              widget.eslogan!,
+                              textAlign: TextAlign.center,
+                              maxLines: _esloganExpandido ? 8 : 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: estiloEslogan,
+                            ),
+                          ),
+                          Icon(
+                            _esloganExpandido
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            size: 20,
+                            color: AppColors.textoSuave,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(child: botonesArcade),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Sin eslogan (o no expandible): botones centrados en el pie.
       return Padding(
         padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
         child: Column(
           children: [
             if (widget.eslogan != null) ...[
-              Flexible(
-                child: Text(
-                  widget.eslogan!,
-                  textAlign: TextAlign.center,
-                  maxLines: 8,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.textoSuave.withValues(alpha: 0.98),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    height: 1.3,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+              Text(
+                widget.eslogan!,
+                textAlign: TextAlign.center,
+                maxLines: 8,
+                overflow: TextOverflow.ellipsis,
+                style: estiloEslogan,
               ),
-              const SizedBox(height: 8),
             ],
-            _HomeArcadePill(
-              label: 'JUGAR',
-              icon: Icons.play_arrow_rounded,
-              colors: const [
-                Color(0xFFFFF3B0),
-                Color(0xFFFFD54F),
-                Color(0xFFFF9800),
-              ],
-              glow: AppColors.acento,
-              foreground: const Color(0xFF4A1B6D),
-              width: 118,
-              onPressed: activo ? widget.onJugar : null,
-            ),
-            const SizedBox(height: 6),
-            _HomeArcadePill(
-              label: 'REGLAS',
-              icon: Icons.menu_book_rounded,
-              colors: const [
-                Color(0xFF81D4FA),
-                Color(0xFF29B6F6),
-                Color(0xFF0277BD),
-              ],
-              glow: AppColors.azul,
-              foreground: Colors.white,
-              width: 118,
-              onPressed: widget.onReglas,
+            Expanded(
+              child: Center(child: botonesArcade),
             ),
           ],
         ),
