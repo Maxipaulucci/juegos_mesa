@@ -838,6 +838,12 @@ class _HomeScreenState extends State<HomeScreen>
                                         const altoCompacta = 132.0;
                                         const altoCuadradaConEslogan = 420.0;
                                         const gap = 4.0;
+                                        const categoriasOrden = [
+                                          _CategoriaHome.cartasEspanolas,
+                                          _CategoriaHome.dados,
+                                          _CategoriaHome.cartasInglesas,
+                                          _CategoriaHome.papel,
+                                        ];
 
                                         double altoDe(_JuegoHome j) {
                                           if (!j.tarjetaCuadrada) {
@@ -846,16 +852,31 @@ class _HomeScreenState extends State<HomeScreen>
                                           return altoCuadradaConEslogan;
                                         }
 
-                                        final filas = <List<_JuegoHome>>[];
-                                        for (var i = 0;
-                                            i < filtrados.length;
-                                            i += columnas) {
-                                          final fin =
-                                              (i + columnas < filtrados.length)
-                                                  ? i + columnas
-                                                  : filtrados.length;
-                                          filas.add(
-                                            filtrados.sublist(i, fin),
+                                        double altoFilaDe(List<_JuegoHome> juegos) {
+                                          if (juegos.isEmpty) {
+                                            return altoCuadradaConEslogan;
+                                          }
+                                          return juegos
+                                              .map(altoDe)
+                                              .fold<double>(
+                                                altoCompacta,
+                                                (a, b) => a > b ? a : b,
+                                              );
+                                        }
+
+                                        final secciones =
+                                            <({
+                                          _CategoriaHome cat,
+                                          List<_JuegoHome> juegos
+                                        })>[];
+                                        for (final cat in categoriasOrden) {
+                                          final juegos = [
+                                            for (final j in filtrados)
+                                              if (j.categoria == cat) j,
+                                          ];
+                                          if (juegos.isEmpty) continue;
+                                          secciones.add(
+                                            (cat: cat, juegos: juegos),
                                           );
                                         }
 
@@ -866,47 +887,94 @@ class _HomeScreenState extends State<HomeScreen>
                                             4,
                                             4,
                                             4,
-                                            8,
+                                            12,
                                           ),
                                           physics:
                                               const ClampingScrollPhysics(),
-                                          itemCount: filas.length,
+                                          itemCount: secciones.length,
                                           separatorBuilder: (_, __) =>
-                                              const SizedBox(height: gap),
-                                          itemBuilder: (context, rowIndex) {
-                                            final fila = filas[rowIndex];
-                                            final altoFila = fila
-                                                .map(altoDe)
-                                                .fold<double>(
-                                                  altoCompacta,
-                                                  (a, b) => a > b ? a : b,
-                                                );
-                                            final baseIndex =
-                                                rowIndex * columnas;
+                                              const SizedBox(height: 14),
+                                          itemBuilder: (context, i) {
+                                            final seccion = secciones[i];
+                                            var base = 0;
+                                            for (var s = 0; s < i; s++) {
+                                              base +=
+                                                  secciones[s].juegos.length;
+                                            }
 
-                                            return SizedBox(
-                                              height: altoFila,
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  for (var c = 0;
-                                                      c < fila.length;
-                                                      c++) ...[
-                                                    if (c > 0)
-                                                      const SizedBox(
-                                                        width: gap,
-                                                      ),
-                                                    _tileDeJuego(
-                                                      fila[c],
-                                                      index: baseIndex + c,
-                                                      alto: altoDe(fila[c]),
+                                            return Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                    10,
+                                                    4,
+                                                    10,
+                                                    8,
+                                                  ),
+                                                  child: Text(
+                                                    seccion.cat.label,
+                                                    style: const TextStyle(
+                                                      color: AppColors.texto,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      fontSize: 16,
+                                                      letterSpacing: 0.4,
                                                     ),
-                                                  ],
-                                                ],
-                                              ),
+                                                  ),
+                                                ),
+                                                DecoratedBox(
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.carta
+                                                        .withValues(
+                                                      alpha: 0.38,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      16,
+                                                    ),
+                                                    border: Border.all(
+                                                      color: AppColors
+                                                          .textoSuave
+                                                          .withValues(
+                                                        alpha: 0.22,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets
+                                                            .fromLTRB(
+                                                      2,
+                                                      8,
+                                                      2,
+                                                      8,
+                                                    ),
+                                                    child: _CarruselCategoria(
+                                                      key: ValueKey(
+                                                        seccion.cat,
+                                                      ),
+                                                      juegos: seccion.juegos,
+                                                      visibles: columnas,
+                                                      gap: gap,
+                                                      altoFila: altoFilaDe(
+                                                        seccion.juegos,
+                                                      ),
+                                                      animaciones:
+                                                          _ajustes.animaciones,
+                                                      buildTile:
+                                                          (juego, index) =>
+                                                              _tileDeJuego(
+                                                        juego,
+                                                        index: base + index,
+                                                        alto: altoDe(juego),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             );
                                           },
                                         );
@@ -946,6 +1014,193 @@ class _HomeScreenState extends State<HomeScreen>
                 ajustes: _ajustes,
                 onChanged: (a) => setState(() => _ajustes = a),
                 onCerrar: () => setState(() => _mostrarAjustes = false),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CarruselCategoria extends StatefulWidget {
+  const _CarruselCategoria({
+    super.key,
+    required this.juegos,
+    required this.visibles,
+    required this.gap,
+    required this.altoFila,
+    required this.buildTile,
+    required this.animaciones,
+  });
+
+  final List<_JuegoHome> juegos;
+  final int visibles;
+  final double gap;
+  final double altoFila;
+  final bool animaciones;
+  final Widget Function(_JuegoHome juego, int index) buildTile;
+
+  @override
+  State<_CarruselCategoria> createState() => _CarruselCategoriaState();
+}
+
+class _CarruselCategoriaState extends State<_CarruselCategoria> {
+  int _pagina = 0;
+  int _dir = 1;
+
+  int get _porPagina => widget.visibles.clamp(1, 99);
+
+  int get _totalPaginas {
+    if (widget.juegos.isEmpty) return 1;
+    return (widget.juegos.length / _porPagina).ceil();
+  }
+
+  bool get _hayMas => widget.juegos.length > _porPagina;
+
+  @override
+  void didUpdateWidget(covariant _CarruselCategoria oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visibles != widget.visibles ||
+        oldWidget.juegos.length != widget.juegos.length) {
+      _pagina = _pagina.clamp(0, math.max(0, _totalPaginas - 1));
+    }
+  }
+
+  void _ir(int delta) {
+    if (!_hayMas) return;
+    final n = _totalPaginas;
+    setState(() {
+      _dir = delta >= 0 ? 1 : -1;
+      _pagina = (_pagina + delta) % n;
+      if (_pagina < 0) _pagina += n;
+    });
+  }
+
+  List<({_JuegoHome juego, int index})> _cartasDe(int pagina) {
+    final n = widget.juegos.length;
+    if (n == 0) return const [];
+    if (!_hayMas) {
+      return [
+        for (var i = 0; i < n; i++) (juego: widget.juegos[i], index: i),
+      ];
+    }
+    final v = _porPagina;
+    final inicio = pagina * v;
+    return [
+      for (var c = 0; c < v; c++)
+        (
+          juego: widget.juegos[(inicio + c) % n],
+          index: inicio + c,
+        ),
+    ];
+  }
+
+  Widget _flecha({
+    required IconData icono,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppColors.carta,
+      shape: const CircleBorder(),
+      elevation: 6,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.azul.withValues(alpha: 0.85),
+              width: 1.6,
+            ),
+            boxShadow: neonGlow(AppColors.azul, blur: 8),
+          ),
+          child: Icon(icono, color: AppColors.texto, size: 26),
+        ),
+      ),
+    );
+  }
+
+  Widget _filaDe(int pagina) {
+    final cartas = _cartasDe(pagina);
+    return Row(
+      key: ValueKey(pagina),
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var c = 0; c < cartas.length; c++) ...[
+          if (c > 0) SizedBox(width: widget.gap),
+          widget.buildTile(cartas[c].juego, cartas[c].index),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dur = widget.animaciones
+        ? const Duration(milliseconds: 320)
+        : Duration.zero;
+    return SizedBox(
+      height: widget.altoFila,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          GestureDetector(
+            onHorizontalDragEnd: !_hayMas
+                ? null
+                : (details) {
+                    final vx = details.primaryVelocity ?? 0;
+                    if (vx <= -180) {
+                      _ir(1);
+                    } else if (vx >= 180) {
+                      _ir(-1);
+                    }
+                  },
+            child: ClipRect(
+              child: AnimatedSwitcher(
+                duration: dur,
+                switchInCurve: Curves.easeInOutCubic,
+                switchOutCurve: Curves.easeInOutCubic,
+                layoutBuilder: (current, previous) => Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ...previous,
+                    if (current != null) current,
+                  ],
+                ),
+                transitionBuilder: (child, anim) {
+                  final entra = child.key == ValueKey(_pagina);
+                  final inicio = Offset(_dir * (entra ? 1.0 : -1.0), 0);
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: inicio,
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  );
+                },
+                child: _filaDe(_pagina),
+              ),
+            ),
+          ),
+          if (_hayMas)
+            Positioned(
+              left: 4,
+              child: _flecha(
+                icono: Icons.chevron_left_rounded,
+                onTap: () => _ir(-1),
+              ),
+            ),
+          if (_hayMas)
+            Positioned(
+              right: 4,
+              child: _flecha(
+                icono: Icons.chevron_right_rounded,
+                onTap: () => _ir(1),
               ),
             ),
         ],
@@ -1289,19 +1544,41 @@ class _JuegoTileState extends State<_JuegoTile>
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: AnimatedSize(
-                            duration: durEslogan,
-                            curve: Curves.easeOutCubic,
-                            alignment: Alignment.topCenter,
-                            child: Text(
-                              eslogan,
-                              textAlign: TextAlign.center,
-                              maxLines: widget.esloganExpandido ? 8 : 1,
-                              overflow: widget.esloganExpandido
-                                  ? TextOverflow.visible
-                                  : TextOverflow.ellipsis,
-                              style: estiloEslogan,
-                            ),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final tp = TextPainter(
+                                text: TextSpan(
+                                  text: eslogan,
+                                  style: estiloEslogan,
+                                ),
+                                maxLines: 1,
+                                ellipsis: '…',
+                                textAlign: TextAlign.center,
+                                textDirection: TextDirection.ltr,
+                              )..layout(maxWidth: constraints.maxWidth);
+                              final altoUnaLinea = tp.height;
+                              return AnimatedSize(
+                                duration: durEslogan,
+                                curve: Curves.easeInOutCubic,
+                                alignment: Alignment.topCenter,
+                                clipBehavior: Clip.hardEdge,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxHeight: widget.esloganExpandido
+                                        ? double.infinity
+                                        : altoUnaLinea,
+                                  ),
+                                  child: SizedBox(
+                                    width: constraints.maxWidth,
+                                    child: Text(
+                                      eslogan,
+                                      textAlign: TextAlign.center,
+                                      style: estiloEslogan,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                         Positioned(
