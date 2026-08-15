@@ -162,7 +162,7 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
       },
       extraTrasModoLocal: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      children: [
           if (puedeContinuar) ...[
             OutlinedButton.icon(
               onPressed: () => _continuarPartidaVsPc(context),

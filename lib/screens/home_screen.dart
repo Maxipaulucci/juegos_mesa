@@ -133,6 +133,7 @@ class _HomeScreenState extends State<HomeScreen>
   _CategoriaHome _categoria = _CategoriaHome.todo;
   bool _mostrarAjustes = false;
   AjustesEstado _ajustes = const AjustesEstado();
+  _TipoJuegoHome? _esloganAbierto;
   late final AnimationController _entrada;
   late final AnimationController _listaEntrada;
   late final Animation<double> _tituloOpacidad;
@@ -144,61 +145,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   static const _juegos = <_JuegoHome>[
     _JuegoHome(
-      tipo: _TipoJuegoHome.diezMil,
-      titulo: 'Diez Mil',
-      subtitulo: 'Dados · 5 o 6',
-      accent: AppColors.acento,
-      categoria: _CategoriaHome.dados,
-      portadaAsset: _portadaDiezMil,
-      eslogan:
-          'Seis dados, una meta imposible de 10.000 y esa vocecita '
-          'que te dice “una tirada más”. Sumás de a poco, arriesgás de más y, '
-          'cuando creés que la tenés… ¡fuiste! Todo al piso. Ideal para pelear '
-          'con amigos o en familia, insultar a la suerte y fingir que “era estrategia”. '
-          '¿Estás listo para jugar?',
-    ),
-    _JuegoHome(
-      tipo: _TipoJuegoHome.generala,
-      titulo: 'Generala',
-      subtitulo: 'Dados · tabla de anotación',
-      accent: AppColors.violeta,
-      categoria: _CategoriaHome.dados,
-      portadaAsset: _portadaGenerala,
-      eslogan:
-          'Cinco dados, una tablita traicionera y ese “¡casi generala!” '
-          'que duele más que perder. Escalera, full, póker… o tachás con cara '
-          'de póker. Ideal para pelear el puntaje con amigos o en familia, '
-          'culpar a los dados y jurar que “la próxima sale”. '
-          '¿Estás listo para jugar?',
-    ),
-    _JuegoHome(
-      tipo: _TipoJuegoHome.tuttiFrutti,
-      titulo: 'Tutti Frutti',
-      subtitulo: 'Letras · categorías online',
-      accent: AppColors.rosa,
-      categoria: _CategoriaHome.papel,
-      portadaAsset: _portadaTuttiFrutti,
-      eslogan:
-          'Una letra, mil categorías y el reloj que no perdona. Pensás '
-          '“fruta con M…” y se te va la mente. Ideal para pelear en familia, '
-          'inventar palabras dudosas y pelear el punto hasta el final. '
-          '¿Estás listo para jugar?',
-    ),
-    _JuegoHome(
-      tipo: _TipoJuegoHome.laPapa,
-      titulo: 'La papa',
-      subtitulo: 'Hoja · uní los números',
-      accent: AppColors.mint,
-      categoria: _CategoriaHome.papel,
-      portadaAsset: _portadaLaPapa,
-      eslogan:
-          'Una hoja llena de números, un lápiz tembloroso y esa línea que '
-          'jurás no va a tocar… hasta que toca. Unís del 1 en adelante sin '
-          'cruzarte, pedís puente si hace falta y, si te animás, modo infernal. '
-          'Ideal para pelear la hoja con amigos o en familia, culpar al dedo '
-          'y decir “era imposible”. ¿Estás listo para jugar?',
-    ),
-    _JuegoHome(
       tipo: _TipoJuegoHome.escobaDel15,
       titulo: 'Escoba del 15',
       subtitulo: 'Cartas españolas · a 15',
@@ -209,18 +155,6 @@ class _HomeScreenState extends State<HomeScreen>
           'Cartas españolas, sumas a 15 y esa escoba que te saca una sonrisa '
           'malvada. Ideal para pelear la mesa con amigos o en familia y '
           'fingir que “sabías la cuenta”. ¿Estás listo para jugar?',
-    ),
-    _JuegoHome(
-      tipo: _TipoJuegoHome.unoSolo,
-      titulo: 'Uno solo',
-      subtitulo: 'Tablero · una ficha en el centro',
-      accent: AppColors.mint,
-      categoria: _CategoriaHome.papel,
-      portadaAsset: _portadaUnoSolo,
-      eslogan:
-          'Una ficha en el centro y un tablero que pide estrategia (o suerte '
-          'disfrazada). Ideal para pensar dos jugadas… o improvisar y '
-          'culpar al destino. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.culoSucioV2,
@@ -272,18 +206,6 @@ class _HomeScreenState extends State<HomeScreen>
           'de la mesa. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
-      tipo: _TipoJuegoHome.guerraDeCartas,
-      titulo: 'Guerra de cartas',
-      subtitulo: 'Cartas inglesas · AS alto',
-      accent: AppColors.azul,
-      categoria: _CategoriaHome.cartasInglesas,
-      portadaAsset: _portadaGuerraDeCartas,
-      eslogan:
-          'Carta contra carta, el AS manda y la suerte decide. Ideal para '
-          'partidas cortas, dramas innecesarios y “¡guerra!”. '
-          '¿Estás listo para jugar?',
-    ),
-    _JuegoHome(
       tipo: _TipoJuegoHome.desconfio,
       titulo: 'Desconfío',
       subtitulo: 'Cartas españolas · bluff',
@@ -308,6 +230,46 @@ class _HomeScreenState extends State<HomeScreen>
           'la mesa. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
+      tipo: _TipoJuegoHome.diezMil,
+      titulo: 'Diez Mil',
+      subtitulo: 'Dados · 5 o 6',
+      accent: AppColors.acento,
+      categoria: _CategoriaHome.dados,
+      portadaAsset: _portadaDiezMil,
+      eslogan:
+          'Seis dados, una meta imposible de 10.000 y esa vocecita '
+          'que te dice “una tirada más”. Sumás de a poco, arriesgás de más y, '
+          'cuando creés que la tenés… ¡fuiste! Todo al piso. Ideal para pelear '
+          'con amigos o en familia, insultar a la suerte y fingir que “era estrategia”. '
+          '¿Estás listo para jugar?',
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.generala,
+      titulo: 'Generala',
+      subtitulo: 'Dados · tabla de anotación',
+      accent: AppColors.violeta,
+      categoria: _CategoriaHome.dados,
+      portadaAsset: _portadaGenerala,
+      eslogan:
+          'Cinco dados, una tablita traicionera y ese “¡casi generala!” '
+          'que duele más que perder. Escalera, full, póker… o tachás con cara '
+          'de póker. Ideal para pelear el puntaje con amigos o en familia, '
+          'culpar a los dados y jurar que “la próxima sale”. '
+          '¿Estás listo para jugar?',
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.guerraDeCartas,
+      titulo: 'Guerra de cartas',
+      subtitulo: 'Cartas inglesas · AS alto',
+      accent: AppColors.azul,
+      categoria: _CategoriaHome.cartasInglesas,
+      portadaAsset: _portadaGuerraDeCartas,
+      eslogan:
+          'Carta contra carta, el AS manda y la suerte decide. Ideal para '
+          'partidas cortas, dramas innecesarios y “¡guerra!”. '
+          '¿Estás listo para jugar?',
+    ),
+    _JuegoHome(
       tipo: _TipoJuegoHome.canasta,
       titulo: 'Canasta',
       subtitulo: 'Próximamente',
@@ -319,6 +281,45 @@ class _HomeScreenState extends State<HomeScreen>
           'Melés, canastas y puntos que se acumulan con paciencia… o con '
           'suerte. Estamos barajando esta mesa: pronto vas a poder jugar. '
           '¿Estás listo para cuando llegue?',
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.tuttiFrutti,
+      titulo: 'Tutti Frutti',
+      subtitulo: 'Letras · categorías online',
+      accent: AppColors.rosa,
+      categoria: _CategoriaHome.papel,
+      portadaAsset: _portadaTuttiFrutti,
+      eslogan:
+          'Una letra, mil categorías y el reloj que no perdona. Pensás '
+          '“fruta con M…” y se te va la mente. Ideal para pelear en familia, '
+          'inventar palabras dudosas y pelear el punto hasta el final. '
+          '¿Estás listo para jugar?',
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.laPapa,
+      titulo: 'La papa',
+      subtitulo: 'Hoja · uní los números',
+      accent: AppColors.mint,
+      categoria: _CategoriaHome.papel,
+      portadaAsset: _portadaLaPapa,
+      eslogan:
+          'Una hoja llena de números, un lápiz tembloroso y esa línea que '
+          'jurás no va a tocar… hasta que toca. Unís del 1 en adelante sin '
+          'cruzarte, pedís puente si hace falta y, si te animás, modo infernal. '
+          'Ideal para pelear la hoja con amigos o en familia, culpar al dedo '
+          'y decir “era imposible”. ¿Estás listo para jugar?',
+    ),
+    _JuegoHome(
+      tipo: _TipoJuegoHome.unoSolo,
+      titulo: 'Uno solo',
+      subtitulo: 'Tablero · una ficha en el centro',
+      accent: AppColors.mint,
+      categoria: _CategoriaHome.papel,
+      portadaAsset: _portadaUnoSolo,
+      eslogan:
+          'Una ficha en el centro y un tablero que pide estrategia (o suerte '
+          'disfrazada). Ideal para pensar dos jugadas… o improvisar y '
+          'culpar al destino. ¿Estás listo para jugar?',
     ),
   ];
 
@@ -397,9 +398,51 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   int _columnasPara(double ancho) {
-    if (ancho >= 820) return 3;
-    if (ancho >= 520) return 2;
+    const gap = 4.0;
+    const alto = 420.0;
+    const chromeMin = 196.0;
+    final anchoTarjeta =
+        math.max(120.0, (alto - chromeMin) * _JuegoHome.aspectPortadaHome);
+    if (ancho >= 3 * anchoTarjeta + 2 * gap) return 3;
+    if (ancho >= 2 * anchoTarjeta + gap) return 2;
     return 1;
+  }
+
+  double _anchoTarjetaDe(_JuegoHome j, double alto) {
+    const chromeMin = 196.0;
+    final aspect = j.aspectPortada ?? _JuegoHome.aspectPortadaHome;
+    return math.max(120.0, (alto - chromeMin) * aspect);
+  }
+
+  Widget _tileDeJuego(_JuegoHome j, {required int index, required double alto}) {
+    return _tarjetaEntrada(
+      index: index,
+      child: SizedBox(
+        height: alto,
+        width: _anchoTarjetaDe(j, alto),
+        child: _JuegoTile(
+          titulo: j.titulo,
+          subtitulo: j.subtitulo,
+          accent: j.accent,
+          enabled: j.enabled,
+          destacadoFuego: j.destacadoFuego,
+          portadaAsset: j.portadaAsset,
+          tarjetaCuadrada: j.tarjetaCuadrada,
+          eslogan: j.eslogan,
+          esloganExpandible: j.esloganExpandible,
+          esloganExpandido: _esloganAbierto == j.tipo,
+          onToggleEslogan: () {
+            setState(() {
+              _esloganAbierto = _esloganAbierto == j.tipo ? null : j.tipo;
+            });
+          },
+          animaciones: _ajustes.animaciones,
+          aspectPortada: j.aspectPortada,
+          onJugar: _onJugarDe(j),
+          onReglas: _onReglasDe(j),
+        ),
+      ),
+    );
   }
 
   Future<void> _abrirJuego({
@@ -599,7 +642,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _seleccionarCategoria(_CategoriaHome cat) {
     if (cat == _categoria) return;
-    setState(() => _categoria = cat);
+    setState(() {
+      _categoria = cat;
+      _esloganAbierto = null;
+    });
     _scrollAnimToken++;
     _scrollObjetivo = 0;
     if (_scrollController.hasClients) {
@@ -791,10 +837,9 @@ class _HomeScreenState extends State<HomeScreen>
                                             _columnasPara(constraints.maxWidth);
                                         const altoCompacta = 132.0;
                                         const altoCuadradaConEslogan = 420.0;
-                                        const gap = 10.0;
+                                        const gap = 4.0;
 
                                         double altoDe(_JuegoHome j) {
-                                          // Todas las tarjetas = tamaño Diez Mil.
                                           if (!j.tarjetaCuadrada) {
                                             return altoCompacta;
                                           }
@@ -818,10 +863,10 @@ class _HomeScreenState extends State<HomeScreen>
                                           key: ValueKey(_categoria),
                                           controller: _scrollController,
                                           padding: const EdgeInsets.fromLTRB(
-                                            6,
-                                            6,
-                                            6,
-                                            10,
+                                            4,
+                                            4,
+                                            4,
+                                            8,
                                           ),
                                           physics:
                                               const ClampingScrollPhysics(),
@@ -842,87 +887,22 @@ class _HomeScreenState extends State<HomeScreen>
                                             return SizedBox(
                                               height: altoFila,
                                               child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   for (var c = 0;
-                                                      c < columnas;
+                                                      c < fila.length;
                                                       c++) ...[
                                                     if (c > 0)
                                                       const SizedBox(
                                                         width: gap,
                                                       ),
-                                                    Expanded(
-                                                      child: c < fila.length
-                                                          ? _tarjetaEntrada(
-                                                              index:
-                                                                  baseIndex +
-                                                                      c,
-                                                              child: Align(
-                                                                alignment:
-                                                                    Alignment
-                                                                        .topCenter,
-                                                                child:
-                                                                    SizedBox(
-                                                                  height:
-                                                                      altoDe(
-                                                                    fila[c],
-                                                                  ),
-                                                                  width: fila[c]
-                                                                              .aspectPortada ==
-                                                                          null
-                                                                      ? null
-                                                                      : double
-                                                                          .infinity,
-                                                                  child:
-                                                                      _JuegoTile(
-                                                                    titulo: fila[
-                                                                            c]
-                                                                        .titulo,
-                                                                    subtitulo:
-                                                                        fila[c]
-                                                                            .subtitulo,
-                                                                    accent: fila[
-                                                                            c]
-                                                                        .accent,
-                                                                    enabled: fila[
-                                                                            c]
-                                                                        .enabled,
-                                                                    destacadoFuego:
-                                                                        fila[c]
-                                                                            .destacadoFuego,
-                                                                    portadaAsset:
-                                                                        fila[c]
-                                                                            .portadaAsset,
-                                                                    tarjetaCuadrada:
-                                                                        fila[c]
-                                                                            .tarjetaCuadrada,
-                                                                    eslogan: fila[
-                                                                            c]
-                                                                        .eslogan,
-                                                                    esloganExpandible:
-                                                                        fila[c]
-                                                                            .esloganExpandible,
-                                                                    animaciones:
-                                                                        _ajustes
-                                                                            .animaciones,
-                                                                    aspectPortada:
-                                                                        fila[c]
-                                                                            .aspectPortada,
-                                                                    onJugar:
-                                                                        _onJugarDe(
-                                                                      fila[c],
-                                                                    ),
-                                                                    onReglas:
-                                                                        _onReglasDe(
-                                                                      fila[c],
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            )
-                                                          : const SizedBox
-                                                              .shrink(),
+                                                    _tileDeJuego(
+                                                      fila[c],
+                                                      index: baseIndex + c,
+                                                      alto: altoDe(fila[c]),
                                                     ),
                                                   ],
                                                 ],
@@ -1072,6 +1052,8 @@ class _JuegoTile extends StatefulWidget {
     this.tarjetaCuadrada = false,
     this.eslogan,
     this.esloganExpandible = true,
+    this.esloganExpandido = false,
+    this.onToggleEslogan,
     this.animaciones = true,
     this.aspectPortada,
   });
@@ -1087,6 +1069,8 @@ class _JuegoTile extends StatefulWidget {
   final bool tarjetaCuadrada;
   final String? eslogan;
   final bool esloganExpandible;
+  final bool esloganExpandido;
+  final VoidCallback? onToggleEslogan;
   final bool animaciones;
   final double? aspectPortada;
 
@@ -1097,7 +1081,6 @@ class _JuegoTile extends StatefulWidget {
 class _JuegoTileState extends State<_JuegoTile>
     with SingleTickerProviderStateMixin {
   late final AnimationController _fuego;
-  bool _esloganExpandido = false;
 
   @override
   void initState() {
@@ -1290,48 +1273,49 @@ class _JuegoTileState extends State<_JuegoTile>
       );
 
       if (widget.eslogan != null && widget.esloganExpandible) {
+        final eslogan = widget.eslogan!;
         return Padding(
           padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
           child: Column(
             children: [
-              // Solo la altura del texto: el Expanded de abajo centra los botones.
               Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () => setState(
-                    () => _esloganExpandido = !_esloganExpandido,
-                  ),
+                  onTap: widget.onToggleEslogan,
                   borderRadius: BorderRadius.circular(8),
-                  child: AnimatedSize(
-                    duration: durEslogan,
-                    curve: Curves.easeOutCubic,
-                    alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        crossAxisAlignment: _esloganExpandido
-                            ? CrossAxisAlignment.start
-                            : CrossAxisAlignment.center,
-                        children: [
-                          const SizedBox(width: 20),
-                          Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Stack(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: AnimatedSize(
+                            duration: durEslogan,
+                            curve: Curves.easeOutCubic,
+                            alignment: Alignment.topCenter,
                             child: Text(
-                              widget.eslogan!,
+                              eslogan,
                               textAlign: TextAlign.center,
-                              maxLines: _esloganExpandido ? 8 : 1,
-                              overflow: TextOverflow.ellipsis,
+                              maxLines: widget.esloganExpandido ? 8 : 1,
+                              overflow: widget.esloganExpandido
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis,
                               style: estiloEslogan,
                             ),
                           ),
-                          Icon(
-                            _esloganExpandido
+                        ),
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Icon(
+                            widget.esloganExpandido
                                 ? Icons.keyboard_arrow_up_rounded
                                 : Icons.keyboard_arrow_down_rounded,
                             size: 20,
                             color: AppColors.textoSuave,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1366,11 +1350,9 @@ class _JuegoTileState extends State<_JuegoTile>
       );
     }
 
-    // Si hay aspect de portada, el borde de la tarjeta = ancho de la foto.
+    // La tarjeta mantiene su tamaño; la portada se ve completa (sin recorte).
     final portadaAlAncho = widget.aspectPortada != null;
-    final fitPortada = portadaAlAncho
-        ? BoxFit.cover
-        : (cuadrada ? BoxFit.contain : BoxFit.cover);
+    final fitPortada = BoxFit.contain;
 
     Widget tarjeta({
       required double anchoFijo,

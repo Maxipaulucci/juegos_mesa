@@ -1066,9 +1066,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
+                  Text(
                           _textoEstadoPartida,
-                          textAlign: TextAlign.center,
+                    textAlign: TextAlign.center,
                           style: TextStyle(
                             color: _pcMostrandoJugada ||
                                     _puedeCapturar ||
@@ -1077,14 +1077,14 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                         !_esperandoMazoOnline)
                                 ? AppColors.mint
                                 : AppColors.textoSuave,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
                         if ((_faltaCartaMano && !_bloquearHumano) ||
                             _mensajePc != null ||
                             _aviso != null) ...[
-                          const SizedBox(height: 6),
+                    const SizedBox(height: 6),
                           SizedBox(
                             height: 40,
                             child: _faltaCartaMano && !_bloquearHumano
@@ -1107,9 +1107,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                     ),
                                     child: const Text(
                                       '👆 ¡Debés elegir una carta de tu mano sí o sí!',
-                                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        color: AppColors.acento,
+                        color: AppColors.acento,
                                         fontWeight: FontWeight.w900,
                                         fontSize: 14,
                                       ),
@@ -1145,12 +1145,12 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                                 ? AppColors.mint
                                                 : AppColors.acento),
                                         fontWeight: FontWeight.w900,
-                                        fontSize: 13,
+                        fontSize: 13,
                                       ),
                                     ),
-                                  ),
-                          ),
-                        ],
+                      ),
+                    ),
+                  ],
                         const SizedBox(height: 6),
                         Expanded(
                           child: LayoutBuilder(
@@ -1190,11 +1190,11 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                               mesaLabel,
                                               textAlign: TextAlign.center,
                                               style: const TextStyle(
-                                                color: AppColors.azul,
-                                                fontWeight: FontWeight.w900,
-                                                letterSpacing: 1,
-                                              ),
-                                            ),
+                      color: AppColors.azul,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
+                  ),
                                             if (widget.modoDios && !_esOnline)
                                               Align(
                                                 alignment:
@@ -1243,9 +1243,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                       const SizedBox(height: 4),
                                       SizedBox(
                                         height: 112,
-                                        child: _ZonaCartas(
+                    child: _ZonaCartas(
                                           cartas: _mesaParaMostrar,
-                                          seleccionadas: _mesaSeleccion,
+                      seleccionadas: _mesaSeleccion,
                                           animaciones: _ajustes.animaciones,
                                           onTap: (_bloquearHumano ||
                                                   _partida.fase !=
@@ -1254,15 +1254,15 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                               : _toggleMesa,
                                         ),
                                       ),
-                                      const SizedBox(height: 8),
+                    const SizedBox(height: 8),
                                       Center(child: _mazoEscobaWidget()),
                                       if (mostrarZonaPc) ...[
                                         const SizedBox(height: 8),
                                         if (mostrarPcCarta)
-                                          Row(
+                    Row(
                                             mainAxisAlignment:
                                                 MainAxisAlignment.center,
-                                            children: [
+                      children: [
                                               const Text(
                                                 'LA PC JUEGA CON',
                                                 style: TextStyle(
@@ -1270,9 +1270,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                                                   fontWeight: FontWeight.w900,
                                                   fontSize: 11,
                                                   letterSpacing: 0.8,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 10),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                                               _CartaTexto(
                                                 carta: _cartaSeleccionada!,
                                                 seleccionada: true,
@@ -1309,15 +1309,15 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        Text(
+                  Text(
                           'TU MANO · ${mano.nombre}',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.mint,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
-                          ),
-                        ),
+                    style: const TextStyle(
+                      color: AppColors.mint,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1,
+                    ),
+                  ),
                         // Fuera del contenedor de cartas, arriba a la derecha.
                         Align(
                           alignment: Alignment.centerRight,
@@ -1328,7 +1328,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                               onPressed: mano.mano.length < 2 ||
                                       _bloquearHumano ||
                                       _partida.fase != FaseEscoba.jugando
-                                  ? null
+                          ? null
                                   : _ciclarOrdenMano,
                             ),
                           ),
@@ -1521,9 +1521,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
             color: AppColors.textoSuave,
             fontWeight: FontWeight.w700,
             fontSize: 11,
-          ),
-        ),
-      ],
+              ),
+            ),
+        ],
     );
   }
 }
@@ -1844,10 +1844,10 @@ class _ZonaCartas extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
+          children: [
                 for (var i = 0; i < cartas.length; i++) ...[
                   if (i > 0) const SizedBox(width: gap),
-                  _CartaTexto(
+              _CartaTexto(
                     carta: cartas[i],
                     seleccionada: seleccionadas.contains(cartas[i]),
                     animaciones: animaciones,
