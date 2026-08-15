@@ -26,8 +26,4 @@ flutter:
     - assets/lottie/fireworks_a.json
     - assets/lottie/fireworks_b.json
     - assets/lottie/fireworks_c.json
-    - assets/img/portadas/portadaDiezMil.png
-    - assets/img/portadas/portadaGenerala.png
-    - assets/img/portadas/portadaLaPapa.jpeg
-    - assets/img/portadas/portadaEscoba.png
-    - assets/img/portadas/portadaProximamente.png
+    - assets/img/portadas/

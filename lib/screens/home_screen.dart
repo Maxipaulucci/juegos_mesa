@@ -109,12 +109,25 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with TickerProviderStateMixin {
-  static const _portadaProximamente =
-      'assets/img/portadas/portadaProximamente.png';
   static const _portadaDiezMil = 'assets/img/portadas/portadaDiezMil.png';
   static const _portadaGenerala = 'assets/img/portadas/portadaGenerala.png';
   static const _portadaLaPapa = 'assets/img/portadas/portadaLaPapa.jpeg';
   static const _portadaEscoba = 'assets/img/portadas/portadaEscoba.png';
+  static const _portadaTuttiFrutti =
+      'assets/img/portadas/portadaTuttiFrutti.png';
+  static const _portadaUnoSolo = 'assets/img/portadas/portadaUnoSolo.png';
+  static const _portadaCuloSucioV2 =
+      'assets/img/portadas/portadaCuloSucioV2.png';
+  static const _portadaCuloSucioV1 =
+      'assets/img/portadas/portadaCuloSucioV1.png';
+  static const _portadaCasitaRobada =
+      'assets/img/portadas/portadaCasitaRobada.png';
+  static const _portadaChanchoVa = 'assets/img/portadas/portadaChanchoVa.png';
+  static const _portadaGuerraDeCartas =
+      'assets/img/portadas/portadaGuerraDeCartas.png';
+  static const _portadaDesconfio = 'assets/img/portadas/portadaDesconfio.png';
+  static const _portadaJodete = 'assets/img/portadas/portadaJodete.png';
+  static const _portadaCanasta = 'assets/img/portadas/portadaCanasta.png';
 
   bool _navegando = false;
   _CategoriaHome _categoria = _CategoriaHome.todo;
@@ -164,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Letras · categorías online',
       accent: AppColors.rosa,
       categoria: _CategoriaHome.papel,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaTuttiFrutti,
       eslogan:
           'Una letra, mil categorías y el reloj que no perdona. Pensás '
           '“fruta con M…” y se te va la mente. Ideal para pelear en familia, '
@@ -203,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Tablero · una ficha en el centro',
       accent: AppColors.mint,
       categoria: _CategoriaHome.papel,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaUnoSolo,
       eslogan:
           'Una ficha en el centro y un tablero que pide estrategia (o suerte '
           'disfrazada). Ideal para pensar dos jugadas… o improvisar y '
@@ -215,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas · pares y el 1 de oro',
       accent: AppColors.acentoSuave,
       categoria: _CategoriaHome.cartasEspanolas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaCuloSucioV2,
       destacadoFuego: true,
       eslogan:
           'Pares, el 1 de oro y esa tensión de no querer quedar “sucio”. '
@@ -228,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas españolas · el 1 de oro pierde',
       accent: AppColors.peligro,
       categoria: _CategoriaHome.cartasEspanolas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaCuloSucioV1,
       eslogan:
           'La versión clásica: el 1 de oro te hunde y nadie te tiene piedad. '
           'Ideal para mesa rápida, insultos cariñosos y “una más”. '
@@ -240,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas · pares y casitas',
       accent: AppColors.mint,
       categoria: _CategoriaHome.cartasEspanolas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaCasitaRobada,
       eslogan:
           'Armás casitas, robás la del otro y mirás inocente. Ideal para '
           'pelear el montoncito con amigos o en familia y decir “era mía”. '
@@ -252,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas · cuartetos y CHANCHO VA',
       accent: AppColors.acentoSuave,
       categoria: _CategoriaHome.cartasEspanolas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaChanchoVa,
       eslogan:
           'Cuartetos, manos rápidas y el grito sagrado: ¡CHANCHO VA! Ideal '
           'para el caos controlado con amigos y quedar como el más lento '
@@ -264,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas inglesas · AS alto',
       accent: AppColors.azul,
       categoria: _CategoriaHome.cartasInglesas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaGuerraDeCartas,
       eslogan:
           'Carta contra carta, el AS manda y la suerte decide. Ideal para '
           'partidas cortas, dramas innecesarios y “¡guerra!”. '
@@ -276,7 +289,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Cartas españolas · bluff',
       accent: AppColors.azulSuave,
       categoria: _CategoriaHome.cartasEspanolas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaDesconfio,
       eslogan:
           'Bluff, cara de póker y ese “desconfío” que te salva… o te hunde. '
           'Ideal para mentir con estilo y pelear la mesa con amigos. '
@@ -288,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Españolas · 50 cartas',
       accent: AppColors.peligro,
       categoria: _CategoriaHome.cartasEspanolas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaJodete,
       eslogan:
           '50 cartas españolas y el placer de decir “jodete” con la jugada '
           'justa. Ideal para pelear turnos, reírse del rival y no soltar '
@@ -300,7 +313,7 @@ class _HomeScreenState extends State<HomeScreen>
       subtitulo: 'Próximamente',
       accent: AppColors.violeta,
       categoria: _CategoriaHome.cartasInglesas,
-      portadaAsset: _portadaProximamente,
+      portadaAsset: _portadaCanasta,
       enabled: false,
       eslogan:
           'Melés, canastas y puntos que se acumulan con paciencia… o con '
