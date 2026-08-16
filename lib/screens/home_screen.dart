@@ -36,11 +36,10 @@ import '../unoSolo/menu_uno_solo_screen.dart';
 import '../unoSolo/textos.dart';
 
 enum _CategoriaHome {
-  todo('Todo'),
   cartasEspanolas('Cartas españolas'),
   dados('Dados'),
   cartasInglesas('Cartas inglesas'),
-  papel('Papel');
+  papel('Tablero');
 
   const _CategoriaHome(this.label);
   final String label;
@@ -130,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen>
   static const _portadaCanasta = 'assets/img/portadas/portadaCanasta.png';
 
   bool _navegando = false;
-  _CategoriaHome _categoria = _CategoriaHome.todo;
+  _CategoriaHome? _categoria;
   bool _mostrarAjustes = false;
   AjustesEstado _ajustes = const AjustesEstado();
   _TipoJuegoHome? _esloganAbierto;
@@ -139,6 +138,9 @@ class _HomeScreenState extends State<HomeScreen>
   late final Animation<double> _tituloOpacidad;
   late final Animation<Offset> _tituloDesliz;
   final ScrollController _scrollController = ScrollController();
+  final Map<_CategoriaHome, GlobalKey> _claveSeccion = {
+    for (final c in _CategoriaHome.values) c: GlobalKey(),
+  };
   double _scrollObjetivo = 0;
   int _scrollAnimToken = 0;
   bool _ruedaAnimando = false;
@@ -296,6 +298,18 @@ class _HomeScreenState extends State<HomeScreen>
           '¿Estás listo para jugar?',
     ),
     _JuegoHome(
+      tipo: _TipoJuegoHome.unoSolo,
+      titulo: 'Uno solo',
+      subtitulo: 'Tablero · una ficha en el centro',
+      accent: AppColors.mint,
+      categoria: _CategoriaHome.papel,
+      portadaAsset: _portadaUnoSolo,
+      eslogan:
+          'Una ficha en el centro y un tablero que pide estrategia (o suerte '
+          'disfrazada). Ideal para pensar dos jugadas… o improvisar y '
+          'culpar al destino. ¿Estás listo para jugar?',
+    ),
+    _JuegoHome(
       tipo: _TipoJuegoHome.laPapa,
       titulo: 'La papa',
       subtitulo: 'Hoja · uní los números',
@@ -308,18 +322,6 @@ class _HomeScreenState extends State<HomeScreen>
           'cruzarte, pedís puente si hace falta y, si te animás, modo infernal. '
           'Ideal para pelear la hoja con amigos o en familia, culpar al dedo '
           'y decir “era imposible”. ¿Estás listo para jugar?',
-    ),
-    _JuegoHome(
-      tipo: _TipoJuegoHome.unoSolo,
-      titulo: 'Uno solo',
-      subtitulo: 'Tablero · una ficha en el centro',
-      accent: AppColors.mint,
-      categoria: _CategoriaHome.papel,
-      portadaAsset: _portadaUnoSolo,
-      eslogan:
-          'Una ficha en el centro y un tablero que pide estrategia (o suerte '
-          'disfrazada). Ideal para pensar dos jugadas… o improvisar y '
-          'culpar al destino. ¿Estás listo para jugar?',
     ),
   ];
 
@@ -389,18 +391,12 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  List<_JuegoHome> get _juegosFiltrados {
-    if (_categoria == _CategoriaHome.todo) return _juegos;
-    return [
-      for (final j in _juegos)
-        if (j.categoria == _categoria) j,
-    ];
-  }
+  List<_JuegoHome> get _juegosFiltrados => _juegos;
 
   int _columnasPara(double ancho) {
-    const gap = 4.0;
-    const alto = 420.0;
-    const chromeMin = 196.0;
+    const gap = 20.0;
+    const alto = 400.0;
+    const chromeMin = 218.0;
     final anchoTarjeta =
         math.max(120.0, (alto - chromeMin) * _JuegoHome.aspectPortadaHome);
     if (ancho >= 3 * anchoTarjeta + 2 * gap) return 3;
@@ -409,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   double _anchoTarjetaDe(_JuegoHome j, double alto) {
-    const chromeMin = 196.0;
+    const chromeMin = 218.0;
     final aspect = j.aspectPortada ?? _JuegoHome.aspectPortadaHome;
     return math.max(120.0, (alto - chromeMin) * aspect);
   }
@@ -422,7 +418,6 @@ class _HomeScreenState extends State<HomeScreen>
         width: _anchoTarjetaDe(j, alto),
         child: _JuegoTile(
           titulo: j.titulo,
-          subtitulo: j.subtitulo,
           accent: j.accent,
           enabled: j.enabled,
           destacadoFuego: j.destacadoFuego,
@@ -641,19 +636,34 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _seleccionarCategoria(_CategoriaHome cat) {
-    if (cat == _categoria) return;
-    setState(() {
-      _categoria = cat;
-      _esloganAbierto = null;
+    setState(() => _categoria = cat);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _centrarSeccion(cat);
     });
-    _scrollAnimToken++;
-    _scrollObjetivo = 0;
+  }
+
+  Future<void> _centrarSeccion(_CategoriaHome cat) async {
+    final ctx = _claveSeccion[cat]?.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    final token = ++_scrollAnimToken;
+    _ruedaAnimando = true;
+    final dur = _ajustes.animaciones
+        ? const Duration(milliseconds: 620)
+        : Duration.zero;
+    await Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.5,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      duration: dur == Duration.zero
+          ? const Duration(milliseconds: 1)
+          : dur,
+      curve: Curves.easeInOutCubic,
+    );
+    if (!mounted || token != _scrollAnimToken) return;
+    _ruedaAnimando = false;
     if (_scrollController.hasClients) {
-      _scrollController.jumpTo(0);
+      _scrollObjetivo = _scrollController.offset;
     }
-    _listaEntrada
-      ..reset()
-      ..forward();
   }
 
   void _onPointerSignalScroll(PointerSignalEvent event) {
@@ -708,12 +718,14 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 8),
-                  FadeTransition(
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: FadeTransition(
                     opacity: _tituloOpacidad,
                     child: SlideTransition(
                       position: _tituloDesliz,
@@ -722,23 +734,66 @@ class _HomeScreenState extends State<HomeScreen>
                         children: [
                           Column(
                             children: [
-                              ShaderMask(
-                                shaderCallback: (bounds) =>
-                                    const LinearGradient(
-                                  colors: [
-                                    Colors.white,
-                                    AppColors.acento,
-                                    AppColors.azul,
-                                  ],
-                                ).createShader(bounds),
-                                child: const Text(
-                                  'JUEGOS DE MESA',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 48),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ShaderMask(
+                                        blendMode: BlendMode.srcIn,
+                                        shaderCallback: (bounds) =>
+                                            const LinearGradient(
+                                          colors: [
+                                            Colors.white,
+                                            AppColors.acento,
+                                            AppColors.azul,
+                                          ],
+                                        ).createShader(bounds),
+                                        child: const Text(
+                                          'Juegos de mesa ',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 0.4,
+                                            height: 1.05,
+                                          ),
+                                        ),
+                                      ),
+                                      ShaderMask(
+                                        blendMode: BlendMode.srcIn,
+                                        shaderCallback: (bounds) =>
+                                            const LinearGradient(
+                                          colors: [
+                                            AppColors.azul,
+                                            Colors.white,
+                                            AppColors.acento,
+                                            Colors.white,
+                                            AppColors.azul,
+                                          ],
+                                          stops: [
+                                            0,
+                                            0.28,
+                                            0.5,
+                                            0.72,
+                                            1,
+                                          ],
+                                        ).createShader(bounds),
+                                        child: const Text(
+                                          'Argentos',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 0.4,
+                                            height: 1.05,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -793,13 +848,17 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
                     ),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  FadeTransition(
-                    opacity: _tituloOpacidad,
-                    child: _BarraCategorias(
-                      seleccionada: _categoria,
-                      onSeleccionar: _seleccionarCategoria,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: FadeTransition(
+                      opacity: _tituloOpacidad,
+                      child: _BarraCategorias(
+                        seleccionada: _categoria,
+                        onSeleccionar: _seleccionarCategoria,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -836,8 +895,8 @@ class _HomeScreenState extends State<HomeScreen>
                                         final columnas =
                                             _columnasPara(constraints.maxWidth);
                                         const altoCompacta = 132.0;
-                                        const altoCuadradaConEslogan = 420.0;
-                                        const gap = 4.0;
+                                        const altoCuadradaConEslogan = 400.0;
+                                        const gap = 20.0;
                                         const categoriasOrden = [
                                           _CategoriaHome.cartasEspanolas,
                                           _CategoriaHome.dados,
@@ -880,20 +939,12 @@ class _HomeScreenState extends State<HomeScreen>
                                           );
                                         }
 
-                                        return ListView.separated(
-                                          key: ValueKey(_categoria),
+                                        return ListView.builder(
                                           controller: _scrollController,
-                                          padding: const EdgeInsets.fromLTRB(
-                                            4,
-                                            4,
-                                            4,
-                                            12,
-                                          ),
+                                          padding: EdgeInsets.zero,
                                           physics:
                                               const ClampingScrollPhysics(),
                                           itemCount: secciones.length,
-                                          separatorBuilder: (_, __) =>
-                                              const SizedBox(height: 14),
                                           itemBuilder: (context, i) {
                                             final seccion = secciones[i];
                                             var base = 0;
@@ -901,69 +952,71 @@ class _HomeScreenState extends State<HomeScreen>
                                               base +=
                                                   secciones[s].juegos.length;
                                             }
+                                            final fondoSeccion = i.isEven
+                                                ? AppColors.carta.withValues(
+                                                    alpha: 0.38,
+                                                  )
+                                                : AppColors.fondo;
 
-                                            return Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.fromLTRB(
-                                                    10,
-                                                    4,
-                                                    10,
-                                                    8,
-                                                  ),
-                                                  child: Text(
-                                                    seccion.cat.label,
-                                                    style: const TextStyle(
-                                                      color: AppColors.texto,
-                                                      fontWeight:
-                                                          FontWeight.w900,
-                                                      fontSize: 16,
-                                                      letterSpacing: 0.4,
-                                                    ),
-                                                  ),
+                                            return ColoredBox(
+                                              key: _claveSeccion[seccion.cat],
+                                              color: fondoSeccion,
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                  16,
+                                                  12,
+                                                  16,
+                                                  16,
                                                 ),
-                                                DecoratedBox(
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.carta
-                                                        .withValues(
-                                                      alpha: 0.38,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                      16,
-                                                    ),
-                                                    border: Border.all(
-                                                      color: AppColors
-                                                          .textoSuave
-                                                          .withValues(
-                                                        alpha: 0.22,
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    Text(
+                                                      seccion.cat.label,
+                                                      style: const TextStyle(
+                                                        color: AppColors.texto,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        fontSize: 16,
+                                                        letterSpacing: 0.4,
                                                       ),
                                                     ),
-                                                  ),
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets
-                                                            .fromLTRB(
-                                                      2,
-                                                      8,
-                                                      2,
-                                                      8,
-                                                    ),
-                                                    child: _CarruselCategoria(
+                                                    const SizedBox(height: 8),
+                                                    _CarruselCategoria(
                                                       key: ValueKey(
                                                         seccion.cat,
                                                       ),
                                                       juegos: seccion.juegos,
                                                       visibles: columnas,
                                                       gap: gap,
+                                                      anchoFila: () {
+                                                        final v = math.min(
+                                                          columnas,
+                                                          seccion.juegos.length,
+                                                        );
+                                                        if (v <= 0) return 0.0;
+                                                        var w = 0.0;
+                                                        for (var c = 0;
+                                                            c < v;
+                                                            c++) {
+                                                          if (c > 0) w += gap;
+                                                          w += _anchoTarjetaDe(
+                                                            seccion.juegos[c],
+                                                            altoDe(
+                                                              seccion.juegos[c],
+                                                            ),
+                                                          );
+                                                        }
+                                                        return w;
+                                                      }(),
                                                       altoFila: altoFilaDe(
                                                         seccion.juegos,
                                                       ),
-                                                      animaciones:
-                                                          _ajustes.animaciones,
+                                                      animaciones: _ajustes
+                                                          .animaciones,
                                                       buildTile:
                                                           (juego, index) =>
                                                               _tileDeJuego(
@@ -972,9 +1025,9 @@ class _HomeScreenState extends State<HomeScreen>
                                                         alto: altoDe(juego),
                                                       ),
                                                     ),
-                                                  ),
+                                                  ],
                                                 ),
-                                              ],
+                                              ),
                                             );
                                           },
                                         );
@@ -994,13 +1047,16 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                   ),
                   const SizedBox(height: 8),
-                  FadeTransition(
-                    opacity: _tituloOpacidad,
-                    child: const Text(
-                      'Elegí un juego para crear o unirte a una sala',
-                      textAlign: TextAlign.center,
-                      style:
-                          TextStyle(color: AppColors.textoSuave, fontSize: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: FadeTransition(
+                      opacity: _tituloOpacidad,
+                      child: const Text(
+                        'Elegí un juego para crear o unirte a una sala',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: AppColors.textoSuave, fontSize: 12),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1028,6 +1084,7 @@ class _CarruselCategoria extends StatefulWidget {
     required this.juegos,
     required this.visibles,
     required this.gap,
+    required this.anchoFila,
     required this.altoFila,
     required this.buildTile,
     required this.animaciones,
@@ -1036,6 +1093,7 @@ class _CarruselCategoria extends StatefulWidget {
   final List<_JuegoHome> juegos;
   final int visibles;
   final double gap;
+  final double anchoFila;
   final double altoFila;
   final bool animaciones;
   final Widget Function(_JuegoHome juego, int index) buildTile;
@@ -1045,10 +1103,15 @@ class _CarruselCategoria extends StatefulWidget {
 }
 
 class _CarruselCategoriaState extends State<_CarruselCategoria> {
-  int _pagina = 0;
-  int _dir = 1;
+  static const _ciclo = 400;
+  late final PageController _paginas;
+  bool _enMovimiento = false;
 
   int get _porPagina => widget.visibles.clamp(1, 99);
+
+  Duration get _duracion => widget.animaciones
+      ? const Duration(milliseconds: 780)
+      : Duration.zero;
 
   int get _totalPaginas {
     if (widget.juegos.isEmpty) return 1;
@@ -1057,23 +1120,40 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
 
   bool get _hayMas => widget.juegos.length > _porPagina;
 
-  @override
-  void didUpdateWidget(covariant _CarruselCategoria oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.visibles != widget.visibles ||
-        oldWidget.juegos.length != widget.juegos.length) {
-      _pagina = _pagina.clamp(0, math.max(0, _totalPaginas - 1));
-    }
+  int get _paginaInicial =>
+      _hayMas ? _totalPaginas * _ciclo : 0;
+
+  int _mod(int i, int m) {
+    if (m <= 0) return 0;
+    return (i % m + m) % m;
   }
 
-  void _ir(int delta) {
-    if (!_hayMas) return;
-    final n = _totalPaginas;
-    setState(() {
-      _dir = delta >= 0 ? 1 : -1;
-      _pagina = (_pagina + delta) % n;
-      if (_pagina < 0) _pagina += n;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _paginas = PageController(initialPage: _paginaInicial);
+  }
+
+  @override
+  void dispose() {
+    _paginas.dispose();
+    super.dispose();
+  }
+
+  Future<void> _ir(int delta) async {
+    if (!_hayMas || _enMovimiento || !_paginas.hasClients) return;
+    setState(() => _enMovimiento = true);
+    final actual = _paginas.page?.round() ?? _paginaInicial;
+    if (!widget.animaciones) {
+      _paginas.jumpToPage(actual + delta);
+    } else {
+      await _paginas.animateToPage(
+        actual + delta,
+        duration: _duracion,
+        curve: Curves.easeInOutSine,
+      );
+    }
+    if (mounted) setState(() => _enMovimiento = false);
   }
 
   List<({_JuegoHome juego, int index})> _cartasDe(int pagina) {
@@ -1085,11 +1165,14 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
       ];
     }
     final v = _porPagina;
-    final inicio = pagina * v;
+    var inicio = pagina * v;
+    if (inicio + v > n) {
+      inicio = n - v;
+    }
     return [
       for (var c = 0; c < v; c++)
         (
-          juego: widget.juegos[(inicio + c) % n],
+          juego: widget.juegos[inicio + c],
           index: inicio + c,
         ),
     ];
@@ -1127,8 +1210,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
   Widget _filaDe(int pagina) {
     final cartas = _cartasDe(pagina);
     return Row(
-      key: ValueKey(pagina),
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var c = 0; c < cartas.length; c++) ...[
@@ -1141,49 +1223,59 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
 
   @override
   Widget build(BuildContext context) {
-    final dur = widget.animaciones
-        ? const Duration(milliseconds: 320)
-        : Duration.zero;
     return SizedBox(
       height: widget.altoFila,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          GestureDetector(
-            onHorizontalDragEnd: !_hayMas
-                ? null
-                : (details) {
-                    final vx = details.primaryVelocity ?? 0;
-                    if (vx <= -180) {
-                      _ir(1);
-                    } else if (vx >= 180) {
-                      _ir(-1);
-                    }
+          Center(
+            child: SizedBox(
+              width: widget.anchoFila +
+                  (_hayMas ? widget.gap : 0),
+              height: widget.altoFila,
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.stylus,
+                    PointerDeviceKind.trackpad,
                   },
-            child: ClipRect(
-              child: AnimatedSwitcher(
-                duration: dur,
-                switchInCurve: Curves.easeInOutCubic,
-                switchOutCurve: Curves.easeInOutCubic,
-                layoutBuilder: (current, previous) => Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    ...previous,
-                    if (current != null) current,
-                  ],
                 ),
-                transitionBuilder: (child, anim) {
-                  final entra = child.key == ValueKey(_pagina);
-                  final inicio = Offset(_dir * (entra ? 1.0 : -1.0), 0);
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: inicio,
-                      end: Offset.zero,
-                    ).animate(anim),
-                    child: child,
-                  );
-                },
-                child: _filaDe(_pagina),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (!_hayMas) return false;
+                    if (n.depth != 0) return false;
+                    if (n is ScrollStartNotification) {
+                      if (!_enMovimiento) {
+                        setState(() => _enMovimiento = true);
+                      }
+                    } else if (n is ScrollEndNotification) {
+                      if (_enMovimiento) {
+                        setState(() => _enMovimiento = false);
+                      }
+                    }
+                    return false;
+                  },
+                  child: PageView.builder(
+                    controller: _paginas,
+                    physics: _hayMas
+                        ? const BouncingScrollPhysics()
+                        : const NeverScrollableScrollPhysics(),
+                    itemCount: _hayMas ? null : 1,
+                    itemBuilder: (context, index) {
+                      final pagina =
+                          _hayMas ? _mod(index, _totalPaginas) : 0;
+                      if (!_hayMas) return _filaDe(pagina);
+                      return Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: widget.gap / 2,
+                        ),
+                        child: _filaDe(pagina),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           ),
@@ -1215,7 +1307,7 @@ class _BarraCategorias extends StatelessWidget {
     required this.onSeleccionar,
   });
 
-  final _CategoriaHome seleccionada;
+  final _CategoriaHome? seleccionada;
   final ValueChanged<_CategoriaHome> onSeleccionar;
 
   @override
@@ -1297,7 +1389,6 @@ class _BarraCategorias extends StatelessWidget {
 class _JuegoTile extends StatefulWidget {
   const _JuegoTile({
     required this.titulo,
-    required this.subtitulo,
     required this.accent,
     required this.portadaAsset,
     this.onJugar,
@@ -1314,7 +1405,6 @@ class _JuegoTile extends StatefulWidget {
   });
 
   final String titulo;
-  final String subtitulo;
   final Color accent;
   final String portadaAsset;
   final VoidCallback? onJugar;
@@ -1530,9 +1620,22 @@ class _JuegoTileState extends State<_JuegoTile>
       if (widget.eslogan != null && widget.esloganExpandible) {
         final eslogan = widget.eslogan!;
         return Padding(
-          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
           child: Column(
             children: [
+              Text(
+                widget.titulo,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 6),
               Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -1607,10 +1710,23 @@ class _JuegoTileState extends State<_JuegoTile>
 
       // Sin eslogan (o no expandible): botones centrados en el pie.
       return Padding(
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
         child: Column(
           children: [
+            Text(
+              widget.titulo,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.texto,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                height: 1.1,
+              ),
+            ),
             if (widget.eslogan != null) ...[
+              const SizedBox(height: 6),
               Text(
                 widget.eslogan!,
                 textAlign: TextAlign.center,
@@ -1725,65 +1841,6 @@ class _JuegoTileState extends State<_JuegoTile>
                                 ),
                               ),
                             ),
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.transparent,
-                                      AppColors.fondo.withValues(alpha: 0.9),
-                                    ],
-                                  ),
-                                ),
-                                child: Padding(
-                                  padding: EdgeInsets.fromLTRB(
-                                    cuadrada ? 10 : 8,
-                                    cuadrada ? 22 : 16,
-                                    cuadrada ? 10 : 8,
-                                    cuadrada ? 8 : 6,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        widget.titulo,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: AppColors.texto,
-                                          fontSize: cuadrada ? 15 : 13,
-                                          fontWeight: FontWeight.w900,
-                                          height: 1.1,
-                                          shadows: const [
-                                            Shadow(
-                                              color: Colors.black54,
-                                              blurRadius: 4,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Text(
-                                        widget.subtitulo,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: widget.accent,
-                                          fontSize: cuadrada ? 11 : 10,
-                                          fontWeight: FontWeight.w700,
-                                          height: 1.15,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
                             if (fuego)
                               const Positioned(
                                 top: 4,
@@ -1888,64 +1945,6 @@ class _JuegoTileState extends State<_JuegoTile>
                             ),
                           ),
                         ),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  AppColors.fondo.withValues(alpha: 0.9),
-                                ],
-                              ),
-                            ),
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                cuadrada ? 10 : 8,
-                                cuadrada ? 22 : 16,
-                                cuadrada ? 10 : 8,
-                                cuadrada ? 8 : 6,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    widget.titulo,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: AppColors.texto,
-                                      fontSize: cuadrada ? 15 : 13,
-                                      fontWeight: FontWeight.w900,
-                                      height: 1.1,
-                                      shadows: const [
-                                        Shadow(
-                                          color: Colors.black54,
-                                          blurRadius: 4,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    widget.subtitulo,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: widget.accent,
-                                      fontSize: cuadrada ? 11 : 10,
-                                      fontWeight: FontWeight.w700,
-                                      height: 1.15,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
                         if (fuego)
                           const Positioned(
                             top: 4,
@@ -1976,7 +1975,7 @@ class _JuegoTileState extends State<_JuegoTile>
             ? constraints.maxHeight
             : 420.0;
         // Reserva fija (eslogan + botones) para que todas midan igual que Diez Mil.
-        const chromeMin = 196.0;
+        const chromeMin = 218.0;
         final anchoIdeal = (maxH - chromeMin) * aspect;
         final ancho = math.min(maxW, math.max(120.0, anchoIdeal));
         final altoImg = math.min(ancho / aspect, maxH - chromeMin);
