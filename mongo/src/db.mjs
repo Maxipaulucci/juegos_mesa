@@ -33,6 +33,11 @@ export function registrosPendientes() {
   return base().collection('registrosPendientes');
 }
 
+/** Pedidos de recuperación de contraseña. Se borran solos a los 15 min. */
+export function recuperacionesPendientes() {
+  return base().collection('recuperacionesPendientes');
+}
+
 export async function cerrar() {
   if (cliente) await cliente.close();
   cliente = undefined;

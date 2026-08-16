@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { randomInt } from 'node:crypto';
 import { ObjectId } from 'mongodb';
 import { jwtDias, jwtSecret } from './env.mjs';
-import { partidas, registrosPendientes, usuarios } from './db.mjs';
+import { partidas, recuperacionesPendientes, registrosPendientes, usuarios } from './db.mjs';
 import { JUEGO_GLOBAL, JUEGOS, juegoValido, puntosVacios } from './juegos.mjs';
 import { enviarCodigoRegistro } from './mail.mjs';
 
@@ -246,6 +246,136 @@ export async function login(req, res) {
     return;
   }
   res.json({ token: firmar(doc._id), usuario: publico(doc) });
+}
+
+async function guardarCodigoRecuperacion(email) {
+  const codigo = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  const ahora = new Date();
+  const expiraEn = new Date(ahora.getTime() + TTL_MS);
+  await recuperacionesPendientes().deleteMany({ email });
+  await recuperacionesPendientes().insertOne({
+    email,
+    codigoHash: await bcrypt.hash(codigo, RONDAS_HASH),
+    verificado: false,
+    creadoEn: ahora,
+    expiraEn,
+  });
+  await enviarCodigoRegistro({ email, codigo });
+  return expiraEn;
+}
+
+export async function pedirRecuperacion(req, res) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!emailOk(email)) {
+    res.status(400).json({ error: 'El email no es válido.' });
+    return;
+  }
+  const doc = await usuarios().findOne({ email });
+  if (!doc) {
+    res.status(404).json({ error: 'Ese email no está registrado.' });
+    return;
+  }
+  try {
+    const expiraEn = await guardarCodigoRecuperacion(email);
+    res.json({
+      ok: true,
+      email,
+      expiraEn: expiraEn.toISOString(),
+      minutos: 15,
+    });
+  } catch (e) {
+    console.error(e);
+    await recuperacionesPendientes().deleteMany({ email });
+    res.status(502).json({
+      error:
+        'No se pudo enviar el mail. Revisá SMTP_USER y SMTP_PASS en mongo/.env.',
+    });
+  }
+}
+
+export async function reenviarRecuperacion(req, res) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!emailOk(email)) {
+    res.status(400).json({ error: 'El email no es válido.' });
+    return;
+  }
+  const pend = await recuperacionesPendientes().findOne({ email });
+  if (!pend) {
+    res.status(400).json({ error: 'Pedí primero el código de recuperación.' });
+    return;
+  }
+  try {
+    const expiraEn = await guardarCodigoRecuperacion(email);
+    res.json({
+      ok: true,
+      email,
+      expiraEn: expiraEn.toISOString(),
+      minutos: 15,
+    });
+  } catch (e) {
+    console.error(e);
+    await recuperacionesPendientes().deleteMany({ email });
+    res.status(502).json({ error: 'No se pudo enviar el mail.' });
+  }
+}
+
+export async function verificarRecuperacion(req, res) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const codigo = String(req.body?.codigo || '').trim();
+  if (!emailOk(email) || !/^\d{6}$/.test(codigo)) {
+    res.status(400).json({ error: 'Ingresá el código de 6 dígitos.' });
+    return;
+  }
+  const pend = await recuperacionesPendientes().findOne({ email });
+  if (!pend || new Date(pend.expiraEn).getTime() < Date.now()) {
+    if (pend) await recuperacionesPendientes().deleteOne({ _id: pend._id });
+    res.status(400).json({ error: 'El código expiró o no existe. Pedilo de nuevo.' });
+    return;
+  }
+  const ok = await bcrypt.compare(codigo, pend.codigoHash || '');
+  if (!ok) {
+    res.status(401).json({ error: 'El código no es correcto.' });
+    return;
+  }
+  await recuperacionesPendientes().updateOne(
+    { _id: pend._id },
+    { $set: { verificado: true } },
+  );
+  res.json({ ok: true, email });
+}
+
+export async function restablecerClave(req, res) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  if (!emailOk(email)) {
+    res.status(400).json({ error: 'El email no es válido.' });
+    return;
+  }
+  if (password.length < 6) {
+    res.status(400).json({ error: 'La contraseña tiene que tener al menos 6 caracteres.' });
+    return;
+  }
+  const pend = await recuperacionesPendientes().findOne({ email, verificado: true });
+  if (!pend || new Date(pend.expiraEn).getTime() < Date.now()) {
+    if (pend) await recuperacionesPendientes().deleteOne({ _id: pend._id });
+    res.status(400).json({ error: 'El código expiró. Pedí recuperar de nuevo.' });
+    return;
+  }
+  const actualizado = await usuarios().updateOne(
+    { email },
+    {
+      $set: {
+        passwordHash: await bcrypt.hash(password, RONDAS_HASH),
+        actualizadoEn: new Date(),
+      },
+    },
+  );
+  await recuperacionesPendientes().deleteMany({ email });
+  if (!actualizado.matchedCount) {
+    res.status(404).json({ error: 'Usuario no encontrado.' });
+    return;
+  }
+  res.json({ ok: true });
 }
 
 export async function yo(req, res) {

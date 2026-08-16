@@ -164,6 +164,8 @@ class _HomeScreenState extends State<HomeScreen>
   _CategoriaHome? _categoria;
   bool _mostrarAjustes = false;
   bool _mostrarCuenta = false;
+  String? _avisoExito;
+  int _avisoToken = 0;
   AjustesEstado _ajustes = const AjustesEstado();
   _TipoJuegoHome? _esloganAbierto;
   late final AnimationController _entrada;
@@ -392,6 +394,15 @@ class _HomeScreenState extends State<HomeScreen>
     _listaEntrada.dispose();
     _entrada.dispose();
     super.dispose();
+  }
+
+  void _mostrarAvisoExito(String texto) {
+    final token = ++_avisoToken;
+    setState(() => _avisoExito = texto);
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      if (!mounted || token != _avisoToken) return;
+      setState(() => _avisoExito = null);
+    });
   }
 
   void _scrollConRueda(double delta) {
@@ -1257,6 +1268,35 @@ class _HomeScreenState extends State<HomeScreen>
               child: CuentaOverlay(
                 onCerrar: () => setState(() => _mostrarCuenta = false),
                 onSesion: () => setState(() {}),
+                onExito: _mostrarAvisoExito,
+              ),
+            ),
+          if (_avisoExito != null)
+            Positioned(
+              top: 0,
+              left: 16,
+              right: 16,
+              child: SafeArea(
+                child: Material(
+                  color: const Color(0xFF22C55E),
+                  elevation: 10,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Text(
+                      _avisoExito!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
         ],
@@ -2070,9 +2110,11 @@ class _JuegoTileState extends State<_JuegoTile>
           ? const Duration(milliseconds: 280)
           : Duration.zero;
 
-      final botonesArcade = Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      final botonesArcade = FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           _HomeArcadePill(
             label: 'JUGAR',
             icon: Icons.play_arrow_rounded,
@@ -2101,6 +2143,7 @@ class _JuegoTileState extends State<_JuegoTile>
             onPressed: widget.onReglas,
           ),
         ],
+        ),
       );
 
       if (widget.eslogan != null && widget.esloganExpandible) {

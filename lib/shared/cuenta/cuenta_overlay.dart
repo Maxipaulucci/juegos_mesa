@@ -6,12 +6,20 @@ import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 enum _Pestania { login, registro }
 
+enum _VistaCuenta { auth, recupMail, recupCodigo, recupPass }
+
 /// Modal de cuenta: mismas pantallas que Maxturnos, paleta arcade de esta app.
 class CuentaOverlay extends StatefulWidget {
-  const CuentaOverlay({super.key, required this.onCerrar, this.onSesion});
+  const CuentaOverlay({
+    super.key,
+    required this.onCerrar,
+    this.onSesion,
+    this.onExito,
+  });
 
   final VoidCallback onCerrar;
   final VoidCallback? onSesion;
+  final ValueChanged<String>? onExito;
 
   @override
   State<CuentaOverlay> createState() => _CuentaOverlayState();
@@ -20,6 +28,7 @@ class CuentaOverlay extends StatefulWidget {
 class _CuentaOverlayState extends State<CuentaOverlay> {
   final _api = UsuarioMongoService.instance;
   _Pestania _tab = _Pestania.login;
+  _VistaCuenta _vista = _VistaCuenta.auth;
   bool _verificando = false;
 
   final _usuario = TextEditingController();
@@ -28,9 +37,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   final _password2 = TextEditingController();
   final _codigo = TextEditingController();
   final _loginClave = TextEditingController();
+  final _recupEmail = TextEditingController();
+  final _nuevaPass = TextEditingController();
+  final _nuevaPass2 = TextEditingController();
 
   bool _ocultarPass = true;
   bool _ocultarPass2 = true;
+  bool _ocultarNueva = true;
+  bool _ocultarNueva2 = true;
   bool _cargando = false;
   String? _error;
   String _emailPendiente = '';
@@ -43,6 +57,9 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     _password2.dispose();
     _codigo.dispose();
     _loginClave.dispose();
+    _recupEmail.dispose();
+    _nuevaPass.dispose();
+    _nuevaPass2.dispose();
     super.dispose();
   }
 
@@ -99,6 +116,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         email: _emailPendiente,
         codigo: _codigo.text.trim(),
       );
+      widget.onExito?.call('Registro exitoso!');
       widget.onSesion?.call();
       widget.onCerrar();
     });
@@ -120,9 +138,97 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         usuario: _loginClave.text.trim(),
         password: _password.text,
       );
+      widget.onExito?.call('Inicio de sesión exitoso!');
       widget.onSesion?.call();
       widget.onCerrar();
     });
+  }
+
+  void _abrirRecuperacion() {
+    final clave = _loginClave.text.trim();
+    _recupEmail.text = clave.contains('@') ? clave : '';
+    _codigo.clear();
+    _nuevaPass.clear();
+    _nuevaPass2.clear();
+    setState(() {
+      _vista = _VistaCuenta.recupMail;
+      _error = null;
+    });
+  }
+
+  void _volverLogin() {
+    setState(() {
+      _vista = _VistaCuenta.auth;
+      _tab = _Pestania.login;
+      _error = null;
+      _verificando = false;
+    });
+  }
+
+  Future<void> _enviarCodigoRecupero() async {
+    final mail = _recupEmail.text.trim();
+    if (mail.isEmpty) {
+      setState(() => _error = 'Ingresá tu email.');
+      return;
+    }
+    await _correr(() async {
+      await _api.pedirRecuperacion(email: mail);
+      _emailPendiente = mail;
+      _codigo.clear();
+      setState(() => _vista = _VistaCuenta.recupCodigo);
+    });
+  }
+
+  Future<void> _verificarRecupero() async {
+    await _correr(() async {
+      await _api.verificarRecuperacion(
+        email: _emailPendiente,
+        codigo: _codigo.text.trim(),
+      );
+      _nuevaPass.clear();
+      _nuevaPass2.clear();
+      setState(() => _vista = _VistaCuenta.recupPass);
+    });
+  }
+
+  Future<void> _reenviarRecupero() async {
+    await _correr(() async {
+      await _api.reenviarRecuperacion(email: _emailPendiente);
+    });
+  }
+
+  Future<void> _restablecer() async {
+    final pass = _nuevaPass.text;
+    final pass2 = _nuevaPass2.text;
+    if (pass.isEmpty || pass2.isEmpty) {
+      setState(() => _error = 'Completá los dos campos.');
+      return;
+    }
+    if (pass != pass2) {
+      setState(() => _error = 'Las contraseñas no coinciden.');
+      return;
+    }
+    await _correr(() async {
+      await _api.restablecerClave(email: _emailPendiente, password: pass);
+      _password.clear();
+      widget.onExito?.call('Cambio de contraseña exitoso!');
+      _volverLogin();
+    });
+  }
+
+  Widget _cuerpoModal() {
+    if (_api.haySesion) return _pantallaPerfil();
+    if (_verificando) return _pantallaCodigo();
+    switch (_vista) {
+      case _VistaCuenta.recupMail:
+        return _pantallaRecupMail();
+      case _VistaCuenta.recupCodigo:
+        return _pantallaRecupCodigo();
+      case _VistaCuenta.recupPass:
+        return _pantallaRecupPass();
+      case _VistaCuenta.auth:
+        return _pantallaAuth();
+    }
   }
 
   @override
@@ -150,7 +256,6 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                     onTap: () {},
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(22, 14, 22, 22),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
@@ -165,11 +270,17 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                         border: Border.all(color: AppColors.azul, width: 2),
                         boxShadow: neonGlow(AppColors.azul, blur: 18),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      child: Stack(
                         children: [
-                          Align(
-                            alignment: Alignment.centerRight,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(22, 62, 22, 22),
+                            child: SingleChildScrollView(
+                              child: _cuerpoModal(),
+                            ),
+                          ),
+                          Positioned(
+                            top: 14,
+                            right: 8,
                             child: Material(
                               color: AppColors.carta,
                               shape: const CircleBorder(),
@@ -187,13 +298,6 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                                 ),
                               ),
                             ),
-                          ),
-                          SingleChildScrollView(
-                            child: _verificando
-                                ? _pantallaCodigo()
-                                : _api.haySesion
-                                    ? _pantallaPerfil()
-                                    : _pantallaAuth(),
                           ),
                         ],
                       ),
@@ -271,7 +375,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     return [
       _campo(
         label: 'Usuario o email',
-        hint: 'usuario o ejemplo@email.com',
+        hint: 'Usuario o ejemplo@email.com',
         controller: _loginClave,
         iconoIzq: Icons.email_outlined,
       ),
@@ -289,12 +393,20 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
       const SizedBox(height: 8),
       Align(
         alignment: Alignment.centerLeft,
-        child: Text(
-          '¿Olvidaste tu contraseña?',
-          style: TextStyle(
-            color: AppColors.textoSuave.withValues(alpha: 0.85),
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
+        child: TextButton(
+          onPressed: _cargando ? null : _abrirRecuperacion,
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(
+            '¿Olvidaste tu contraseña?',
+            style: TextStyle(
+              color: AppColors.textoSuave.withValues(alpha: 0.85),
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ),
       ),
@@ -318,7 +430,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
       const SizedBox(height: 12),
       _campo(
         label: 'Email',
-        hint: 'ejemplo@email.com',
+        hint: 'Ejemplo@email.com',
         controller: _email,
         iconoIzq: Icons.email_outlined,
         teclado: TextInputType.emailAddress,
@@ -429,11 +541,196 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
             'Reenviar código',
             style: TextStyle(
               color: AppColors.azul,
-              decoration: TextDecoration.underline,
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _errorSiHay() {
+    if (_error == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        _error!,
+        style: const TextStyle(
+          color: AppColors.peligro,
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+
+  Widget _spinner() {
+    if (!_cargando) return const SizedBox.shrink();
+    return const Padding(
+      padding: EdgeInsets.only(top: 12),
+      child: Center(
+        child: SizedBox(
+          width: 26,
+          height: 26,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.4,
+            color: AppColors.azul,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pantallaRecupMail() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Ingresa tu mail',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.texto,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 18),
+        _errorSiHay(),
+        _campo(
+          label: 'Email',
+          hint: 'ejemplo@email.com',
+          controller: _recupEmail,
+          iconoIzq: Icons.email_outlined,
+          teclado: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 16),
+        _cta('Enviar código', _cargando ? null : _enviarCodigoRecupero),
+        _spinner(),
+        const SizedBox(height: 14),
+        TextButton(
+          onPressed: _cargando ? null : _volverLogin,
+          child: const Text(
+            'Volver a iniciar sesión',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textoSuave,
+              decoration: TextDecoration.underline,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pantallaRecupCodigo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Recuperar contraseña',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.texto,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Hemos enviado un código de recuperación a:',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textoSuave, fontSize: 14),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _emailPendiente,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.texto,
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _errorSiHay(),
+        _campo(
+          label: 'Código de verificación',
+          hint: '0 0 0 0 0 0',
+          controller: _codigo,
+          iconoIzq: Icons.vpn_key_outlined,
+          teclado: TextInputType.number,
+          maxChars: 6,
+        ),
+        const SizedBox(height: 16),
+        _cta('Verificar', _cargando ? null : _verificarRecupero),
+        _spinner(),
+        const SizedBox(height: 16),
+        const Text(
+          '¿No recibiste el código?',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textoSuave, fontSize: 13),
+        ),
+        TextButton(
+          onPressed: _cargando ? null : _reenviarRecupero,
+          child: const Text(
+            'Reenviar código',
+            style: TextStyle(
+              color: AppColors.azul,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pantallaRecupPass() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Cambiar contraseña',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.texto,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Ingresa tu nueva contraseña',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textoSuave, fontSize: 14),
+        ),
+        const SizedBox(height: 18),
+        _errorSiHay(),
+        _campo(
+          label: 'Nueva contraseña:',
+          hint: 'Nueva contraseña',
+          controller: _nuevaPass,
+          ocultar: _ocultarNueva,
+          iconoDer: _ocultarNueva
+              ? Icons.visibility_outlined
+              : Icons.visibility_off_outlined,
+          onIconoDer: () => setState(() => _ocultarNueva = !_ocultarNueva),
+        ),
+        const SizedBox(height: 12),
+        _campo(
+          label: 'Repita su nueva contraseña:',
+          hint: 'Repite la nueva contraseña',
+          controller: _nuevaPass2,
+          ocultar: _ocultarNueva2,
+          iconoDer: _ocultarNueva2
+              ? Icons.visibility_outlined
+              : Icons.visibility_off_outlined,
+          onIconoDer: () => setState(() => _ocultarNueva2 = !_ocultarNueva2),
+        ),
+        const SizedBox(height: 16),
+        _cta('Restablecer contraseña', _cargando ? null : _restablecer),
+        _spinner(),
       ],
     );
   }
@@ -510,6 +807,8 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   Widget _cta(String label, VoidCallback? onTap) {
     return Material(
       color: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -517,7 +816,6 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           decoration: BoxDecoration(
             color: AppColors.azul,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: neonGlow(AppColors.azul, blur: 12),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),

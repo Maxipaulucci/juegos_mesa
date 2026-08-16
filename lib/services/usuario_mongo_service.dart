@@ -129,6 +129,34 @@ class UsuarioMongoService {
     return _guardarSesion(data);
   }
 
+  Future<void> pedirRecuperacion({required String email}) async {
+    await _post('/api/usuarios/recuperar', {'email': email.trim()});
+  }
+
+  Future<void> reenviarRecuperacion({required String email}) async {
+    await _post('/api/usuarios/recuperar/reenviar', {'email': email.trim()});
+  }
+
+  Future<void> verificarRecuperacion({
+    required String email,
+    required String codigo,
+  }) async {
+    await _post('/api/usuarios/recuperar/verificar', {
+      'email': email.trim(),
+      'codigo': codigo.trim(),
+    });
+  }
+
+  Future<void> restablecerClave({
+    required String email,
+    required String password,
+  }) async {
+    await _post('/api/usuarios/recuperar/restablecer', {
+      'email': email.trim(),
+      'password': password,
+    });
+  }
+
   Future<UsuarioMongo> recargarYo() async {
     final data = await _get('/api/usuarios/yo');
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);

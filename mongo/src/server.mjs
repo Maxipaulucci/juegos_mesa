@@ -5,11 +5,15 @@ import { apiHost, apiPort, nombreDb, uri } from './env.mjs';
 import {
   exigirUsuario,
   login,
+  pedirRecuperacion,
   ranking,
-  registrar,
   reenviar,
+  reenviarRecuperacion,
+  registrar,
+  restablecerClave,
   sumarPuntos,
   verificar,
+  verificarRecuperacion,
   yo,
 } from './usuarios.mjs';
 
@@ -25,6 +29,10 @@ app.post('/api/usuarios/registro', registrar);
 app.post('/api/usuarios/reenviar', reenviar);
 app.post('/api/usuarios/verificar', verificar);
 app.post('/api/usuarios/login', login);
+app.post('/api/usuarios/recuperar', pedirRecuperacion);
+app.post('/api/usuarios/recuperar/reenviar', reenviarRecuperacion);
+app.post('/api/usuarios/recuperar/verificar', verificarRecuperacion);
+app.post('/api/usuarios/recuperar/restablecer', restablecerClave);
 app.get('/api/usuarios/yo', exigirUsuario, yo);
 app.post('/api/puntos', exigirUsuario, sumarPuntos);
 app.get('/api/ranking', ranking);

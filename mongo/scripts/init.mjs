@@ -1,4 +1,4 @@
-import { conectar, cerrar, nombreDb, partidas, registrosPendientes, uri, usuarios } from '../src/db.mjs';
+import { conectar, cerrar, nombreDb, partidas, recuperacionesPendientes, registrosPendientes, uri, usuarios } from '../src/db.mjs';
 import { JUEGO_GLOBAL, JUEGOS } from '../src/juegos.mjs';
 
 await conectar();
@@ -28,8 +28,17 @@ await registrosPendientes().createIndex(
   { name: 'pendiente_usuario' },
 );
 
+await recuperacionesPendientes().createIndex(
+  { expiraEn: 1 },
+  { expireAfterSeconds: 0, name: 'ttl_recupero_15min' },
+);
+await recuperacionesPendientes().createIndex(
+  { email: 1 },
+  { name: 'recupero_email' },
+);
+
 console.log(`Listo. Base "${nombreDb}" en ${uri}`);
-console.log('Colecciones: usuarios, partidas, registrosPendientes (TTL 15 min)');
+console.log('Colecciones: usuarios, partidas, registrosPendientes, recuperacionesPendientes (TTL 15 min)');
 console.log('En Compass: mongodb://127.0.0.1:27017 → juegosMesa → usuarios');
 
 await cerrar();
