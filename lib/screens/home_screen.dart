@@ -102,6 +102,10 @@ class _JuegoHome {
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  /// Precarga portadas, tipografía y un primer layout del menú.
+  static Future<void> precargar(BuildContext context) =>
+      _HomeScreenState.precargar(context);
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -127,6 +131,32 @@ class _HomeScreenState extends State<HomeScreen>
   static const _portadaDesconfio = 'assets/img/portadas/portadaDesconfio.png';
   static const _portadaJodete = 'assets/img/portadas/portadaJodete.png';
   static const _portadaCanasta = 'assets/img/portadas/portadaCanasta.png';
+
+  static Future<void> precargar(BuildContext context) async {
+    final paths = <String>{
+      for (final j in _juegos) j.portadaAsset,
+      'assets/img/logo.png',
+      'assets/img/portadas/portadaProximamente.png',
+    };
+    await Future.wait<void>([
+      for (final path in paths) _precacheAsset(context, path),
+    ]);
+    if (context.mounted) {
+      Theme.of(context);
+      DefaultTextStyle.of(context);
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
+  static Future<void> _precacheAsset(
+    BuildContext context,
+    String path,
+  ) async {
+    try {
+      await precacheImage(AssetImage(path), context);
+    } catch (_) {}
+  }
 
   bool _navegando = false;
   _CategoriaHome? _categoria;

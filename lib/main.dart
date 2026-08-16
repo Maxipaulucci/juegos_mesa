@@ -68,16 +68,11 @@ class _SplashInicialState extends State<_SplashInicial> {
   }
 
   Future<void> _irAlHome() async {
-    // En segundo plano: calentar el home mientras corre la barra.
     final prep = Future<void>(() async {
       await Future<void>.delayed(Duration.zero);
       await WidgetsBinding.instance.endOfFrame;
-      // Fuerza a resolver tipografías / tema antes del menú.
-      if (mounted) {
-        Theme.of(context);
-        DefaultTextStyle.of(context);
-      }
-      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await HomeScreen.precargar(context);
     });
 
     await Future.wait<void>([_barraListo.future, prep]);
