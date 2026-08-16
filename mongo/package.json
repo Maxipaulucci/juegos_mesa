@@ -1,0 +1,21 @@
+{
+  "name": "juegos-mesa-mongo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "API local de usuarios y ranking sobre MongoDB (Compass / localhost).",
+  "main": "src/server.mjs",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "init": "node scripts/init.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.18.0",
+    "nodemailer": "^7.0.5"
+  }
+}

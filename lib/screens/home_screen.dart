@@ -29,6 +29,8 @@ import '../laPapa/menu_la_papa_screen.dart';
 import '../laPapa/textos.dart';
 import '../shared/ajustes/ajustes_overlay.dart';
 import '../shared/carga/pantalla_carga.dart';
+import '../shared/cuenta/cuenta_overlay.dart';
+import '../services/usuario_mongo_service.dart';
 import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
 import '../tutiFruti/motor_tuti_fruti.dart';
@@ -161,6 +163,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _navegando = false;
   _CategoriaHome? _categoria;
   bool _mostrarAjustes = false;
+  bool _mostrarCuenta = false;
   AjustesEstado _ajustes = const AjustesEstado();
   _TipoJuegoHome? _esloganAbierto;
   late final AnimationController _entrada;
@@ -772,7 +775,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      ShaderMask(
+                  ShaderMask(
                                         blendMode: BlendMode.srcIn,
                                         shaderCallback: (bounds) =>
                                             const LinearGradient(
@@ -781,18 +784,18 @@ class _HomeScreenState extends State<HomeScreen>
                                             AppColors.acento,
                                             AppColors.azul,
                                           ],
-                                        ).createShader(bounds),
-                                        child: const Text(
+                    ).createShader(bounds),
+                    child: const Text(
                                           'Juegos de mesa ',
-                                          style: TextStyle(
-                                            color: Colors.white,
+                      style: TextStyle(
+                        color: Colors.white,
                                             fontSize: 26,
-                                            fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w900,
                                             letterSpacing: 0.4,
                                             height: 1.05,
-                                          ),
-                                        ),
-                                      ),
+                      ),
+                    ),
+                  ),
                                       ShaderMask(
                                         blendMode: BlendMode.srcIn,
                                         shaderCallback: (bounds) =>
@@ -828,15 +831,73 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              const Text(
-                                'Argentinos · multijugador',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: AppColors.textoSuave,
-                                  fontWeight: FontWeight.w600,
+                  const Text(
+                    'Argentinos · multijugador',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textoSuave,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                            ],
+                          ),
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            child: Tooltip(
+                              message: UsuarioMongoService.instance.haySesion
+                                  ? 'Perfil'
+                                  : 'Cuenta',
+                              child: Material(
+                                color: AppColors.carta,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: () =>
+                                      setState(() => _mostrarCuenta = true),
+                                  child: Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.azul
+                                            .withValues(alpha: 0.85),
+                                        width: 1.6,
+                                      ),
+                                      boxShadow: neonGlow(
+                                        AppColors.azul,
+                                        blur: 10,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: UsuarioMongoService
+                                              .instance.haySesion
+                                          ? Text(
+                                              (UsuarioMongoService
+                                                              .instance
+                                                              .usuario
+                                                              ?.nombreUsuario ??
+                                                          '?')
+                                                      .characters
+                                                      .first
+                                                      .toUpperCase(),
+                                              style: const TextStyle(
+                                                color: AppColors.texto,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 16,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.person_rounded,
+                                              color: AppColors.texto,
+                                              size: 22,
+                                            ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                           Positioned(
                             top: 0,
@@ -1082,8 +1143,8 @@ class _HomeScreenState extends State<HomeScreen>
                     child: FadeTransition(
                       opacity: _tituloOpacidad,
                       child: const Text(
-                        'Elegí un juego para crear o unirte a una sala',
-                        textAlign: TextAlign.center,
+                    'Elegí un juego para crear o unirte a una sala',
+                    textAlign: TextAlign.center,
                         style: TextStyle(
                             color: AppColors.textoSuave, fontSize: 12),
                       ),
@@ -1100,8 +1161,8 @@ class _HomeScreenState extends State<HomeScreen>
                 ajustes: _ajustes,
                 onChanged: (a) => setState(() => _ajustes = a),
                 onCerrar: () => setState(() => _mostrarAjustes = false),
-              ),
             ),
+          ),
         ],
       ),
     );
@@ -1786,8 +1847,8 @@ class _JuegoTileState extends State<_JuegoTile>
         animation: _fuego,
         builder: (context, child) {
           final t = fuego ? _fuego.value : 0.0;
-          return DecoratedBox(
-            decoration: BoxDecoration(
+    return DecoratedBox(
+      decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow: fuego
                   ? [
@@ -1813,17 +1874,17 @@ class _JuegoTileState extends State<_JuegoTile>
         child: SizedBox(
           width: anchoFijo,
           height: altoTotal,
-          child: Material(
-            color: Colors.transparent,
+      child: Material(
+        color: Colors.transparent,
             elevation: 0,
             shadowColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Ink(
-              decoration: BoxDecoration(
+        clipBehavior: Clip.antiAlias,
+          child: Ink(
+            decoration: BoxDecoration(
                 color: AppColors.carta.withValues(
                   alpha: widget.enabled ? 0.95 : 0.5,
                 ),
@@ -1833,7 +1894,7 @@ class _JuegoTileState extends State<_JuegoTile>
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
+              border: Border.all(
                     color: fuego
                         ? const Color(0xFFFF6D00)
                         : widget.enabled
@@ -1845,7 +1906,7 @@ class _JuegoTileState extends State<_JuegoTile>
                 position: DecorationPosition.foreground,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+              children: [
                     SizedBox(
                       height: altoImg,
                       width: anchoFijo,
@@ -1949,9 +2010,9 @@ class _JuegoTileState extends State<_JuegoTile>
                 width: fuego ? 1.6 : 1.2,
               ),
             ),
-            child: Column(
+                  child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+                    children: [
                 Expanded(
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(
@@ -2101,7 +2162,7 @@ class _HomeArcadePill extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
+                ),
             ),
           ),
         ),
