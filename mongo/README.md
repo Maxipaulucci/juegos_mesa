@@ -26,7 +26,30 @@ npm run init
 
 Eso usa tu colección `usuarios` (no la borra) y crea índices de email y ranking. También deja lista la colección `partidas` para el historial de puntos.
 
-### 3. Arrancar la API (cada vez que uses la app con ranking/cuentas)
+### 3. Mail (para el código de 6 dígitos)
+
+En `mongo/.env` completá:
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tu-correo@gmail.com
+SMTP_PASS=contraseña-de-aplicación
+MAIL_FROM=Juegos de mesa Argentos <tu-correo@gmail.com>
+```
+
+En Gmail: cuenta → seguridad → contraseñas de aplicación (no uses la clave normal).
+
+El texto del mail es:
+
+```
+Tu código de verificación es: 123456
+Este código expira en 15 minutos.
+```
+
+Si SMTP está vacío, el código se imprime en la consola de la API para probar.
+
+### 4. Arrancar la API (cada vez que uses la app con ranking/cuentas)
 
 Doble clic en `iniciar-api.bat` **o**:
 

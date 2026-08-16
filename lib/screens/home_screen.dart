@@ -871,28 +871,34 @@ class _HomeScreenState extends State<HomeScreen>
                                       ),
                                     ),
                                     child: Center(
-                                      child: UsuarioMongoService
-                                              .instance.haySesion
-                                          ? Text(
-                                              (UsuarioMongoService
-                                                              .instance
-                                                              .usuario
-                                                              ?.nombreUsuario ??
-                                                          '?')
-                                                      .characters
-                                                      .first
-                                                      .toUpperCase(),
-                                              style: const TextStyle(
-                                                color: AppColors.texto,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 16,
-                                              ),
-                                            )
-                                          : const Icon(
+                                      child: Builder(
+                                        builder: (context) {
+                                          final nick = UsuarioMongoService
+                                                  .instance
+                                                  .usuario
+                                                  ?.nombreUsuario ??
+                                              '';
+                                          if (!UsuarioMongoService
+                                              .instance.haySesion) {
+                                            return const Icon(
                                               Icons.person_rounded,
                                               color: AppColors.texto,
                                               size: 22,
+                                            );
+                                          }
+                                          final letra = nick.isEmpty
+                                              ? '?'
+                                              : nick.substring(0, 1).toUpperCase();
+                                          return Text(
+                                            letra,
+                                            style: const TextStyle(
+                                              color: AppColors.texto,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 16,
                                             ),
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1161,8 +1167,15 @@ class _HomeScreenState extends State<HomeScreen>
                 ajustes: _ajustes,
                 onChanged: (a) => setState(() => _ajustes = a),
                 onCerrar: () => setState(() => _mostrarAjustes = false),
+              ),
             ),
-          ),
+          if (_mostrarCuenta)
+            Positioned.fill(
+              child: CuentaOverlay(
+                onCerrar: () => setState(() => _mostrarCuenta = false),
+                onSesion: () => setState(() {}),
+              ),
+            ),
         ],
       ),
     );

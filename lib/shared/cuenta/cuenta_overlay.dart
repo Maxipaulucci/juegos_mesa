@@ -64,12 +64,17 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   }
 
   Future<void> _registrar() async {
-    final user = _usuario.text.trim();
+    final user = formatoNombreUsuario(_usuario.text);
     final mail = _email.text.trim();
     final pass = _password.text;
     final pass2 = _password2.text;
     if (user.isEmpty || mail.isEmpty || pass.isEmpty || pass2.isEmpty) {
       setState(() => _error = 'Completá todos los campos.');
+      return;
+    }
+    if (!usuarioNombreValido(user)) {
+      setState(() => _error =
+          'El usuario tiene que tener 3 a 20 caracteres: letras, números o _.');
       return;
     }
     if (pass != pass2) {
@@ -183,14 +188,12 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                               ),
                             ),
                           ),
-                          Flexible(
-                            child: SingleChildScrollView(
-                              child: _verificando
-                                  ? _pantallaCodigo()
-                                  : _api.haySesion
-                                      ? _pantallaPerfil()
-                                      : _pantallaAuth(),
-                            ),
+                          SingleChildScrollView(
+                            child: _verificando
+                                ? _pantallaCodigo()
+                                : _api.haySesion
+                                    ? _pantallaPerfil()
+                                    : _pantallaAuth(),
                           ),
                         ],
                       ),
@@ -267,7 +270,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   List<Widget> _camposLogin() {
     return [
       _campo(
-        label: 'Email',
+        label: 'Usuario o email',
         hint: 'usuario o ejemplo@email.com',
         controller: _loginClave,
         iconoIzq: Icons.email_outlined,
@@ -304,8 +307,13 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     return [
       _campo(
         label: 'Nombre de usuario',
-        hint: 'Tu usuario',
+        hint: 'Tu nombre',
         controller: _usuario,
+        maxChars: 20,
+        extraFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9_]')),
+          const _CapitalizarUsuarioFormatter(),
+        ],
       ),
       const SizedBox(height: 12),
       _campo(
@@ -539,6 +547,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     bool ocultar = false,
     TextInputType? teclado,
     int? maxChars,
+    List<TextInputFormatter> extraFormatters = const [],
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,6 +570,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
             if (maxChars != null) LengthLimitingTextInputFormatter(maxChars),
             if (teclado == TextInputType.number)
               FilteringTextInputFormatter.digitsOnly,
+            ...extraFormatters,
           ],
           style: const TextStyle(
             color: AppColors.texto,
@@ -601,6 +611,26 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CapitalizarUsuarioFormatter extends TextInputFormatter {
+  const _CapitalizarUsuarioFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final t = newValue.text;
+    if (t.isEmpty) return newValue;
+    final formatted = t[0].toUpperCase() + t.substring(1).toLowerCase();
+    if (formatted == t) return newValue;
+    return TextEditingValue(
+      text: formatted,
+      selection: newValue.selection,
+      composing: TextRange.empty,
     );
   }
 }

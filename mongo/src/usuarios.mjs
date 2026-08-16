@@ -68,15 +68,19 @@ function emailOk(email) {
 }
 
 function usuarioOk(nombre) {
-  return /^[a-zA-Z0-9_]{3,20}$/.test(nombre);
+  return /^[A-Za-z0-9_]{3,20}$/.test(nombre);
 }
 
-function normalizarUsuario(nombre) {
-  return String(nombre || '').trim();
+function formatoNombreUsuario(nombre) {
+  const t = String(nombre || '').trim();
+  if (!t) return t;
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
 }
 
 export async function registrar(req, res) {
-  const nombreUsuario = normalizarUsuario(req.body?.nombreUsuario || req.body?.nombre);
+  const nombreUsuario = formatoNombreUsuario(
+    req.body?.nombreUsuario || req.body?.nombre,
+  );
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
 

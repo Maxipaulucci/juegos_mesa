@@ -12,6 +12,17 @@ const String kMongoApiBase = String.fromEnvironment(
   defaultValue: 'http://127.0.0.1:27080',
 );
 
+final _reUsuario = RegExp(r'^[A-Za-z0-9_]{3,20}$');
+
+/// Primera letra mayúscula, el resto minúscula. Solo letras, números y `_`.
+String formatoNombreUsuario(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return t;
+  return t[0].toUpperCase() + t.substring(1).toLowerCase();
+}
+
+bool usuarioNombreValido(String nombre) => _reUsuario.hasMatch(nombre);
+
 class UsuarioMongoService {
   UsuarioMongoService._();
   static final instance = UsuarioMongoService._();
@@ -86,7 +97,7 @@ class UsuarioMongoService {
     required String password,
   }) async {
     await _post('/api/usuarios/registro', {
-      'nombreUsuario': nombreUsuario.trim(),
+      'nombreUsuario': formatoNombreUsuario(nombreUsuario),
       'email': email.trim(),
       'password': password,
     });
