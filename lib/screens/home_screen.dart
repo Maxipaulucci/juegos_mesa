@@ -177,6 +177,7 @@ class _HomeScreenState extends State<HomeScreen>
   double _scrollObjetivo = 0;
   int _scrollAnimToken = 0;
   bool _ruedaAnimando = false;
+  final Set<_CategoriaHome> _seccionesExpandida = {};
 
   static const _juegos = <_JuegoHome>[
     _JuegoHome(
@@ -676,22 +677,46 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _centrarSeccion(_CategoriaHome cat) async {
-    final ctx = _claveSeccion[cat]?.currentContext;
-    if (ctx == null || !ctx.mounted) return;
+    if (!_scrollController.hasClients) return;
     final token = ++_scrollAnimToken;
     _ruedaAnimando = true;
     final dur = _ajustes.animaciones
         ? const Duration(milliseconds: 620)
         : Duration.zero;
-    await Scrollable.ensureVisible(
-      ctx,
-      alignment: 0.5,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-      duration: dur == Duration.zero
-          ? const Duration(milliseconds: 1)
-          : dur,
-      curve: Curves.easeInOutCubic,
-    );
+
+    final ctx = _claveSeccion[cat]?.currentContext;
+    if (ctx == null || !ctx.mounted) {
+      _ruedaAnimando = false;
+      return;
+    }
+    final seccion = ctx.findRenderObject();
+    final vista = _scrollController.position.context.notificationContext
+        ?.findRenderObject();
+    if (seccion is! RenderBox ||
+        vista is! RenderBox ||
+        !seccion.hasSize ||
+        !vista.hasSize) {
+      _ruedaAnimando = false;
+      return;
+    }
+
+    final pos = _scrollController.position;
+    final seccionY = seccion.localToGlobal(Offset.zero).dy;
+    final vistaY = vista.localToGlobal(Offset.zero).dy;
+    var destino = pos.pixels +
+        (seccionY - vistaY) -
+        (pos.viewportDimension - seccion.size.height) / 2;
+    destino = destino.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+
+    if (dur == Duration.zero) {
+      _scrollController.jumpTo(destino);
+    } else {
+      await _scrollController.animateTo(
+        destino,
+        duration: dur,
+        curve: Curves.easeInOutCubic,
+      );
+    }
     if (!mounted || token != _scrollAnimToken) return;
     _ruedaAnimando = false;
     if (_scrollController.hasClients) {
@@ -722,6 +747,136 @@ class _HomeScreenState extends State<HomeScreen>
           end: Offset.zero,
         ).animate(curved),
         child: child,
+      ),
+    );
+  }
+
+  Widget _seccionCategoria({
+    required int i,
+    required ({_CategoriaHome cat, List<_JuegoHome> juegos}) seccion,
+    required List<({_CategoriaHome cat, List<_JuegoHome> juegos})> secciones,
+    required int columnas,
+    required double gap,
+    required double Function(_JuegoHome j) altoDe,
+    required double Function(List<_JuegoHome> juegos) altoFilaDe,
+  }) {
+    var base = 0;
+    for (var s = 0; s < i; s++) {
+      base += secciones[s].juegos.length;
+    }
+    final fondoSeccion = i.isEven
+        ? AppColors.carta.withValues(alpha: 0.38)
+        : AppColors.fondo;
+    final hayMas = seccion.juegos.length > columnas;
+    final abierta = _seccionesExpandida.contains(seccion.cat);
+
+    return ColoredBox(
+      key: _claveSeccion[seccion.cat],
+      color: fondoSeccion,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              seccion.cat.label,
+              style: const TextStyle(
+                color: AppColors.texto,
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: 0.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _CategoriaExpandible(
+              key: ValueKey('exp-${seccion.cat}'),
+              abierta: abierta,
+              animaciones: _ajustes.animaciones,
+              visibles: columnas,
+              gap: gap,
+              carousel: _CarruselCategoria(
+                key: ValueKey(seccion.cat),
+                juegos: seccion.juegos,
+                visibles: columnas,
+                gap: gap,
+                anchos: [
+                  for (final j in seccion.juegos)
+                    _anchoTarjetaDe(j, altoDe(j)),
+                ],
+                altoFila: altoFilaDe(seccion.juegos),
+                animaciones: _ajustes.animaciones,
+                buildTile: (juego, index) => _tileDeJuego(
+                  juego,
+                  index: base + index,
+                  alto: altoDe(juego),
+                ),
+              ),
+              tarjetas: [
+                for (var j = 0; j < seccion.juegos.length; j++)
+                  _tileDeJuego(
+                    seccion.juegos[j],
+                    index: base + j,
+                    alto: altoDe(seccion.juegos[j]),
+                  ),
+              ],
+            ),
+            if (hayMas) ...[
+              const SizedBox(height: 14),
+              Center(
+                child: _botonVerMas(
+                  abierto: abierta,
+                  fondo: i.isEven
+                      ? AppColors.fondo
+                      : AppColors.carta.withValues(alpha: 0.38),
+                  onTap: () {
+                    setState(() {
+                      if (abierta) {
+                        _seccionesExpandida.remove(seccion.cat);
+                      } else {
+                        _seccionesExpandida.add(seccion.cat);
+                      }
+                    });
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _botonVerMas({
+    required bool abierto,
+    required Color fondo,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: fondo,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.azul, width: 1.6),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+            child: Text(
+              abierto ? 'Ver menos' : 'Ver más',
+              style: const TextStyle(
+                color: AppColors.azul,
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1036,97 +1191,25 @@ class _HomeScreenState extends State<HomeScreen>
                                           );
                                         }
 
-                                        return ListView.builder(
+                                        return ListView(
                                           controller: _scrollController,
                                           padding: EdgeInsets.zero,
                                           physics:
                                               const ClampingScrollPhysics(),
-                                          itemCount: secciones.length,
-                                          itemBuilder: (context, i) {
-                                            final seccion = secciones[i];
-                                            var base = 0;
-                                            for (var s = 0; s < i; s++) {
-                                              base +=
-                                                  secciones[s].juegos.length;
-                                            }
-                                            final fondoSeccion = i.isEven
-                                                ? AppColors.carta.withValues(
-                                                    alpha: 0.38,
-                                                  )
-                                                : AppColors.fondo;
-
-                                            return ColoredBox(
-                                              key: _claveSeccion[seccion.cat],
-                                              color: fondoSeccion,
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.fromLTRB(
-                                                  16,
-                                                  12,
-                                                  16,
-                                                  16,
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .stretch,
-                                                  children: [
-                                                    Text(
-                                                      seccion.cat.label,
-                                                      style: const TextStyle(
-                                                        color: AppColors.texto,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        fontSize: 16,
-                                                        letterSpacing: 0.4,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    _CarruselCategoria(
-                                                      key: ValueKey(
-                                                        seccion.cat,
-                                                      ),
-                                                      juegos: seccion.juegos,
-                                                      visibles: columnas,
-                                                      gap: gap,
-                                                      anchoFila: () {
-                                                        final v = math.min(
-                                                          columnas,
-                                                          seccion.juegos.length,
-                                                        );
-                                                        if (v <= 0) return 0.0;
-                                                        var w = 0.0;
-                                                        for (var c = 0;
-                                                            c < v;
-                                                            c++) {
-                                                          if (c > 0) w += gap;
-                                                          w += _anchoTarjetaDe(
-                                                            seccion.juegos[c],
-                                                            altoDe(
-                                                              seccion.juegos[c],
-                                                            ),
-                                                          );
-                                                        }
-                                                        return w;
-                                                      }(),
-                                                      altoFila: altoFilaDe(
-                                                        seccion.juegos,
-                                                      ),
-                                                      animaciones: _ajustes
-                                                          .animaciones,
-                                                      buildTile:
-                                                          (juego, index) =>
-                                                              _tileDeJuego(
-                                                        juego,
-                                                        index: base + index,
-                                                        alto: altoDe(juego),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                          children: [
+                                            for (var i = 0;
+                                                i < secciones.length;
+                                                i++)
+                                              _seccionCategoria(
+                                                i: i,
+                                                seccion: secciones[i],
+                                                secciones: secciones,
+                                                columnas: columnas,
+                                                gap: gap,
+                                                altoDe: altoDe,
+                                                altoFilaDe: altoFilaDe,
                                               ),
-                                            );
-                                          },
+                                          ],
                                         );
                                       },
                                     ),
@@ -1182,13 +1265,191 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
+class _CategoriaExpandible extends StatefulWidget {
+  const _CategoriaExpandible({
+    super.key,
+    required this.abierta,
+    required this.animaciones,
+    required this.visibles,
+    required this.gap,
+    required this.carousel,
+    required this.tarjetas,
+  });
+
+  final bool abierta;
+  final bool animaciones;
+  final int visibles;
+  final double gap;
+  final Widget carousel;
+  final List<Widget> tarjetas;
+
+  @override
+  State<_CategoriaExpandible> createState() => _CategoriaExpandibleState();
+}
+
+class _CategoriaExpandibleState extends State<_CategoriaExpandible>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entrada;
+  bool _mostrarGrilla = false;
+
+  Duration get _duracion => widget.animaciones
+      ? const Duration(milliseconds: 620)
+      : Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _mostrarGrilla = widget.abierta;
+    _entrada = AnimationController(vsync: this, duration: _duracion);
+    if (widget.abierta) _entrada.value = 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant _CategoriaExpandible oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _entrada.duration = _duracion;
+    if (widget.abierta == oldWidget.abierta) return;
+    if (widget.abierta) {
+      setState(() => _mostrarGrilla = true);
+      if (widget.animaciones) {
+        _entrada.forward(from: 0);
+      } else {
+        _entrada.value = 1;
+      }
+    } else if (widget.animaciones && _mostrarGrilla) {
+      _entrada.reverse().whenComplete(() {
+        if (!mounted || widget.abierta) return;
+        setState(() => _mostrarGrilla = false);
+      });
+    } else {
+      _entrada.value = 0;
+      setState(() => _mostrarGrilla = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _entrada.dispose();
+    super.dispose();
+  }
+
+  Widget _tarjetaDe(int i) {
+    final child = widget.tarjetas[i];
+    if (i < widget.visibles) return child;
+    final extra = i - widget.visibles;
+    final start = (extra * 0.12).clamp(0.0, 0.55);
+    final end = (start + 0.42).clamp(0.0, 1.0);
+    final curved = CurvedAnimation(
+      parent: _entrada,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.22),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
+    );
+  }
+
+  int get _porFila => math.min(3, math.max(1, widget.visibles));
+
+  Widget _grilla() {
+    final porFila = _porFila;
+    final filas = <Widget>[];
+    for (var i = 0; i < widget.tarjetas.length; i += porFila) {
+      final fin = math.min(i + porFila, widget.tarjetas.length);
+      filas.add(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var j = i; j < fin; j++) ...[
+              if (j > i) SizedBox(width: widget.gap),
+              _tarjetaDe(j),
+            ],
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (var f = 0; f < filas.length; f++) ...[
+          if (f > 0) SizedBox(height: widget.gap),
+          filas[f],
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: _duracion,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      clipBehavior: Clip.hardEdge,
+      child: _mostrarGrilla ? _grilla() : widget.carousel,
+    );
+  }
+}
+
+class _FisicaSnapCarrusel extends ScrollPhysics {
+  const _FisicaSnapCarrusel({
+    required this.destino,
+    super.parent,
+  });
+
+  final double Function(double pixels, double velocity) destino;
+
+  @override
+  _FisicaSnapCarrusel applyTo(ScrollPhysics? ancestor) {
+    return _FisicaSnapCarrusel(
+      destino: destino,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  SpringDescription get spring => const SpringDescription(
+        mass: 0.9,
+        stiffness: 220,
+        damping: 26,
+      );
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    final target = destino(position.pixels, velocity).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    final tol = toleranceFor(position);
+    if ((target - position.pixels).abs() < math.max(tol.distance, 0.5) &&
+        velocity.abs() < math.max(tol.velocity, 40)) {
+      return null;
+    }
+    return ScrollSpringSimulation(
+      spring,
+      position.pixels,
+      target,
+      velocity,
+      tolerance: tol,
+    );
+  }
+}
+
 class _CarruselCategoria extends StatefulWidget {
   const _CarruselCategoria({
     super.key,
     required this.juegos,
     required this.visibles,
     required this.gap,
-    required this.anchoFila,
+    required this.anchos,
     required this.altoFila,
     required this.buildTile,
     required this.animaciones,
@@ -1197,7 +1458,7 @@ class _CarruselCategoria extends StatefulWidget {
   final List<_JuegoHome> juegos;
   final int visibles;
   final double gap;
-  final double anchoFila;
+  final List<double> anchos;
   final double altoFila;
   final bool animaciones;
   final Widget Function(_JuegoHome juego, int index) buildTile;
@@ -1207,84 +1468,202 @@ class _CarruselCategoria extends StatefulWidget {
 }
 
 class _CarruselCategoriaState extends State<_CarruselCategoria> {
-  static const _ciclo = 400;
-  late final PageController _paginas;
+  static const _copias = 80;
+  late final ScrollController _scroll;
+  int _indice = 0;
   bool _enMovimiento = false;
+  bool _ajustando = false;
+
+  int get _n => widget.juegos.length;
 
   int get _porPagina => widget.visibles.clamp(1, 99);
 
+  bool get _hayMas => _n > _porPagina;
+
+  int get _pasoFlecha => math.max(1, _porPagina - 1);
+
+  int get _indiceBase => _n * (_copias ~/ 2);
+
+  int get _itemCount => _hayMas ? _n * _copias : _n;
+
   Duration get _duracion => widget.animaciones
-      ? const Duration(milliseconds: 780)
+      ? const Duration(milliseconds: 520)
       : Duration.zero;
 
-  int get _totalPaginas {
-    if (widget.juegos.isEmpty) return 1;
-    return (widget.juegos.length / _porPagina).ceil();
+  double get _anchoVista {
+    final v = math.min(_porPagina, _n);
+    if (v <= 0) return 0;
+    var w = 0.0;
+    for (var i = 0; i < v; i++) {
+      if (i > 0) w += widget.gap;
+      w += _anchoDe(i);
+    }
+    return w;
   }
 
-  bool get _hayMas => widget.juegos.length > _porPagina;
+  double get _largoCiclo {
+    var x = 0.0;
+    for (var i = 0; i < _n; i++) {
+      x += _anchoDe(i) + widget.gap;
+    }
+    return x;
+  }
 
-  int get _paginaInicial =>
-      _hayMas ? _totalPaginas * _ciclo : 0;
+  double _anchoDe(int i) {
+    if (widget.anchos.isEmpty) return 0;
+    return widget.anchos[i % widget.anchos.length];
+  }
 
-  int _mod(int i, int m) {
-    if (m <= 0) return 0;
-    return (i % m + m) % m;
+  double _offsetDe(int indice) {
+    if (indice <= 0 || _n == 0) return 0;
+    final ciclos = indice ~/ _n;
+    final resto = indice % _n;
+    var x = ciclos * _largoCiclo;
+    for (var i = 0; i < resto; i++) {
+      x += _anchoDe(i) + widget.gap;
+    }
+    return x;
+  }
+
+  int _indiceCercano(double offset) {
+    if (_n == 0) return 0;
+    final ciclo = _largoCiclo;
+    if (ciclo <= 0) return 0;
+    var ciclosPasados = (offset / ciclo).floor();
+    var resto = offset - ciclosPasados * ciclo;
+    if (resto < 0) {
+      ciclosPasados--;
+      resto += ciclo;
+    }
+    var mejor = 0;
+    var dist = resto.abs();
+    var x = 0.0;
+    for (var i = 0; i < _n; i++) {
+      final d = (resto - x).abs();
+      if (d < dist) {
+        dist = d;
+        mejor = i;
+      }
+      x += _anchoDe(i) + widget.gap;
+    }
+    if ((resto - ciclo).abs() < dist) {
+      ciclosPasados++;
+      mejor = 0;
+    }
+    return (ciclosPasados * _n + mejor)
+        .clamp(0, math.max(0, _itemCount - 1))
+        .toInt();
+  }
+
+  double _destinoSnap(double pixels, double velocity) {
+    var i = _indiceCercano(pixels);
+    const umbral = 420.0;
+    if (velocity.abs() > umbral) {
+      i += velocity > 0 ? 1 : -1;
+    }
+    return _offsetDe(i.clamp(0, math.max(0, _itemCount - 1)).toInt());
+  }
+
+  void _irAlMedio() {
+    if (!_hayMas) return;
+    _indice = _indiceBase;
+    if (_scroll.hasClients) {
+      _scroll.jumpTo(_offsetDe(_indice));
+    }
+  }
+
+  void _recentrarSiHaceFalta() {
+    if (!_hayMas || !_scroll.hasClients || _n == 0) return;
+    final minSeguro = _n * 8;
+    final maxSeguro = _n * (_copias - 8) - 1;
+    if (_indice >= minSeguro && _indice <= maxSeguro) return;
+    final destino = _indiceBase + (_indice % _n);
+    _indice = destino;
+    _scroll.jumpTo(_offsetDe(destino));
   }
 
   @override
   void initState() {
     super.initState();
-    _paginas = PageController(initialPage: _paginaInicial);
+    _indice = _hayMas ? _indiceBase : 0;
+    _scroll = ScrollController(
+      initialScrollOffset: _hayMas ? _offsetDe(_indice) : 0,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_hayMas || !_scroll.hasClients) return;
+      _irAlMedio();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _CarruselCategoria oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.juegos.length != widget.juegos.length ||
+        oldWidget.visibles != widget.visibles) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _irAlMedio();
+      });
+    }
   }
 
   @override
   void dispose() {
-    _paginas.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  Future<void> _ir(int delta) async {
-    if (!_hayMas || _enMovimiento || !_paginas.hasClients) return;
-    setState(() => _enMovimiento = true);
-    final actual = _paginas.page?.round() ?? _paginaInicial;
-    if (!widget.animaciones) {
-      _paginas.jumpToPage(actual + delta);
+  Future<void> _irA(int indice, {bool animar = true}) async {
+    if (!_scroll.hasClients || _n == 0) return;
+    final destino =
+        indice.clamp(0, math.max(0, _itemCount - 1)).toInt();
+    final target = _offsetDe(destino);
+    if ((_scroll.offset - target).abs() < 1.5) {
+      _indice = destino;
+      _recentrarSiHaceFalta();
+      if (_enMovimiento || _ajustando) {
+        setState(() {
+          _enMovimiento = false;
+          _ajustando = false;
+        });
+      }
+      return;
+    }
+    setState(() {
+      _indice = destino;
+      _enMovimiento = true;
+      _ajustando = true;
+    });
+    if (!animar || !widget.animaciones) {
+      _scroll.jumpTo(target);
     } else {
-      await _paginas.animateToPage(
-        actual + delta,
+      await _scroll.animateTo(
+        target,
         duration: _duracion,
-        curve: Curves.easeInOutSine,
+        curve: Curves.easeInOutCubic,
       );
     }
-    if (mounted) setState(() => _enMovimiento = false);
+    if (!mounted) return;
+    _recentrarSiHaceFalta();
+    setState(() {
+      _enMovimiento = false;
+      _ajustando = false;
+    });
   }
 
-  List<({_JuegoHome juego, int index})> _cartasDe(int pagina) {
-    final n = widget.juegos.length;
-    if (n == 0) return const [];
-    if (!_hayMas) {
-      return [
-        for (var i = 0; i < n; i++) (juego: widget.juegos[i], index: i),
-      ];
-    }
-    final v = _porPagina;
-    var inicio = pagina * v;
-    if (inicio + v > n) {
-      inicio = n - v;
-    }
-    return [
-      for (var c = 0; c < v; c++)
-        (
-          juego: widget.juegos[inicio + c],
-          index: inicio + c,
-        ),
-    ];
+  Future<void> _ir(int delta) async {
+    if (!_hayMas || _enMovimiento) return;
+    await _irA(_indice + delta);
+  }
+
+  Future<void> _encajar() async {
+    if (!_hayMas || _ajustando || !_scroll.hasClients) return;
+    await _irA(_indiceCercano(_scroll.offset));
   }
 
   Widget _flecha({
     required IconData icono,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return Material(
       color: AppColors.carta,
@@ -1311,17 +1690,75 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
     );
   }
 
-  Widget _filaDe(int pagina) {
-    final cartas = _cartasDe(pagina);
+  Widget _filaFija() {
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var c = 0; c < cartas.length; c++) ...[
-          if (c > 0) SizedBox(width: widget.gap),
-          widget.buildTile(cartas[c].juego, cartas[c].index),
+        for (var i = 0; i < widget.juegos.length; i++) ...[
+          if (i > 0) SizedBox(width: widget.gap),
+          widget.buildTile(widget.juegos[i], i),
         ],
       ],
+    );
+  }
+
+  Widget _lista() {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.trackpad,
+        },
+      ),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (!_hayMas || n.depth != 0) return false;
+          if (n is ScrollStartNotification && n.dragDetails != null) {
+            _ajustando = false;
+            if (!_enMovimiento) setState(() => _enMovimiento = true);
+          } else if (n is ScrollUpdateNotification && !_ajustando) {
+            final i = _indiceCercano(_scroll.offset);
+            if (i != _indice) setState(() => _indice = i);
+          } else if (n is ScrollEndNotification) {
+            if (_ajustando || !_scroll.hasClients) return false;
+            final i = _indiceCercano(_scroll.offset);
+            if ((_scroll.offset - _offsetDe(i)).abs() > 1.5) {
+              _encajar();
+            } else {
+              if (_indice != i || _enMovimiento) {
+                setState(() {
+                  _indice = i;
+                  _enMovimiento = false;
+                });
+              }
+              _recentrarSiHaceFalta();
+            }
+          }
+          return false;
+        },
+        child: ListView.separated(
+          controller: _scroll,
+          scrollDirection: Axis.horizontal,
+          primary: false,
+          padding: EdgeInsets.zero,
+          cacheExtent: _anchoVista * 3,
+          physics: _FisicaSnapCarrusel(
+            destino: _destinoSnap,
+            parent: const ClampingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+          ),
+          itemCount: _itemCount,
+          separatorBuilder: (_, __) => SizedBox(width: widget.gap),
+          itemBuilder: (context, i) {
+            final j = i % _n;
+            return widget.buildTile(widget.juegos[j], j);
+          },
+        ),
+      ),
     );
   }
 
@@ -1334,53 +1771,9 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
         children: [
           Center(
             child: SizedBox(
-              width: widget.anchoFila +
-                  (_hayMas ? widget.gap : 0),
+              width: _anchoVista,
               height: widget.altoFila,
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(context).copyWith(
-                  dragDevices: {
-                    PointerDeviceKind.touch,
-                    PointerDeviceKind.mouse,
-                    PointerDeviceKind.stylus,
-                    PointerDeviceKind.trackpad,
-                  },
-                ),
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (n) {
-                    if (!_hayMas) return false;
-                    if (n.depth != 0) return false;
-                    if (n is ScrollStartNotification) {
-                      if (!_enMovimiento) {
-                        setState(() => _enMovimiento = true);
-                      }
-                    } else if (n is ScrollEndNotification) {
-                      if (_enMovimiento) {
-                        setState(() => _enMovimiento = false);
-                      }
-                    }
-                    return false;
-                  },
-                  child: PageView.builder(
-                    controller: _paginas,
-                    physics: _hayMas
-                        ? const BouncingScrollPhysics()
-                        : const NeverScrollableScrollPhysics(),
-                    itemCount: _hayMas ? null : 1,
-                    itemBuilder: (context, index) {
-                      final pagina =
-                          _hayMas ? _mod(index, _totalPaginas) : 0;
-                      if (!_hayMas) return _filaDe(pagina);
-                      return Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: widget.gap / 2,
-                        ),
-                        child: _filaDe(pagina),
-                      );
-                    },
-                  ),
-                ),
-              ),
+              child: _hayMas ? ClipRect(child: _lista()) : _filaFija(),
             ),
           ),
           if (_hayMas)
@@ -1388,7 +1781,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
               left: 4,
               child: _flecha(
                 icono: Icons.chevron_left_rounded,
-                onTap: () => _ir(-1),
+                onTap: _enMovimiento ? null : () => _ir(-_pasoFlecha),
               ),
             ),
           if (_hayMas)
@@ -1396,7 +1789,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
               right: 4,
               child: _flecha(
                 icono: Icons.chevron_right_rounded,
-                onTap: () => _ir(1),
+                onTap: _enMovimiento ? null : () => _ir(_pasoFlecha),
               ),
             ),
         ],
@@ -1416,48 +1809,37 @@ class _BarraCategorias extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accentActiva = AppColors.azul;
-
     Widget chip(_CategoriaHome cat) {
-      final activa = cat == seleccionada;
-      const radio = BorderRadius.all(Radius.circular(999));
-      return Material(
-        color: Colors.transparent,
-        elevation: 0,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        shape: const StadiumBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => onSeleccionar(cat),
-          customBorder: const StadiumBorder(),
-          borderRadius: radio,
-          splashColor: accentActiva.withValues(alpha: 0.2),
-          highlightColor: accentActiva.withValues(alpha: 0.08),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: activa
-                  ? accentActiva.withValues(alpha: 0.18)
-                  : AppColors.carta.withValues(alpha: 0.7),
-              borderRadius: radio,
-              border: Border.all(
-                color: activa
-                    ? accentActiva
-                    : AppColors.textoSuave.withValues(alpha: 0.35),
-                width: activa ? 1.6 : 1,
+      return Semantics(
+        button: true,
+        selected: cat == seleccionada,
+        child: Material(
+          color: Colors.transparent,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => onSeleccionar(cat),
+            customBorder: const StadiumBorder(),
+            child: Ink(
+              decoration: BoxDecoration(
+                color: AppColors.fondo,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.azul, width: 1.6),
               ),
-              boxShadow: activa ? neonGlow(accentActiva, blur: 10) : null,
-            ),
-            child: Text(
-              cat.label,
-              style: TextStyle(
-                color: activa ? accentActiva : AppColors.textoSuave,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                letterSpacing: 0.2,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 10,
+                ),
+                child: Text(
+                  cat.label,
+                  style: const TextStyle(
+                    color: AppColors.azul,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    letterSpacing: 0.3,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1466,7 +1848,7 @@ class _BarraCategorias extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 40,
+      height: 44,
       child: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
@@ -1747,24 +2129,24 @@ class _JuegoTileState extends State<_JuegoTile>
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Stack(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final tp = TextPainter(
-                                text: TextSpan(
-                                  text: eslogan,
-                                  style: estiloEslogan,
-                                ),
-                                maxLines: 1,
-                                ellipsis: '…',
-                                textAlign: TextAlign.center,
-                                textDirection: TextDirection.ltr,
-                              )..layout(maxWidth: constraints.maxWidth);
-                              final altoUnaLinea = tp.height;
-                              return AnimatedSize(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final tp = TextPainter(
+                          text: TextSpan(
+                            text: eslogan,
+                            style: estiloEslogan,
+                          ),
+                          maxLines: 1,
+                          ellipsis: '…',
+                          textAlign: TextAlign.center,
+                          textDirection: TextDirection.ltr,
+                        )..layout(maxWidth: math.max(0, constraints.maxWidth - 40));
+                        final altoUnaLinea = tp.height;
+                        return Stack(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: AnimatedSize(
                                 duration: durEslogan,
                                 curve: Curves.easeInOutCubic,
                                 alignment: Alignment.topCenter,
@@ -1784,22 +2166,25 @@ class _JuegoTileState extends State<_JuegoTile>
                                     ),
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-                        Positioned(
-                          top: 0,
-                          right: 0,
-                          child: Icon(
-                            widget.esloganExpandido
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color: AppColors.textoSuave,
-                          ),
-                        ),
-                      ],
+                              ),
+                            ),
+                            Positioned(
+                              top: 0,
+                              right: 0,
+                              height: altoUnaLinea,
+                              child: Center(
+                                child: Icon(
+                                  widget.esloganExpandido
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                  size: 16,
+                                  color: AppColors.textoSuave,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
