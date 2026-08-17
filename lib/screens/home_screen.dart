@@ -179,7 +179,6 @@ class _HomeScreenState extends State<HomeScreen>
   double _scrollObjetivo = 0;
   int _scrollAnimToken = 0;
   bool _ruedaAnimando = false;
-  final Set<_CategoriaHome> _seccionesExpandida = {};
 
   static const _juegos = <_JuegoHome>[
     _JuegoHome(
@@ -456,8 +455,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _tileDeJuego(_JuegoHome j, {required int index, required double alto}) {
-    return _tarjetaEntrada(
-      index: index,
+    final tile = RepaintBoundary(
       child: SizedBox(
         height: alto,
         width: _anchoTarjetaDe(j, alto),
@@ -483,6 +481,8 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
+    if (_listaEntrada.value >= 0.999) return tile;
+    return _tarjetaEntrada(index: index, child: tile);
   }
 
   Future<void> _abrirJuego({
@@ -681,10 +681,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _seleccionarCategoria(_CategoriaHome cat) {
-    setState(() => _categoria = cat);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _centrarSeccion(cat);
-    });
+    _categoria = cat;
+    _centrarSeccion(cat);
   }
 
   Future<void> _centrarSeccion(_CategoriaHome cat) async {
@@ -692,7 +690,7 @@ class _HomeScreenState extends State<HomeScreen>
     final token = ++_scrollAnimToken;
     _ruedaAnimando = true;
     final dur = _ajustes.animaciones
-        ? const Duration(milliseconds: 620)
+        ? const Duration(milliseconds: 200)
         : Duration.zero;
 
     final ctx = _claveSeccion[cat]?.currentContext;
@@ -714,10 +712,13 @@ class _HomeScreenState extends State<HomeScreen>
     final pos = _scrollController.position;
     final seccionY = seccion.localToGlobal(Offset.zero).dy;
     final vistaY = vista.localToGlobal(Offset.zero).dy;
-    var destino = pos.pixels +
-        (seccionY - vistaY) -
-        (pos.viewportDimension - seccion.size.height) / 2;
+    var destino = pos.pixels + (seccionY - vistaY);
     destino = destino.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    if ((destino - pos.pixels).abs() < 2) {
+      _ruedaAnimando = false;
+      _scrollObjetivo = pos.pixels;
+      return;
+    }
 
     if (dur == Duration.zero) {
       _scrollController.jumpTo(destino);
@@ -725,7 +726,7 @@ class _HomeScreenState extends State<HomeScreen>
       await _scrollController.animateTo(
         destino,
         duration: dur,
-        curve: Curves.easeInOutCubic,
+        curve: Curves.easeOutCubic,
       );
     }
     if (!mounted || token != _scrollAnimToken) return;
@@ -733,6 +734,14 @@ class _HomeScreenState extends State<HomeScreen>
     if (_scrollController.hasClients) {
       _scrollObjetivo = _scrollController.offset;
     }
+  }
+
+  void _irAlInicio() {
+    if (!_scrollController.hasClients) return;
+    _scrollAnimToken++;
+    _ruedaAnimando = false;
+    _scrollController.jumpTo(0);
+    _scrollObjetivo = 0;
   }
 
   void _onPointerSignalScroll(PointerSignalEvent event) {
@@ -778,114 +787,63 @@ class _HomeScreenState extends State<HomeScreen>
     final fondoSeccion = i.isEven
         ? AppColors.carta.withValues(alpha: 0.38)
         : AppColors.fondo;
-    final hayMas = seccion.juegos.length > columnas;
-    final abierta = _seccionesExpandida.contains(seccion.cat);
 
     return ColoredBox(
       key: _claveSeccion[seccion.cat],
       color: fondoSeccion,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              seccion.cat.label,
-              style: const TextStyle(
-                color: AppColors.texto,
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                letterSpacing: 0.4,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _CategoriaExpandible(
-              key: ValueKey('exp-${seccion.cat}'),
-              abierta: abierta,
-              animaciones: _ajustes.animaciones,
-              visibles: columnas,
-              gap: gap,
-              carousel: _CarruselCategoria(
-                key: ValueKey(seccion.cat),
-                juegos: seccion.juegos,
-                visibles: columnas,
-                gap: gap,
-                anchos: [
-                  for (final j in seccion.juegos)
-                    _anchoTarjetaDe(j, altoDe(j)),
-                ],
-                altoFila: altoFilaDe(seccion.juegos),
-                animaciones: _ajustes.animaciones,
-                buildTile: (juego, index) => _tileDeJuego(
-                  juego,
-                  index: base + index,
-                  alto: altoDe(juego),
+      child: RepaintBoundary(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                seccion.cat.label,
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 0.4,
                 ),
               ),
-              tarjetas: [
-                for (var j = 0; j < seccion.juegos.length; j++)
-                  _tileDeJuego(
+              const SizedBox(height: 8),
+              _CategoriaExpandible(
+                key: ValueKey('exp-${seccion.cat}'),
+                animaciones: _ajustes.animaciones,
+                visibles: columnas,
+                gap: gap,
+                extras: [
+                  for (var j = columnas; j < seccion.juegos.length; j++)
                     seccion.juegos[j],
-                    index: base + j,
-                    alto: altoDe(seccion.juegos[j]),
+                ],
+                buildExtra: (juego, index) => _tileDeJuego(
+                  juego,
+                  index: base + columnas + index,
+                  alto: altoDe(juego),
+                ),
+                colorBoton: i.isEven
+                    ? AppColors.fondo
+                    : AppColors.carta.withValues(alpha: 0.38),
+                onColapsar: _irAlInicio,
+                carousel: _CarruselCategoria(
+                  key: ValueKey(seccion.cat),
+                  juegos: seccion.juegos,
+                  visibles: columnas,
+                  gap: gap,
+                  anchos: [
+                    for (final j in seccion.juegos)
+                      _anchoTarjetaDe(j, altoDe(j)),
+                  ],
+                  altoFila: altoFilaDe(seccion.juegos),
+                  animaciones: _ajustes.animaciones,
+                  buildTile: (juego, index) => _tileDeJuego(
+                    juego,
+                    index: base + index,
+                    alto: altoDe(juego),
                   ),
-              ],
-            ),
-            if (hayMas) ...[
-              const SizedBox(height: 14),
-              Center(
-                child: _botonVerMas(
-                  abierto: abierta,
-                  fondo: i.isEven
-                      ? AppColors.fondo
-                      : AppColors.carta.withValues(alpha: 0.38),
-                  onTap: () {
-                    setState(() {
-                      if (abierta) {
-                        _seccionesExpandida.remove(seccion.cat);
-                      } else {
-                        _seccionesExpandida.add(seccion.cat);
-                      }
-                    });
-                  },
                 ),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _botonVerMas({
-    required bool abierto,
-    required Color fondo,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      shape: const StadiumBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const StadiumBorder(),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: fondo,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: AppColors.azul, width: 1.6),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-            child: Text(
-              abierto ? 'Ver menos' : 'Ver más',
-              style: const TextStyle(
-                color: AppColors.azul,
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
-                letterSpacing: 0.3,
-              ),
-            ),
           ),
         ),
       ),
@@ -1202,25 +1160,29 @@ class _HomeScreenState extends State<HomeScreen>
                                           );
                                         }
 
-                                        return ListView(
+                                        return SingleChildScrollView(
                                           controller: _scrollController,
                                           padding: EdgeInsets.zero,
                                           physics:
                                               const ClampingScrollPhysics(),
-                                          children: [
-                                            for (var i = 0;
-                                                i < secciones.length;
-                                                i++)
-                                              _seccionCategoria(
-                                                i: i,
-                                                seccion: secciones[i],
-                                                secciones: secciones,
-                                                columnas: columnas,
-                                                gap: gap,
-                                                altoDe: altoDe,
-                                                altoFilaDe: altoFilaDe,
-                                              ),
-                                          ],
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              for (var i = 0;
+                                                  i < secciones.length;
+                                                  i++)
+                                                _seccionCategoria(
+                                                  i: i,
+                                                  seccion: secciones[i],
+                                                  secciones: secciones,
+                                                  columnas: columnas,
+                                                  gap: gap,
+                                                  altoDe: altoDe,
+                                                  altoFilaDe: altoFilaDe,
+                                                ),
+                                            ],
+                                          ),
                                         );
                                       },
                                     ),
@@ -1308,20 +1270,24 @@ class _HomeScreenState extends State<HomeScreen>
 class _CategoriaExpandible extends StatefulWidget {
   const _CategoriaExpandible({
     super.key,
-    required this.abierta,
     required this.animaciones,
     required this.visibles,
     required this.gap,
     required this.carousel,
-    required this.tarjetas,
+    required this.extras,
+    required this.buildExtra,
+    required this.colorBoton,
+    required this.onColapsar,
   });
 
-  final bool abierta;
   final bool animaciones;
   final int visibles;
   final double gap;
   final Widget carousel;
-  final List<Widget> tarjetas;
+  final List<_JuegoHome> extras;
+  final Widget Function(_JuegoHome juego, int index) buildExtra;
+  final Color colorBoton;
+  final VoidCallback onColapsar;
 
   @override
   State<_CategoriaExpandible> createState() => _CategoriaExpandibleState();
@@ -1330,40 +1296,28 @@ class _CategoriaExpandible extends StatefulWidget {
 class _CategoriaExpandibleState extends State<_CategoriaExpandible>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entrada;
-  bool _mostrarGrilla = false;
+  bool _mostrarExtras = false;
+  bool _abierta = false;
+  List<Widget>? _extrasCache;
+  bool _toggling = false;
 
   Duration get _duracion => widget.animaciones
-      ? const Duration(milliseconds: 620)
+      ? const Duration(milliseconds: 220)
       : Duration.zero;
 
   @override
   void initState() {
     super.initState();
-    _mostrarGrilla = widget.abierta;
     _entrada = AnimationController(vsync: this, duration: _duracion);
-    if (widget.abierta) _entrada.value = 1;
   }
 
   @override
   void didUpdateWidget(covariant _CategoriaExpandible oldWidget) {
     super.didUpdateWidget(oldWidget);
     _entrada.duration = _duracion;
-    if (widget.abierta == oldWidget.abierta) return;
-    if (widget.abierta) {
-      setState(() => _mostrarGrilla = true);
-      if (widget.animaciones) {
-        _entrada.forward(from: 0);
-      } else {
-        _entrada.value = 1;
-      }
-    } else if (widget.animaciones && _mostrarGrilla) {
-      _entrada.reverse().whenComplete(() {
-        if (!mounted || widget.abierta) return;
-        setState(() => _mostrarGrilla = false);
-      });
-    } else {
-      _entrada.value = 0;
-      setState(() => _mostrarGrilla = false);
+    if (oldWidget.extras.length != widget.extras.length ||
+        oldWidget.visibles != widget.visibles) {
+      _extrasCache = null;
     }
   }
 
@@ -1373,65 +1327,133 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
     super.dispose();
   }
 
-  Widget _tarjetaDe(int i) {
-    final child = widget.tarjetas[i];
-    if (i < widget.visibles) return child;
-    final extra = i - widget.visibles;
-    final start = (extra * 0.12).clamp(0.0, 0.55);
-    final end = (start + 0.42).clamp(0.0, 1.0);
-    final curved = CurvedAnimation(
-      parent: _entrada,
-      curve: Interval(start, end, curve: Curves.easeOutCubic),
-    );
-    return FadeTransition(
-      opacity: curved,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.22),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
-      ),
-    );
+  Future<void> _toggle() async {
+    if (_toggling) return;
+    _toggling = true;
+    try {
+      if (_abierta) {
+        widget.onColapsar();
+        if (widget.animaciones) {
+          await _entrada.reverse();
+        } else {
+          _entrada.value = 0;
+        }
+        if (!mounted) return;
+        setState(() {
+          _abierta = false;
+          _mostrarExtras = false;
+          _extrasCache = null;
+        });
+      } else {
+        setState(() {
+          _abierta = true;
+          _mostrarExtras = true;
+        });
+        if (widget.animaciones) {
+          await _entrada.forward(from: 0);
+        } else {
+          _entrada.value = 1;
+        }
+      }
+    } finally {
+      _toggling = false;
+    }
   }
 
   int get _porFila => math.min(3, math.max(1, widget.visibles));
 
-  Widget _grilla() {
-    final porFila = _porFila;
+  Widget _grillaExtras() {
+    final tiles = _extrasCache ??= [
+      for (var i = 0; i < widget.extras.length; i++)
+        widget.buildExtra(widget.extras[i], i),
+    ];
     final filas = <Widget>[];
-    for (var i = 0; i < widget.tarjetas.length; i += porFila) {
-      final fin = math.min(i + porFila, widget.tarjetas.length);
+    for (var i = 0; i < tiles.length; i += _porFila) {
+      final fin = math.min(i + _porFila, tiles.length);
+      filas.add(SizedBox(height: widget.gap));
       filas.add(
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             for (var j = i; j < fin; j++) ...[
               if (j > i) SizedBox(width: widget.gap),
-              _tarjetaDe(j),
+              tiles[j],
             ],
           ],
         ),
       );
     }
-    return Column(
-      children: [
-        for (var f = 0; f < filas.length; f++) ...[
-          if (f > 0) SizedBox(height: widget.gap),
-          filas[f],
-        ],
-      ],
-    );
+    return Column(children: filas);
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSize(
-      duration: _duracion,
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
-      clipBehavior: Clip.hardEdge,
-      child: _mostrarGrilla ? _grilla() : widget.carousel,
+    return Column(
+      children: [
+        widget.carousel,
+        if (_mostrarExtras)
+          ClipRect(
+            child: SizeTransition(
+              sizeFactor: _entrada,
+              alignment: Alignment.topCenter,
+              child: _grillaExtras(),
+            ),
+          ),
+        if (widget.extras.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Center(
+            child: _BotonVerMas(
+              abierto: _abierta,
+              fondo: widget.colorBoton,
+              onTap: _toggle,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _BotonVerMas extends StatelessWidget {
+  const _BotonVerMas({
+    required this.abierto,
+    required this.fondo,
+    required this.onTap,
+  });
+
+  final bool abierto;
+  final Color fondo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: fondo,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.azul, width: 1.6),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+            child: Text(
+              abierto ? 'Ver menos' : 'Ver más',
+              style: const TextStyle(
+                color: AppColors.azul,
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1508,7 +1530,7 @@ class _CarruselCategoria extends StatefulWidget {
 }
 
 class _CarruselCategoriaState extends State<_CarruselCategoria> {
-  static const _copias = 80;
+  static const _copias = 6;
   late final ScrollController _scroll;
   int _indice = 0;
   bool _enMovimiento = false;
@@ -1527,7 +1549,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
   int get _itemCount => _hayMas ? _n * _copias : _n;
 
   Duration get _duracion => widget.animaciones
-      ? const Duration(milliseconds: 520)
+      ? const Duration(milliseconds: 280)
       : Duration.zero;
 
   double get _anchoVista {
@@ -1614,8 +1636,9 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
 
   void _recentrarSiHaceFalta() {
     if (!_hayMas || !_scroll.hasClients || _n == 0) return;
-    final minSeguro = _n * 8;
-    final maxSeguro = _n * (_copias - 8) - 1;
+    final minSeguro = _n;
+    final maxSeguro = _n * (_copias - 2) - 1;
+    if (maxSeguro < minSeguro) return;
     if (_indice >= minSeguro && _indice <= maxSeguro) return;
     final destino = _indiceBase + (_indice % _n);
     _indice = destino;
@@ -1758,10 +1781,9 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
           if (!_hayMas || n.depth != 0) return false;
           if (n is ScrollStartNotification && n.dragDetails != null) {
             _ajustando = false;
-            if (!_enMovimiento) setState(() => _enMovimiento = true);
+            _enMovimiento = true;
           } else if (n is ScrollUpdateNotification && !_ajustando) {
-            final i = _indiceCercano(_scroll.offset);
-            if (i != _indice) setState(() => _indice = i);
+            _indice = _indiceCercano(_scroll.offset);
           } else if (n is ScrollEndNotification) {
             if (_ajustando || !_scroll.hasClients) return false;
             final i = _indiceCercano(_scroll.offset);
@@ -1784,7 +1806,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
           scrollDirection: Axis.horizontal,
           primary: false,
           padding: EdgeInsets.zero,
-          cacheExtent: _anchoVista * 3,
+          addAutomaticKeepAlives: false,
           physics: _FisicaSnapCarrusel(
             destino: _destinoSnap,
             parent: const ClampingScrollPhysics(
@@ -1949,38 +1971,7 @@ class _JuegoTile extends StatefulWidget {
   State<_JuegoTile> createState() => _JuegoTileState();
 }
 
-class _JuegoTileState extends State<_JuegoTile>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _fuego;
-
-  @override
-  void initState() {
-    super.initState();
-    _fuego = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-    if (widget.destacadoFuego) {
-      _fuego.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _JuegoTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.destacadoFuego && !_fuego.isAnimating) {
-      _fuego.repeat(reverse: true);
-    } else if (!widget.destacadoFuego && _fuego.isAnimating) {
-      _fuego.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _fuego.dispose();
-    super.dispose();
-  }
-
+class _JuegoTileState extends State<_JuegoTile> {
   @override
   Widget build(BuildContext context) {
     final activo = widget.enabled && widget.onJugar != null;
@@ -2106,10 +2097,6 @@ class _JuegoTileState extends State<_JuegoTile>
         height: 1.3,
         fontStyle: FontStyle.italic,
       );
-      final durEslogan = widget.animaciones
-          ? const Duration(milliseconds: 280)
-          : Duration.zero;
-
       final botonesArcade = FittedBox(
         fit: BoxFit.scaleDown,
         child: Column(
@@ -2174,34 +2161,33 @@ class _JuegoTileState extends State<_JuegoTile>
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
+                        const flechaAncho = 18.0;
+                        final anchoTexto =
+                            math.max(0.0, constraints.maxWidth - flechaAncho);
                         final tp = TextPainter(
-                          text: TextSpan(
-                            text: eslogan,
-                            style: estiloEslogan,
-                          ),
-                          maxLines: 1,
-                          ellipsis: '…',
+                          text: TextSpan(text: eslogan, style: estiloEslogan),
                           textAlign: TextAlign.center,
                           textDirection: TextDirection.ltr,
-                        )..layout(maxWidth: math.max(0, constraints.maxWidth - 40));
-                        final altoUnaLinea = tp.height;
+                        )..layout(maxWidth: anchoTexto);
+                        final lineas = tp.computeLineMetrics();
+                        final altoLinea = lineas.isEmpty
+                            ? (estiloEslogan.fontSize ?? 10.5) *
+                                (estiloEslogan.height ?? 1.3)
+                            : lineas.first.height;
+                        final desborda = lineas.length > 1;
+                        final expandido = widget.esloganExpandido;
                         return Stack(
                           children: [
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: AnimatedSize(
-                                duration: durEslogan,
-                                curve: Curves.easeInOutCubic,
-                                alignment: Alignment.topCenter,
-                                clipBehavior: Clip.hardEdge,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    maxHeight: widget.esloganExpandido
-                                        ? double.infinity
-                                        : altoUnaLinea,
-                                  ),
+                              padding: const EdgeInsets.only(right: flechaAncho),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight:
+                                      expandido ? double.infinity : altoLinea,
+                                ),
+                                child: ClipRect(
                                   child: SizedBox(
-                                    width: constraints.maxWidth,
+                                    width: anchoTexto,
                                     child: Text(
                                       eslogan,
                                       textAlign: TextAlign.center,
@@ -2211,13 +2197,32 @@ class _JuegoTileState extends State<_JuegoTile>
                                 ),
                               ),
                             ),
+                            if (!expandido && desborda)
+                              Positioned(
+                                right: flechaAncho,
+                                top: 0,
+                                height: altoLinea,
+                                child: IgnorePointer(
+                                  child: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: ColoredBox(
+                                      color: AppColors.carta
+                                          .withValues(alpha: 0.95),
+                                      child: Text(
+                                        '...',
+                                        style: estiloEslogan,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             Positioned(
                               top: 0,
                               right: 0,
-                              height: altoUnaLinea,
+                              height: altoLinea,
                               child: Center(
                                 child: Icon(
-                                  widget.esloganExpandido
+                                  expandido
                                       ? Icons.keyboard_arrow_up_rounded
                                       : Icons.keyboard_arrow_down_rounded,
                                   size: 16,
@@ -2284,19 +2289,14 @@ class _JuegoTileState extends State<_JuegoTile>
       required double altoImg,
       required double altoTotal,
     }) {
-      return AnimatedBuilder(
-        animation: _fuego,
-        builder: (context, child) {
-          final t = fuego ? _fuego.value : 0.0;
-    return DecoratedBox(
+      return DecoratedBox(
       decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow: fuego
                   ? [
                       BoxShadow(
-                        color: const Color(0xFFFF6D00)
-                            .withValues(alpha: 0.22 + t * 0.25),
-                        blurRadius: 10 + t * 6,
+                        color: const Color(0xFFFF6D00).withValues(alpha: 0.35),
+                        blurRadius: 12,
                       ),
                     ]
                   : widget.enabled
@@ -2309,9 +2309,6 @@ class _JuegoTileState extends State<_JuegoTile>
                         ]
                       : null,
             ),
-            child: child,
-          );
-        },
         child: SizedBox(
           width: anchoFijo,
           height: altoTotal,
@@ -2399,19 +2396,14 @@ class _JuegoTileState extends State<_JuegoTile>
 
     if (!portadaAlAncho) {
       // Layout anterior: llena el alto del slot; la imagen va en Expanded.
-      return AnimatedBuilder(
-        animation: _fuego,
-        builder: (context, child) {
-          final t = fuego ? _fuego.value : 0.0;
-          return DecoratedBox(
+      return DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow: fuego
                   ? [
                       BoxShadow(
-                        color: const Color(0xFFFF6D00)
-                            .withValues(alpha: 0.22 + t * 0.25),
-                        blurRadius: 10 + t * 6,
+                        color: const Color(0xFFFF6D00).withValues(alpha: 0.35),
+                        blurRadius: 12,
                       ),
                     ]
                   : widget.enabled
@@ -2424,9 +2416,6 @@ class _JuegoTileState extends State<_JuegoTile>
                         ]
                       : null,
             ),
-            child: child,
-          );
-        },
         child: Material(
           color: Colors.transparent,
           elevation: 0,
@@ -2553,7 +2542,14 @@ class _HomeArcadePill extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
-            boxShadow: enabled ? neonGlow(glow, blur: 10, spread: 0.5) : null,
+            boxShadow: enabled
+                ? [
+                    BoxShadow(
+                      color: glow.withValues(alpha: 0.38),
+                      blurRadius: 8,
+                    ),
+                  ]
+                : null,
           ),
           child: Material(
             color: Colors.transparent,
