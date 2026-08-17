@@ -189,8 +189,9 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaEscoba,
       eslogan:
-          'Cartas españolas, sumas a 15 y esa escoba que te saca una sonrisa '
-          'malvada. Ideal para pelear la mesa con amigos o en familia y '
+          'Cartas españolas, cara de concentrado para sumar 15' 
+          'y esa escoba que te saca una sonrisa malvada.'
+          'Ideal para pelear en la mesa con amigos o en familia y '
           'fingir que “sabías la cuenta”. ¿Estás listo para jugar?',
     ),
     _JuegoHome(
@@ -202,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen>
       portadaAsset: _portadaCuloSucioV2,
       destacadoFuego: true,
       eslogan:
-          'Pares, el 1 de oro y esa tensión de no querer quedar “sucio”. '
+          'Eliminar pares, el 1 de oro y esa tensión de no querer quedar “con el c... sucio”. '
           'Ideal para pelear con amigos, reírse del que pierde y pedir '
           'revancha al toque. ¿Estás listo para jugar?',
     ),
@@ -214,7 +215,8 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaCuloSucioV1,
       eslogan:
-          'La versión clásica: el 1 de oro te hunde y nadie te tiene piedad. '
+          'La versión clásica: el 1 de oro\n'
+          'te hunde y nadie te tiene piedad. '
           'Ideal para mesa rápida, insultos cariñosos y “una más”. '
           '¿Estás listo para jugar?',
     ),
@@ -226,7 +228,8 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaCasitaRobada,
       eslogan:
-          'Armás casitas, robás la del otro y mirás inocente. Ideal para '
+          'Armás casitas, robás la del otro\n'
+          'y mirás inocente. Ideal para '
           'pelear el montoncito con amigos o en familia y decir “era mía”. '
           '¿Estás listo para jugar?',
     ),
@@ -238,7 +241,8 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaChanchoVa,
       eslogan:
-          'Cuartetos, manos rápidas y el grito sagrado: ¡CHANCHO VA! Ideal '
+          'Cuartetos, manos rápidas y el\n'
+          'grito sagrado: ¡CHANCHO VA! Ideal '
           'para el caos controlado con amigos y quedar como el más lento '
           'de la mesa. ¿Estás listo para jugar?',
     ),
@@ -262,7 +266,8 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaJodete,
       eslogan:
-          '50 cartas españolas y el placer de decir “jodete” con la jugada '
+          '50 cartas españolas y el placer\n'
+          'de decir “jodete” con la jugada '
           'justa. Ideal para pelear turnos, reírse del rival y no soltar '
           'la mesa. ¿Estás listo para jugar?',
     ),
@@ -274,10 +279,9 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.dados,
       portadaAsset: _portadaDiezMil,
       eslogan:
-          'Seis dados, una meta imposible de 10.000 y esa vocecita '
-          'que te dice “una tirada más”. Sumás de a poco, arriesgás de más y, '
-          'cuando creés que la tenés… ¡fuiste! Todo al piso. Ideal para pelear '
-          'con amigos o en familia, insultar a la suerte y fingir que “era estrategia”. '
+          'Seis dados, una meta imposible\n'
+          'de 10.000 y esa vocecita que te dice “una tirada más”. '
+          'Arriesgás de más y… ¡fuiste, todo al piso! '
           '¿Estás listo para jugar?',
     ),
     _JuegoHome(
@@ -288,10 +292,8 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.dados,
       portadaAsset: _portadaGenerala,
       eslogan:
-          'Cinco dados, una tablita traicionera y ese “¡casi generala!” '
-          'que duele más que perder. Escalera, full, póker… o tachás con cara '
-          'de póker. Ideal para pelear el puntaje con amigos o en familia, '
-          'culpar a los dados y jurar que “la próxima sale”. '
+          'Cinco dados, la malvada tablita traicionera y ese “casi generala” '
+          'que duele más que perder. Culpás a los dados y jurás que “la próxima sale”. '
           '¿Estás listo para jugar?',
     ),
     _JuegoHome(
@@ -315,7 +317,8 @@ class _HomeScreenState extends State<HomeScreen>
       portadaAsset: _portadaCanasta,
       enabled: false,
       eslogan:
-          'Melés, canastas y puntos que se acumulan con paciencia… o con '
+          'Melés, canastas y puntos que\n'
+          'se acumulan con paciencia… o con '
           'suerte. Estamos barajando esta mesa: pronto vas a poder jugar. '
           '¿Estás listo para cuando llegue?',
     ),
@@ -327,7 +330,8 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.papel,
       portadaAsset: _portadaTuttiFrutti,
       eslogan:
-          'Una letra, mil categorías y el reloj que no perdona. Pensás '
+          'Una letra, mil categorías y el\n'
+          'reloj que no perdona. Pensás '
           '“fruta con M…” y se te va la mente. Ideal para pelear en familia, '
           'inventar palabras dudosas y pelear el punto hasta el final. '
           '¿Estás listo para jugar?',
@@ -340,7 +344,8 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.papel,
       portadaAsset: _portadaUnoSolo,
       eslogan:
-          'Una ficha en el centro y un tablero que pide estrategia (o suerte '
+          'Una ficha en el centro y un\n'
+          'tablero que pide estrategia (o suerte '
           'disfrazada). Ideal para pensar dos jugadas… o improvisar y '
           'culpar al destino. ¿Estás listo para jugar?',
     ),
@@ -738,10 +743,31 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _irAlInicio() {
     if (!_scrollController.hasClients) return;
-    _scrollAnimToken++;
-    _ruedaAnimando = false;
-    _scrollController.jumpTo(0);
+    final token = ++_scrollAnimToken;
+    _ruedaAnimando = true;
+    final dur = _ajustes.animaciones
+        ? const Duration(milliseconds: 900)
+        : Duration.zero;
+    if (dur == Duration.zero) {
+      _scrollController.jumpTo(0);
+      _ruedaAnimando = false;
+      _scrollObjetivo = 0;
+      return;
+    }
     _scrollObjetivo = 0;
+    _scrollController
+        .animateTo(
+      0,
+      duration: dur,
+      curve: Curves.easeOutCubic,
+    )
+        .whenComplete(() {
+      if (!mounted || token != _scrollAnimToken) return;
+      _ruedaAnimando = false;
+      if (_scrollController.hasClients) {
+        _scrollObjetivo = _scrollController.offset;
+      }
+    });
   }
 
   void _onPointerSignalScroll(PointerSignalEvent event) {
@@ -825,11 +851,12 @@ class _HomeScreenState extends State<HomeScreen>
                     ? AppColors.fondo
                     : AppColors.carta.withValues(alpha: 0.38),
                 onColapsar: _irAlInicio,
-                carousel: _CarruselCategoria(
+                buildCarousel: (expandida) => _CarruselCategoria(
                   key: ValueKey(seccion.cat),
                   juegos: seccion.juegos,
                   visibles: columnas,
                   gap: gap,
+                  mostrarControles: !expandida,
                   anchos: [
                     for (final j in seccion.juegos)
                       _anchoTarjetaDe(j, altoDe(j)),
@@ -1273,7 +1300,7 @@ class _CategoriaExpandible extends StatefulWidget {
     required this.animaciones,
     required this.visibles,
     required this.gap,
-    required this.carousel,
+    required this.buildCarousel,
     required this.extras,
     required this.buildExtra,
     required this.colorBoton,
@@ -1283,7 +1310,7 @@ class _CategoriaExpandible extends StatefulWidget {
   final bool animaciones;
   final int visibles;
   final double gap;
-  final Widget carousel;
+  final Widget Function(bool expandida) buildCarousel;
   final List<_JuegoHome> extras;
   final Widget Function(_JuegoHome juego, int index) buildExtra;
   final Color colorBoton;
@@ -1296,29 +1323,39 @@ class _CategoriaExpandible extends StatefulWidget {
 class _CategoriaExpandibleState extends State<_CategoriaExpandible>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entrada;
+  late final Animation<double> _factor;
   bool _mostrarExtras = false;
   bool _abierta = false;
-  List<Widget>? _extrasCache;
   bool _toggling = false;
 
   Duration get _duracion => widget.animaciones
-      ? const Duration(milliseconds: 220)
+      ? const Duration(milliseconds: 360)
+      : Duration.zero;
+
+  Duration get _duracionCierre => widget.animaciones
+      ? const Duration(milliseconds: 900)
       : Duration.zero;
 
   @override
   void initState() {
     super.initState();
-    _entrada = AnimationController(vsync: this, duration: _duracion);
+    _entrada = AnimationController(
+      vsync: this,
+      duration: _duracion,
+      reverseDuration: _duracionCierre,
+    );
+    _factor = CurvedAnimation(
+      parent: _entrada,
+      curve: Curves.easeInOutCubic,
+      reverseCurve: Curves.easeInOutCubic,
+    );
   }
 
   @override
   void didUpdateWidget(covariant _CategoriaExpandible oldWidget) {
     super.didUpdateWidget(oldWidget);
     _entrada.duration = _duracion;
-    if (oldWidget.extras.length != widget.extras.length ||
-        oldWidget.visibles != widget.visibles) {
-      _extrasCache = null;
-    }
+    _entrada.reverseDuration = _duracionCierre;
   }
 
   @override
@@ -1342,15 +1379,19 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
         setState(() {
           _abierta = false;
           _mostrarExtras = false;
-          _extrasCache = null;
         });
       } else {
+        _entrada.value = 0;
         setState(() {
           _abierta = true;
           _mostrarExtras = true;
         });
         if (widget.animaciones) {
-          await _entrada.forward(from: 0);
+          // Montar las cartas en altura 0 y recién ahí animar;
+          // si no, el primer layout las muestra ya abiertas.
+          await WidgetsBinding.instance.endOfFrame;
+          if (!mounted || !_abierta) return;
+          await _entrada.forward();
         } else {
           _entrada.value = 1;
         }
@@ -1363,7 +1404,7 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
   int get _porFila => math.min(3, math.max(1, widget.visibles));
 
   Widget _grillaExtras() {
-    final tiles = _extrasCache ??= [
+    final tiles = [
       for (var i = 0; i < widget.extras.length; i++)
         widget.buildExtra(widget.extras[i], i),
     ];
@@ -1390,11 +1431,11 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        widget.carousel,
+        widget.buildCarousel(_abierta),
         if (_mostrarExtras)
           ClipRect(
             child: SizeTransition(
-              sizeFactor: _entrada,
+              sizeFactor: _factor,
               alignment: Alignment.topCenter,
               child: _grillaExtras(),
             ),
@@ -1515,6 +1556,7 @@ class _CarruselCategoria extends StatefulWidget {
     required this.altoFila,
     required this.buildTile,
     required this.animaciones,
+    this.mostrarControles = true,
   });
 
   final List<_JuegoHome> juegos;
@@ -1523,6 +1565,7 @@ class _CarruselCategoria extends StatefulWidget {
   final List<double> anchos;
   final double altoFila;
   final bool animaciones;
+  final bool mostrarControles;
   final Widget Function(_JuegoHome juego, int index) buildTile;
 
   @override
@@ -1662,7 +1705,8 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
   void didUpdateWidget(covariant _CarruselCategoria oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.juegos.length != widget.juegos.length ||
-        oldWidget.visibles != widget.visibles) {
+        oldWidget.visibles != widget.visibles ||
+        (oldWidget.mostrarControles && !widget.mostrarControles)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _irAlMedio();
@@ -1715,7 +1759,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
   }
 
   Future<void> _ir(int delta) async {
-    if (!_hayMas || _enMovimiento) return;
+    if (!_hayMas || _enMovimiento || !widget.mostrarControles) return;
     await _irA(_indice + delta);
   }
 
@@ -1769,16 +1813,20 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
   Widget _lista() {
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(
-        dragDevices: {
-          PointerDeviceKind.touch,
-          PointerDeviceKind.mouse,
-          PointerDeviceKind.stylus,
-          PointerDeviceKind.trackpad,
-        },
+        dragDevices: widget.mostrarControles
+            ? {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.stylus,
+                PointerDeviceKind.trackpad,
+              }
+            : {},
       ),
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
-          if (!_hayMas || n.depth != 0) return false;
+          if (!_hayMas || n.depth != 0 || !widget.mostrarControles) {
+            return false;
+          }
           if (n is ScrollStartNotification && n.dragDetails != null) {
             _ajustando = false;
             _enMovimiento = true;
@@ -1807,12 +1855,14 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
           primary: false,
           padding: EdgeInsets.zero,
           addAutomaticKeepAlives: false,
-          physics: _FisicaSnapCarrusel(
-            destino: _destinoSnap,
-            parent: const ClampingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-          ),
+          physics: widget.mostrarControles
+              ? _FisicaSnapCarrusel(
+                  destino: _destinoSnap,
+                  parent: const ClampingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                )
+              : const NeverScrollableScrollPhysics(),
           itemCount: _itemCount,
           separatorBuilder: (_, __) => SizedBox(width: widget.gap),
           itemBuilder: (context, i) {
@@ -1838,7 +1888,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
               child: _hayMas ? ClipRect(child: _lista()) : _filaFija(),
             ),
           ),
-          if (_hayMas)
+          if (_hayMas && widget.mostrarControles)
             Positioned(
               left: 4,
               child: _flecha(
@@ -1846,7 +1896,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
                 onTap: _enMovimiento ? null : () => _ir(-_pasoFlecha),
               ),
             ),
-          if (_hayMas)
+          if (_hayMas && widget.mostrarControles)
             Positioned(
               right: 4,
               child: _flecha(
@@ -1932,6 +1982,198 @@ class _BarraCategorias extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EsloganExpandible extends StatelessWidget {
+  const _EsloganExpandible({
+    required this.texto,
+    required this.estilo,
+    required this.expandido,
+    required this.animaciones,
+    required this.onTap,
+  });
+
+  final String texto;
+  final TextStyle estilo;
+  final bool expandido;
+  final bool animaciones;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dur = animaciones
+        ? const Duration(milliseconds: 280)
+        : Duration.zero;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const icono = 16.0;
+              final tamFuente = estilo.fontSize ?? 10.5;
+              final radioPunto = math.max(1.1, tamFuente * 0.105);
+              final pasoPuntos = radioPunto * 2.9;
+              final puntosW = radioPunto * 2 + pasoPuntos * 2 + 2;
+              final margen = icono + puntosW + 2;
+              final anchoTexto =
+                  math.max(0.0, constraints.maxWidth - margen * 2);
+              final tp = TextPainter(
+                text: TextSpan(text: texto, style: estilo),
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.ltr,
+              )..layout(maxWidth: anchoTexto);
+              final lineas = tp.computeLineMetrics();
+              final altoLinea = lineas.isEmpty
+                  ? (estilo.fontSize ?? 10.5) * (estilo.height ?? 1.3)
+                  : lineas.first.height;
+              final baseTexto = lineas.isEmpty ? altoLinea : lineas.first.baseline;
+              final desborda = lineas.length > 1;
+
+              var finPrimera = 0.0;
+              if (texto.isNotEmpty && desborda) {
+                final rango = tp.getLineBoundary(const TextPosition(offset: 0));
+                var fin = rango.end.clamp(0, texto.length);
+                while (fin > rango.start &&
+                    fin > 0 &&
+                    (texto[fin - 1] == ' ' || texto[fin - 1] == '\n')) {
+                  fin--;
+                }
+                if (fin > rango.start) {
+                  final cajas = tp.getBoxesForSelection(
+                    TextSelection(
+                      baseOffset: fin - 1,
+                      extentOffset: fin,
+                    ),
+                  );
+                  if (cajas.isNotEmpty) {
+                    finPrimera =
+                        math.max(cajas.first.left, cajas.first.right);
+                  } else {
+                    finPrimera = tp.getOffsetForCaret(
+                      TextPosition(
+                        offset: fin,
+                        affinity: TextAffinity.upstream,
+                      ),
+                      Rect.zero,
+                    ).dx;
+                  }
+                }
+              }
+
+              final extraItalica = estilo.fontStyle == FontStyle.italic
+                  ? tamFuente * 0.42
+                  : 1.5;
+              final xPuntos = margen + finPrimera + extraItalica;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: margen),
+                    child: AnimatedSize(
+                      duration: dur,
+                      curve: Curves.easeInOutCubic,
+                      alignment: Alignment.topCenter,
+                      clipBehavior: Clip.hardEdge,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: expandido ? tp.height : altoLinea,
+                        ),
+                        child: ClipRect(
+                          child: SizedBox(
+                            width: anchoTexto,
+                            child: Text(
+                              texto,
+                              textAlign: TextAlign.center,
+                              style: estilo,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (!expandido && desborda)
+                    Positioned(
+                      left: xPuntos,
+                      top: 0,
+                      height: altoLinea,
+                      width: puntosW,
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _TresPuntosPainter(
+                            color: estilo.color ?? AppColors.textoSuave,
+                            radio: radioPunto,
+                            paso: pasoPuntos,
+                            baseline: baseTexto,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (desborda || expandido)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      height: altoLinea,
+                      width: icono,
+                      child: IgnorePointer(
+                        child: Icon(
+                          expandido
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: AppColors.textoSuave,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TresPuntosPainter extends CustomPainter {
+  const _TresPuntosPainter({
+    required this.color,
+    required this.radio,
+    required this.paso,
+    required this.baseline,
+  });
+
+  final Color color;
+  final double radio;
+  final double paso;
+  final double baseline;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    final y = baseline - radio * 0.25;
+    for (var i = 0; i < 3; i++) {
+      canvas.drawCircle(Offset(radio + i * paso, y), radio, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TresPuntosPainter old) =>
+      old.color != color ||
+      old.radio != radio ||
+      old.paso != paso ||
+      old.baseline != baseline;
 }
 
 class _JuegoTile extends StatefulWidget {
@@ -2152,90 +2394,12 @@ class _JuegoTileState extends State<_JuegoTile> {
                 ),
               ),
               const SizedBox(height: 6),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: widget.onToggleEslogan,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        const flechaAncho = 18.0;
-                        final anchoTexto =
-                            math.max(0.0, constraints.maxWidth - flechaAncho);
-                        final tp = TextPainter(
-                          text: TextSpan(text: eslogan, style: estiloEslogan),
-                          textAlign: TextAlign.center,
-                          textDirection: TextDirection.ltr,
-                        )..layout(maxWidth: anchoTexto);
-                        final lineas = tp.computeLineMetrics();
-                        final altoLinea = lineas.isEmpty
-                            ? (estiloEslogan.fontSize ?? 10.5) *
-                                (estiloEslogan.height ?? 1.3)
-                            : lineas.first.height;
-                        final desborda = lineas.length > 1;
-                        final expandido = widget.esloganExpandido;
-                        return Stack(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(right: flechaAncho),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxHeight:
-                                      expandido ? double.infinity : altoLinea,
-                                ),
-                                child: ClipRect(
-                                  child: SizedBox(
-                                    width: anchoTexto,
-                                    child: Text(
-                                      eslogan,
-                                      textAlign: TextAlign.center,
-                                      style: estiloEslogan,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (!expandido && desborda)
-                              Positioned(
-                                right: flechaAncho,
-                                top: 0,
-                                height: altoLinea,
-                                child: IgnorePointer(
-                                  child: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: ColoredBox(
-                                      color: AppColors.carta
-                                          .withValues(alpha: 0.95),
-                                      child: Text(
-                                        '...',
-                                        style: estiloEslogan,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            Positioned(
-                              top: 0,
-                              right: 0,
-                              height: altoLinea,
-                              child: Center(
-                                child: Icon(
-                                  expandido
-                                      ? Icons.keyboard_arrow_up_rounded
-                                      : Icons.keyboard_arrow_down_rounded,
-                                  size: 16,
-                                  color: AppColors.textoSuave,
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
+              _EsloganExpandible(
+                texto: eslogan,
+                estilo: estiloEslogan,
+                expandido: widget.esloganExpandido,
+                animaciones: widget.animaciones,
+                onTap: widget.onToggleEslogan,
               ),
               Expanded(
                 child: Center(child: botonesArcade),
