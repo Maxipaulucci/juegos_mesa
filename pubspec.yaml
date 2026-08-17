@@ -23,8 +23,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/lottie/fireworks_a.json
-    - assets/lottie/fireworks_b.json
-    - assets/lottie/fireworks_c.json
-    - assets/img/portadas/
+    - assets/lottie/
     - assets/img/logo.png
+    - assets/img/portadas/
