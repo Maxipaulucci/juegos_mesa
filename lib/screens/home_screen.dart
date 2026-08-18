@@ -254,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen>
       categoria: _CategoriaHome.cartasEspanolas,
       portadaAsset: _portadaDesconfio,
       eslogan:
-          'Bluff, cara de póker y ese “desconfío” que te salva… o te hunde. '
+          'Chamuyo, cara de póker y ese “desconfío” que te salva… o te hunde. '
           'Ideal para mentir con estilo y pelear la mesa con amigos. '
           '¿Estás listo para jugar?',
     ),
@@ -294,7 +294,7 @@ class _HomeScreenState extends State<HomeScreen>
       eslogan:
           'Cinco dados, la malvada tablita traicionera y ese “casi generala” '
           'que duele más que perder. Culpás a los dados y jurás que “la próxima sale”. '
-          '¿Estás listo para jugar?',
+          '¿Estás listo?',
     ),
     _JuegoHome(
       tipo: _TipoJuegoHome.guerraDeCartas,
@@ -317,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen>
       portadaAsset: _portadaCanasta,
       enabled: false,
       eslogan:
-          'Melés, canastas y puntos que\n'
+          'Combinaciones, canastas y puntos que '
           'se acumulan con paciencia… o con '
           'suerte. Estamos barajando esta mesa: pronto vas a poder jugar. '
           '¿Estás listo para cuando llegue?',
@@ -838,10 +838,7 @@ class _HomeScreenState extends State<HomeScreen>
                 animaciones: _ajustes.animaciones,
                 visibles: columnas,
                 gap: gap,
-                extras: [
-                  for (var j = columnas; j < seccion.juegos.length; j++)
-                    seccion.juegos[j],
-                ],
+                juegos: seccion.juegos,
                 buildExtra: (juego, index) => _tileDeJuego(
                   juego,
                   index: base + columnas + index,
@@ -851,12 +848,14 @@ class _HomeScreenState extends State<HomeScreen>
                     ? AppColors.fondo
                     : AppColors.carta.withValues(alpha: 0.38),
                 onColapsar: _irAlInicio,
-                buildCarousel: (expandida) => _CarruselCategoria(
+                buildCarousel: (expandida, onPrimerVisible) =>
+                    _CarruselCategoria(
                   key: ValueKey(seccion.cat),
                   juegos: seccion.juegos,
                   visibles: columnas,
                   gap: gap,
                   mostrarControles: !expandida,
+                  onPrimerVisible: onPrimerVisible,
                   anchos: [
                     for (final j in seccion.juegos)
                       _anchoTarjetaDe(j, altoDe(j)),
@@ -1301,7 +1300,7 @@ class _CategoriaExpandible extends StatefulWidget {
     required this.visibles,
     required this.gap,
     required this.buildCarousel,
-    required this.extras,
+    required this.juegos,
     required this.buildExtra,
     required this.colorBoton,
     required this.onColapsar,
@@ -1310,8 +1309,9 @@ class _CategoriaExpandible extends StatefulWidget {
   final bool animaciones;
   final int visibles;
   final double gap;
-  final Widget Function(bool expandida) buildCarousel;
-  final List<_JuegoHome> extras;
+  final Widget Function(bool expandida, ValueChanged<int> onPrimerVisible)
+      buildCarousel;
+  final List<_JuegoHome> juegos;
   final Widget Function(_JuegoHome juego, int index) buildExtra;
   final Color colorBoton;
   final VoidCallback onColapsar;
@@ -1327,6 +1327,8 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
   bool _mostrarExtras = false;
   bool _abierta = false;
   bool _toggling = false;
+  int _primerVisible = 0;
+  List<_JuegoHome> _extrasEnPantalla = const [];
 
   Duration get _duracion => widget.animaciones
       ? const Duration(milliseconds: 360)
@@ -1379,9 +1381,11 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
         setState(() {
           _abierta = false;
           _mostrarExtras = false;
+          _extrasEnPantalla = const [];
         });
       } else {
         _entrada.value = 0;
+        _extrasEnPantalla = _extrasDesde(_primerVisible);
         setState(() {
           _abierta = true;
           _mostrarExtras = true;
@@ -1403,10 +1407,28 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
 
   int get _porFila => math.min(3, math.max(1, widget.visibles));
 
+  bool get _hayExtras => widget.juegos.length > widget.visibles;
+
+  void _onPrimerVisible(int i) {
+    _primerVisible = i;
+  }
+
+  List<_JuegoHome> _extrasDesde(int primerVisible) {
+    final n = widget.juegos.length;
+    final v = math.min(widget.visibles, n);
+    if (n <= v) return const [];
+    final start = n == 0 ? 0 : primerVisible % n;
+    return [
+      for (var i = 0; i < n - v; i++)
+        widget.juegos[(start + v + i) % n],
+    ];
+  }
+
   Widget _grillaExtras() {
+    final extras = _extrasEnPantalla;
     final tiles = [
-      for (var i = 0; i < widget.extras.length; i++)
-        widget.buildExtra(widget.extras[i], i),
+      for (var i = 0; i < extras.length; i++)
+        widget.buildExtra(extras[i], i),
     ];
     final filas = <Widget>[];
     for (var i = 0; i < tiles.length; i += _porFila) {
@@ -1431,7 +1453,7 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        widget.buildCarousel(_abierta),
+        widget.buildCarousel(_abierta, _onPrimerVisible),
         if (_mostrarExtras)
           ClipRect(
             child: SizeTransition(
@@ -1440,7 +1462,7 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
               child: _grillaExtras(),
             ),
           ),
-        if (widget.extras.isNotEmpty) ...[
+        if (_hayExtras) ...[
           const SizedBox(height: 14),
           Center(
             child: _BotonVerMas(
@@ -1517,9 +1539,9 @@ class _FisicaSnapCarrusel extends ScrollPhysics {
 
   @override
   SpringDescription get spring => const SpringDescription(
-        mass: 0.9,
-        stiffness: 220,
-        damping: 26,
+        mass: 1.15,
+        stiffness: 140,
+        damping: 24,
       );
 
   @override
@@ -1557,6 +1579,7 @@ class _CarruselCategoria extends StatefulWidget {
     required this.buildTile,
     required this.animaciones,
     this.mostrarControles = true,
+    this.onPrimerVisible,
   });
 
   final List<_JuegoHome> juegos;
@@ -1566,6 +1589,7 @@ class _CarruselCategoria extends StatefulWidget {
   final double altoFila;
   final bool animaciones;
   final bool mostrarControles;
+  final ValueChanged<int>? onPrimerVisible;
   final Widget Function(_JuegoHome juego, int index) buildTile;
 
   @override
@@ -1592,7 +1616,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
   int get _itemCount => _hayMas ? _n * _copias : _n;
 
   Duration get _duracion => widget.animaciones
-      ? const Duration(milliseconds: 280)
+      ? const Duration(milliseconds: 450)
       : Duration.zero;
 
   double get _anchoVista {
@@ -1660,32 +1684,60 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
         .toInt();
   }
 
+  int get _indiceMaximo => math.max(0, _itemCount - _porPagina);
+
   double _destinoSnap(double pixels, double velocity) {
     var i = _indiceCercano(pixels);
     const umbral = 420.0;
     if (velocity.abs() > umbral) {
       i += velocity > 0 ? 1 : -1;
     }
-    return _offsetDe(i.clamp(0, math.max(0, _itemCount - 1)).toInt());
+    return _offsetDe(i.clamp(0, _indiceMaximo).toInt());
   }
 
   void _irAlMedio() {
     if (!_hayMas) return;
     _indice = _indiceBase;
-    if (_scroll.hasClients) {
-      _scroll.jumpTo(_offsetDe(_indice));
-    }
+    _saltarA(_offsetDe(_indice));
+    _avisarPrimerVisible();
+  }
+
+  void _avisarPrimerVisible() {
+    if (_n == 0) return;
+    widget.onPrimerVisible?.call(_indice % _n);
+  }
+
+  void _saltarA(double target) {
+    if (!_scroll.hasClients) return;
+    final pos = _scroll.position;
+    final clamped = target.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    if ((_scroll.offset - clamped).abs() < 1.5) return;
+    _ajustando = true;
+    _scroll.jumpTo(clamped);
+    _ajustando = false;
   }
 
   void _recentrarSiHaceFalta() {
     if (!_hayMas || !_scroll.hasClients || _n == 0) return;
-    final minSeguro = _n;
-    final maxSeguro = _n * (_copias - 2) - 1;
-    if (maxSeguro < minSeguro) return;
-    if (_indice >= minSeguro && _indice <= maxSeguro) return;
-    final destino = _indiceBase + (_indice % _n);
-    _indice = destino;
-    _scroll.jumpTo(_offsetDe(destino));
+    final ciclo = _largoCiclo;
+    if (ciclo <= 0) return;
+    final pos = _scroll.position;
+    var offset = pos.pixels;
+    final minOK = ciclo;
+    final maxOK = math.max(minOK, pos.maxScrollExtent - ciclo);
+    if (offset < minOK || offset > maxOK) {
+      var destino = offset;
+      while (destino < minOK) {
+        destino += ciclo;
+      }
+      while (destino > maxOK) {
+        destino -= ciclo;
+      }
+      _saltarA(destino);
+      offset = _scroll.hasClients ? _scroll.offset : destino;
+    }
+    _indice = _indiceCercano(offset).clamp(0, _indiceMaximo).toInt();
+    _avisarPrimerVisible();
   }
 
   @override
@@ -1699,17 +1751,24 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
       if (!mounted || !_hayMas || !_scroll.hasClients) return;
       _irAlMedio();
     });
+    _avisarPrimerVisible();
   }
 
   @override
   void didUpdateWidget(covariant _CarruselCategoria oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.juegos.length != widget.juegos.length ||
-        oldWidget.visibles != widget.visibles ||
-        (oldWidget.mostrarControles && !widget.mostrarControles)) {
+        oldWidget.visibles != widget.visibles) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _irAlMedio();
+      });
+    } else if (oldWidget.mostrarControles && !widget.mostrarControles) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        _saltarA(_offsetDe(_indice));
+        _recentrarSiHaceFalta();
+        _avisarPrimerVisible();
       });
     }
   }
@@ -1722,18 +1781,37 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
 
   Future<void> _irA(int indice, {bool animar = true}) async {
     if (!_scroll.hasClients || _n == 0) return;
-    final destino =
-        indice.clamp(0, math.max(0, _itemCount - 1)).toInt();
+    _recentrarSiHaceFalta();
+    var actual = _indice;
+    var destino = indice;
+    if (_hayMas) {
+      final minS = _n;
+      final maxS = _n * (_copias - 2) - _porPagina;
+      if (actual < minS ||
+          actual > maxS ||
+          destino < minS ||
+          destino > maxS) {
+        final medio = _indiceBase + (actual % _n);
+        final delta = destino - actual;
+        if (medio != actual) {
+          _indice = medio;
+          _saltarA(_offsetDe(medio));
+        }
+        destino = medio + delta;
+      }
+    }
+    destino = destino.clamp(0, _indiceMaximo).toInt();
     final target = _offsetDe(destino);
     if ((_scroll.offset - target).abs() < 1.5) {
       _indice = destino;
-      _recentrarSiHaceFalta();
+      _avisarPrimerVisible();
       if (_enMovimiento || _ajustando) {
         setState(() {
           _enMovimiento = false;
           _ajustando = false;
         });
       }
+      _recentrarSiHaceFalta();
       return;
     }
     setState(() {
@@ -1741,31 +1819,33 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
       _enMovimiento = true;
       _ajustando = true;
     });
+    _avisarPrimerVisible();
     if (!animar || !widget.animaciones) {
-      _scroll.jumpTo(target);
+      _scroll.jumpTo(target.clamp(
+        _scroll.position.minScrollExtent,
+        _scroll.position.maxScrollExtent,
+      ));
     } else {
       await _scroll.animateTo(
-        target,
+        target.clamp(
+          _scroll.position.minScrollExtent,
+          _scroll.position.maxScrollExtent,
+        ),
         duration: _duracion,
         curve: Curves.easeInOutCubic,
       );
     }
     if (!mounted) return;
-    _recentrarSiHaceFalta();
     setState(() {
       _enMovimiento = false;
       _ajustando = false;
     });
+    _recentrarSiHaceFalta();
   }
 
   Future<void> _ir(int delta) async {
     if (!_hayMas || _enMovimiento || !widget.mostrarControles) return;
     await _irA(_indice + delta);
-  }
-
-  Future<void> _encajar() async {
-    if (!_hayMas || _ajustando || !_scroll.hasClients) return;
-    await _irA(_indiceCercano(_scroll.offset));
   }
 
   Widget _flecha({
@@ -1824,7 +1904,10 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
       ),
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
-          if (!_hayMas || n.depth != 0 || !widget.mostrarControles) {
+          if (!_hayMas ||
+              n.depth != 0 ||
+              !widget.mostrarControles ||
+              _ajustando) {
             return false;
           }
           if (n is ScrollStartNotification && n.dragDetails != null) {
@@ -1832,20 +1915,18 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
             _enMovimiento = true;
           } else if (n is ScrollUpdateNotification && !_ajustando) {
             _indice = _indiceCercano(_scroll.offset);
+            _avisarPrimerVisible();
           } else if (n is ScrollEndNotification) {
             if (_ajustando || !_scroll.hasClients) return false;
             final i = _indiceCercano(_scroll.offset);
-            if ((_scroll.offset - _offsetDe(i)).abs() > 1.5) {
-              _encajar();
-            } else {
-              if (_indice != i || _enMovimiento) {
-                setState(() {
-                  _indice = i;
-                  _enMovimiento = false;
-                });
-              }
-              _recentrarSiHaceFalta();
+            if (_indice != i || _enMovimiento) {
+              setState(() {
+                _indice = i;
+                _enMovimiento = false;
+              });
             }
+            _avisarPrimerVisible();
+            _recentrarSiHaceFalta();
           }
           return false;
         },
