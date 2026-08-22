@@ -91,6 +91,17 @@ class UsuarioMongoService {
     }
   }
 
+  /// Ping largo para despertar Render free (cold start ~1 min).
+  Future<void> despertarBackend() async {
+    try {
+      await http
+          .get(_uri('/api/salud'), headers: _headers)
+          .timeout(const Duration(seconds: 90));
+    } catch (_) {
+      // Si sigue dormido o hay timeout, igual ya se disparó el arranque.
+    }
+  }
+
   Future<void> pedirRegistro({
     required String nombreUsuario,
     required String email,
