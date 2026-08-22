@@ -7,7 +7,7 @@ config({ path: join(raiz, '.env') });
 
 export const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017';
 export const nombreDb = process.env.MONGO_DB || 'juegosMesa';
-export const apiPort = Number(process.env.API_PORT || 27080);
+export const apiPort = Number(process.env.PORT || process.env.API_PORT || 27080);
 export const apiHost = process.env.API_HOST || '0.0.0.0';
 export const jwtSecret = process.env.JWT_SECRET || 'cambiá-esta-clave-local';
 export const jwtDias = process.env.JWT_DIAS || '30';
