@@ -12,9 +12,7 @@ export const apiHost = process.env.API_HOST || '0.0.0.0';
 export const jwtSecret = process.env.JWT_SECRET || 'cambiá-esta-clave-local';
 export const jwtDias = process.env.JWT_DIAS || '30';
 
-export const smtpHost = process.env.SMTP_HOST || '';
-export const smtpPort = Number(process.env.SMTP_PORT || 587);
-export const smtpUser = process.env.SMTP_USER || '';
-export const smtpPass = process.env.SMTP_PASS || '';
+export const resendApiKey = process.env.RESEND_API_KEY || '';
 export const mailFrom =
-  process.env.MAIL_FROM || smtpUser || 'Juegos de mesa Argentos <noreply@localhost>';
+  process.env.MAIL_FROM ||
+  'Juegos de mesa Argentos <onboarding@resend.dev>';

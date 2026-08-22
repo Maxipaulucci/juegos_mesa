@@ -26,19 +26,19 @@ npm run init
 
 Eso usa tu colección `usuarios` (no la borra) y crea índices de email y ranking. También deja lista la colección `partidas` para el historial de puntos.
 
-### 3. Mail (para el código de 6 dígitos)
+### 3. Mail con Resend (para el código de 6 dígitos)
 
-En `mongo/.env` completá:
+En Render free el SMTP de Gmail suele fallar. Usamos [Resend](https://resend.com):
+
+1. Creá cuenta → **API Keys** → copiá la clave `re_...`
+2. En `mongo/.env` (y en las env vars de Render) poné:
 
 ```
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=tu-correo@gmail.com
-SMTP_PASS=contraseña-de-aplicación
-MAIL_FROM=Juegos de mesa Argentos <tu-correo@gmail.com>
+RESEND_API_KEY=re_xxxxxxxx
+MAIL_FROM=Juegos de mesa Argentos <onboarding@resend.dev>
 ```
 
-En Gmail: cuenta → seguridad → contraseñas de aplicación (no uses la clave normal).
+Sin dominio verificado, el remitente gratis es `onboarding@resend.dev` (Resend solo deja enviar a tu propio mail de cuenta). Cuando verifiques un dominio, cambiá `MAIL_FROM` a algo como `Juegos de mesa Argentos <noreply@tudominio.com>`.
 
 El texto del mail es:
 
@@ -47,7 +47,7 @@ Tu código de verificación es: 123456
 Este código expira en 15 minutos.
 ```
 
-Si SMTP está vacío, el código se imprime en la consola de la API para probar.
+Si `RESEND_API_KEY` está vacío, el código se imprime en la consola de la API para probar.
 
 ### 4. Arrancar la API (cada vez que uses la app con ranking/cuentas)
 

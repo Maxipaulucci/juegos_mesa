@@ -1,25 +1,14 @@
-import nodemailer from 'nodemailer';
-import {
-  mailFrom,
-  smtpHost,
-  smtpPass,
-  smtpPort,
-  smtpUser,
-} from './env.mjs';
+import { Resend } from 'resend';
+import { mailFrom, resendApiKey } from './env.mjs';
 
 const NOMBRE_APP = 'Juegos de mesa Argentos';
 
 export function mailConfigurado() {
-  return Boolean(smtpHost && smtpUser && smtpPass);
+  return Boolean(resendApiKey);
 }
 
-function transporter() {
-  return nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: { user: smtpUser, pass: smtpPass },
-  });
+function cliente() {
+  return new Resend(resendApiKey);
 }
 
 function textoCodigo(codigo) {
@@ -30,20 +19,25 @@ function textoCodigo(codigo) {
   );
 }
 
-/** Mismo texto que Maxturnos, con el nombre de esta app arriba. */
+/** Envía el código de 6 dígitos por Resend (sirve en Render free). */
 export async function enviarCodigoRegistro({ email, codigo }) {
   const texto = textoCodigo(codigo);
 
   if (!mailConfigurado()) {
-    console.warn(`[mail] SMTP no configurado. Para ${email}:\n${texto}`);
+    console.warn(`[mail] RESEND_API_KEY no configurada. Para ${email}:\n${texto}`);
     return { simulado: true };
   }
 
-  await transporter().sendMail({
+  const { error } = await cliente().emails.send({
     from: mailFrom,
     to: email,
     subject: `Código de Verificación - ${NOMBRE_APP}`,
     text: texto,
   });
+
+  if (error) {
+    throw new Error(error.message || 'No se pudo enviar el mail con Resend.');
+  }
+
   return { simulado: false };
 }

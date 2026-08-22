@@ -137,7 +137,7 @@ export async function registrar(req, res) {
     await registrosPendientes().deleteMany({ email });
     res.status(502).json({
       error:
-        'No se pudo enviar el mail. Revisá SMTP_USER y SMTP_PASS en mongo/.env.',
+        'No se pudo enviar el mail. Revisá RESEND_API_KEY en mongo/.env.',
     });
     return;
   }
@@ -288,7 +288,7 @@ export async function pedirRecuperacion(req, res) {
     await recuperacionesPendientes().deleteMany({ email });
     res.status(502).json({
       error:
-        'No se pudo enviar el mail. Revisá SMTP_USER y SMTP_PASS en mongo/.env.',
+        'No se pudo enviar el mail. Revisá RESEND_API_KEY en mongo/.env.',
     });
   }
 }
