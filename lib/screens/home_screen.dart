@@ -442,15 +442,54 @@ class _HomeScreenState extends State<HomeScreen>
 
   List<_JuegoHome> get _juegosFiltrados => _juegos;
 
+  /// Padding horizontal de cada sección (16+16).
+  static const _paddingSeccionH = 32.0;
+
+  /// Ancho reservado a las flechas del carrusel en celular.
+  static const _espacioFlechasCelular = 88.0;
+
+  bool _esCelular(double ancho) {
+    const gap = 20.0;
+    const alto = 400.0;
+    const chromeMin = 218.0;
+    final anchoUtil = math.max(0.0, ancho - _paddingSeccionH);
+    final anchoTarjeta =
+        math.max(120.0, (alto - chromeMin) * _JuegoHome.aspectPortadaHome);
+    return anchoUtil < 2 * anchoTarjeta + gap;
+  }
+
   int _columnasPara(double ancho) {
     const gap = 20.0;
     const alto = 400.0;
     const chromeMin = 218.0;
+    final anchoUtil = math.max(0.0, ancho - _paddingSeccionH);
     final anchoTarjeta =
         math.max(120.0, (alto - chromeMin) * _JuegoHome.aspectPortadaHome);
-    if (ancho >= 3 * anchoTarjeta + 2 * gap) return 3;
-    if (ancho >= 2 * anchoTarjeta + gap) return 2;
-    return 1;
+    if (anchoUtil >= 3 * anchoTarjeta + 2 * gap) return 3;
+    if (anchoUtil >= 2 * anchoTarjeta + gap) return 2;
+    // Celulares: siempre 2 (el alto se achica para que entren).
+    return 2;
+  }
+
+  /// Alto de tarjeta cuadrada según columnas y ancho disponible.
+  double _altoCuadradaPara({
+    required double ancho,
+    required int columnas,
+    required bool esCelular,
+  }) {
+    const altoMax = 400.0;
+    const gap = 20.0;
+    const chromeMin = 218.0;
+    if (columnas < 2) return altoMax;
+    var anchoUtil = math.max(0.0, ancho - _paddingSeccionH);
+    // En celular dejamos lugar a las flechas si hay carrusel (>2 juegos).
+    if (esCelular) {
+      anchoUtil = math.max(0.0, anchoUtil - _espacioFlechasCelular);
+    }
+    final anchoTarjeta = (anchoUtil - gap * (columnas - 1)) / columnas;
+    final altoNecesario =
+        chromeMin + anchoTarjeta / _JuegoHome.aspectPortadaHome;
+    return math.min(altoMax, math.max(260.0, altoNecesario));
   }
 
   double _anchoTarjetaDe(_JuegoHome j, double alto) {
@@ -802,6 +841,7 @@ class _HomeScreenState extends State<HomeScreen>
     required ({_CategoriaHome cat, List<_JuegoHome> juegos}) seccion,
     required List<({_CategoriaHome cat, List<_JuegoHome> juegos})> secciones,
     required int columnas,
+    required bool esCelular,
     required double gap,
     required double Function(_JuegoHome j) altoDe,
     required double Function(List<_JuegoHome> juegos) altoFilaDe,
@@ -813,6 +853,12 @@ class _HomeScreenState extends State<HomeScreen>
     final fondoSeccion = i.isEven
         ? AppColors.carta.withValues(alpha: 0.38)
         : AppColors.fondo;
+
+    // Celular: si hay más de 2 juegos, mismas reglas que Cartas españolas
+    // (2 visibles + flechas + swipe + Ver más).
+    final visibles = esCelular
+        ? math.min(2, seccion.juegos.length)
+        : math.min(columnas, seccion.juegos.length);
 
     return ColoredBox(
       key: _claveSeccion[seccion.cat],
@@ -836,12 +882,12 @@ class _HomeScreenState extends State<HomeScreen>
               _CategoriaExpandible(
                 key: ValueKey('exp-${seccion.cat}'),
                 animaciones: _ajustes.animaciones,
-                visibles: columnas,
+                visibles: visibles,
                 gap: gap,
                 juegos: seccion.juegos,
                 buildExtra: (juego, index) => _tileDeJuego(
                   juego,
-                  index: base + columnas + index,
+                  index: base + visibles + index,
                   alto: altoDe(juego),
                 ),
                 colorBoton: i.isEven
@@ -852,7 +898,7 @@ class _HomeScreenState extends State<HomeScreen>
                     _CarruselCategoria(
                   key: ValueKey(seccion.cat),
                   juegos: seccion.juegos,
-                  visibles: columnas,
+                  visibles: visibles,
                   gap: gap,
                   mostrarControles: !expandida,
                   onPrimerVisible: onPrimerVisible,
@@ -1045,10 +1091,10 @@ class _HomeScreenState extends State<HomeScreen>
                                               color: AppColors.texto,
                                               fontWeight: FontWeight.w900,
                                               fontSize: 16,
-                                            ),
-                                          );
-                                        },
-                                      ),
+                        ),
+                      );
+                    },
+                  ),
                                     ),
                                   ),
                                 ),
@@ -1139,10 +1185,17 @@ class _HomeScreenState extends State<HomeScreen>
                                     },
                                     child: LayoutBuilder(
                                       builder: (context, constraints) {
+                                        final esCelular =
+                                            _esCelular(constraints.maxWidth);
                                         final columnas =
                                             _columnasPara(constraints.maxWidth);
                                         const altoCompacta = 132.0;
-                                        const altoCuadradaConEslogan = 400.0;
+                                        final altoCuadradaConEslogan =
+                                            _altoCuadradaPara(
+                                          ancho: constraints.maxWidth,
+                                          columnas: columnas,
+                                          esCelular: esCelular,
+                                        );
                                         const gap = 20.0;
                                         const categoriasOrden = [
                                           _CategoriaHome.cartasEspanolas,
@@ -1203,6 +1256,7 @@ class _HomeScreenState extends State<HomeScreen>
                                                   seccion: secciones[i],
                                                   secciones: secciones,
                                                   columnas: columnas,
+                                                  esCelular: esCelular,
                                                   gap: gap,
                                                   altoDe: altoDe,
                                                   altoFilaDe: altoFilaDe,
@@ -1284,9 +1338,9 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                   ),
-                ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -2534,7 +2588,7 @@ class _JuegoTileState extends State<_JuegoTile> {
       required double altoImg,
       required double altoTotal,
     }) {
-      return DecoratedBox(
+    return DecoratedBox(
       decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow: fuego
