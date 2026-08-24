@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'screens/hub_screen.dart';
+import 'screens/app_shell.dart';
 import 'shared/carga/pantalla_carga.dart';
 import 'theme/app_theme.dart';
 
@@ -79,7 +79,7 @@ class _SplashInicialState extends State<_SplashInicial> {
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
-        pageBuilder: (_, __, ___) => const HubScreen(),
+        pageBuilder: (_, __, ___) => const AppShell(),
         transitionDuration: const Duration(milliseconds: 350),
         transitionsBuilder: (_, anim, __, child) {
           return FadeTransition(opacity: anim, child: child);
