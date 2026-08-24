@@ -2,15 +2,12 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/api_config.dart';
 import '../models/usuario_mongo.dart';
 
-/// API local de Mongo (carpeta `mongo/` del repo).
+/// API del backend (cuentas y ranking).
 ///
-/// Arranque: `mongo/iniciar-api.bat` o `npm start` dentro de `mongo`.
-const String kMongoApiBase = String.fromEnvironment(
-  'MONGO_API_BASE',
-  defaultValue: 'http://127.0.0.1:27080',
-);
+/// Arranque: `backend/iniciar-todo.bat` o `backend/mongo/iniciar-api.bat`
 
 final _reUsuario = RegExp(r'^[A-Za-z0-9_]{3,20}$');
 

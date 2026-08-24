@@ -31,7 +31,7 @@ Eso usa tu colección `usuarios` (no la borra) y crea índices de email y rankin
 En Render free el SMTP de Gmail suele fallar. Usamos [Resend](https://resend.com):
 
 1. Creá cuenta → **API Keys** → copiá la clave `re_...`
-2. En `mongo/.env` (y en las env vars de Render) poné:
+2. En `backend/mongo/.env` (y en las env vars de Render) poné:
 
 ```
 RESEND_API_KEY=re_xxxxxxxx

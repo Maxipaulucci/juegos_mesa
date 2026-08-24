@@ -2,7 +2,7 @@
 cd /d "%~dp0"
 if not exist .env (
   copy /Y .env.example .env >nul
-  echo Se creo mongo\.env a partir de .env.example. Editalo si queres.
+  echo Se creo backend\mongo\.env a partir de .env.example. Editalo si queres.
 )
 if not exist node_modules (
   echo Instalando dependencias...

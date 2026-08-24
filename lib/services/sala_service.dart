@@ -2,21 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../config/api_config.dart';
 import '../models/sala.dart';
 
-/// URL base del API de salas.
-///
-/// En Netlify (mismo origen) queda vacío.
-/// En `flutter run` local apunta al sitio publicado para compartir salas.
-const String kSalaApiBase = String.fromEnvironment(
-  'SALA_API_BASE',
-  defaultValue: 'https://juegosdemesaargentos.netlify.app',
-);
-
-/// Salas online vía Netlify Functions + Blobs.
+/// Salas online vía Spring Boot + MongoDB (misma URL que cuentas si usás `API_BASE`).
 class SalaService {
   SalaService._();
   static final instance = SalaService._();
@@ -24,8 +15,7 @@ class SalaService {
   final _rng = Random();
 
   Uri _uri([Map<String, String>? query]) {
-    final base = kIsWeb && !kDebugMode ? '' : kSalaApiBase;
-    return Uri.parse('$base/api/sala').replace(queryParameters: query);
+    return Uri.parse('$kSalaApiBase/api/sala').replace(queryParameters: query);
   }
 
   String generarCodigo({int largo = 6}) {

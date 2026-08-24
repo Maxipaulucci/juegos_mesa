@@ -1,0 +1,23 @@
+# Un solo servicio web: Node (cuentas) + Spring (salas) → MongoDB Atlas
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: juegos-mesa-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    plan: free
+    healthCheckPath: /api/salud
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: juegosMesa
+      - key: JWT_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: SPRING_PORT
+        value: "8080"

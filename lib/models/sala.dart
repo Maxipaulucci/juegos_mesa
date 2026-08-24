@@ -12,7 +12,7 @@ class JugadorSala {
   final RolJugadorSala rol;
 }
 
-/// Sala online (Netlify Blobs).
+/// Sala online (Spring Boot + MongoDB).
 class Sala {
   Sala({
     required this.codigo,

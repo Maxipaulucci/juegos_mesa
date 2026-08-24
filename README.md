@@ -5,20 +5,10 @@ App Flutter con salas por código. Primer juego: **Diez Mil** (motor portado des
 ## Estructura
 
 ```
-lib/
-  main.dart
-  theme/app_theme.dart
-  models/sala.dart
-  services/sala_service.dart          ← salas locales (luego Firebase/Supabase)
-  screens/home_screen.dart
-  diezMil/                            ← todo el juego Diez Mil acá
-    motor.dart                        ← lógica pura (sin UI)
-    textos.dart
-    menu_diez_mil_screen.dart         ← Crear / Unirse / partida rápida
-    crear_sala_screen.dart
-    unirse_sala_screen.dart
-    lobby_sala_screen.dart            ← código + ojo + copiar + expulsar
-    partida_diez_mil_screen.dart      ← juego jugable
+lib/                    ← app Flutter
+backend/
+  mongo/                ← API Node (cuentas, ranking, mail)
+  spring/               ← API Spring Boot (salas online)
 ```
 
 ## Cómo correrlo
@@ -33,8 +23,10 @@ flutter run
 
 ## Flujo actual
 
-1. Inicio → **Diez Mil**
-2. **Crear** / **Unirse** (código tipo contraseña, lobby con lista y tacho)
-3. O **Partida rápida** en el mismo celular (usa el motor de verdad)
+1. Hub → **Juegos** (Salas y Ranking en preparación)
+2. **Crear** / **Unirse** con código (lobby online vía Spring Boot + MongoDB)
+3. O **Partida rápida** en el mismo dispositivo
 
-Las salas hoy son **locales en memoria** (mismo dispositivo). El online se enchufa después reemplazando `SalaService`.
+Backends locales: `backend\iniciar-todo.bat` (una URL) o por separado en `mongo/` y `spring/`.
+
+Producción (Render): `--dart-define=API_BASE=https://tu-app.onrender.com`

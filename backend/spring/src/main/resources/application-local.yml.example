@@ -1,0 +1,9 @@
+# Copiá a application-local.yml o usá variables de entorno.
+spring:
+  data:
+    mongodb:
+      uri: mongodb+srv://USUARIO:CLAVE@cluster.mongodb.net/juegosMesa?retryWrites=true&w=majority
+      database: juegosMesa
+
+server:
+  port: 8080

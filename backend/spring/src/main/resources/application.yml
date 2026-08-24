@@ -1,0 +1,12 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://127.0.0.1:27017}
+      database: ${MONGO_DB:juegosMesa}
+
+logging:
+  level:
+    com.juegosmesa: INFO
