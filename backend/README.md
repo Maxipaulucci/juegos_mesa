@@ -50,7 +50,8 @@ Documentación:
 ## Render (una instancia)
 
 1. Creá un **Web Service** con **Docker**.
-2. **Root Directory:** `backend` (o usá el Blueprint `render.yaml` en la raíz del repo).
+2. **Root Directory:** vacío (raíz del repo) **o** `backend` con Dockerfile `backend/Dockerfile`.
+3. Hay un `Dockerfile` en la **raíz del repo** para Render sin Root Directory.
 3. **Health check:** `/api/salud`
 4. Variables de entorno:
 

@@ -4,9 +4,9 @@ set -euo pipefail
 SPRING_PORT="${SPRING_PORT:-8080}"
 export SALAS_INTERNAL_PORT="${SPRING_PORT}"
 
-JAR="$(ls spring/target/salas-api-*.jar 2>/dev/null | head -1 || true)"
+JAR="$(ls spring/target/salas-api-*.jar spring/salas-api-*.jar 2>/dev/null | head -1 || true)"
 if [[ -z "${JAR}" ]]; then
-  echo "No se encontró spring/target/salas-api-*.jar. Ejecutá el build antes."
+  echo "No se encontró salas-api-*.jar en spring/ o spring/target/. Ejecutá el build antes."
   exit 1
 fi
 

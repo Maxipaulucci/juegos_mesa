@@ -1,0 +1,7 @@
+**/target
+**/node_modules
+**/.env
+**/application-local.yml
+**/.idea
+**/*.iml
+.git
