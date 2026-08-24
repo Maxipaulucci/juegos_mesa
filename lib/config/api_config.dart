@@ -1,27 +1,22 @@
-/// Resuelve la URL base del backend.
+/// URL base del API de cuentas/ranking.
 ///
-/// En Render (un solo servicio) usá:
-/// `--dart-define=API_BASE=https://tu-app.onrender.com`
-///
-/// Local con [backend/iniciar-todo.bat]: `http://127.0.0.1:27080`
-/// Local por separado: cuentas 27080, salas 8080 (defaults abajo).
-String resolveApiBase({
-  required String specificKey,
-  required String localDefault,
-}) {
-  const specific = String.fromEnvironment(specificKey);
+/// Render (un solo servicio): `--dart-define=API_BASE=https://tu-app.onrender.com`
+/// Local unificado: `http://127.0.0.1:27080` con `backend/iniciar-todo.bat`
+String get kMongoApiBase {
+  const specific = String.fromEnvironment('MONGO_API_BASE');
   if (specific.isNotEmpty) return specific;
   const unified = String.fromEnvironment('API_BASE');
   if (unified.isNotEmpty) return unified;
-  return localDefault;
+  return 'http://127.0.0.1:27080';
 }
 
-String get kMongoApiBase => resolveApiBase(
-      specificKey: 'MONGO_API_BASE',
-      localDefault: 'http://127.0.0.1:27080',
-    );
-
-String get kSalaApiBase => resolveApiBase(
-      specificKey: 'SALA_API_BASE',
-      localDefault: 'http://127.0.0.1:8080',
-    );
+/// URL base del API de salas online.
+///
+/// Si usás `API_BASE`, salas y cuentas comparten la misma URL (proxy en Node).
+String get kSalaApiBase {
+  const specific = String.fromEnvironment('SALA_API_BASE');
+  if (specific.isNotEmpty) return specific;
+  const unified = String.fromEnvironment('API_BASE');
+  if (unified.isNotEmpty) return unified;
+  return 'http://127.0.0.1:8080';
+}
