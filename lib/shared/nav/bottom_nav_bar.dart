@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Barra inferior: inicio, juegos, cuenta, ranking y tienda.
+/// Barra inferior: juegos, salas, cuenta, ranking y tienda.
 class AppBottomNavBar extends StatelessWidget {
   const AppBottomNavBar({
     super.key,
@@ -10,7 +10,7 @@ class AppBottomNavBar extends StatelessWidget {
     required this.onTap,
   });
 
-  /// 0 inicio · 1 juegos · 2 cuenta · 3 ranking · 4 tienda
+  /// 0 juegos · 1 salas · 2 cuenta · 3 ranking · 4 tienda
   final int indiceActual;
   final ValueChanged<int> onTap;
 
@@ -37,15 +37,15 @@ class AppBottomNavBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _ItemNav(
-            icono: Icons.home_rounded,
+            icono: Icons.sports_esports_rounded,
             color: AppColors.azul,
             activo: indiceActual == 0,
             habilitado: true,
             onTap: () => onTap(0),
           ),
           _ItemNav(
-            icono: Icons.sports_esports_rounded,
-            color: AppColors.azul,
+            icono: Icons.groups_rounded,
+            color: AppColors.violeta,
             activo: indiceActual == 1,
             habilitado: true,
             onTap: () => onTap(1),

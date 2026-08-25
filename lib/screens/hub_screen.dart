@@ -9,6 +9,7 @@ import '../shared/cuenta/cuenta_overlay.dart';
 import '../theme/app_theme.dart';
 import 'app_shell.dart';
 import 'home_screen.dart';
+import 'salas_screen.dart';
 
 /// Primera pantalla: header + Juegos / Salas / Ranking.
 class HubScreen extends StatefulWidget {
@@ -121,11 +122,19 @@ class _HubScreenState extends State<HubScreen> {
                     onTap: _abrirJuegos,
                   ),
                   const SizedBox(height: 16),
-                  const _BotonHub(
+                  _BotonHub(
                     label: 'Salas',
                     icono: Icons.groups_rounded,
                     color: AppColors.violeta,
-                    enabled: false,
+                    enabled: !_abriendoJuegos,
+                    onTap: () {
+                      unawaited(UsuarioMongoService.instance.despertarBackend());
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SalasScreen(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   const _BotonHub(

@@ -18,7 +18,13 @@ public class SalaController {
     }
 
     @GetMapping
-    public ResponseEntity<Map<String, Object>> obtener(@RequestParam(required = false) String codigo) {
+    public ResponseEntity<Map<String, Object>> get(
+            @RequestParam(required = false) String codigo,
+            @RequestParam(required = false) String listar
+    ) {
+        if (listar != null) {
+            return ResponseEntity.ok(salaService.listarAbiertas());
+        }
         return ResponseEntity.ok(salaService.obtener(codigo));
     }
 

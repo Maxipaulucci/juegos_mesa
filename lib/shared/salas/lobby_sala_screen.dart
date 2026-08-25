@@ -41,7 +41,10 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   late int _dados;
   bool _iniciando = false;
   bool _partidaLanzada = false;
+  bool _yaAbandone = false;
+  bool _saliendo = false;
   StreamSubscription<Sala>? _sub;
+  Timer? _heartbeatTimer;
   final List<TextEditingController> _catCtrls = [];
   int _maxRondas = 5;
   Timer? _lobbySyncDebounce;
@@ -50,6 +53,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   bool get _soyAnfitrion => widget.miId == _sala.anfitrionId;
 
   static const int _maxRondasAbecedario = 26; // A–Z
+  static const Duration _heartbeatCada = Duration(seconds: 8);
 
   bool get _puedeAgregarCategoria {
     if (_catCtrls.isEmpty || _catCtrls.length >= 6) return false;
@@ -113,18 +117,83 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
         });
       }
     }
-    _sub = SalaService.instance.watch(_sala.codigo).listen(_onSalaUpdate);
+    _sub = SalaService.instance.watch(_sala.codigo).listen(
+      _onSalaUpdate,
+      onDone: _onSalaDesaparecio,
+    );
+    if (_soyAnfitrion) {
+      unawaited(_enviarHeartbeat());
+      _heartbeatTimer = Timer.periodic(_heartbeatCada, (_) {
+        unawaited(_enviarHeartbeat());
+      });
+    }
+  }
+
+  Future<void> _enviarHeartbeat() async {
+    if (!_soyAnfitrion || _partidaLanzada || _yaAbandone) return;
+    try {
+      await SalaService.instance.heartbeat(
+        codigo: _sala.codigo,
+        miId: widget.miId,
+      );
+    } catch (_) {
+      // Red momentánea.
+    }
+  }
+
+  void _onSalaDesaparecio() {
+    if (!mounted || _partidaLanzada || _yaAbandone) return;
+    _yaAbandone = true;
+    _heartbeatTimer?.cancel();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _soyAnfitrion
+              ? 'La sala expiró (máx. 15 minutos en espera).'
+              : 'El anfitrión cerró o abandonó la sala.',
+        ),
+      ),
+    );
+    Navigator.of(context).maybePop();
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _heartbeatTimer?.cancel();
     _lobbySyncDebounce?.cancel();
     for (final c in _catCtrls) {
       c.removeListener(_onCatChanged);
       c.dispose();
     }
+    // Si el anfitrión cierra la app / se va sin pop limpio, borrar la sala.
+    if (!_partidaLanzada && !_yaAbandone) {
+      _yaAbandone = true;
+      unawaited(
+        SalaService.instance.salir(
+          codigo: _sala.codigo,
+          miId: widget.miId,
+        ),
+      );
+    }
     super.dispose();
+  }
+
+  Future<void> _abandonarYSalir() async {
+    if (_partidaLanzada || _yaAbandone || _saliendo) return;
+    setState(() => _saliendo = true);
+    _yaAbandone = true;
+    _sub?.cancel();
+    _heartbeatTimer?.cancel();
+    try {
+      await SalaService.instance.salir(
+        codigo: _sala.codigo,
+        miId: widget.miId,
+      );
+    } catch (_) {
+      // Igual salimos de la pantalla.
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _onSalaUpdate(Sala sala) {
@@ -156,7 +225,9 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
   void _lanzarPartida(Sala sala) {
     if (_partidaLanzada || !mounted) return;
     _partidaLanzada = true;
+    _yaAbandone = true; // no borrar la sala al salir del lobby
     _sub?.cancel();
+    _heartbeatTimer?.cancel();
     final yo = sala.jugadores.where((j) => j.id == widget.miId);
     final miNombre = yo.isNotEmpty ? yo.first.nombre : sala.jugadores.first.nombre;
     // Chancho va: el seed incluye humanos + PCs en gameState.jugadores.
@@ -299,9 +370,21 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
         _mostrarCodigo ? _sala.codigo : '*' * _sala.codigo.length;
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _abandonarYSalir();
+      },
+      child: Scaffold(
       resizeToAvoidBottomInset: true,
-      appBar: AppBar(title: const Text('Sala')),
+      appBar: AppBar(
+        title: const Text('Sala'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _saliendo ? null : _abandonarYSalir,
+        ),
+      ),
       body: Column(
         children: [
           Expanded(
@@ -349,7 +432,8 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
             const SizedBox(height: 8),
             Text(
               _soyAnfitrion
-                  ? 'Sos el anfitrión. Compartí el código cuando quieras.'
+                  ? 'Sos el anfitrión. La sala aparece en Salas hasta 15 min '
+                      'o hasta que salgas.'
                   : 'Esperando que el anfitrión inicie la partida…',
               style: const TextStyle(color: AppColors.textoSuave),
             ),
@@ -627,6 +711,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

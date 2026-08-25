@@ -20,6 +20,8 @@ public class SalaDocument {
     private int dados = 5;
     private Long creadaEn;
     private Long iniciadaEn;
+    /** Última vez que el anfitrión confirmó estar en el lobby (heartbeat). */
+    private Long anfitrionVistoEn;
     private List<String> lobbyCategorias = new ArrayList<>();
     private Integer lobbyMaxRondas;
     private List<String> lobbyOpcionesResumen = new ArrayList<>();
@@ -35,6 +37,7 @@ public class SalaDocument {
         map.put("dados", dados);
         if (creadaEn != null) map.put("creadaEn", creadaEn);
         if (iniciadaEn != null) map.put("iniciadaEn", iniciadaEn);
+        if (anfitrionVistoEn != null) map.put("anfitrionVistoEn", anfitrionVistoEn);
         map.put("lobbyCategorias", lobbyCategorias != null ? lobbyCategorias : List.of());
         if (lobbyMaxRondas != null) map.put("lobbyMaxRondas", lobbyMaxRondas);
         map.put("lobbyOpcionesResumen",
@@ -59,6 +62,8 @@ public class SalaDocument {
     public void setCreadaEn(Long creadaEn) { this.creadaEn = creadaEn; }
     public Long getIniciadaEn() { return iniciadaEn; }
     public void setIniciadaEn(Long iniciadaEn) { this.iniciadaEn = iniciadaEn; }
+    public Long getAnfitrionVistoEn() { return anfitrionVistoEn; }
+    public void setAnfitrionVistoEn(Long anfitrionVistoEn) { this.anfitrionVistoEn = anfitrionVistoEn; }
     public List<String> getLobbyCategorias() { return lobbyCategorias; }
     public void setLobbyCategorias(List<String> lobbyCategorias) { this.lobbyCategorias = lobbyCategorias; }
     public Integer getLobbyMaxRondas() { return lobbyMaxRondas; }

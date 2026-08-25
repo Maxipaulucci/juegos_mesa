@@ -7,6 +7,14 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/sala.dart';
 
+/// La sala ya no existe (cerrada, expirada o anfitrión ausente).
+class SalaInexistenteException implements Exception {
+  SalaInexistenteException([this.message = 'La sala ya no existe.']);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 /// Salas online vía Spring Boot + MongoDB (misma URL que cuentas si usás `API_BASE`).
 class SalaService {
   SalaService._();
@@ -122,10 +130,35 @@ class SalaService {
         .get(_uri({'codigo': codigo.trim().toUpperCase()}))
         .timeout(const Duration(seconds: 15));
     final decoded = _decode(res.body);
+    if (res.statusCode == 404) {
+      throw SalaInexistenteException(
+        decoded['error']?.toString() ?? 'La sala ya no existe.',
+      );
+    }
     if (res.statusCode >= 400) {
       throw StateError(decoded['error']?.toString() ?? 'No se pudo cargar la sala.');
     }
     return _parseSala(Map<String, dynamic>.from(decoded['sala'] as Map));
+  }
+
+  /// Salas en lobby con lugar libre (para el hub Salas).
+  Future<List<Sala>> listarAbiertas() async {
+    final res = await http
+        .get(_uri({'listar': '1'}))
+        .timeout(const Duration(seconds: 15));
+    final decoded = _decode(res.body);
+    if (res.statusCode >= 400) {
+      throw StateError(
+        decoded['error']?.toString() ?? 'No se pudieron listar las salas.',
+      );
+    }
+    final raw = decoded['salas'];
+    if (raw is! List) return const [];
+    return [
+      for (final item in raw)
+        if (item is Map)
+          _parseSala(Map<String, dynamic>.from(item)),
+    ];
   }
 
   Future<Sala> expulsar({
@@ -208,14 +241,44 @@ class SalaService {
     });
   }
 
+  /// Anfitrión: borra la sala. Invitado: sale del lobby.
+  Future<void> salir({
+    required String codigo,
+    required String miId,
+  }) async {
+    await _post({
+      'action': 'salir',
+      'codigo': codigo,
+      'miId': miId,
+    });
+  }
+
+  /// Mantiene visible la sala en el listado mientras el anfitrión está en lobby.
+  Future<void> heartbeat({
+    required String codigo,
+    required String miId,
+  }) async {
+    await _post({
+      'action': 'heartbeat',
+      'codigo': codigo,
+      'miId': miId,
+    });
+  }
+
   /// Polling cada [intervalo] mientras la sala exista.
+  /// Si la sala desaparece (404), el stream termina (onDone).
   Stream<Sala> watch(
     String codigo, {
     Duration intervalo = const Duration(milliseconds: 1200),
   }) async* {
+    var fallos404 = 0;
     while (true) {
       try {
         yield await obtener(codigo);
+        fallos404 = 0;
+      } on SalaInexistenteException {
+        fallos404++;
+        if (fallos404 >= 2) return;
       } catch (_) {
         // Red momentánea: reintenta.
       }

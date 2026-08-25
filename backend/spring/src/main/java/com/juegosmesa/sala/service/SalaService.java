@@ -18,6 +18,10 @@ import java.util.stream.Collectors;
 public class SalaService {
 
     private static final long TTL_PARTIDA_MS = 60L * 60L * 1000L;
+    /** Máximo tiempo que una sala en lobby aparece / existe. */
+    private static final long TTL_LOBBY_MS = 15L * 60L * 1000L;
+    /** Si el anfitrión no hace heartbeat, la sala deja de listarse y se borra. */
+    private static final long HEARTBEAT_LOBBY_MS = 35L * 1000L;
     private static final String SALA_NO_EXISTE =
             "No existe una sala con ese código (o expiró tras 1 hora de juego).";
 
@@ -35,6 +39,29 @@ public class SalaService {
         return Map.of("sala", sala.toMap());
     }
 
+    /** Salas en lobby disponibles para unirse (no llenas, &lt;15 min, anfitrión activo). */
+    public Map<String, Object> listarAbiertas() {
+        var ahora = System.currentTimeMillis();
+        var candidatas = repository.findByEstado("lobby");
+        var abiertas = new ArrayList<Map<String, Object>>();
+        for (var s : candidatas) {
+            if (lobbyInactiva(s, ahora)) {
+                repository.deleteById(s.getCodigo());
+                continue;
+            }
+            if (s.getJugadores() == null || s.getJugadores().size() >= 4) continue;
+            if (!anfitrionPresente(s)) {
+                repository.deleteById(s.getCodigo());
+                continue;
+            }
+            abiertas.add(s.toMap());
+        }
+        abiertas.sort((a, b) -> Long.compare(
+                toLong(b.get("creadaEn"), 0L),
+                toLong(a.get("creadaEn"), 0L)));
+        return Map.of("salas", abiertas);
+    }
+
     public Map<String, Object> post(Map<String, Object> body) {
         var action = str(body.get("action"));
         return switch (action) {
@@ -44,6 +71,8 @@ public class SalaService {
             case "iniciar" -> iniciar(body);
             case "actualizarLobby" -> actualizarLobby(body);
             case "actualizarJuego" -> actualizarJuego(body);
+            case "heartbeat" -> heartbeat(body);
+            case "salir" -> salir(body);
             case "cerrar" -> cerrar(body);
             default -> throw new ApiException(400, "Acción desconocida.");
         };
@@ -57,13 +86,15 @@ public class SalaService {
 
         var codigo = codigoLibre();
         var anfitrionId = CodigoGenerator.nuevoId("host");
+        var ahora = System.currentTimeMillis();
         var sala = new SalaDocument();
         sala.setCodigo(codigo);
         sala.setJuegoId(juegoId);
         sala.setAnfitrionId(anfitrionId);
         sala.setEstado("lobby");
         sala.setDados(5);
-        sala.setCreadaEn(System.currentTimeMillis());
+        sala.setCreadaEn(ahora);
+        sala.setAnfitrionVistoEn(ahora);
         sala.setJugadores(new ArrayList<>(List.of(
                 new JugadorEmbedded(anfitrionId, nombre, "anfitrion")
         )));
@@ -226,10 +257,50 @@ public class SalaService {
         return resp;
     }
 
+    private Map<String, Object> heartbeat(Map<String, Object> body) {
+        var codigo = normalizarCodigo(body.get("codigo"));
+        var miId = str(body.get("miId"));
+        if (codigo.isEmpty()) throw new ApiException(400, "Falta el código.");
+        if (miId.isEmpty()) throw new ApiException(400, "Falta miId.");
+        var sala = requireSala(codigo);
+        if (!"lobby".equals(sala.getEstado())) {
+            return Map.of("sala", sala.toMap(), "ok", true);
+        }
+        if (!miId.equals(sala.getAnfitrionId())) {
+            return Map.of("sala", sala.toMap(), "ok", true);
+        }
+        sala.setAnfitrionVistoEn(System.currentTimeMillis());
+        repository.save(sala);
+        return Map.of("sala", sala.toMap(), "ok", true);
+    }
+
+    /** Anfitrión abandona → se borra la sala. Invitado → sale de la lista. */
+    private Map<String, Object> salir(Map<String, Object> body) {
+        var codigo = normalizarCodigo(body.get("codigo"));
+        var miId = str(body.get("miId"));
+        if (codigo.isEmpty()) throw new ApiException(400, "Falta el código.");
+        if (miId.isEmpty()) throw new ApiException(400, "Falta miId.");
+        var sala = repository.findById(codigo).orElse(null);
+        if (sala == null) return Map.of("ok", true);
+        if (miId.equals(sala.getAnfitrionId())) {
+            repository.deleteById(codigo);
+            return Map.of("ok", true, "cerrada", true);
+        }
+        if (!"lobby".equals(sala.getEstado())) {
+            throw new ApiException(409, "La partida ya empezó; no podés salir así.");
+        }
+        sala.setJugadores(sala.getJugadores().stream()
+                .filter(j -> !miId.equals(j.getId()))
+                .collect(Collectors.toCollection(ArrayList::new)));
+        repository.save(sala);
+        return Map.of("ok", true, "sala", sala.toMap());
+    }
+
     private Map<String, Object> cerrar(Map<String, Object> body) {
         var codigo = normalizarCodigo(body.get("codigo"));
         var anfitrionId = str(body.get("anfitrionId"));
-        var sala = requireSala(codigo);
+        var sala = repository.findById(codigo).orElse(null);
+        if (sala == null) return Map.of("ok", true);
         if (!anfitrionId.equals(sala.getAnfitrionId())) {
             throw new ApiException(403, "Solo el anfitrión puede cerrar la sala.");
         }
@@ -253,7 +324,8 @@ public class SalaService {
     private SalaDocument leerSala(String codigo) {
         var sala = repository.findById(codigo).orElse(null);
         if (sala == null) return null;
-        if (partidaExpirada(sala)) {
+        var ahora = System.currentTimeMillis();
+        if (partidaExpirada(sala, ahora) || lobbyInactiva(sala, ahora)) {
             repository.deleteById(codigo);
             return null;
         }
@@ -261,8 +333,27 @@ public class SalaService {
     }
 
     private boolean partidaExpirada(SalaDocument sala) {
+        return partidaExpirada(sala, System.currentTimeMillis());
+    }
+
+    private boolean partidaExpirada(SalaDocument sala, long ahora) {
         if (sala.getIniciadaEn() == null) return false;
-        return System.currentTimeMillis() - sala.getIniciadaEn() >= TTL_PARTIDA_MS;
+        return ahora - sala.getIniciadaEn() >= TTL_PARTIDA_MS;
+    }
+
+    private boolean lobbyInactiva(SalaDocument sala, long ahora) {
+        if (!"lobby".equals(sala.getEstado())) return false;
+        var creada = sala.getCreadaEn() != null ? sala.getCreadaEn() : 0L;
+        if (creada > 0 && ahora - creada >= TTL_LOBBY_MS) return true;
+        var visto = sala.getAnfitrionVistoEn() != null ? sala.getAnfitrionVistoEn() : creada;
+        if (visto <= 0) return true;
+        return ahora - visto >= HEARTBEAT_LOBBY_MS;
+    }
+
+    private static boolean anfitrionPresente(SalaDocument sala) {
+        if (sala.getAnfitrionId() == null || sala.getJugadores() == null) return false;
+        return sala.getJugadores().stream()
+                .anyMatch(j -> sala.getAnfitrionId().equals(j.getId()));
     }
 
     private String codigoLibre() {
@@ -295,6 +386,15 @@ public class SalaService {
         if (value instanceof Number n) return n.intValue();
         try {
             return (int) Math.floor(Double.parseDouble(String.valueOf(value)));
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static long toLong(Object value, long fallback) {
+        if (value instanceof Number n) return n.longValue();
+        try {
+            return (long) Math.floor(Double.parseDouble(String.valueOf(value)));
         } catch (Exception e) {
             return fallback;
         }
