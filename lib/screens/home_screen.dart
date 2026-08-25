@@ -445,9 +445,6 @@ class _HomeScreenState extends State<HomeScreen>
   /// Padding horizontal de cada sección (16+16).
   static const _paddingSeccionH = 32.0;
 
-  /// Ancho reservado a las flechas del carrusel en celular.
-  static const _espacioFlechasCelular = 88.0;
-
   bool _esCelular(double ancho) {
     const gap = 20.0;
     const alto = 400.0;
@@ -471,6 +468,13 @@ class _HomeScreenState extends State<HomeScreen>
     return 2;
   }
 
+  /// En celular: las 2 tarjetas llenan el ancho útil de la sección.
+  double _anchoTarjetaCelular(double ancho) {
+    const gap = 20.0;
+    final anchoUtil = math.max(0.0, ancho - _paddingSeccionH);
+    return math.max(120.0, (anchoUtil - gap) / 2);
+  }
+
   /// Alto de tarjeta cuadrada según columnas y ancho disponible.
   double _altoCuadradaPara({
     required double ancho,
@@ -479,30 +483,36 @@ class _HomeScreenState extends State<HomeScreen>
   }) {
     const altoMax = 400.0;
     const gap = 20.0;
-    const chromeMin = 218.0;
+    // Celular: flecha del eslogan va debajo → un poco más de chrome.
+    final chromeMin = esCelular ? 236.0 : 218.0;
     if (columnas < 2) return altoMax;
-    var anchoUtil = math.max(0.0, ancho - _paddingSeccionH);
-    // En celular dejamos lugar a las flechas si hay carrusel (>2 juegos).
-    if (esCelular) {
-      anchoUtil = math.max(0.0, anchoUtil - _espacioFlechasCelular);
-    }
-    final anchoTarjeta = (anchoUtil - gap * (columnas - 1)) / columnas;
+    final anchoUtil = math.max(0.0, ancho - _paddingSeccionH);
+    final anchoTarjeta = esCelular
+        ? (anchoUtil - gap) / 2
+        : (anchoUtil - gap * (columnas - 1)) / columnas;
     final altoNecesario =
         chromeMin + anchoTarjeta / _JuegoHome.aspectPortadaHome;
     return math.min(altoMax, math.max(260.0, altoNecesario));
   }
 
-  double _anchoTarjetaDe(_JuegoHome j, double alto) {
+  double _anchoTarjetaDe(_JuegoHome j, double alto, {double? anchoFijo}) {
+    if (anchoFijo != null) return anchoFijo;
     const chromeMin = 218.0;
     final aspect = j.aspectPortada ?? _JuegoHome.aspectPortadaHome;
     return math.max(120.0, (alto - chromeMin) * aspect);
   }
 
-  Widget _tileDeJuego(_JuegoHome j, {required int index, required double alto}) {
+  Widget _tileDeJuego(
+    _JuegoHome j, {
+    required int index,
+    required double alto,
+    double? anchoFijo,
+    bool layoutCelular = false,
+  }) {
     final tile = RepaintBoundary(
       child: SizedBox(
         height: alto,
-        width: _anchoTarjetaDe(j, alto),
+        width: _anchoTarjetaDe(j, alto, anchoFijo: anchoFijo),
         child: _JuegoTile(
           titulo: j.titulo,
           accent: j.accent,
@@ -513,6 +523,7 @@ class _HomeScreenState extends State<HomeScreen>
           eslogan: j.eslogan,
           esloganExpandible: j.esloganExpandible,
           esloganExpandido: _esloganAbierto == j.tipo,
+          layoutCelular: layoutCelular,
           onToggleEslogan: () {
             setState(() {
               _esloganAbierto = _esloganAbierto == j.tipo ? null : j.tipo;
@@ -845,6 +856,7 @@ class _HomeScreenState extends State<HomeScreen>
     required double gap,
     required double Function(_JuegoHome j) altoDe,
     required double Function(List<_JuegoHome> juegos) altoFilaDe,
+    double? anchoFijoCelular,
   }) {
     var base = 0;
     for (var s = 0; s < i; s++) {
@@ -884,27 +896,36 @@ class _HomeScreenState extends State<HomeScreen>
                 animaciones: _ajustes.animaciones,
                 visibles: visibles,
                 gap: gap,
+                esCelular: esCelular,
                 juegos: seccion.juegos,
                 buildExtra: (juego, index) => _tileDeJuego(
                   juego,
                   index: base + visibles + index,
                   alto: altoDe(juego),
+                  anchoFijo: anchoFijoCelular,
+                  layoutCelular: esCelular,
                 ),
                 colorBoton: i.isEven
                     ? AppColors.fondo
                     : AppColors.carta.withValues(alpha: 0.38),
                 onColapsar: _irAlInicio,
-                buildCarousel: (expandida, onPrimerVisible) =>
+                buildCarousel: (expandida, onPrimerVisible, carruselKey) =>
                     _CarruselCategoria(
-                  key: ValueKey(seccion.cat),
+                  key: carruselKey,
                   juegos: seccion.juegos,
                   visibles: visibles,
                   gap: gap,
+                  // En celular las flechas van junto a Ver más; el swipe sigue.
                   mostrarControles: !expandida,
+                  mostrarFlechasLaterales: !expandida && !esCelular,
                   onPrimerVisible: onPrimerVisible,
                   anchos: [
                     for (final j in seccion.juegos)
-                      _anchoTarjetaDe(j, altoDe(j)),
+                      _anchoTarjetaDe(
+                        j,
+                        altoDe(j),
+                        anchoFijo: anchoFijoCelular,
+                      ),
                   ],
                   altoFila: altoFilaDe(seccion.juegos),
                   animaciones: _ajustes.animaciones,
@@ -912,6 +933,8 @@ class _HomeScreenState extends State<HomeScreen>
                     juego,
                     index: base + index,
                     alto: altoDe(juego),
+                    anchoFijo: anchoFijoCelular,
+                    layoutCelular: esCelular,
                   ),
                 ),
               ),
@@ -1189,6 +1212,11 @@ class _HomeScreenState extends State<HomeScreen>
                                             _esCelular(constraints.maxWidth);
                                         final columnas =
                                             _columnasPara(constraints.maxWidth);
+                                        final anchoFijoCelular = esCelular
+                                            ? _anchoTarjetaCelular(
+                                                constraints.maxWidth,
+                                              )
+                                            : null;
                                         const altoCompacta = 132.0;
                                         final altoCuadradaConEslogan =
                                             _altoCuadradaPara(
@@ -1260,6 +1288,8 @@ class _HomeScreenState extends State<HomeScreen>
                                                   gap: gap,
                                                   altoDe: altoDe,
                                                   altoFilaDe: altoFilaDe,
+                                                  anchoFijoCelular:
+                                                      anchoFijoCelular,
                                                 ),
                                             ],
                                           ),
@@ -1358,13 +1388,18 @@ class _CategoriaExpandible extends StatefulWidget {
     required this.buildExtra,
     required this.colorBoton,
     required this.onColapsar,
+    this.esCelular = false,
   });
 
   final bool animaciones;
   final int visibles;
   final double gap;
-  final Widget Function(bool expandida, ValueChanged<int> onPrimerVisible)
-      buildCarousel;
+  final bool esCelular;
+  final Widget Function(
+    bool expandida,
+    ValueChanged<int> onPrimerVisible,
+    GlobalKey<_CarruselCategoriaState> carruselKey,
+  ) buildCarousel;
   final List<_JuegoHome> juegos;
   final Widget Function(_JuegoHome juego, int index) buildExtra;
   final Color colorBoton;
@@ -1378,6 +1413,7 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entrada;
   late final Animation<double> _factor;
+  final _carruselKey = GlobalKey<_CarruselCategoriaState>();
   bool _mostrarExtras = false;
   bool _abierta = false;
   bool _toggling = false;
@@ -1503,11 +1539,68 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
     return Column(children: filas);
   }
 
+  Widget _flechaNav({
+    required IconData icono,
+    required VoidCallback? onTap,
+  }) {
+    return Material(
+      color: AppColors.carta,
+      shape: const CircleBorder(),
+      elevation: 6,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.azul.withValues(alpha: 0.85),
+              width: 1.6,
+            ),
+            boxShadow: neonGlow(AppColors.azul, blur: 8),
+          ),
+          child: Icon(icono, color: AppColors.texto, size: 26),
+        ),
+      ),
+    );
+  }
+
+  Widget _filaVerMas() {
+    final mostrarFlechas = widget.esCelular && _hayExtras && !_abierta;
+    final boton = _BotonVerMas(
+      abierto: _abierta,
+      fondo: widget.colorBoton,
+      onTap: _toggle,
+    );
+    if (!mostrarFlechas) {
+      return Center(child: boton);
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _flechaNav(
+          icono: Icons.chevron_left_rounded,
+          onTap: () => _carruselKey.currentState?.irAnterior(),
+        ),
+        const SizedBox(width: 14),
+        boton,
+        const SizedBox(width: 14),
+        _flechaNav(
+          icono: Icons.chevron_right_rounded,
+          onTap: () => _carruselKey.currentState?.irSiguiente(),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        widget.buildCarousel(_abierta, _onPrimerVisible),
+        widget.buildCarousel(_abierta, _onPrimerVisible, _carruselKey),
         if (_mostrarExtras)
           ClipRect(
             child: SizeTransition(
@@ -1518,13 +1611,7 @@ class _CategoriaExpandibleState extends State<_CategoriaExpandible>
           ),
         if (_hayExtras) ...[
           const SizedBox(height: 14),
-          Center(
-            child: _BotonVerMas(
-              abierto: _abierta,
-              fondo: widget.colorBoton,
-              onTap: _toggle,
-            ),
-          ),
+          _filaVerMas(),
         ],
       ],
     );
@@ -1633,6 +1720,7 @@ class _CarruselCategoria extends StatefulWidget {
     required this.buildTile,
     required this.animaciones,
     this.mostrarControles = true,
+    this.mostrarFlechasLaterales = true,
     this.onPrimerVisible,
   });
 
@@ -1642,7 +1730,10 @@ class _CarruselCategoria extends StatefulWidget {
   final List<double> anchos;
   final double altoFila;
   final bool animaciones;
+  /// Swipe / snap del carrusel.
   final bool mostrarControles;
+  /// Flechas encima de las tarjetas (desktop). En celular van junto a Ver más.
+  final bool mostrarFlechasLaterales;
   final ValueChanged<int>? onPrimerVisible;
   final Widget Function(_JuegoHome juego, int index) buildTile;
 
@@ -1902,6 +1993,17 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
     await _irA(_indice + delta);
   }
 
+  /// Navegación externa (flechas junto a Ver más en celular).
+  Future<void> irAnterior() async {
+    if (!_hayMas || _enMovimiento) return;
+    await _irA(_indice - _pasoFlecha);
+  }
+
+  Future<void> irSiguiente() async {
+    if (!_hayMas || _enMovimiento) return;
+    await _irA(_indice + _pasoFlecha);
+  }
+
   Widget _flecha({
     required IconData icono,
     required VoidCallback? onTap,
@@ -2023,7 +2125,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
               child: _hayMas ? ClipRect(child: _lista()) : _filaFija(),
             ),
           ),
-          if (_hayMas && widget.mostrarControles)
+          if (_hayMas && widget.mostrarFlechasLaterales)
             Positioned(
               left: 4,
               child: _flecha(
@@ -2031,7 +2133,7 @@ class _CarruselCategoriaState extends State<_CarruselCategoria> {
                 onTap: _enMovimiento ? null : () => _ir(-_pasoFlecha),
               ),
             ),
-          if (_hayMas && widget.mostrarControles)
+          if (_hayMas && widget.mostrarFlechasLaterales)
             Positioned(
               right: 4,
               child: _flecha(
@@ -2126,6 +2228,7 @@ class _EsloganExpandible extends StatelessWidget {
     required this.expandido,
     required this.animaciones,
     required this.onTap,
+    this.layoutCelular = false,
   });
 
   final String texto;
@@ -2133,6 +2236,7 @@ class _EsloganExpandible extends StatelessWidget {
   final bool expandido;
   final bool animaciones;
   final VoidCallback? onTap;
+  final bool layoutCelular;
 
   @override
   Widget build(BuildContext context) {
@@ -2152,6 +2256,130 @@ class _EsloganExpandible extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: LayoutBuilder(
             builder: (context, constraints) {
+              if (layoutCelular) {
+                return _layoutCelular(constraints, dur);
+              }
+              return _layoutDesktop(constraints, dur);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _layoutCelular(BoxConstraints constraints, Duration dur) {
+    final tamFuente = estilo.fontSize ?? 10.5;
+    final radioPunto = math.max(1.1, tamFuente * 0.105);
+    final pasoPuntos = radioPunto * 2.9;
+    final puntosW = radioPunto * 2 + pasoPuntos * 2 + 2;
+    final anchoTexto = math.max(0.0, constraints.maxWidth);
+    final tp = TextPainter(
+      text: TextSpan(text: texto, style: estilo),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: anchoTexto);
+    final lineas = tp.computeLineMetrics();
+    final altoLinea = lineas.isEmpty
+        ? (estilo.fontSize ?? 10.5) * (estilo.height ?? 1.3)
+        : lineas.first.height;
+    final baseTexto = lineas.isEmpty ? altoLinea : lineas.first.baseline;
+    final desborda = lineas.length > 1;
+
+    var finPrimera = 0.0;
+    if (texto.isNotEmpty && desborda) {
+      final rango = tp.getLineBoundary(const TextPosition(offset: 0));
+      var fin = rango.end.clamp(0, texto.length);
+      while (fin > rango.start &&
+          fin > 0 &&
+          (texto[fin - 1] == ' ' || texto[fin - 1] == '\n')) {
+        fin--;
+      }
+      if (fin > rango.start) {
+        final cajas = tp.getBoxesForSelection(
+          TextSelection(
+            baseOffset: fin - 1,
+            extentOffset: fin,
+          ),
+        );
+        if (cajas.isNotEmpty) {
+          finPrimera = math.max(cajas.first.left, cajas.first.right);
+        } else {
+          finPrimera = tp.getOffsetForCaret(
+            TextPosition(
+              offset: fin,
+              affinity: TextAffinity.upstream,
+            ),
+            Rect.zero,
+          ).dx;
+        }
+      }
+    }
+
+    final extraItalica =
+        estilo.fontStyle == FontStyle.italic ? tamFuente * 0.42 : 1.5;
+    final xPuntos = finPrimera + extraItalica;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            AnimatedSize(
+              duration: dur,
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              clipBehavior: Clip.hardEdge,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: expandido ? tp.height : altoLinea,
+                ),
+                child: ClipRect(
+                  child: SizedBox(
+                    width: anchoTexto,
+                    child: Text(
+                      texto,
+                      textAlign: TextAlign.center,
+                      style: estilo,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (!expandido && desborda)
+              Positioned(
+                left: xPuntos.clamp(0.0, math.max(0.0, anchoTexto - puntosW)),
+                top: 0,
+                height: altoLinea,
+                width: puntosW,
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _TresPuntosPainter(
+                      color: estilo.color ?? AppColors.textoSuave,
+                      radio: radioPunto,
+                      paso: pasoPuntos,
+                      baseline: baseTexto,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (desborda || expandido)
+          IgnorePointer(
+            child: Icon(
+              expandido
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: AppColors.textoSuave,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _layoutDesktop(BoxConstraints constraints, Duration dur) {
               const icono = 16.0;
               final tamFuente = estilo.fontSize ?? 10.5;
               final radioPunto = math.max(1.1, tamFuente * 0.105);
@@ -2270,11 +2498,6 @@ class _EsloganExpandible extends StatelessWidget {
                     ),
                 ],
               );
-            },
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -2327,6 +2550,7 @@ class _JuegoTile extends StatefulWidget {
     this.onToggleEslogan,
     this.animaciones = true,
     this.aspectPortada,
+    this.layoutCelular = false,
   });
 
   final String titulo;
@@ -2343,6 +2567,7 @@ class _JuegoTile extends StatefulWidget {
   final VoidCallback? onToggleEslogan;
   final bool animaciones;
   final double? aspectPortada;
+  final bool layoutCelular;
 
   @override
   State<_JuegoTile> createState() => _JuegoTileState();
@@ -2534,6 +2759,7 @@ class _JuegoTileState extends State<_JuegoTile> {
                 estilo: estiloEslogan,
                 expandido: widget.esloganExpandido,
                 animaciones: widget.animaciones,
+                layoutCelular: widget.layoutCelular,
                 onTap: widget.onToggleEslogan,
               ),
               Expanded(

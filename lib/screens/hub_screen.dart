@@ -7,6 +7,7 @@ import '../shared/ajustes/ajustes_overlay.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
 import '../theme/app_theme.dart';
+import 'app_shell.dart';
 import 'home_screen.dart';
 
 /// Primera pantalla: header + Juegos / Salas / Ranking.
@@ -47,7 +48,7 @@ class _HubScreenState extends State<HubScreen> {
         if (!mounted) return;
         nav.pushReplacement(
           PageRouteBuilder<void>(
-            pageBuilder: (_, __, ___) => const HomeScreen(),
+            pageBuilder: (_, __, ___) => const AppShell(),
             transitionDuration: const Duration(milliseconds: 350),
             transitionsBuilder: (_, anim, __, child) {
               return FadeTransition(opacity: anim, child: child);
