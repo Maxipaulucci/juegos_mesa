@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Barra inferior con 4 accesos: juegos, cuenta, ranking y tienda.
+/// Barra inferior: inicio, juegos, cuenta, ranking y tienda.
 class AppBottomNavBar extends StatelessWidget {
   const AppBottomNavBar({
     super.key,
@@ -10,6 +10,7 @@ class AppBottomNavBar extends StatelessWidget {
     required this.onTap,
   });
 
+  /// 0 inicio · 1 juegos · 2 cuenta · 3 ranking · 4 tienda
   final int indiceActual;
   final ValueChanged<int> onTap;
 
@@ -31,37 +32,44 @@ class AppBottomNavBar extends StatelessWidget {
           ),
         ],
       ),
-      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + bottom),
+      padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + bottom),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _ItemNav(
-            icono: Icons.sports_esports_rounded,
+            icono: Icons.home_rounded,
             color: AppColors.azul,
             activo: indiceActual == 0,
             habilitado: true,
             onTap: () => onTap(0),
           ),
           _ItemNav(
-            icono: Icons.person_rounded,
-            color: AppColors.mint,
+            icono: Icons.sports_esports_rounded,
+            color: AppColors.azul,
             activo: indiceActual == 1,
             habilitado: true,
             onTap: () => onTap(1),
+          ),
+          _ItemNav(
+            icono: Icons.person_rounded,
+            color: AppColors.mint,
+            activo: indiceActual == 2,
+            habilitado: true,
+            onTap: () => onTap(2),
           ),
           _ItemNav(
             icono: Icons.emoji_events_rounded,
             color: AppColors.acento,
             activo: false,
             habilitado: false,
-            onTap: () => onTap(2),
+            onTap: () => onTap(3),
           ),
           _ItemNav(
             icono: Icons.shopping_cart_rounded,
             color: AppColors.rosa,
             activo: false,
             habilitado: false,
-            onTap: () => onTap(3),
+            onTap: () => onTap(4),
           ),
         ],
       ),
@@ -97,7 +105,7 @@ class _ItemNav extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 56,
+            width: 52,
             height: 48,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),

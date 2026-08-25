@@ -104,8 +104,9 @@ class _HubScreenState extends State<HubScreen> {
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _HeaderHub(
                     onCuenta: () => setState(() => _mostrarCuenta = true),
@@ -169,101 +170,104 @@ class _HeaderHub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 48),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text.rich(
-                  TextSpan(
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
-                      height: 1.05,
+    return SizedBox(
+      width: double.infinity,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 48),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text.rich(
+                    TextSpan(
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                        height: 1.05,
+                      ),
+                      children: const [
+                        TextSpan(
+                          text: 'Juegos ',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        TextSpan(
+                          text: 'de ',
+                          style: TextStyle(color: AppColors.acento),
+                        ),
+                        TextSpan(
+                          text: 'mesa ',
+                          style: TextStyle(color: AppColors.mint),
+                        ),
+                        TextSpan(
+                          text: 'Argentos',
+                          style: TextStyle(color: AppColors.azul),
+                        ),
+                      ],
                     ),
-                    children: const [
-                      TextSpan(
-                        text: 'Juegos ',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      TextSpan(
-                        text: 'de ',
-                        style: TextStyle(color: AppColors.acento),
-                      ),
-                      TextSpan(
-                        text: 'mesa ',
-                        style: TextStyle(color: AppColors.mint),
-                      ),
-                      TextSpan(
-                        text: 'Argentos',
-                        style: TextStyle(color: AppColors.azul),
-                      ),
-                    ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Argentinos · multijugador',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textoSuave,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 4),
+              const Text(
+                'Argentinos · multijugador',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textoSuave,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            child: _IconoCircular(
+              colorBorde: AppColors.azul,
+              onTap: onCuenta,
+              child: Builder(
+                builder: (context) {
+                  final nick =
+                      UsuarioMongoService.instance.usuario?.nombreUsuario ?? '';
+                  if (!UsuarioMongoService.instance.haySesion) {
+                    return const Icon(
+                      Icons.person_rounded,
+                      color: AppColors.texto,
+                      size: 22,
+                    );
+                  }
+                  final letra =
+                      nick.isEmpty ? '?' : nick.substring(0, 1).toUpperCase();
+                  return Text(
+                    letra,
+                    style: const TextStyle(
+                      color: AppColors.texto,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  );
+                },
               ),
             ),
-          ],
-        ),
-        Positioned(
-          top: 0,
-          left: 0,
-          child: _IconoCircular(
-            colorBorde: AppColors.azul,
-            onTap: onCuenta,
-            child: Builder(
-              builder: (context) {
-                final nick =
-                    UsuarioMongoService.instance.usuario?.nombreUsuario ?? '';
-                if (!UsuarioMongoService.instance.haySesion) {
-                  return const Icon(
-                    Icons.person_rounded,
-                    color: AppColors.texto,
-                    size: 22,
-                  );
-                }
-                final letra =
-                    nick.isEmpty ? '?' : nick.substring(0, 1).toUpperCase();
-                return Text(
-                  letra,
-                  style: const TextStyle(
-                    color: AppColors.texto,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                );
-              },
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: _IconoCircular(
+              colorBorde: AppColors.rosa,
+              onTap: onAjustes,
+              child: const Icon(
+                Icons.settings_rounded,
+                color: AppColors.texto,
+                size: 22,
+              ),
             ),
           ),
-        ),
-        Positioned(
-          top: 0,
-          right: 0,
-          child: _IconoCircular(
-            colorBorde: AppColors.rosa,
-            onTap: onAjustes,
-            child: const Icon(
-              Icons.settings_rounded,
-              color: AppColors.texto,
-              size: 22,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
