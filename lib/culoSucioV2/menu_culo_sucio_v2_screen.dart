@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Culo sucio v2 (vs PC / online).
@@ -118,6 +119,20 @@ class _MenuCuloSucioV2ScreenState extends State<MenuCuloSucioV2Screen> {
         registrarCantidadPcMenu(MenuJuegoScreen.juegoIdCuloSucioV2, n);
       },
       textoInfoModoDios: TextosCuloSucioV2.infoModoDios,
+      resumenConfigOnline: () => [
+        lineaOpcionOnline(
+          TextosCuloSucioV2.eliminarParesAuto,
+          _opciones.eliminarParesAuto,
+        ),
+        lineaOpcionOnline(
+          TextosCuloSucioV2.detectarParTrasRobo,
+          _opciones.detectarParTrasRobo,
+        ),
+        lineaOpcionOnline(
+          TextosCuloSucioV2.moverCuloSucio,
+          _opciones.moverCuloSucio,
+        ),
+      ],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),

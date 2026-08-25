@@ -4,6 +4,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/unoSolo/opciones_uno_solo.dart';
 import 'package:app_juegos_mesa/unoSolo/partida_uno_solo_screen.dart';
@@ -87,6 +88,9 @@ class _MenuUnoSoloScreenState extends State<MenuUnoSoloScreen> {
           'y los números indican el orden de eliminación.\n\n'
           'Es una ayuda muy fuerte: si preferís el desafío limpio, '
           'dejalo apagado.',
+      resumenConfigOnline: () => [
+        lineaOpcionOnline('Modo práctica', _opciones.modoPractica),
+      ],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),

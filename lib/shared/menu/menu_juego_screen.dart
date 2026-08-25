@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc_ui.dart';
 import 'package:app_juegos_mesa/shared/menu/opcion_toggle.dart';
 import 'package:app_juegos_mesa/shared/orden/decidir_orden_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/crear_sala_screen.dart';
+import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/shared/salas/unirse_sala_screen.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -72,6 +75,8 @@ class MenuJuegoScreen extends StatefulWidget {
     this.lobbyTextoAyudaHumanos,
     /// Antes de Crear/Unirse sala (p. ej. guardar opciones Chancho).
     this.onPrepararSala,
+    /// Resumen de “Modificar partida” para mostrar a quien se une.
+    this.resumenConfigOnline,
     /// Mazo para “Decidir orden” (español por defecto; inglés en Guerra, etc.).
     this.decidirOrdenTipoMazo = TipoMazoOrden.espanol,
   });
@@ -108,6 +113,7 @@ class MenuJuegoScreen extends StatefulWidget {
   final int? lobbyHumanosExactos;
   final String? lobbyTextoAyudaHumanos;
   final void Function(MenuJuegoEstado estado)? onPrepararSala;
+  final List<String> Function()? resumenConfigOnline;
   final TipoMazoOrden decidirOrdenTipoMazo;
 
   final Future<void> Function(
@@ -140,6 +146,8 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   late int _cantidadPc;
   late List<String> _nombresRapida;
   static const int _maxNombre = 15;
+  bool _mostrarCuenta = false;
+  VoidCallback? _accionTrasSesion;
 
   @override
   void initState() {
@@ -659,6 +667,53 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     return '$prefijo · $dados dados';
   }
 
+  void _conSesion(VoidCallback accion) {
+    if (UsuarioMongoService.instance.haySesion) {
+      accion();
+      return;
+    }
+    setState(() {
+      _accionTrasSesion = accion;
+      _mostrarCuenta = true;
+    });
+  }
+
+  void _abrirCrearSala() {
+    final resumen = widget.resumenConfigOnline?.call();
+    if (resumen != null) {
+      SalaFormStore.setResumenOpciones(resumen);
+    } else {
+      SalaFormStore.limpiarResumenOpciones();
+    }
+    widget.onPrepararSala?.call(_estado());
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CrearSalaScreen(
+          juegoId: widget.juegoId,
+          mostrarSelectorDados: widget.modosDados.length > 1,
+          onIniciarPartida: widget.onIniciarDesdeSala,
+          humanosExactosParaIniciar: widget.lobbyHumanosExactos,
+          textoAyudaHumanos: widget.lobbyTextoAyudaHumanos,
+        ),
+      ),
+    );
+  }
+
+  void _abrirUnirseSala() {
+    widget.onPrepararSala?.call(_estado());
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => UnirseSalaScreen(
+          juegoId: widget.juegoId,
+          mostrarSelectorDados: widget.modosDados.length > 1,
+          onIniciarPartida: widget.onIniciarDesdeSala,
+          humanosExactosParaIniciar: widget.lobbyHumanosExactos,
+          textoAyudaHumanos: widget.lobbyTextoAyudaHumanos,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -673,7 +728,9 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: LayoutBuilder(
+      body: Stack(
+        children: [
+          LayoutBuilder(
         builder: (context, constraints) {
           const padH = 24.0;
           const padVTop = 12.0;
@@ -708,46 +765,12 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       ),
                       const SizedBox(height: 18),
                       ElevatedButton(
-                        onPressed: () {
-                          widget.onPrepararSala?.call(_estado());
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => CrearSalaScreen(
-                                juegoId: widget.juegoId,
-                                mostrarSelectorDados:
-                                    widget.modosDados.length > 1,
-                                onIniciarPartida:
-                                    widget.onIniciarDesdeSala,
-                                humanosExactosParaIniciar:
-                                    widget.lobbyHumanosExactos,
-                                textoAyudaHumanos:
-                                    widget.lobbyTextoAyudaHumanos,
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: () => _conSesion(_abrirCrearSala),
                         child: const Text('Crear'),
                       ),
                       const SizedBox(height: 10),
                       OutlinedButton(
-                        onPressed: () {
-                          widget.onPrepararSala?.call(_estado());
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => UnirseSalaScreen(
-                                juegoId: widget.juegoId,
-                                mostrarSelectorDados:
-                                    widget.modosDados.length > 1,
-                                onIniciarPartida:
-                                    widget.onIniciarDesdeSala,
-                                humanosExactosParaIniciar:
-                                    widget.lobbyHumanosExactos,
-                                textoAyudaHumanos:
-                                    widget.lobbyTextoAyudaHumanos,
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: () => _conSesion(_abrirUnirseSala),
                         child: const Text('Unirse'),
                       ),
                       const SizedBox(height: 16),
@@ -923,6 +946,25 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
             ),
           );
         },
+      ),
+          if (_mostrarCuenta)
+            Positioned.fill(
+              child: CuentaOverlay(
+                onCerrar: () => setState(() {
+                  _mostrarCuenta = false;
+                  _accionTrasSesion = null;
+                }),
+                onSesion: () {
+                  final accion = _accionTrasSesion;
+                  setState(() {
+                    _mostrarCuenta = false;
+                    _accionTrasSesion = null;
+                  });
+                  accion?.call();
+                },
+              ),
+            ),
+        ],
       ),
     );
   }

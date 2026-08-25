@@ -8,6 +8,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Jodete (local / vs PC; online próximamente).
@@ -209,6 +210,21 @@ class _MenuJodeteScreenState extends State<MenuJodeteScreen> {
         DificultadPc.medio: TextosJodete.infoDificultadMedio,
         DificultadPc.dificil: TextosJodete.infoDificultadDificil,
       },
+      resumenConfigOnline: () => [
+        lineaOpcionOnline('Comodines', _opciones.comodines),
+        lineaOpcionOnline('Levantar hasta tirar', _opciones.levantarHastaTirar),
+        lineaOpcionOnline('Tirar 2 sobre 2', _opciones.apilarDoses),
+        lineaOpcionOnline(
+          'Finalizar mano con especial',
+          _opciones.ganarConEspecial,
+        ),
+        lineaOpcionOnline(
+          'Puntaje por cartas (a 100)',
+          _opciones.puntajePorCartas,
+        ),
+        if (!_opciones.puntajePorCartas)
+          'Jugar a: ${_opciones.objetivoClamped} puntos',
+      ],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),

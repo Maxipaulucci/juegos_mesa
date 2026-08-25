@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -30,27 +31,33 @@ class CrearSalaScreen extends StatefulWidget {
 }
 
 class _CrearSalaScreenState extends State<CrearSalaScreen> {
-  late final TextEditingController _nombreCtrl;
   String? _error;
   bool _cargando = false;
+
+  String? get _nombreUsuario {
+    final u = UsuarioMongoService.instance.usuario;
+    if (u == null) return null;
+    final nick = u.nombreUsuario.trim();
+    if (nick.isNotEmpty) return nick;
+    final nombre = u.nombre.trim();
+    return nombre.isEmpty ? null : nombre;
+  }
 
   @override
   void initState() {
     super.initState();
-    _nombreCtrl = TextEditingController(text: SalaFormStore.nombre);
-    _nombreCtrl.addListener(() => SalaFormStore.nombre = _nombreCtrl.text);
-  }
-
-  @override
-  void dispose() {
-    _nombreCtrl.dispose();
-    super.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!UsuarioMongoService.instance.haySesion || _nombreUsuario == null) {
+        Navigator.of(context).maybePop();
+      }
+    });
   }
 
   Future<void> _crear() async {
-    final nombre = _nombreCtrl.text.trim();
-    if (nombre.isEmpty) {
-      setState(() => _error = 'Escribí tu nombre.');
+    final nombre = _nombreUsuario;
+    if (nombre == null || nombre.isEmpty) {
+      setState(() => _error = 'Iniciá sesión para crear una sala.');
       return;
     }
 
@@ -60,12 +67,11 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
     });
 
     try {
-      // El código lo genera el servidor (alfanumérico aleatorio).
       final result = await SalaService.instance.crear(
         juegoId: widget.juegoId,
         nombreAnfitrion: nombre,
+        lobbyOpcionesResumen: SalaFormStore.lobbyOpcionesResumen,
       );
-      SalaFormStore.limpiarCodigo();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
@@ -91,6 +97,7 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final nombre = _nombreUsuario ?? '—';
     return Scaffold(
       appBar: AppBar(title: const Text('Crear sala')),
       body: Padding(
@@ -99,15 +106,34 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Tu nombre',
+              'Tu usuario',
               style: TextStyle(color: AppColors.textoSuave),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _nombreCtrl,
-              enabled: !_cargando,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Ej: Maxi'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.carta,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.cartaBorde),
+              ),
+              child: Text(
+                nombre,
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'En partidas online jugás con tu nombre de usuario. No se puede cambiar.',
+              style: TextStyle(
+                color: AppColors.textoSuave.withValues(alpha: 0.95),
+                height: 1.35,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 16),
             Text(

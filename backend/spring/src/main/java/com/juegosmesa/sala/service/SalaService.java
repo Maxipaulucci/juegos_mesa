@@ -74,8 +74,21 @@ public class SalaService {
             sala.setLobbyCategorias(new ArrayList<>());
             sala.setLobbyMaxRondas(null);
         }
+        sala.setLobbyOpcionesResumen(leerResumenOpciones(body.get("lobbyOpcionesResumen")));
         repository.save(sala);
         return Map.of("sala", sala.toMap(), "miId", anfitrionId);
+    }
+
+    private List<String> leerResumenOpciones(Object raw) {
+        var out = new ArrayList<String>();
+        if (!(raw instanceof List<?> list)) return out;
+        for (var item : list) {
+            var s = str(item).trim();
+            if (s.isEmpty()) continue;
+            out.add(s.length() > 120 ? s.substring(0, 120) : s);
+            if (out.size() >= 20) break;
+        }
+        return out;
     }
 
     private Map<String, Object> unirse(Map<String, Object> body) {

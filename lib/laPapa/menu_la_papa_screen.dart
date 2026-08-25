@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/shared/menu/opcion_toggle.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -235,6 +236,30 @@ class _MenuLaPapaScreenState extends State<MenuLaPapaScreen> {
       juegoId: MenuJuegoScreen.juegoIdLaPapa,
       modosDados: const [1],
       jugarSoloEnLugarDePc: true,
+      resumenConfigOnline: () {
+        final o = _opciones;
+        if (o.modoFantasma) {
+          return const ['Modo infernal: activado'];
+        }
+        return [
+          lineaOpcionOnline('Agregar 3 vidas', o.conVidas),
+          if (o.conVidas) lineaOpcionOnline('Puentes', o.puentes),
+          lineaOpcionOnline('Mostrar cuadrícula', o.mostrarCuadricula),
+          lineaOpcionOnline('Trazo sobre números', o.permitirTrazoSobreNumeros),
+          lineaOpcionOnline('Lupa', o.mostrarLupa),
+          lineaOpcionOnline(
+            'Modificar grosor del trazo',
+            o.modificarGrosorTrazo,
+          ),
+          lineaOpcionOnline('Números aleatorios', o.numerosAleatorios),
+          if (o.numerosAleatorios) 'Cantidad de números: ${o.cantidadNumeros}',
+          if (o.numerosAleatorios)
+            lineaOpcionOnline(
+              'Excepción al generar números',
+              o.excepcionGeneracionNumeros,
+            ),
+        ];
+      },
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),

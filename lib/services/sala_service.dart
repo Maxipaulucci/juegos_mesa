@@ -79,17 +79,24 @@ class SalaService {
               .toList() ??
           const [],
       lobbyMaxRondas: (raw['lobbyMaxRondas'] as num?)?.toInt(),
+      lobbyOpcionesResumen: (raw['lobbyOpcionesResumen'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 
   Future<({Sala sala, String miId})> crear({
     required String juegoId,
     required String nombreAnfitrion,
+    List<String>? lobbyOpcionesResumen,
   }) async {
     final data = await _post({
       'action': 'crear',
       'juegoId': juegoId,
       'nombre': nombreAnfitrion.trim(),
+      if (lobbyOpcionesResumen != null)
+        'lobbyOpcionesResumen': lobbyOpcionesResumen,
     });
     final salaMap = Map<String, dynamic>.from(data['sala'] as Map);
     return (sala: _parseSala(salaMap), miId: data['miId'] as String);

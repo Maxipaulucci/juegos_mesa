@@ -22,6 +22,7 @@ public class SalaDocument {
     private Long iniciadaEn;
     private List<String> lobbyCategorias = new ArrayList<>();
     private Integer lobbyMaxRondas;
+    private List<String> lobbyOpcionesResumen = new ArrayList<>();
     private Map<String, Object> gameState;
 
     public Map<String, Object> toMap() {
@@ -36,6 +37,8 @@ public class SalaDocument {
         if (iniciadaEn != null) map.put("iniciadaEn", iniciadaEn);
         map.put("lobbyCategorias", lobbyCategorias != null ? lobbyCategorias : List.of());
         if (lobbyMaxRondas != null) map.put("lobbyMaxRondas", lobbyMaxRondas);
+        map.put("lobbyOpcionesResumen",
+                lobbyOpcionesResumen != null ? lobbyOpcionesResumen : List.of());
         if (gameState != null) map.put("gameState", gameState);
         return map;
     }
@@ -60,6 +63,10 @@ public class SalaDocument {
     public void setLobbyCategorias(List<String> lobbyCategorias) { this.lobbyCategorias = lobbyCategorias; }
     public Integer getLobbyMaxRondas() { return lobbyMaxRondas; }
     public void setLobbyMaxRondas(Integer lobbyMaxRondas) { this.lobbyMaxRondas = lobbyMaxRondas; }
+    public List<String> getLobbyOpcionesResumen() { return lobbyOpcionesResumen; }
+    public void setLobbyOpcionesResumen(List<String> lobbyOpcionesResumen) {
+        this.lobbyOpcionesResumen = lobbyOpcionesResumen;
+    }
     public Map<String, Object> getGameState() { return gameState; }
     public void setGameState(Map<String, Object> gameState) { this.gameState = gameState; }
 }

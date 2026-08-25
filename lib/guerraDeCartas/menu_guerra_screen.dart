@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
 import 'package:app_juegos_mesa/shared/orden/decidir_orden_screen.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Guerra de cartas (local / vs PC; online próximamente).
@@ -89,6 +90,9 @@ class _MenuGuerraScreenState extends State<MenuGuerraScreen> {
       onCantidadPcChanged: (_) => GuerraStandByStore.limpiar(),
       decidirOrdenTipoMazo: TipoMazoOrden.ingles,
       textoInfoModoDios: TextosGuerra.infoModoDios,
+      resumenConfigOnline: () => [
+        lineaOpcionOnline('Vidas', _opciones.vidasActivas),
+      ],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),

@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Escoba del 15 (sin selector de dificultad: una sola IA).
@@ -81,6 +82,12 @@ class _MenuEscobaScreenState extends State<MenuEscobaScreen> {
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
       onCantidadPcChanged: (_) => EscobaStandByStore.limpiar(),
+      resumenConfigOnline: () => [
+        lineaOpcionOnline(
+          TextosEscoba.escobasAutomaticasInicio,
+          _opciones.escobasAutomaticasInicio,
+        ),
+      ],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),

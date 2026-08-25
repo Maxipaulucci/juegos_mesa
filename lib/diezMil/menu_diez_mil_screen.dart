@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Diez Mil: arma el [MenuJuegoScreen] y navega a la partida.
@@ -160,6 +161,12 @@ class _MenuDiezMilScreenState extends State<MenuDiezMilScreen> {
         // seguir con Continuar partida.
         if (mounted) setState(() {});
       },
+      resumenConfigOnline: () => [
+        lineaOpcionOnline('Jugar con 6 dados', _opciones.seisDados),
+        lineaOpcionOnline('Escalera', _opciones.escalera),
+        lineaOpcionOnline('Combos especiales', _opciones.combosEspeciales),
+        lineaOpcionOnline('Escalera con 6→1', _opciones.escaleraCircular),
+      ],
       extraTrasModoLocal: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

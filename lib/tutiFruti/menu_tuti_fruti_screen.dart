@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
+import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
+import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
 import 'package:app_juegos_mesa/shared/salas/crear_sala_screen.dart';
+import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/shared/salas/unirse_sala_screen.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/tutiFruti/partida_tuti_fruti_screen.dart';
@@ -10,8 +13,16 @@ import 'package:app_juegos_mesa/tutiFruti/partida_tuti_fruti_screen.dart';
 const String juegoIdTutiFruti = 'tutiFruti';
 
 /// Menú Tutti Frutti: solo Crear / Unirse (online).
-class MenuTutiFrutiScreen extends StatelessWidget {
+class MenuTutiFrutiScreen extends StatefulWidget {
   const MenuTutiFrutiScreen({super.key});
+
+  @override
+  State<MenuTutiFrutiScreen> createState() => _MenuTutiFrutiScreenState();
+}
+
+class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
+  bool _mostrarCuenta = false;
+  VoidCallback? _accionTrasSesion;
 
   void _abrirPartida(BuildContext context, InicioPartidaOnline inicio) {
     navegarConCarga<void>(
@@ -23,6 +34,43 @@ class MenuTutiFrutiScreen extends StatelessWidget {
         nombres: inicio.nombres,
         salaCodigo: inicio.salaCodigo,
         miNombre: inicio.miNombre,
+      ),
+    );
+  }
+
+  void _conSesion(VoidCallback accion) {
+    if (UsuarioMongoService.instance.haySesion) {
+      accion();
+      return;
+    }
+    setState(() {
+      _accionTrasSesion = accion;
+      _mostrarCuenta = true;
+    });
+  }
+
+  void _abrirCrear() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CrearSalaScreen(
+          juegoId: juegoIdTutiFruti,
+          mostrarSelectorDados: false,
+          editarCategorias: true,
+          onIniciarPartida: _abrirPartida,
+        ),
+      ),
+    );
+  }
+
+  void _abrirUnirse() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => UnirseSalaScreen(
+          juegoId: juegoIdTutiFruti,
+          mostrarSelectorDados: false,
+          editarCategorias: true,
+          onIniciarPartida: _abrirPartida,
+        ),
       ),
     );
   }
@@ -77,18 +125,12 @@ class MenuTutiFrutiScreen extends StatelessWidget {
                   ),
                   const Spacer(),
                   ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => CrearSalaScreen(
-                            juegoId: juegoIdTutiFruti,
-                            mostrarSelectorDados: false,
-                            editarCategorias: true,
-                            onIniciarPartida: _abrirPartida,
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _conSesion(() {
+                      SalaFormStore.setResumenOpciones(const [
+                        'Las categorías y rondas las elige el anfitrión en el lobby.',
+                      ]);
+                      _abrirCrear();
+                    }),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.rosa,
                       foregroundColor: Colors.white,
@@ -97,18 +139,7 @@ class MenuTutiFrutiScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => UnirseSalaScreen(
-                            juegoId: juegoIdTutiFruti,
-                            mostrarSelectorDados: false,
-                            editarCategorias: true,
-                            onIniciarPartida: _abrirPartida,
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _conSesion(_abrirUnirse),
                     child: const Text('Unirse'),
                   ),
                   const Spacer(),
@@ -116,6 +147,23 @@ class MenuTutiFrutiScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (_mostrarCuenta)
+            Positioned.fill(
+              child: CuentaOverlay(
+                onCerrar: () => setState(() {
+                  _mostrarCuenta = false;
+                  _accionTrasSesion = null;
+                }),
+                onSesion: () {
+                  final accion = _accionTrasSesion;
+                  setState(() {
+                    _mostrarCuenta = false;
+                    _accionTrasSesion = null;
+                  });
+                  accion?.call();
+                },
+              ),
+            ),
         ],
       ),
     );

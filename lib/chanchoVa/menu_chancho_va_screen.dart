@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -129,6 +130,14 @@ class _MenuChanchoVaScreenState extends State<MenuChanchoVaScreen> {
           'Chancho online: exactamente 2 personas. '
           'Las PCs (mínimo 2 según “Cantidad de PC”) se agregan al iniciar.',
       onPrepararSala: _sincronizarStoreSala,
+      resumenConfigOnline: () => [
+        lineaOpcionOnline('Chancha', _opciones.chancha),
+        lineaOpcionOnline('Sin espacio (CHANCHOVA)', _opciones.sinEspacio),
+        lineaOpcionOnline(
+          'Fin al primer perdedor',
+          _opciones.finAlPrimerPerdedor,
+        ),
+      ],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),

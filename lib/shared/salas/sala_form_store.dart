@@ -1,10 +1,10 @@
-/// Guarda en memoria el último nombre y código escritos en los formularios
-/// de Crear sala y Unirse a sala, para que persistan al volver al menú.
+/// Guarda datos para crear/unirse a salas online.
 class SalaFormStore {
   SalaFormStore._();
 
-  static String nombre = '';
   static String codigo = '';
+  /// Resumen legible de “Modificar partida” (se envía al crear la sala).
+  static List<String> lobbyOpcionesResumen = const [];
   /// Opciones de La Papa del anfitrión al iniciar la sala (mapa del codec).
   static Map<String, dynamic>? opcionesPapa;
   /// Chancho va: opciones serializadas del anfitrión.
@@ -13,4 +13,12 @@ class SalaFormStore {
   static int totalJugadoresChancho = 3;
 
   static void limpiarCodigo() => codigo = '';
+
+  static void setResumenOpciones(List<String> resumen) {
+    lobbyOpcionesResumen = List.unmodifiable(resumen);
+  }
+
+  static void limpiarResumenOpciones() {
+    lobbyOpcionesResumen = const [];
+  }
 }

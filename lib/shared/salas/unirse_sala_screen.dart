@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/salas/cartel_config_sala.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -31,32 +33,43 @@ class UnirseSalaScreen extends StatefulWidget {
 }
 
 class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
-  late final TextEditingController _nombreCtrl;
   late final TextEditingController _codigoCtrl;
   String? _error;
   bool _cargando = false;
 
+  String? get _nombreUsuario {
+    final u = UsuarioMongoService.instance.usuario;
+    if (u == null) return null;
+    final nick = u.nombreUsuario.trim();
+    if (nick.isNotEmpty) return nick;
+    final nombre = u.nombre.trim();
+    return nombre.isEmpty ? null : nombre;
+  }
+
   @override
   void initState() {
     super.initState();
-    _nombreCtrl = TextEditingController(text: SalaFormStore.nombre);
     _codigoCtrl = TextEditingController(text: SalaFormStore.codigo);
-    _nombreCtrl.addListener(() => SalaFormStore.nombre = _nombreCtrl.text);
     _codigoCtrl.addListener(() => SalaFormStore.codigo = _codigoCtrl.text);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!UsuarioMongoService.instance.haySesion || _nombreUsuario == null) {
+        Navigator.of(context).maybePop();
+      }
+    });
   }
 
   @override
   void dispose() {
-    _nombreCtrl.dispose();
     _codigoCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _unirse() async {
-    final nombre = _nombreCtrl.text.trim();
+    final nombre = _nombreUsuario;
     final codigo = _codigoCtrl.text.trim();
-    if (nombre.isEmpty) {
-      setState(() => _error = 'Escribí tu nombre.');
+    if (nombre == null || nombre.isEmpty) {
+      setState(() => _error = 'Iniciá sesión para unirte a una sala.');
       return;
     }
     if (codigo.isEmpty) {
@@ -78,6 +91,23 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
     });
 
     try {
+      final preview = await SalaService.instance.obtener(codigo);
+      if (!mounted) return;
+      if (preview.estado != 'lobby') {
+        throw StateError('La partida ya empezó.');
+      }
+      if (preview.juegoId != widget.juegoId) {
+        throw StateError('Esa sala es de otro juego.');
+      }
+
+      setState(() => _cargando = false);
+      final aceptar = await mostrarCartelConfigSalaOnline(
+        context: context,
+        resumen: preview.lobbyOpcionesResumen,
+      );
+      if (!aceptar || !mounted) return;
+
+      setState(() => _cargando = true);
       final result = await SalaService.instance.unirse(
         codigo: codigo,
         nombre: nombre,
@@ -108,6 +138,7 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final nombre = _nombreUsuario ?? '—';
     return Scaffold(
       appBar: AppBar(title: const Text('Unirse a sala')),
       body: Padding(
@@ -116,15 +147,34 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Tu nombre',
+              'Tu usuario',
               style: TextStyle(color: AppColors.textoSuave),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _nombreCtrl,
-              enabled: !_cargando,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Ej: Sofía'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.carta,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.cartaBorde),
+              ),
+              child: Text(
+                nombre,
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'En partidas online jugás con tu nombre de usuario. No se puede cambiar.',
+              style: TextStyle(
+                color: AppColors.textoSuave.withValues(alpha: 0.95),
+                height: 1.35,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 20),
             const Text(

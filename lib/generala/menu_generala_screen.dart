@@ -7,6 +7,7 @@ import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/menu/modificar_partida.dart';
+import 'package:app_juegos_mesa/shared/salas/resumen_opciones_online.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú de Generala: arma el [MenuJuegoScreen] y navega a la partida.
@@ -53,6 +54,9 @@ class _MenuGeneralaScreenState extends State<MenuGeneralaScreen> {
       mostrarJugadoresVsPc: true,
       opcionesCantidadJugadores: const [2, 3, 4],
       onCantidadPcChanged: (_) => GeneralaStandByStore.limpiar(),
+      resumenConfigOnline: () => [
+        lineaOpcionOnline('Escalera con 6→1', _opciones.escaleraCircular),
+      ],
       extraTrasModoLocal: BotonModificarPartida(
         onPressed: _abrirCartelModificar,
       ),
