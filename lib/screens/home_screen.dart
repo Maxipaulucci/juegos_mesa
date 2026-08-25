@@ -740,13 +740,17 @@ class _HomeScreenState extends State<HomeScreen>
     _centrarSeccion(cat);
   }
 
-  Future<void> _centrarSeccion(_CategoriaHome cat) async {
+  Future<void> _centrarSeccion(
+    _CategoriaHome cat, {
+    Duration? duracion,
+  }) async {
     if (!_scrollController.hasClients) return;
     final token = ++_scrollAnimToken;
     _ruedaAnimando = true;
-    final dur = _ajustes.animaciones
-        ? const Duration(milliseconds: 200)
-        : Duration.zero;
+    final dur = duracion ??
+        (_ajustes.animaciones
+            ? const Duration(milliseconds: 200)
+            : Duration.zero);
 
     final ctx = _claveSeccion[cat]?.currentContext;
     if (ctx == null || !ctx.mounted) {
@@ -908,7 +912,19 @@ class _HomeScreenState extends State<HomeScreen>
                 colorBoton: i.isEven
                     ? AppColors.fondo
                     : AppColors.carta.withValues(alpha: 0.38),
-                onColapsar: _irAlInicio,
+                onColapsar: () {
+                  // Celular: volver al inicio de esta sección (no al tope de la lista).
+                  if (esCelular) {
+                    _centrarSeccion(
+                      seccion.cat,
+                      duracion: _ajustes.animaciones
+                          ? const Duration(milliseconds: 900)
+                          : Duration.zero,
+                    );
+                  } else {
+                    _irAlInicio();
+                  }
+                },
                 buildCarousel: (expandida, onPrimerVisible, carruselKey) =>
                     _CarruselCategoria(
                   key: carruselKey,
