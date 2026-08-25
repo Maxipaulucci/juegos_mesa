@@ -231,8 +231,22 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     }
   }
 
+  /// Ancho tipico de telefono; no afecta tablet/desktop.
+  bool _esCelular(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 600;
+
   @override
   Widget build(BuildContext context) {
+    final celular = _esCelular(context);
+    final perfil = _api.haySesion;
+    final maxH = (celular && perfil) ? 340.0 : 640.0;
+    final paddingModal = celular
+        ? const EdgeInsets.symmetric(horizontal: 16, vertical: 20)
+        : const EdgeInsets.all(18);
+    final paddingCuerpo = (celular && perfil)
+        ? const EdgeInsets.fromLTRB(20, 52, 20, 20)
+        : const EdgeInsets.fromLTRB(22, 62, 22, 22);
+
     return Material(
       color: Colors.transparent,
       child: Stack(
@@ -249,9 +263,9 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           SafeArea(
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420, maxHeight: 640),
+                constraints: BoxConstraints(maxWidth: 420, maxHeight: maxH),
                 child: Padding(
-                  padding: const EdgeInsets.all(18),
+                  padding: paddingModal,
                   child: GestureDetector(
                     onTap: () {},
                     child: Container(
@@ -273,7 +287,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                       child: Stack(
                         children: [
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(22, 62, 22, 22),
+                            padding: paddingCuerpo,
                             child: SingleChildScrollView(
                               child: _cuerpoModal(),
                             ),
@@ -738,34 +752,88 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   Widget _pantallaPerfil() {
     final u = _api.usuario!;
     final nick = u.nombreUsuario.isEmpty ? u.nombre : u.nombreUsuario;
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: AppColors.azul.withValues(alpha: 0.25),
-          child: Text(
-            nick.isEmpty ? '?' : nick[0].toUpperCase(),
+    final celular = _esCelular(context);
+
+    if (!celular) {
+      return Column(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColors.azul.withValues(alpha: 0.25),
+            child: Text(
+              nick.isEmpty ? '?' : nick[0].toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.azul,
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            nick,
             style: const TextStyle(
-              color: AppColors.azul,
+              color: AppColors.texto,
               fontWeight: FontWeight.w900,
-              fontSize: 22,
+              fontSize: 18,
+            ),
+          ),
+          Text(
+            u.email,
+            style: const TextStyle(color: AppColors.textoSuave, fontSize: 13),
+          ),
+          const SizedBox(height: 18),
+          _cta('Cerrar sesión', () {
+            _api.cerrarSesion();
+            widget.onSesion?.call();
+            widget.onCerrar();
+          }),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: CircleAvatar(
+            radius: 36,
+            backgroundColor: AppColors.azul.withValues(alpha: 0.28),
+            child: Text(
+              nick.isEmpty ? '?' : nick[0].toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.azul,
+                fontWeight: FontWeight.w900,
+                fontSize: 26,
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         Text(
           nick,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: AppColors.texto,
             fontWeight: FontWeight.w900,
-            fontSize: 18,
+            fontSize: 20,
           ),
         ),
+        const SizedBox(height: 4),
         Text(
           u.email,
-          style: const TextStyle(color: AppColors.textoSuave, fontSize: 13),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.textoSuave,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 22),
         _cta('Cerrar sesión', () {
           _api.cerrarSesion();
           widget.onSesion?.call();
