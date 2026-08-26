@@ -60,8 +60,8 @@ class AppBottomNavBar extends StatelessWidget {
           _ItemNav(
             icono: Icons.emoji_events_rounded,
             color: AppColors.acento,
-            activo: false,
-            habilitado: false,
+            activo: indiceActual == 3,
+            habilitado: true,
             onTap: () => onTap(3),
           ),
           _ItemNav(
