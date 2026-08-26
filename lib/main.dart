@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'screens/hub_screen.dart';
+import 'screens/app_shell.dart';
+import 'screens/home_screen.dart';
 import 'shared/carga/pantalla_carga.dart';
 import 'theme/app_theme.dart';
 
@@ -50,7 +51,7 @@ class JuegosMesaApp extends StatelessWidget {
   }
 }
 
-/// Primera pantalla al abrir / reiniciar: carga animada y luego el menú.
+/// Primera pantalla al abrir / reiniciar: carga animada y luego los juegos.
 class _SplashInicial extends StatefulWidget {
   const _SplashInicial();
 
@@ -64,13 +65,15 @@ class _SplashInicialState extends State<_SplashInicial> {
   @override
   void initState() {
     super.initState();
-    _irAlHome();
+    _irAJuegos();
   }
 
-  Future<void> _irAlHome() async {
+  Future<void> _irAJuegos() async {
     final prep = Future<void>(() async {
       await Future<void>.delayed(Duration.zero);
       await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await HomeScreen.precargar(context);
     });
 
     await Future.wait<void>([_barraListo.future, prep]);
@@ -79,7 +82,7 @@ class _SplashInicialState extends State<_SplashInicial> {
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
-        pageBuilder: (_, __, ___) => const HubScreen(),
+        pageBuilder: (_, __, ___) => const AppShell(),
         transitionDuration: const Duration(milliseconds: 350),
         transitionsBuilder: (_, anim, __, child) {
           return FadeTransition(opacity: anim, child: child);

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import '../models/usuario_mongo.dart';
+import '../shared/monedas/monedas_store.dart';
 
 /// API del backend (cuentas y ranking).
 ///
@@ -169,6 +170,7 @@ class UsuarioMongoService {
     final data = await _get('/api/usuarios/yo');
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
     usuario = UsuarioMongo.fromJson(raw);
+    MonedasStore.instance.notificar();
     return usuario!;
   }
 
@@ -182,6 +184,16 @@ class UsuarioMongoService {
     });
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
     usuario = UsuarioMongo.fromJson(raw);
+    MonedasStore.instance.notificar();
+    return usuario!;
+  }
+
+  /// +3 monedas por victoria vs PC.
+  Future<UsuarioMongo> sumarMonedasVictoriaPc() async {
+    final data = await _post('/api/monedas/victoria-pc', {});
+    final raw = Map<String, dynamic>.from(data['usuario'] as Map);
+    usuario = UsuarioMongo.fromJson(raw);
+    MonedasStore.instance.notificar();
     return usuario!;
   }
 
@@ -206,12 +218,14 @@ class UsuarioMongoService {
   void cerrarSesion() {
     _token = null;
     usuario = null;
+    MonedasStore.instance.notificar();
   }
 
   UsuarioMongo _guardarSesion(Map<String, dynamic> data) {
     _token = data['token']?.toString();
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
     usuario = UsuarioMongo.fromJson(raw);
+    MonedasStore.instance.notificar();
     return usuario!;
   }
 }

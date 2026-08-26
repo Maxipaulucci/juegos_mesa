@@ -16,6 +16,8 @@ import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
@@ -1121,14 +1123,18 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
               ),
             if (_partida.terminada)
               Positioned.fill(
-                child: VictoriaCasitaOverlay(
-                  partida: _partida,
-                  gane: widget.contraPc
-                      ? (_partida.ganador == _yo.nombre)
-                      : (_partida.ganador != null),
-                  animaciones: _ajustes.animaciones,
-                  onVolverAJugar: _reiniciar,
-                  onVolver: () => _salirAlMenu(guardar: false),
+                child: PremiarMonedasVictoriaPc(
+                  aplicar: widget.contraPc &&
+                      (_partida.ganador == _yo.nombre),
+                  child: VictoriaCasitaOverlay(
+                    partida: _partida,
+                    gane: widget.contraPc
+                        ? (_partida.ganador == _yo.nombre)
+                        : (_partida.ganador != null),
+                    animaciones: _ajustes.animaciones,
+                    onVolverAJugar: _reiniciar,
+                    onVolver: () => _salirAlMenu(guardar: false),
+                  ),
                 ),
               ),
           ],

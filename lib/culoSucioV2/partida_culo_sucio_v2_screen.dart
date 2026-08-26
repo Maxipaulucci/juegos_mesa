@@ -22,6 +22,8 @@ import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
@@ -1999,10 +2001,17 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
             if (_partida.terminada)
               Positioned.fill(
                 child: _debeMostrarVictoria
-                    ? VictoriaCuloSucioV2Overlay(
-                        partida: _partida,
-                        onVolverAJugar: _reiniciar,
-                        onVolver: () => _salirAlMenu(guardar: false),
+                    ? PremiarMonedasVictoriaPc(
+                        aplicar: ganoHumanoEnVsPc(
+                          contraPc: widget.contraPc,
+                          online: _esOnline,
+                          ganador: _partida.ganador,
+                        ),
+                        child: VictoriaCuloSucioV2Overlay(
+                          partida: _partida,
+                          onVolverAJugar: _reiniciar,
+                          onVolver: () => _salirAlMenu(guardar: false),
+                        ),
                       )
                     : DerrotaCuloSucioV2Overlay(
                         partida: _partida,

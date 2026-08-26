@@ -21,6 +21,7 @@ import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
@@ -1953,11 +1954,17 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
               ),
             if (_partida.terminada)
               Positioned.fill(
-                child: VictoriaChanchoOverlay(
-                  partida: _partida,
-                  animaciones: _ajustes.animaciones,
-                  onVolverAJugar: _reiniciar,
-                  onVolver: () => _salir(guardar: false),
+                child: PremiarMonedasVictoriaPc(
+                  aplicar: !_esOnline &&
+                      widget.contraPc &&
+                      _partida.perdedor != null &&
+                      esNombrePc(_partida.perdedor!),
+                  child: VictoriaChanchoOverlay(
+                    partida: _partida,
+                    animaciones: _ajustes.animaciones,
+                    onVolverAJugar: _reiniciar,
+                    onVolver: () => _salir(guardar: false),
+                  ),
                 ),
               ),
             // Menú y ajustes por encima de carteles de juego.

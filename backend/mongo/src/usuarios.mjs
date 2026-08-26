@@ -14,14 +14,34 @@ export function publico(doc) {
   if (!doc) return null;
   const puntos = { ...puntosVacios(), ...(doc.puntos || {}) };
   const nombreUsuario = doc.nombreUsuario || doc.nombre || '';
+  const monedas = Number.isFinite(Number(doc.monedas))
+    ? Math.max(0, Math.floor(Number(doc.monedas)))
+    : 0;
   return {
     id: String(doc._id),
     nombreUsuario,
     nombre: nombreUsuario,
     email: doc.email,
     puntos,
+    monedas,
     creadoEn: doc.creadoEn,
   };
+}
+
+/** Bienvenida: 100 monedas la primera vez (registro o usuarios viejos sin campo). */
+async function asegurarMonedasIniciales(doc) {
+  if (doc == null) return doc;
+  if (Number.isFinite(Number(doc.monedas))) return doc;
+  const actualizado = await usuarios().findOneAndUpdate(
+    { _id: doc._id, monedas: { $exists: false } },
+    { $set: { monedas: 100, monedasOtorgadasEn: new Date() } },
+    { returnDocument: 'after' },
+  );
+  const actual =
+    actualizado && actualizado.value !== undefined
+      ? actualizado.value
+      : actualizado;
+  return actual || { ...doc, monedas: 100 };
 }
 
 export function firmar(usuarioId) {
@@ -210,6 +230,8 @@ export async function verificar(req, res) {
     email: pend.email,
     passwordHash: pend.passwordHash,
     puntos: puntosVacios(),
+    monedas: 100,
+    monedasOtorgadasEn: ahora,
     creadoEn: ahora,
     verificadoEn: ahora,
   };
@@ -245,7 +267,8 @@ export async function login(req, res) {
     res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     return;
   }
-  res.json({ token: firmar(doc._id), usuario: publico(doc) });
+  const conMonedas = await asegurarMonedasIniciales(doc);
+  res.json({ token: firmar(conMonedas._id), usuario: publico(conMonedas) });
 }
 
 async function guardarCodigoRecuperacion(email) {
@@ -379,7 +402,36 @@ export async function restablecerClave(req, res) {
 }
 
 export async function yo(req, res) {
-  res.json({ usuario: publico(req.usuario) });
+  const conMonedas = await asegurarMonedasIniciales(req.usuario);
+  res.json({ usuario: publico(conMonedas) });
+}
+
+/** +3 monedas por ganar una partida vs PC (solo con sesión). */
+export async function sumarMonedasVictoriaPc(req, res) {
+  await asegurarMonedasIniciales(req.usuario);
+  const actualizado = await usuarios().findOneAndUpdate(
+    { _id: req.usuario._id },
+    {
+      $inc: { monedas: 3 },
+      $set: { actualizadoEn: new Date() },
+    },
+    { returnDocument: 'after' },
+  );
+  const actual =
+    actualizado && actualizado.value !== undefined
+      ? actualizado.value
+      : actualizado;
+  if (!actual) {
+    res.status(404).json({ error: 'Usuario no encontrado.' });
+    return;
+  }
+  await partidas().insertOne({
+    usuarioId: req.usuario._id,
+    tipo: 'victoriaPc',
+    monedas: 3,
+    fecha: new Date(),
+  });
+  res.json({ usuario: publico(actual), monedasSumadas: 3 });
 }
 
 export async function sumarPuntos(req, res) {

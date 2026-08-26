@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/usuario_mongo_service.dart';
+import '../shared/monedas/monedas_bubble.dart';
+import '../shared/monedas/monedas_store.dart';
 import '../shared/nav/bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'mis_puntos_screen.dart';
@@ -28,6 +30,17 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(HomeScreen.precargar(context));
     });
+    MonedasStore.instance.addListener(_onMonedas);
+  }
+
+  @override
+  void dispose() {
+    MonedasStore.instance.removeListener(_onMonedas);
+    super.dispose();
+  }
+
+  void _onMonedas() {
+    if (mounted) setState(() {});
   }
 
   void _onNavTap(int index) {
@@ -43,12 +56,21 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _tab,
+      body: Stack(
         children: [
-          const HomeScreen(),
-          SalasScreen(mostrarVolver: false, activa: _tab == 1),
-          MisPuntosScreen(key: _puntosKey),
+          IndexedStack(
+            index: _tab,
+            children: [
+              const HomeScreen(),
+              SalasScreen(mostrarVolver: false, activa: _tab == 1),
+              MisPuntosScreen(key: _puntosKey),
+            ],
+          ),
+          const Positioned(
+            right: 14,
+            bottom: 10,
+            child: MonedasBubble(),
+          ),
         ],
       ),
       bottomNavigationBar: AppBottomNavBar(

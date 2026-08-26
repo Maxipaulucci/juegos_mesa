@@ -1325,20 +1325,6 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                           ),
                   ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: FadeTransition(
-                      opacity: _tituloOpacidad,
-                      child: const Text(
-                    'Elegí un juego para crear o unirte a una sala',
-                    textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: AppColors.textoSuave, fontSize: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
                 ],
               ),
             ),

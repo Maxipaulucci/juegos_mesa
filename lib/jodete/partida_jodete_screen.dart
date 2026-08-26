@@ -21,6 +21,8 @@ import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
 import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
@@ -1204,13 +1206,17 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                 ),
               if (_mostrarVictoria)
                 Positioned.fill(
-                  child: VictoriaJodeteOverlay(
-                    partida: _partida,
-                    gane: !widget.contraPc ||
+                  child: PremiarMonedasVictoriaPc(
+                    aplicar: widget.contraPc &&
                         _partida.ganador == _humanoPrincipal.nombre,
-                    animaciones: _ajustes.animaciones,
-                    onVolverAJugar: _reiniciar,
-                    onVolver: () => _salirAlMenu(guardar: false),
+                    child: VictoriaJodeteOverlay(
+                      partida: _partida,
+                      gane: !widget.contraPc ||
+                          _partida.ganador == _humanoPrincipal.nombre,
+                      animaciones: _ajustes.animaciones,
+                      onVolverAJugar: _reiniciar,
+                      onVolver: () => _salirAlMenu(guardar: false),
+                    ),
                   ),
                 ),
             ],

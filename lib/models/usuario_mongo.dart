@@ -5,6 +5,7 @@ class UsuarioMongo {
     required this.email,
     required this.puntos,
     this.nombreUsuario = '',
+    this.monedas = 0,
     this.creadoEn,
   });
 
@@ -13,6 +14,7 @@ class UsuarioMongo {
   final String nombreUsuario;
   final String email;
   final Map<String, int> puntos;
+  final int monedas;
   final DateTime? creadoEn;
 
   int puntosDe(String juego) => puntos[juego] ?? 0;
@@ -40,7 +42,20 @@ class UsuarioMongo {
           '',
       email: json['email']?.toString() ?? '',
       puntos: puntos,
+      monedas: (json['monedas'] as num?)?.toInt() ?? 0,
       creadoEn: creado,
+    );
+  }
+
+  UsuarioMongo copyWith({int? monedas}) {
+    return UsuarioMongo(
+      id: id,
+      nombre: nombre,
+      nombreUsuario: nombreUsuario,
+      email: email,
+      puntos: puntos,
+      monedas: monedas ?? this.monedas,
+      creadoEn: creadoEn,
     );
   }
 }

@@ -11,6 +11,8 @@ import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/generala/motor_generala.dart';
@@ -1064,16 +1066,23 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
           ),
           if (_mostrarVictoria && _partida.ganador != null)
             Positioned.fill(
-              child: VictoriaGeneralaOverlay(
-                partida: _partida,
-                ganador: _partida.ganador!,
-                subtitulo: _subtituloVictoria,
-                animaciones: _ajustes.animaciones,
-                onVolverAJugar: _volverAJugar,
-                onVolver: () {
-                  GeneralaStandByStore.limpiar();
-                  Navigator.of(context).pop();
-                },
+              child: PremiarMonedasVictoriaPc(
+                aplicar: ganoHumanoEnVsPc(
+                  contraPc: widget.contraPc,
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                ),
+                child: VictoriaGeneralaOverlay(
+                  partida: _partida,
+                  ganador: _partida.ganador!,
+                  subtitulo: _subtituloVictoria,
+                  animaciones: _ajustes.animaciones,
+                  onVolverAJugar: _volverAJugar,
+                  onVolver: () {
+                    GeneralaStandByStore.limpiar();
+                    Navigator.of(context).pop();
+                  },
+                ),
               ),
             ),
           if (_mostrarMenu)

@@ -22,6 +22,8 @@ import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
@@ -1477,15 +1479,22 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
             ),
           if (_partida.terminada)
             Positioned.fill(
-              child: VictoriaEscobaOverlay(
-                partida: _partida,
-                animaciones: _ajustes.animaciones,
-                onVolverAJugar: _volverAJugar,
-                mostrarVolverAJugar: !_esOnline,
-                onVolver: () {
-                  EscobaStandByStore.limpiar();
-                  _salirAlMenu();
-                },
+              child: PremiarMonedasVictoriaPc(
+                aplicar: ganoHumanoEnVsPc(
+                  contraPc: widget.contraPc,
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                ),
+                child: VictoriaEscobaOverlay(
+                  partida: _partida,
+                  animaciones: _ajustes.animaciones,
+                  onVolverAJugar: _volverAJugar,
+                  mostrarVolverAJugar: !_esOnline,
+                  onVolver: () {
+                    EscobaStandByStore.limpiar();
+                    _salirAlMenu();
+                  },
+                ),
               ),
             ),
         ],

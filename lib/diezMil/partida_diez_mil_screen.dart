@@ -11,6 +11,8 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'diez_mil_online_codec.dart';
@@ -1281,16 +1283,23 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
             ),
           if (_mostrarVictoria && _partida.ganador != null)
             Positioned.fill(
-              child: VictoriaOverlay(
-                ganador: _partida.ganador!,
-                estadisticas: _stats,
-                subtitulo: _subtituloVictoria,
-                animaciones: _ajustes.animaciones,
-                onVolverAJugar: _volverAJugar,
-                onVolver: () {
-                  DiezMilStandByStore.limpiar();
-                  Navigator.of(context).pop();
-                },
+              child: PremiarMonedasVictoriaPc(
+                aplicar: ganoHumanoEnVsPc(
+                  contraPc: widget.contraPc,
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                ),
+                child: VictoriaOverlay(
+                  ganador: _partida.ganador!,
+                  estadisticas: _stats,
+                  subtitulo: _subtituloVictoria,
+                  animaciones: _ajustes.animaciones,
+                  onVolverAJugar: _volverAJugar,
+                  onVolver: () {
+                    DiezMilStandByStore.limpiar();
+                    Navigator.of(context).pop();
+                  },
+                ),
               ),
             ),
           // Menú / ajustes encima de la victoria para poder usarlos con el ojo.

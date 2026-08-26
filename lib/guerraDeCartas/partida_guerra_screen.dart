@@ -12,6 +12,8 @@ import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_inglesa_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
@@ -1252,10 +1254,17 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
               ),
             if (_partida.terminada)
               Positioned.fill(
-                child: VictoriaGuerraOverlay(
-                  partida: _partida,
-                  onVolverAJugar: _reiniciar,
-                  onVolver: () => _salirAlMenu(guardar: false),
+                child: PremiarMonedasVictoriaPc(
+                  aplicar: ganoHumanoEnVsPc(
+                    contraPc: widget.contraPc,
+                    online: false,
+                    ganador: _partida.ganador,
+                  ),
+                  child: VictoriaGuerraOverlay(
+                    partida: _partida,
+                    onVolverAJugar: _reiniciar,
+                    onVolver: () => _salirAlMenu(guardar: false),
+                  ),
                 ),
               ),
           ],

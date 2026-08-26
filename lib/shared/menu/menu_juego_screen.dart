@@ -720,12 +720,37 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
       appBar: AppBar(
         title: Text(widget.titulo),
         actions: [
-          IconButton(
-            onPressed: _abrirAjustes,
-            tooltip: 'Ajustes',
-            icon: const Icon(Icons.settings_rounded),
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Tooltip(
+              message: 'Ajustes',
+              child: Material(
+                color: AppColors.carta,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _abrirAjustes,
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.rosa.withValues(alpha: 0.85),
+                        width: 1.6,
+                      ),
+                      boxShadow: neonGlow(AppColors.rosa, blur: 10),
+                    ),
+                    child: const Icon(
+                      Icons.settings,
+                      color: AppColors.texto,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: Stack(

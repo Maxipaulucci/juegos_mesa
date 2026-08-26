@@ -239,12 +239,21 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   Widget build(BuildContext context) {
     final celular = _esCelular(context);
     final perfil = _api.haySesion;
-    final maxH = (celular && perfil) ? 340.0 : 640.0;
+    // Perfil: cartel compacto al contenido. Auth/recup: más alto con scroll.
+    final maxW = perfil ? (celular ? 400.0 : 440.0) : 420.0;
+    final maxH = perfil
+        ? (celular ? 360.0 : 420.0)
+        : 640.0;
     final paddingModal = celular
         ? const EdgeInsets.symmetric(horizontal: 16, vertical: 20)
-        : const EdgeInsets.all(18);
-    final paddingCuerpo = (celular && perfil)
-        ? const EdgeInsets.fromLTRB(20, 52, 20, 20)
+        : const EdgeInsets.symmetric(horizontal: 24, vertical: 28);
+    final paddingCuerpo = perfil
+        ? EdgeInsets.fromLTRB(
+            celular ? 22 : 28,
+            celular ? 48 : 52,
+            celular ? 22 : 28,
+            celular ? 22 : 28,
+          )
         : const EdgeInsets.fromLTRB(22, 62, 22, 22);
 
     return Material(
@@ -263,7 +272,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           SafeArea(
             child: Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 420, maxHeight: maxH),
+                constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
                 child: Padding(
                   padding: paddingModal,
                   child: GestureDetector(
@@ -288,9 +297,12 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                         children: [
                           Padding(
                             padding: paddingCuerpo,
-                            child: SingleChildScrollView(
-                              child: _cuerpoModal(),
-                            ),
+                            // Perfil sin scroll: evita que el cartel se estire vacío.
+                            child: perfil
+                                ? _cuerpoModal()
+                                : SingleChildScrollView(
+                                    child: _cuerpoModal(),
+                                  ),
                           ),
                           Positioned(
                             top: 14,
@@ -753,87 +765,63 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     final u = _api.usuario!;
     final nick = u.nombreUsuario.isEmpty ? u.nombre : u.nombreUsuario;
     final celular = _esCelular(context);
-
-    if (!celular) {
-      return Column(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: AppColors.azul.withValues(alpha: 0.25),
-            child: Text(
-              nick.isEmpty ? '?' : nick[0].toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.azul,
-                fontWeight: FontWeight.w900,
-                fontSize: 22,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            nick,
-            style: const TextStyle(
-              color: AppColors.texto,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-            ),
-          ),
-          Text(
-            u.email,
-            style: const TextStyle(color: AppColors.textoSuave, fontSize: 13),
-          ),
-          const SizedBox(height: 18),
-          _cta('Cerrar sesión', () {
-            _api.cerrarSesion();
-            widget.onSesion?.call();
-            widget.onCerrar();
-          }),
-        ],
-      );
-    }
+    final radioAvatar = celular ? 36.0 : 44.0;
+    final tamLetra = celular ? 26.0 : 32.0;
+    final tamNick = celular ? 20.0 : 22.0;
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Center(
           child: CircleAvatar(
-            radius: 36,
+            radius: radioAvatar,
             backgroundColor: AppColors.azul.withValues(alpha: 0.28),
             child: Text(
               nick.isEmpty ? '?' : nick[0].toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.azul,
                 fontWeight: FontWeight.w900,
-                fontSize: 26,
+                fontSize: tamLetra,
               ),
             ),
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: celular ? 14 : 18),
         Text(
           nick,
           textAlign: TextAlign.center,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.texto,
             fontWeight: FontWeight.w900,
-            fontSize: 20,
+            fontSize: tamNick,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           u.email,
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.textoSuave,
-            fontSize: 13,
+            fontSize: celular ? 13 : 14,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: celular ? 10 : 12),
+        Text(
+          '${u.monedas} monedas',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppColors.acento,
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+          ),
+        ),
+        SizedBox(height: celular ? 22 : 28),
         _cta('Cerrar sesión', () {
           _api.cerrarSesion();
           widget.onSesion?.call();
