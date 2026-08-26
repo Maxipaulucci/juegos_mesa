@@ -67,8 +67,8 @@ class AppBottomNavBar extends StatelessWidget {
           _ItemNav(
             icono: Icons.shopping_cart_rounded,
             color: AppColors.rosa,
-            activo: false,
-            habilitado: false,
+            activo: indiceActual == 4,
+            habilitado: true,
             onTap: () => onTap(4),
           ),
         ],

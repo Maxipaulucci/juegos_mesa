@@ -9,6 +9,7 @@ import '../shared/nav/bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'mis_puntos_screen.dart';
 import 'salas_screen.dart';
+import 'tienda_screen.dart';
 
 /// Contenedor principal con barra de navegación inferior.
 class AppShell extends StatefulWidget {
@@ -19,7 +20,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  /// 0 = juegos · 1 = salas · 2 = cuenta (puntos).
+  /// 0 = juegos · 1 = salas · 2 = cuenta · 3 = tienda (nav ítem 4).
   int _tab = 0;
   final _puntosKey = GlobalKey<MisPuntosScreenState>();
 
@@ -43,12 +44,15 @@ class _AppShellState extends State<AppShell> {
     if (mounted) setState(() {});
   }
 
+  /// Nav: 0 juegos · 1 salas · 2 cuenta · 3 ranking · 4 tienda
+  int _navDeTab(int tab) => tab == 3 ? 4 : tab;
+
   void _onNavTap(int index) {
-    // 0 juegos · 1 salas · 2 cuenta · 3 ranking · 4 tienda
-    if (index == 3 || index == 4) return;
-    if (index == _tab) return;
-    setState(() => _tab = index);
-    if (index == 2) {
+    if (index == 3) return; // ranking bloqueado
+    final tab = index == 4 ? 3 : index;
+    if (tab == _tab) return;
+    setState(() => _tab = tab);
+    if (tab == 2) {
       _puntosKey.currentState?.recargar();
     }
   }
@@ -64,6 +68,7 @@ class _AppShellState extends State<AppShell> {
               const HomeScreen(),
               SalasScreen(mostrarVolver: false, activa: _tab == 1),
               MisPuntosScreen(key: _puntosKey),
+              const TiendaScreen(),
             ],
           ),
           const Positioned(
@@ -74,7 +79,7 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       bottomNavigationBar: AppBottomNavBar(
-        indiceActual: _tab,
+        indiceActual: _navDeTab(_tab),
         onTap: _onNavTap,
       ),
     );
