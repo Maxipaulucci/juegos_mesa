@@ -91,6 +91,7 @@ class SalaService {
               ?.map((e) => e.toString())
               .toList() ??
           const [],
+      apuestaMonedas: (raw['apuestaMonedas'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -98,6 +99,7 @@ class SalaService {
     required String juegoId,
     required String nombreAnfitrion,
     List<String>? lobbyOpcionesResumen,
+    int apuestaMonedas = 0,
   }) async {
     final data = await _post({
       'action': 'crear',
@@ -105,6 +107,7 @@ class SalaService {
       'nombre': nombreAnfitrion.trim(),
       if (lobbyOpcionesResumen != null)
         'lobbyOpcionesResumen': lobbyOpcionesResumen,
+      'apuestaMonedas': apuestaMonedas,
     });
     final salaMap = Map<String, dynamic>.from(data['sala'] as Map);
     return (sala: _parseSala(salaMap), miId: data['miId'] as String);

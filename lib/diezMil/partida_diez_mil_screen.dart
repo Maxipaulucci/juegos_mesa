@@ -1289,6 +1289,13 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
                   online: _esOnline,
                   ganador: _partida.ganador,
                 ),
+                aplicarOnline: ganePartidaOnline(
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                  miNombre: widget.miNombre,
+                ),
+                juegoId: MenuJuegoScreen.juegoIdDiezMil,
+                salaCodigo: widget.salaCodigo,
                 child: VictoriaOverlay(
                   ganador: _partida.ganador!,
                   estadisticas: _stats,

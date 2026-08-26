@@ -21,6 +21,7 @@ import 'package:app_juegos_mesa/shared/cartas/ordenar_mano_cartas.dart';
 import 'package:app_juegos_mesa/shared/cartas/reordenar_carta_mano.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
@@ -1959,6 +1960,13 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                       widget.contraPc &&
                       _partida.perdedor != null &&
                       esNombrePc(_partida.perdedor!),
+                  aplicarOnline: ganePartidaOnline(
+                    online: _esOnline,
+                    ganador: _partida.ganador,
+                    miNombre: widget.miNombre,
+                  ),
+                  juegoId: MenuJuegoScreen.juegoIdChanchoVa,
+                  salaCodigo: widget.salaCodigo,
                   child: VictoriaChanchoOverlay(
                     partida: _partida,
                     animaciones: _ajustes.animaciones,

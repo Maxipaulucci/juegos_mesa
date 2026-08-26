@@ -4,15 +4,23 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 
-/// Al montarse, si [aplicar] es true, pide +3 monedas (una sola vez).
+/// Al montarse premia victoria vs PC y/o resuelve apuesta online.
 class PremiarMonedasVictoriaPc extends StatefulWidget {
   const PremiarMonedasVictoriaPc({
     super.key,
     required this.aplicar,
     required this.child,
+    this.juegoId,
+    this.aplicarOnline = false,
+    this.salaCodigo,
   });
 
+  /// Victoria local vs PC.
   final bool aplicar;
+  final String? juegoId;
+  /// Gané la partida online (para cobrar el pozo).
+  final bool aplicarOnline;
+  final String? salaCodigo;
   final Widget child;
 
   @override
@@ -30,6 +38,17 @@ class _PremiarMonedasVictoriaPcState extends State<PremiarMonedasVictoriaPc> {
           contraPc: true,
           online: false,
           ganoHumano: true,
+          juegoId: widget.juegoId,
+        ),
+      );
+    }
+    if (widget.aplicarOnline) {
+      unawaited(
+        MonedasStore.instance.resolverApuestaOnlineSiGane(
+          online: true,
+          ganeYo: true,
+          salaCodigo: widget.salaCodigo,
+          juegoId: widget.juegoId,
         ),
       );
     }

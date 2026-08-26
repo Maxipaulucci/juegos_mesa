@@ -18,6 +18,11 @@ import {
   verificarRecuperacion,
   yo,
 } from './usuarios.mjs';
+import {
+  reembolsarApuesta,
+  resolverApuesta,
+  retenerApuesta,
+} from './apuestas.mjs';
 
 const app = express();
 app.use(cors());
@@ -56,6 +61,9 @@ app.post('/api/usuarios/recuperar/verificar', verificarRecuperacion);
 app.post('/api/usuarios/recuperar/restablecer', restablecerClave);
 app.get('/api/usuarios/yo', exigirUsuario, yo);
 app.post('/api/monedas/victoria-pc', exigirUsuario, sumarMonedasVictoriaPc);
+app.post('/api/apuestas/retener', exigirUsuario, retenerApuesta);
+app.post('/api/apuestas/reembolsar', exigirUsuario, reembolsarApuesta);
+app.post('/api/apuestas/resolver', exigirUsuario, resolverApuesta);
 app.post('/api/puntos', exigirUsuario, sumarPuntos);
 app.get('/api/ranking', ranking);
 

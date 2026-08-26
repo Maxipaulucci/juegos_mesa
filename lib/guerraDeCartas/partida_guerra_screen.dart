@@ -1260,6 +1260,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
                     online: false,
                     ganador: _partida.ganador,
                   ),
+                  juegoId: MenuJuegoScreen.juegoIdGuerraDeCartas,
                   child: VictoriaGuerraOverlay(
                     partida: _partida,
                     onVolverAJugar: _reiniciar,

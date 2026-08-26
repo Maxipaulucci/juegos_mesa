@@ -25,6 +25,8 @@ public class SalaDocument {
     private List<String> lobbyCategorias = new ArrayList<>();
     private Integer lobbyMaxRondas;
     private List<String> lobbyOpcionesResumen = new ArrayList<>();
+    /** Monedas que cada jugador debe apostar (0 = sin apuesta). */
+    private int apuestaMonedas = 0;
     private Map<String, Object> gameState;
 
     public Map<String, Object> toMap() {
@@ -35,6 +37,7 @@ public class SalaDocument {
         map.put("jugadores", jugadores.stream().map(JugadorEmbedded::toMap).toList());
         map.put("estado", estado);
         map.put("dados", dados);
+        map.put("apuestaMonedas", apuestaMonedas);
         if (creadaEn != null) map.put("creadaEn", creadaEn);
         if (iniciadaEn != null) map.put("iniciadaEn", iniciadaEn);
         if (anfitrionVistoEn != null) map.put("anfitrionVistoEn", anfitrionVistoEn);
@@ -72,6 +75,8 @@ public class SalaDocument {
     public void setLobbyOpcionesResumen(List<String> lobbyOpcionesResumen) {
         this.lobbyOpcionesResumen = lobbyOpcionesResumen;
     }
+    public int getApuestaMonedas() { return apuestaMonedas; }
+    public void setApuestaMonedas(int apuestaMonedas) { this.apuestaMonedas = apuestaMonedas; }
     public Map<String, Object> getGameState() { return gameState; }
     public void setGameState(Map<String, Object> gameState) { this.gameState = gameState; }
 }

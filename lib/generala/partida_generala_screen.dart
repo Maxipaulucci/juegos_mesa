@@ -1072,6 +1072,13 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
                   online: _esOnline,
                   ganador: _partida.ganador,
                 ),
+                aplicarOnline: ganePartidaOnline(
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                  miNombre: widget.miNombre,
+                ),
+                juegoId: MenuJuegoScreen.juegoIdGenerala,
+                salaCodigo: widget.salaCodigo,
                 child: VictoriaGeneralaOverlay(
                   partida: _partida,
                   ganador: _partida.ganador!,

@@ -106,8 +106,17 @@ public class SalaService {
             sala.setLobbyMaxRondas(null);
         }
         sala.setLobbyOpcionesResumen(leerResumenOpciones(body.get("lobbyOpcionesResumen")));
+        sala.setApuestaMonedas(normalizarApuesta(body.get("apuestaMonedas")));
         repository.save(sala);
         return Map.of("sala", sala.toMap(), "miId", anfitrionId);
+    }
+
+    private static final java.util.Set<Integer> APUESTAS_OK = java.util.Set.of(
+            0, 5, 10, 25, 50, 100, 250, 500, 1000);
+
+    private int normalizarApuesta(Object raw) {
+        var n = toInt(raw, 0);
+        return APUESTAS_OK.contains(n) ? n : 0;
     }
 
     private List<String> leerResumenOpciones(Object raw) {

@@ -931,6 +931,13 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                         online: _esOnline,
                         ganador: _partida.ganador,
                       ),
+                      aplicarOnline: ganePartidaOnline(
+                        online: _esOnline,
+                        ganador: _partida.ganador,
+                        miNombre: widget.miNombre,
+                      ),
+                      juegoId: MenuJuegoScreen.juegoIdCuloSucioV1,
+                      salaCodigo: widget.salaCodigo,
                       child: VictoriaCuloSucioOverlay(
                         partida: _partida,
                         mostrarVolverAJugar: !_esOnline,

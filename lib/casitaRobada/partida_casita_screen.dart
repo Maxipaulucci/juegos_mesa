@@ -1126,6 +1126,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
                 child: PremiarMonedasVictoriaPc(
                   aplicar: widget.contraPc &&
                       (_partida.ganador == _yo.nombre),
+                  juegoId: MenuJuegoScreen.juegoIdCasitaRobada,
                   child: VictoriaCasitaOverlay(
                     partida: _partida,
                     gane: widget.contraPc

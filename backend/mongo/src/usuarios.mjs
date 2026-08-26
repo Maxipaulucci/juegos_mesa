@@ -29,7 +29,7 @@ export function publico(doc) {
 }
 
 /** Bienvenida: 100 monedas la primera vez (registro o usuarios viejos sin campo). */
-async function asegurarMonedasIniciales(doc) {
+export async function asegurarMonedasIniciales(doc) {
   if (doc == null) return doc;
   if (Number.isFinite(Number(doc.monedas))) return doc;
   const actualizado = await usuarios().findOneAndUpdate(
@@ -406,13 +406,21 @@ export async function yo(req, res) {
   res.json({ usuario: publico(conMonedas) });
 }
 
-/** +3 monedas por ganar una partida vs PC (solo con sesión). */
+/** +3 monedas y +3 puntos de ranking por ganar vs PC (solo con sesión). */
 export async function sumarMonedasVictoriaPc(req, res) {
+  const juegoId = String(req.body?.juegoId || '');
   await asegurarMonedasIniciales(req.usuario);
+
+  const inc = { monedas: 3 };
+  if (juegoValido(juegoId) && juegoId !== JUEGO_GLOBAL) {
+    inc[`puntos.${juegoId}`] = 3;
+    inc[`puntos.${JUEGO_GLOBAL}`] = 3;
+  }
+
   const actualizado = await usuarios().findOneAndUpdate(
     { _id: req.usuario._id },
     {
-      $inc: { monedas: 3 },
+      $inc: inc,
       $set: { actualizadoEn: new Date() },
     },
     { returnDocument: 'after' },
@@ -428,10 +436,16 @@ export async function sumarMonedasVictoriaPc(req, res) {
   await partidas().insertOne({
     usuarioId: req.usuario._id,
     tipo: 'victoriaPc',
+    juegoId: juegoValido(juegoId) ? juegoId : undefined,
     monedas: 3,
+    puntos: juegoValido(juegoId) && juegoId !== JUEGO_GLOBAL ? 3 : 0,
     fecha: new Date(),
   });
-  res.json({ usuario: publico(actual), monedasSumadas: 3 });
+  res.json({
+    usuario: publico(actual),
+    monedasSumadas: 3,
+    puntosSumados: juegoValido(juegoId) && juegoId !== JUEGO_GLOBAL ? 3 : 0,
+  });
 }
 
 export async function sumarPuntos(req, res) {

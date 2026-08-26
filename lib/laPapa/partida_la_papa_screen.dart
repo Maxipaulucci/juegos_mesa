@@ -14,6 +14,9 @@ import 'package:app_juegos_mesa/laPapa/victoria_la_papa_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -1789,16 +1792,26 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
           ),
           if (_partida.terminada)
             Positioned.fill(
-              child: VictoriaLaPapaOverlay(
-                partida: _partida,
-                ganador: _partida.ganador,
-                subtitulo: _partida.mensajeFin,
-                animaciones: _ajustes.animaciones,
-                esSolo: widget.solo,
-                trazoFallido: List.of(_trazoFallido),
-                boardSizeTrazo: _boardSize,
-                onVolverAJugar: _reiniciar,
-                onVolver: _salirAlMenu,
+              child: PremiarMonedasVictoriaPc(
+                aplicar: false,
+                aplicarOnline: ganePartidaOnline(
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                  miNombre: widget.miNombre,
+                ),
+                juegoId: MenuJuegoScreen.juegoIdLaPapa,
+                salaCodigo: widget.salaCodigo,
+                child: VictoriaLaPapaOverlay(
+                  partida: _partida,
+                  ganador: _partida.ganador,
+                  subtitulo: _partida.mensajeFin,
+                  animaciones: _ajustes.animaciones,
+                  esSolo: widget.solo,
+                  trazoFallido: List.of(_trazoFallido),
+                  boardSizeTrazo: _boardSize,
+                  onVolverAJugar: _reiniciar,
+                  onVolver: _salirAlMenu,
+                ),
               ),
             ),
         ],

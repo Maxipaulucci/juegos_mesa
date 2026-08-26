@@ -1485,6 +1485,13 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                   online: _esOnline,
                   ganador: _partida.ganador,
                 ),
+                aplicarOnline: ganePartidaOnline(
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                  miNombre: widget.miNombre,
+                ),
+                juegoId: MenuJuegoScreen.juegoIdEscobaDel15,
+                salaCodigo: widget.salaCodigo,
                 child: VictoriaEscobaOverlay(
                   partida: _partida,
                   animaciones: _ajustes.animaciones,

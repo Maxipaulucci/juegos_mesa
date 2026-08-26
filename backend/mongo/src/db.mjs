@@ -38,6 +38,11 @@ export function recuperacionesPendientes() {
   return base().collection('recuperacionesPendientes');
 }
 
+/** Apuestas de monedas en salas online (retenidas hasta resolver/reembolsar). */
+export function apuestas() {
+  return base().collection('apuestas');
+}
+
 export async function cerrar() {
   if (cliente) await cliente.close();
   cliente = undefined;

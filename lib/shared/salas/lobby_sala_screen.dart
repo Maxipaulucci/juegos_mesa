@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -99,11 +101,26 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     return c;
   }
 
+  Future<void> _reembolsarApuestaSiCorresponde() async {
+    if (_partidaLanzada) return;
+    if (_sala.apuestaMonedas <= 0) return;
+    try {
+      await UsuarioMongoService.instance.reembolsarApuesta(
+        codigoSala: _sala.codigo,
+      );
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
     _sala = widget.salaInicial;
     _dados = _sala.dados;
+    ApuestaOnlineStore.configurar(
+      codigo: _sala.codigo,
+      juego: _sala.juegoId,
+      apuesta: _sala.apuestaMonedas,
+    );
     if (widget.editarCategorias) {
       if (_soyAnfitrion) {
         final iniciales = _sala.lobbyCategorias.isNotEmpty
@@ -145,6 +162,8 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     if (!mounted || _partidaLanzada || _yaAbandone) return;
     _yaAbandone = true;
     _heartbeatTimer?.cancel();
+    unawaited(_reembolsarApuestaSiCorresponde());
+    ApuestaOnlineStore.limpiar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -169,12 +188,14 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     // Si el anfitrión cierra la app / se va sin pop limpio, borrar la sala.
     if (!_partidaLanzada && !_yaAbandone) {
       _yaAbandone = true;
+      unawaited(_reembolsarApuestaSiCorresponde());
       unawaited(
         SalaService.instance.salir(
           codigo: _sala.codigo,
           miId: widget.miId,
         ),
       );
+      ApuestaOnlineStore.limpiar();
     }
     super.dispose();
   }
@@ -185,6 +206,8 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     _yaAbandone = true;
     _sub?.cancel();
     _heartbeatTimer?.cancel();
+    await _reembolsarApuestaSiCorresponde();
+    ApuestaOnlineStore.limpiar();
     try {
       await SalaService.instance.salir(
         codigo: _sala.codigo,
@@ -202,6 +225,9 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     final sigoAdentro = sala.jugadores.any((j) => j.id == widget.miId);
     if (!sigoAdentro) {
       _sub?.cancel();
+      _yaAbandone = true;
+      unawaited(_reembolsarApuestaSiCorresponde());
+      ApuestaOnlineStore.limpiar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -437,6 +463,19 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                   : 'Esperando que el anfitrión inicie la partida…',
               style: const TextStyle(color: AppColors.textoSuave),
             ),
+            if (_sala.apuestaMonedas > 0) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Apuesta: ${_sala.apuestaMonedas} monedas por jugador. '
+                'El ganador se lleva el pozo y suma al ranking.',
+                style: TextStyle(
+                  color: AppColors.acento.withValues(alpha: 0.95),
+                  fontWeight: FontWeight.w800,
+                  height: 1.35,
+                  fontSize: 13,
+                ),
+              ),
+            ],
                   if (_soyAnfitrion && widget.mostrarSelectorDados) ...[
               const SizedBox(height: 20),
                     const Text(

@@ -2,15 +2,23 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Cartel previo a unirse: muestra la config del anfitrión.
+/// Cartel previo a unirse: muestra la config del anfitrión y la apuesta.
 Future<bool> mostrarCartelConfigSalaOnline({
   required BuildContext context,
   required List<String> resumen,
+  int apuestaMonedas = 0,
 }) async {
   final maxAltura = MediaQuery.sizeOf(context).height * 0.7;
-  final lineas = resumen.isEmpty
-      ? const <String>['El anfitrión usa la configuración por defecto.']
-      : resumen;
+  final lineas = <String>[
+    if (apuestaMonedas > 0)
+      'Apuesta: $apuestaMonedas monedas por jugador '
+          '(el ganador se lleva el pozo y suma esa cantidad al ranking).'
+    else
+      'Sin apuesta de monedas.',
+    ...resumen.isEmpty
+        ? const <String>['El anfitrión usa la configuración por defecto.']
+        : resumen,
+  ];
 
   final result = await showDialog<bool>(
     context: context,
@@ -88,7 +96,11 @@ Future<bool> mostrarCartelConfigSalaOnline({
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(dialogContext).pop(true),
-                    child: const Text('Unirse'),
+                    child: Text(
+                      apuestaMonedas > 0
+                          ? 'Unirse · apostar $apuestaMonedas'
+                          : 'Unirse',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),

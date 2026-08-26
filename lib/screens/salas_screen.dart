@@ -6,6 +6,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
+import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
 import 'package:app_juegos_mesa/shared/salas/cartel_config_sala.dart';
 import 'package:app_juegos_mesa/shared/salas/iniciar_desde_sala.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
@@ -140,10 +141,19 @@ class _SalasScreenState extends State<SalasScreen> {
         throw StateError('La partida ya empezó.');
       }
 
+      final apuesta = preview.apuestaMonedas;
+      final monedas = UsuarioMongoService.instance.usuario?.monedas ?? 0;
+      if (apuesta > 0 && monedas < apuesta) {
+        throw StateError(
+          'Necesitás $apuesta monedas para esta apuesta (tenés $monedas).',
+        );
+      }
+
       setState(() => _uniendoCodigo = null);
       final aceptar = await mostrarCartelConfigSalaOnline(
         context: context,
         resumen: preview.lobbyOpcionesResumen,
+        apuestaMonedas: apuesta,
       );
       if (!aceptar || !mounted) return;
 
@@ -157,30 +167,54 @@ class _SalasScreenState extends State<SalasScreen> {
         );
       }
 
-      final result = await SalaService.instance.unirse(
-        codigo: preview.codigo,
-        nombre: nombre,
-        juegoId: preview.juegoId,
-      );
-      if (!mounted) return;
+      if (apuesta > 0) {
+        await UsuarioMongoService.instance.retenerApuesta(
+          codigoSala: preview.codigo,
+          monto: apuesta,
+          juegoId: preview.juegoId,
+        );
+      }
 
-      final flags = lobbyFlagsParaJuego(preview.juegoId);
-      final juegoId = preview.juegoId;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => LobbySalaScreen(
-            salaInicial: result.sala,
-            miId: result.miId,
-            mostrarSelectorDados: flags.mostrarSelectorDados,
-            editarCategorias: flags.editarCategorias,
-            humanosExactosParaIniciar: flags.humanosExactos,
-            textoAyudaHumanos: flags.textoAyudaHumanos,
-            onIniciarPartida: (ctx, inicio) {
-              iniciarPartidaDesdeSalaHub(ctx, juegoId, inicio);
-            },
+      try {
+        final result = await SalaService.instance.unirse(
+          codigo: preview.codigo,
+          nombre: nombre,
+          juegoId: preview.juegoId,
+        );
+        ApuestaOnlineStore.configurar(
+          codigo: result.sala.codigo,
+          juego: preview.juegoId,
+          apuesta: apuesta,
+        );
+        if (!mounted) return;
+
+        final flags = lobbyFlagsParaJuego(preview.juegoId);
+        final juegoId = preview.juegoId;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => LobbySalaScreen(
+              salaInicial: result.sala,
+              miId: result.miId,
+              mostrarSelectorDados: flags.mostrarSelectorDados,
+              editarCategorias: flags.editarCategorias,
+              humanosExactosParaIniciar: flags.humanosExactos,
+              textoAyudaHumanos: flags.textoAyudaHumanos,
+              onIniciarPartida: (ctx, inicio) {
+                iniciarPartidaDesdeSalaHub(ctx, juegoId, inicio);
+              },
+            ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        if (apuesta > 0) {
+          try {
+            await UsuarioMongoService.instance.reembolsarApuesta(
+              codigoSala: preview.codigo,
+            );
+          } catch (_) {}
+        }
+        rethrow;
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -381,7 +415,8 @@ class _SalasScreenState extends State<SalasScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '$ocupados / 4 jugadores',
+                          '$ocupados / 4 jugadores'
+                          '${sala.apuestaMonedas > 0 ? ' · Apuesta ${sala.apuestaMonedas}' : ''}',
                           style: TextStyle(
                             color: AppColors.mint.withValues(alpha: 0.9),
                             fontWeight: FontWeight.w700,

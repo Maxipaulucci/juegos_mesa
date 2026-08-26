@@ -1209,6 +1209,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                   child: PremiarMonedasVictoriaPc(
                     aplicar: widget.contraPc &&
                         _partida.ganador == _humanoPrincipal.nombre,
+                    juegoId: MenuJuegoScreen.juegoIdJodete,
                     child: VictoriaJodeteOverlay(
                       partida: _partida,
                       gane: !widget.contraPc ||

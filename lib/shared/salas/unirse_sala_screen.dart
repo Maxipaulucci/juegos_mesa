@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/salas/cartel_config_sala.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
@@ -45,6 +47,8 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
     final nombre = u.nombre.trim();
     return nombre.isEmpty ? null : nombre;
   }
+
+  int get _misMonedas => MonedasStore.instance.monedas;
 
   @override
   void initState() {
@@ -100,33 +104,66 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
         throw StateError('Esa sala es de otro juego.');
       }
 
+      final apuesta = preview.apuestaMonedas;
+      if (apuesta > 0 && _misMonedas < apuesta) {
+        throw StateError(
+          'Necesitás $apuesta monedas para esta apuesta (tenés $_misMonedas).',
+        );
+      }
+
       setState(() => _cargando = false);
       final aceptar = await mostrarCartelConfigSalaOnline(
         context: context,
         resumen: preview.lobbyOpcionesResumen,
+        apuestaMonedas: apuesta,
       );
       if (!aceptar || !mounted) return;
 
       setState(() => _cargando = true);
-      final result = await SalaService.instance.unirse(
-        codigo: codigo,
-        nombre: nombre,
-        juegoId: widget.juegoId,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => LobbySalaScreen(
-            salaInicial: result.sala,
-            miId: result.miId,
-            onIniciarPartida: widget.onIniciarPartida,
-            mostrarSelectorDados: widget.mostrarSelectorDados,
-            editarCategorias: widget.editarCategorias,
-            humanosExactosParaIniciar: widget.humanosExactosParaIniciar,
-            textoAyudaHumanos: widget.textoAyudaHumanos,
+
+      if (apuesta > 0) {
+        await UsuarioMongoService.instance.retenerApuesta(
+          codigoSala: preview.codigo,
+          monto: apuesta,
+          juegoId: widget.juegoId,
+        );
+      }
+
+      try {
+        final result = await SalaService.instance.unirse(
+          codigo: codigo,
+          nombre: nombre,
+          juegoId: widget.juegoId,
+        );
+        ApuestaOnlineStore.configurar(
+          codigo: result.sala.codigo,
+          juego: widget.juegoId,
+          apuesta: apuesta,
+        );
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => LobbySalaScreen(
+              salaInicial: result.sala,
+              miId: result.miId,
+              onIniciarPartida: widget.onIniciarPartida,
+              mostrarSelectorDados: widget.mostrarSelectorDados,
+              editarCategorias: widget.editarCategorias,
+              humanosExactosParaIniciar: widget.humanosExactosParaIniciar,
+              textoAyudaHumanos: widget.textoAyudaHumanos,
+            ),
           ),
-        ),
-      );
+        );
+      } catch (e) {
+        if (apuesta > 0) {
+          try {
+            await UsuarioMongoService.instance.reembolsarApuesta(
+              codigoSala: preview.codigo,
+            );
+          } catch (_) {}
+        }
+        rethrow;
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -169,7 +206,8 @@ class _UnirseSalaScreenState extends State<UnirseSalaScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'En partidas online jugás con tu nombre de usuario. No se puede cambiar.',
+              'Tenés $_misMonedas monedas. Si la sala tiene apuesta, '
+              'se te retienen al unirte.',
               style: TextStyle(
                 color: AppColors.textoSuave.withValues(alpha: 0.95),
                 height: 1.35,

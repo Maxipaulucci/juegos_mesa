@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -33,6 +35,7 @@ class CrearSalaScreen extends StatefulWidget {
 class _CrearSalaScreenState extends State<CrearSalaScreen> {
   String? _error;
   bool _cargando = false;
+  int _apuesta = 0;
 
   String? get _nombreUsuario {
     final u = UsuarioMongoService.instance.usuario;
@@ -42,6 +45,8 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
     final nombre = u.nombre.trim();
     return nombre.isEmpty ? null : nombre;
   }
+
+  int get _misMonedas => MonedasStore.instance.monedas;
 
   @override
   void initState() {
@@ -60,6 +65,10 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
       setState(() => _error = 'Iniciá sesión para crear una sala.');
       return;
     }
+    if (_apuesta > 0 && _misMonedas < _apuesta) {
+      setState(() => _error = 'No te alcanzan las monedas para esa apuesta.');
+      return;
+    }
 
     setState(() {
       _cargando = true;
@@ -71,6 +80,29 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
         juegoId: widget.juegoId,
         nombreAnfitrion: nombre,
         lobbyOpcionesResumen: SalaFormStore.lobbyOpcionesResumen,
+        apuestaMonedas: _apuesta,
+      );
+      if (_apuesta > 0) {
+        try {
+          await UsuarioMongoService.instance.retenerApuesta(
+            codigoSala: result.sala.codigo,
+            monto: _apuesta,
+            juegoId: widget.juegoId,
+          );
+        } catch (e) {
+          try {
+            await SalaService.instance.cerrar(
+              codigo: result.sala.codigo,
+              anfitrionId: result.miId,
+            );
+          } catch (_) {}
+          rethrow;
+        }
+      }
+      ApuestaOnlineStore.configurar(
+        codigo: result.sala.codigo,
+        juego: widget.juegoId,
+        apuesta: _apuesta,
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -128,24 +160,53 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'En partidas online jugás con tu nombre de usuario. No se puede cambiar.',
+              'Tenés $_misMonedas monedas.',
               style: TextStyle(
-                color: AppColors.textoSuave.withValues(alpha: 0.95),
-                height: 1.35,
+                color: AppColors.acento.withValues(alpha: 0.95),
+                fontWeight: FontWeight.w800,
                 fontSize: 13,
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Al crear la sala se genera un código aleatorio de 6 letras y números. '
-              'Lo vas a ver en el lobby para compartirlo. '
-              'El código se borra sola 1 hora después de iniciar la partida.',
-              style: TextStyle(
-                color: AppColors.textoSuave.withValues(alpha: 0.95),
-                height: 1.35,
-                fontSize: 13,
-              ),
+            const SizedBox(height: 18),
+            const Text(
+              'Apuesta (cada jugador)',
+              style: TextStyle(color: AppColors.textoSuave),
             ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final m in montosApuestaOnline)
+                  ChoiceChip(
+                    label: Text(m == 0 ? 'Sin apuesta' : '$m'),
+                    selected: _apuesta == m,
+                    onSelected: _cargando
+                        ? null
+                        : (_) => setState(() => _apuesta = m),
+                    selectedColor: AppColors.acento.withValues(alpha: 0.35),
+                    labelStyle: TextStyle(
+                      color: _apuesta == m
+                          ? AppColors.texto
+                          : AppColors.textoSuave,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+              ],
+            ),
+            if (_apuesta > 0) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Cada jugador apuesta $_apuesta. El ganador se lleva el pozo '
+                '(suma de todas las apuestas) en monedas y esa misma cantidad '
+                'suma al ranking.',
+                style: TextStyle(
+                  color: AppColors.textoSuave.withValues(alpha: 0.95),
+                  height: 1.35,
+                  fontSize: 13,
+                ),
+              ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(_error!, style: const TextStyle(color: AppColors.peligro)),
@@ -159,7 +220,11 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
                       width: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Crear sala'),
+                  : Text(
+                      _apuesta > 0
+                          ? 'Crear sala · apostar $_apuesta'
+                          : 'Crear sala',
+                    ),
             ),
           ],
         ),

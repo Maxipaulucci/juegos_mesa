@@ -9,6 +9,8 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/unoSolo/guia_modo_dios_uno_solo.dart';
@@ -1054,19 +1056,29 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
           if (_partida.terminada &&
               VictoriaUnoSoloOverlay.debeMostrar(_partida))
             Positioned.fill(
-              child: VictoriaUnoSoloOverlay(
-                partida: _partida,
-                animaciones: _ajustes.animaciones,
-                mostrarVolverAJugar: !_esOnline,
-                ordenEliminacion: _historial.isEmpty
-                    ? null
-                    : ordenEliminacionDesdeHistorial(_historial),
-                onVolverAJugar: _volverAJugar,
-                onDeshacer: _puedeDeshacer ? _deshacer : null,
-                onVolver: () {
-                  UnoSoloStandByStore.limpiar();
-                  _salirAlMenu();
-                },
+              child: PremiarMonedasVictoriaPc(
+                aplicar: false,
+                aplicarOnline: ganePartidaOnline(
+                  online: _esOnline,
+                  ganador: _partida.ganador,
+                  miNombre: widget.miNombre,
+                ),
+                juegoId: MenuJuegoScreen.juegoIdUnoSolo,
+                salaCodigo: widget.salaCodigo,
+                child: VictoriaUnoSoloOverlay(
+                  partida: _partida,
+                  animaciones: _ajustes.animaciones,
+                  mostrarVolverAJugar: !_esOnline,
+                  ordenEliminacion: _historial.isEmpty
+                      ? null
+                      : ordenEliminacionDesdeHistorial(_historial),
+                  onVolverAJugar: _volverAJugar,
+                  onDeshacer: _puedeDeshacer ? _deshacer : null,
+                  onVolver: () {
+                    UnoSoloStandByStore.limpiar();
+                    _salirAlMenu();
+                  },
+                ),
               ),
             ),
         ],

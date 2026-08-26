@@ -2007,6 +2007,13 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
                           online: _esOnline,
                           ganador: _partida.ganador,
                         ),
+                        aplicarOnline: ganePartidaOnline(
+                          online: _esOnline,
+                          ganador: _partida.ganador,
+                          miNombre: widget.miNombre,
+                        ),
+                        juegoId: MenuJuegoScreen.juegoIdCuloSucioV2,
+                        salaCodigo: widget.salaCodigo,
                         child: VictoriaCuloSucioV2Overlay(
                           partida: _partida,
                           onVolverAJugar: _reiniciar,

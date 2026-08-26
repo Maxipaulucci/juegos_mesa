@@ -188,13 +188,59 @@ class UsuarioMongoService {
     return usuario!;
   }
 
-  /// +3 monedas por victoria vs PC.
-  Future<UsuarioMongo> sumarMonedasVictoriaPc() async {
-    final data = await _post('/api/monedas/victoria-pc', {});
+  /// +3 monedas por victoria vs PC (+3 puntos ranking si [juegoId] es válido).
+  Future<UsuarioMongo> sumarMonedasVictoriaPc({String? juegoId}) async {
+    final data = await _post('/api/monedas/victoria-pc', {
+      if (juegoId != null && juegoId.isNotEmpty) 'juegoId': juegoId,
+    });
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
     usuario = UsuarioMongo.fromJson(raw);
     MonedasStore.instance.notificar();
     return usuario!;
+  }
+
+  Future<UsuarioMongo> retenerApuesta({
+    required String codigoSala,
+    required int monto,
+    required String juegoId,
+  }) async {
+    final data = await _post('/api/apuestas/retener', {
+      'codigoSala': codigoSala.trim().toUpperCase(),
+      'monto': monto,
+      'juegoId': juegoId,
+    });
+    final raw = Map<String, dynamic>.from(data['usuario'] as Map);
+    usuario = UsuarioMongo.fromJson(raw);
+    MonedasStore.instance.notificar();
+    return usuario!;
+  }
+
+  Future<UsuarioMongo> reembolsarApuesta({required String codigoSala}) async {
+    final data = await _post('/api/apuestas/reembolsar', {
+      'codigoSala': codigoSala.trim().toUpperCase(),
+    });
+    final raw = Map<String, dynamic>.from(data['usuario'] as Map);
+    usuario = UsuarioMongo.fromJson(raw);
+    MonedasStore.instance.notificar();
+    return usuario!;
+  }
+
+  /// Ganador cobra el pozo (monedas + puntos ranking).
+  Future<({UsuarioMongo usuario, int pot})> resolverApuesta({
+    required String codigoSala,
+    required String juegoId,
+  }) async {
+    final data = await _post('/api/apuestas/resolver', {
+      'codigoSala': codigoSala.trim().toUpperCase(),
+      'juegoId': juegoId,
+    });
+    final raw = Map<String, dynamic>.from(data['usuario'] as Map);
+    usuario = UsuarioMongo.fromJson(raw);
+    MonedasStore.instance.notificar();
+    return (
+      usuario: usuario!,
+      pot: (data['pot'] as num?)?.toInt() ?? 0,
+    );
   }
 
   /// [juego] = `global` o un id de juego (`diezMil`, `escobaDel15`, …).

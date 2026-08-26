@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
+import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
+import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
+import 'package:app_juegos_mesa/tutiFruti/menu_tuti_fruti_screen.dart';
 import 'package:app_juegos_mesa/tutiFruti/motor_tuti_fruti.dart';
 import 'package:app_juegos_mesa/tutiFruti/tuti_fruti_online_codec.dart';
 import 'package:app_juegos_mesa/tutiFruti/victoria_tuti_fruti_overlay.dart';
@@ -515,6 +518,25 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
   @override
   Widget build(BuildContext context) {
     final terminada = _partida.fase == FaseTuti.fin;
+    var ganeOnline = false;
+    if (terminada) {
+      if (_partida.victoriaPorAbandono) {
+        ganeOnline = ganePartidaOnline(
+          online: true,
+          ganador: _partida.ganadorAbandono,
+          miNombre: widget.miNombre,
+        );
+      } else {
+        final r = rankingTuti(_partida);
+        if (r.isNotEmpty) {
+          final top = r.first.value;
+          final ganadores =
+              r.where((e) => e.value == top).map((e) => e.key).toList();
+          ganeOnline =
+              ganadores.length == 1 && ganadores.first == widget.miNombre;
+        }
+      }
+    }
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -542,9 +564,15 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
             ),
             if (terminada)
               Positioned.fill(
-                child: VictoriaTutiFrutiOverlay(
-                  partida: _partida,
-                  onVolver: () => Navigator.of(context).pop(),
+                child: PremiarMonedasVictoriaPc(
+                  aplicar: false,
+                  aplicarOnline: ganeOnline,
+                  juegoId: juegoIdTutiFruti,
+                  salaCodigo: widget.salaCodigo,
+                  child: VictoriaTutiFrutiOverlay(
+                    partida: _partida,
+                    onVolver: () => Navigator.of(context).pop(),
+                  ),
                 ),
               ),
             if (_mostrarMenu)

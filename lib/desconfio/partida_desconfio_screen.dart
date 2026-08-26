@@ -977,6 +977,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
                 child: PremiarMonedasVictoriaPc(
                   aplicar: widget.contraPc &&
                       _partida.ganador == _humanoPrincipal.nombre,
+                  juegoId: MenuJuegoScreen.juegoIdDesconfio,
                   child: VictoriaDesconfioOverlay(
                     partida: _partida,
                     gane: !widget.contraPc ||
