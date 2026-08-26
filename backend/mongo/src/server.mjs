@@ -30,11 +30,14 @@ app.use(cors());
 const salasPort = process.env.SALAS_INTERNAL_PORT;
 if (salasPort) {
   const salasTarget = `http://127.0.0.1:${salasPort}`;
+  // No montar en app.use('/api/sala', …): Express recorta el prefijo y Spring
+  // recibe path "/" → 404. pathFilter conserva /api/sala al reenviar.
   app.use(
-    '/api/sala',
     createProxyMiddleware({
       target: salasTarget,
       changeOrigin: true,
+      pathFilter: (pathname) =>
+        pathname === '/api/sala' || pathname.startsWith('/api/sala/'),
     }),
   );
   console.log(`Proxy /api/sala → ${salasTarget}`);
@@ -46,8 +49,8 @@ app.get('/api/salud', (_req, res) => {
   res.json({
     ok: true,
     db: nombreDb,
-    mongo: uri,
-    salas: salasPort ? `proxy→127.0.0.1:${salasPort}` : 'directo',
+    mongo: uri.includes('mongodb+srv') ? 'atlas' : 'local',
+    salas: salasPort ? `proxy→127.0.0.1:${salasPort}` : 'off',
   });
 });
 
