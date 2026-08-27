@@ -7,14 +7,14 @@ class TiendaScreen extends StatelessWidget {
   const TiendaScreen({super.key});
 
   static const _basicos = <_PaqueteMonedas>[
-    _PaqueteMonedas(monedas: 100, precioUsd: 1),
-    _PaqueteMonedas(monedas: 1000, precioUsd: 5),
-    _PaqueteMonedas(monedas: 10000, precioUsd: 25),
+    _PaqueteMonedas(monedas: 100, precioUsd: 0.99),
+    _PaqueteMonedas(monedas: 1000, precioUsd: 4.99),
+    _PaqueteMonedas(monedas: 10000, precioUsd: 24.99),
   ];
 
   static const _mega = _PaqueteMonedas(
     monedas: 100000,
-    precioUsd: 100,
+    precioUsd: 99.99,
     premium: true,
   );
 
@@ -109,8 +109,10 @@ class _PaqueteMonedas {
   });
 
   final int monedas;
-  final int precioUsd;
+  final double precioUsd;
   final bool premium;
+
+  String get precioFmt => precioUsd.toStringAsFixed(2);
 }
 
 class _TarjetaPaquete extends StatelessWidget {
@@ -149,71 +151,105 @@ class _TarjetaPaquete extends StatelessWidget {
         ? const Color(0xFFFFD54F)
         : AppColors.rosa.withValues(alpha: 0.85);
     final glow = premium ? const Color(0xFFFFC107) : AppColors.rosa;
+    const radio = 18.0;
 
     return SizedBox.expand(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _avisar(context),
-          borderRadius: BorderRadius.circular(18),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: premium
-                    ? const [
-                        Color(0xFF5C4310),
-                        Color(0xFF3A2A08),
-                        Color(0xFF1F1604),
-                      ]
-                    : [
-                        AppColors.rosa.withValues(alpha: 0.28),
-                        AppColors.carta,
-                        AppColors.carta.withValues(alpha: 0.95),
-                      ],
-              ),
-              border: Border.all(color: borde, width: premium ? 2 : 1.4),
-              boxShadow: neonGlow(glow, blur: premium ? 14 : 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radio),
+          boxShadow: [
+            BoxShadow(
+              color: glow.withValues(alpha: 0.45),
+              blurRadius: premium ? 16 : 12,
+              spreadRadius: 0,
             ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                if (premium) ...[
-                  Positioned(
-                    top: -4,
-                    right: 16,
-                    child: Icon(
-                      Icons.auto_awesome,
-                      color: const Color(0xFFFFECB3).withValues(alpha: 0.9),
-                      size: 20,
+            BoxShadow(
+              color: glow.withValues(alpha: 0.18),
+              blurRadius: premium ? 28 : 20,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          clipBehavior: Clip.antiAlias,
+          borderRadius: BorderRadius.circular(radio),
+          child: InkWell(
+            onTap: () => _avisar(context),
+            borderRadius: BorderRadius.circular(radio),
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(radio),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: premium
+                      ? const [
+                          Color(0xFF5C4310),
+                          Color(0xFF3A2A08),
+                          Color(0xFF1F1604),
+                        ]
+                      : [
+                          AppColors.rosa.withValues(alpha: 0.28),
+                          AppColors.carta,
+                          AppColors.carta.withValues(alpha: 0.95),
+                        ],
+                ),
+                border: Border.all(color: borde, width: premium ? 2 : 1.4),
+              ),
+              child: Stack(
+                children: [
+                  if (premium) ...[
+                    Positioned(
+                      top: 10,
+                      right: 14,
+                      child: Icon(
+                        Icons.auto_awesome,
+                        color: const Color(0xFFFFECB3).withValues(alpha: 0.9),
+                        size: 18,
+                      ),
+                    ),
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Icon(
+                        Icons.diamond_rounded,
+                        color: const Color(0xFFFFECB3).withValues(alpha: 0.45),
+                        size: 14,
+                      ),
+                    ),
+                  ],
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      compacta ? 10 : 18,
+                      compacta ? 12 : 12,
+                      compacta ? 10 : 18,
+                      compacta ? 28 : 30,
+                    ),
+                    child: SizedBox.expand(
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: compacta
+                              ? _contenidoCompacto()
+                              : _contenidoAncho(),
+                        ),
+                      ),
                     ),
                   ),
                   Positioned(
-                    top: 14,
-                    left: 12,
+                    left: 0,
+                    right: 0,
+                    bottom: 10,
                     child: Icon(
-                      Icons.diamond_rounded,
-                      color: const Color(0xFFFFECB3).withValues(alpha: 0.45),
-                      size: 14,
+                      Icons.lock_outline_rounded,
+                      color: (premium ? AppColors.acento : const Color(0xFFFFD54F))
+                          .withValues(alpha: 0.75),
+                      size: compacta ? 16 : 18,
                     ),
                   ),
                 ],
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: compacta ? 10 : 18,
-                    vertical: compacta ? 14 : 16,
-                  ),
-                  child: SizedBox.expand(
-                    child: Center(
-                      child: compacta
-                          ? _contenidoCompacto()
-                          : _contenidoAncho(),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -264,19 +300,13 @@ class _TarjetaPaquete extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'US\$ ${paquete.precioUsd}',
+          'US\$ ${paquete.precioFmt}',
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: amarillo,
             fontWeight: FontWeight.w800,
             fontSize: 14,
           ),
-        ),
-        const SizedBox(height: 6),
-        Icon(
-          Icons.lock_outline_rounded,
-          color: amarillo.withValues(alpha: 0.75),
-          size: 16,
         ),
       ],
     );
@@ -291,8 +321,8 @@ class _TarjetaPaquete extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 48,
-          height: 48,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: AppColors.acento.withValues(alpha: 0.22),
@@ -301,10 +331,10 @@ class _TarjetaPaquete extends StatelessWidget {
           child: const Icon(
             Icons.monetization_on_rounded,
             color: AppColors.acento,
-            size: 26,
+            size: 24,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
@@ -331,25 +361,19 @@ class _TarjetaPaquete extends StatelessWidget {
           style: const TextStyle(
             color: Color(0xFFFFECB3),
             fontWeight: FontWeight.w900,
-            fontSize: 17,
+            fontSize: 16,
             height: 1.15,
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          'US\$ ${paquete.precioUsd}',
+          'US\$ ${paquete.precioFmt}',
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: AppColors.acento,
             fontWeight: FontWeight.w800,
             fontSize: 15,
           ),
-        ),
-        const SizedBox(height: 6),
-        Icon(
-          Icons.lock_outline_rounded,
-          color: AppColors.acento.withValues(alpha: 0.75),
-          size: 18,
         ),
       ],
     );
