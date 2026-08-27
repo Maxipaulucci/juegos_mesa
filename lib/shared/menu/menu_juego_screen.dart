@@ -749,12 +749,20 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 8,
-        centerTitle: false,
-        title: Row(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        leadingWidth: 108,
+        leading: Row(
           children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 48),
+              onPressed: () => Navigator.maybePop(context),
+            ),
             BotonPerfil(
-              tamano: 42,
+              tamano: 40,
               onTap: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
                 setState(() {
@@ -763,46 +771,41 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                 });
               },
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.titulo,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).appBarTheme.titleTextStyle ??
-                    Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.texto,
-                          fontWeight: FontWeight.w700,
-                        ),
-              ),
-            ),
           ],
         ),
+        title: Text(widget.titulo),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: Tooltip(
-              message: 'Ajustes',
-              child: Material(
-                color: AppColors.carta,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: _abrirAjustes,
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.rosa.withValues(alpha: 0.85),
-                        width: 1.6,
+          SizedBox(
+            width: 108,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Tooltip(
+                  message: 'Ajustes',
+                  child: Material(
+                    color: AppColors.carta,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _abrirAjustes,
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.rosa.withValues(alpha: 0.85),
+                            width: 1.6,
+                          ),
+                          boxShadow: neonGlow(AppColors.rosa, blur: 10),
+                        ),
+                        child: const Icon(
+                          Icons.settings,
+                          color: AppColors.texto,
+                          size: 20,
+                        ),
                       ),
-                      boxShadow: neonGlow(AppColors.rosa, blur: 10),
-                    ),
-                    child: const Icon(
-                      Icons.settings,
-                      color: AppColors.texto,
-                      size: 20,
                     ),
                   ),
                 ),

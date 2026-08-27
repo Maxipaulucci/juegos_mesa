@@ -114,12 +114,20 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
     return Scaffold(
       backgroundColor: AppColors.fondo,
       appBar: AppBar(
-        titleSpacing: 8,
-        centerTitle: false,
-        title: Row(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        leadingWidth: 108,
+        leading: Row(
           children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 48),
+              onPressed: () => Navigator.maybePop(context),
+            ),
             BotonPerfil(
-              tamano: 42,
+              tamano: 40,
               onTap: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
                 setState(() {
@@ -128,20 +136,13 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
                 });
               },
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Tutti Frutti',
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).appBarTheme.titleTextStyle ??
-                    Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.texto,
-                          fontWeight: FontWeight.w700,
-                        ),
-              ),
-            ),
           ],
         ),
+        title: const Text('Tutti Frutti'),
+        actions: const [
+          // Equilibra el ancho del leading para mantener el título centrado.
+          SizedBox(width: 108),
+        ],
       ),
       body: Stack(
         children: [
