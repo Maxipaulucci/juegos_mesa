@@ -398,7 +398,7 @@ class _SalasScreenState extends State<SalasScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Cuando alguien cree una partida online, va a aparecer acá.',
+            'Cuando alguien cree una partida pública online, va a aparecer acá.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.textoSuave.withValues(alpha: 0.95),

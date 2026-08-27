@@ -49,6 +49,7 @@ public class SalaService {
                 repository.deleteById(s.getCodigo());
                 continue;
             }
+            if (!s.isPublica()) continue;
             if (s.getJugadores() == null || s.getJugadores().size() >= 4) continue;
             if (!anfitrionPresente(s)) {
                 repository.deleteById(s.getCodigo());
@@ -107,6 +108,7 @@ public class SalaService {
         }
         sala.setLobbyOpcionesResumen(leerResumenOpciones(body.get("lobbyOpcionesResumen")));
         sala.setApuestaMonedas(normalizarApuesta(body.get("apuestaMonedas")));
+        sala.setPublica(toBool(body.get("publica"), false));
         repository.save(sala);
         return Map.of("sala", sala.toMap(), "miId", anfitrionId);
     }
@@ -398,6 +400,15 @@ public class SalaService {
         } catch (Exception e) {
             return fallback;
         }
+    }
+
+    private static boolean toBool(Object value, boolean fallback) {
+        if (value instanceof Boolean b) return b;
+        if (value == null) return fallback;
+        var s = String.valueOf(value).trim().toLowerCase();
+        if (s.equals("true") || s.equals("1") || s.equals("si") || s.equals("sí")) return true;
+        if (s.equals("false") || s.equals("0") || s.equals("no")) return false;
+        return fallback;
     }
 
     private static long toLong(Object value, long fallback) {

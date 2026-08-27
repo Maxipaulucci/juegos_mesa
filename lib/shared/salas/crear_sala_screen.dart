@@ -36,6 +36,8 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
   String? _error;
   bool _cargando = false;
   int _apuesta = 0;
+  /// false = privada (solo con código); true = aparece en Salas.
+  bool _publica = false;
 
   String? get _nombreUsuario {
     final u = UsuarioMongoService.instance.usuario;
@@ -81,6 +83,7 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
         nombreAnfitrion: nombre,
         lobbyOpcionesResumen: SalaFormStore.lobbyOpcionesResumen,
         apuestaMonedas: _apuesta,
+        publica: _publica,
       );
       if (_apuesta > 0) {
         try {
@@ -164,6 +167,53 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
               style: TextStyle(
                 color: AppColors.acento.withValues(alpha: 0.95),
                 fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Visibilidad',
+              style: TextStyle(color: AppColors.textoSuave),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Privada'),
+                  selected: !_publica,
+                  onSelected: _cargando
+                      ? null
+                      : (_) => setState(() => _publica = false),
+                  selectedColor: AppColors.violeta.withValues(alpha: 0.4),
+                  labelStyle: TextStyle(
+                    color: !_publica ? AppColors.texto : AppColors.textoSuave,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                ChoiceChip(
+                  label: const Text('Pública'),
+                  selected: _publica,
+                  onSelected: _cargando
+                      ? null
+                      : (_) => setState(() => _publica = true),
+                  selectedColor: AppColors.azul.withValues(alpha: 0.4),
+                  labelStyle: TextStyle(
+                    color: _publica ? AppColors.texto : AppColors.textoSuave,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _publica
+                  ? 'Va a aparecer en Salas y cualquiera puede unirse desde ahí, sin código.'
+                  : 'Solo se une quien tenga el código de la sala.',
+              style: TextStyle(
+                color: AppColors.textoSuave.withValues(alpha: 0.95),
+                height: 1.35,
                 fontSize: 13,
               ),
             ),

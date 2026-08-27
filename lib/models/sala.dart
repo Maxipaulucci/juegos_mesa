@@ -26,6 +26,7 @@ class Sala {
     this.lobbyMaxRondas,
     this.lobbyOpcionesResumen = const [],
     this.apuestaMonedas = 0,
+    this.publica = false,
   }) : jugadores = jugadores ?? [];
 
   final String codigo;
@@ -45,6 +46,8 @@ class Sala {
   final List<String> lobbyOpcionesResumen;
   /// Monedas que cada jugador apuesta (0 = sin apuesta).
   final int apuestaMonedas;
+  /// Visible en la sección Salas (unión sin código).
+  final bool publica;
 
   bool get soyAnfitrion =>
       jugadores.any((j) => j.id == anfitrionId && j.rol == RolJugadorSala.anfitrion);
