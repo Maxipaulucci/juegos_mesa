@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -6,6 +7,8 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
+import 'package:app_juegos_mesa/shared/home/juego_portada_card.dart';
+import 'package:app_juegos_mesa/shared/home/juegos_portada_catalogo.dart';
 import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
 import 'package:app_juegos_mesa/shared/salas/cartel_config_sala.dart';
 import 'package:app_juegos_mesa/shared/salas/iniciar_desde_sala.dart';
@@ -35,6 +38,9 @@ class SalasScreen extends StatefulWidget {
 }
 
 class _SalasScreenState extends State<SalasScreen> {
+  static const _paddingListaH = 32.0; // 16 + 16
+  static const _gapTarjetas = 20.0;
+
   List<Sala> _salas = const [];
   bool _cargando = true;
   String? _error;
@@ -114,10 +120,40 @@ class _SalasScreenState extends State<SalasScreen> {
   }
 
   Future<void> _pedirUnirse(Sala sala) async {
-    _conSesion(() => unawaited(_unirse(sala)));
+    _conSesion(() => unawaited(_entrarSala(sala)));
   }
 
-  Future<void> _unirse(Sala sala) async {
+  void _abrirLobby({
+    required Sala sala,
+    required String miId,
+    required String juegoId,
+  }) {
+    ApuestaOnlineStore.configurar(
+      codigo: sala.codigo,
+      juego: juegoId,
+      apuesta: sala.apuestaMonedas,
+    );
+    final flags = lobbyFlagsParaJuego(juegoId);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LobbySalaScreen(
+          salaInicial: sala,
+          miId: miId,
+          mostrarSelectorDados: flags.mostrarSelectorDados,
+          editarCategorias: flags.editarCategorias,
+          humanosExactosParaIniciar: flags.humanosExactos,
+          textoAyudaHumanos: flags.textoAyudaHumanos,
+          onIniciarPartida: (ctx, inicio) {
+            iniciarPartidaDesdeSalaHub(ctx, juegoId, inicio);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _entrarSala(Sala sala) async {
+    if (_uniendoCodigo != null) return;
+
     final nombre = _nombreUsuario;
     if (nombre == null || nombre.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -125,13 +161,38 @@ class _SalasScreenState extends State<SalasScreen> {
       );
       return;
     }
-    if (sala.jugadores.any((j) => j.nombre.toLowerCase() == nombre.toLowerCase())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ya estás en esa sala.')),
-      );
+
+    final yaEnSala = sala.jugadores.where(
+      (j) => j.nombre.toLowerCase() == nombre.toLowerCase(),
+    );
+    if (yaEnSala.isNotEmpty) {
+      try {
+        final actualizada = await SalaService.instance.obtener(sala.codigo);
+        if (!mounted) return;
+        if (actualizada.estado != 'lobby') {
+          throw StateError('La partida ya empezó.');
+        }
+        _abrirLobby(
+          sala: actualizada,
+          miId: yaEnSala.first.id,
+          juegoId: actualizada.juegoId,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Bad state: ', '')),
+          ),
+        );
+      }
       return;
     }
 
+    await _unirseNuevo(sala);
+  }
+
+  Future<void> _unirseNuevo(Sala sala) async {
+    final nombre = _nombreUsuario!;
     setState(() => _uniendoCodigo = sala.codigo);
 
     try {
@@ -139,6 +200,9 @@ class _SalasScreenState extends State<SalasScreen> {
       if (!mounted) return;
       if (preview.estado != 'lobby') {
         throw StateError('La partida ya empezó.');
+      }
+      if (preview.jugadores.length >= 4) {
+        throw StateError('La sala está llena (máx. 4 jugadores).');
       }
 
       final apuesta = preview.apuestaMonedas;
@@ -188,22 +252,10 @@ class _SalasScreenState extends State<SalasScreen> {
         );
         if (!mounted) return;
 
-        final flags = lobbyFlagsParaJuego(preview.juegoId);
-        final juegoId = preview.juegoId;
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => LobbySalaScreen(
-              salaInicial: result.sala,
-              miId: result.miId,
-              mostrarSelectorDados: flags.mostrarSelectorDados,
-              editarCategorias: flags.editarCategorias,
-              humanosExactosParaIniciar: flags.humanosExactos,
-              textoAyudaHumanos: flags.textoAyudaHumanos,
-              onIniciarPartida: (ctx, inicio) {
-                iniciarPartidaDesdeSalaHub(ctx, juegoId, inicio);
-              },
-            ),
-          ),
+        _abrirLobby(
+          sala: result.sala,
+          miId: result.miId,
+          juegoId: preview.juegoId,
         );
       } catch (e) {
         if (apuesta > 0) {
@@ -357,104 +409,149 @@ class _SalasScreenState extends State<SalasScreen> {
       );
     }
 
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      itemCount: _salas.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, i) {
-        final sala = _salas[i];
-        final juego = tituloJuegoSala(sala.juegoId);
-        final anfitrion = nombreAnfitrionSala(sala) ?? '—';
-        final ocupados = sala.jugadores.length;
-        final uniendose = _uniendoCodigo == sala.codigo;
-        return Material(
-          color: Colors.transparent,
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.violeta.withValues(alpha: 0.28),
-                  AppColors.carta,
-                ],
-              ),
-              border: Border.all(
-                color: AppColors.violeta.withValues(alpha: 0.85),
-                width: 1.5,
-              ),
-              boxShadow: neonGlow(AppColors.violeta, blur: 10),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-              child: Row(
-                children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final esCelular = _esCelularSalas(maxW);
+        final columnas = _columnasSalas(maxW);
+
+        return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          itemCount: columnas == 1
+              ? _salas.length
+              : (_salas.length + columnas - 1) ~/ columnas,
+          separatorBuilder: (_, __) => const SizedBox(height: _gapTarjetas),
+          itemBuilder: (context, fila) {
+            if (columnas == 1) {
+              return _tarjetaSala(
+                _salas[fila],
+                esCelular: esCelular,
+              );
+            }
+            final i0 = fila * columnas;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var c = 0; c < columnas; c++) ...[
+                  if (c > 0) const SizedBox(width: _gapTarjetas),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Partida de $juego',
-                          style: const TextStyle(
-                            color: AppColors.texto,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                            height: 1.25,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'del usuario $anfitrion',
-                          style: TextStyle(
-                            color: AppColors.textoSuave.withValues(alpha: 0.98),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '$ocupados / 4 jugadores'
-                          '${sala.apuestaMonedas > 0 ? ' · Apuesta ${sala.apuestaMonedas}' : ''}',
-                          style: TextStyle(
-                            color: AppColors.mint.withValues(alpha: 0.9),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    height: 42,
-                    child: ElevatedButton(
-                      onPressed: uniendose || _uniendoCodigo != null
-                          ? null
-                          : () => _pedirUnirse(sala),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        backgroundColor: AppColors.violeta,
-                      ),
-                      child: uniendose
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Unirse'),
-                    ),
+                    child: i0 + c < _salas.length
+                        ? _tarjetaSala(
+                            _salas[i0 + c],
+                            esCelular: esCelular,
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ],
-              ),
-            ),
-          ),
+              ],
+            );
+          },
         );
       },
+    );
+  }
+
+  /// Misma lógica que el menú de juegos: celular = 2 columnas.
+  bool _esCelularSalas(double ancho) {
+    const altoRef = 400.0;
+    final anchoUtil = math.max(0.0, ancho - _paddingListaH);
+    final anchoRef = math.max(
+      120.0,
+      (altoRef - kChromeMinPortadaHome) * kAspectPortadaHome,
+    );
+    return anchoUtil < 2 * anchoRef + _gapTarjetas;
+  }
+
+  int _columnasSalas(double ancho) {
+    final anchoUtil = math.max(0.0, ancho - _paddingListaH);
+    if (anchoUtil >= 720) return 2;
+    if (_esCelularSalas(ancho)) return 2;
+    return 1;
+  }
+
+  Widget _tarjetaSala(
+    Sala sala, {
+    required bool esCelular,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final ancho = constraints.maxWidth;
+        if (!ancho.isFinite || ancho <= 0) {
+          return const SizedBox.shrink();
+        }
+        final compacto = esCelular || ancho < 200;
+        final chrome =
+            esCelular ? 236.0 : kChromeMinPortadaHome;
+        final alto = altoTarjetaPortadaHome(
+          ancho,
+          chromeMin: chrome,
+        );
+        final altoImg = alto - chrome;
+
+        return _contenidoTarjetaSala(
+          sala: sala,
+          ancho: ancho,
+          alto: alto,
+          altoImg: altoImg,
+          compacto: compacto,
+        );
+      },
+    );
+  }
+
+  Widget _contenidoTarjetaSala({
+    required Sala sala,
+    required double ancho,
+    required double alto,
+    required double altoImg,
+    required bool compacto,
+  }) {
+    final juego = tituloJuegoSala(sala.juegoId);
+    final anfitrion = nombreAnfitrionSala(sala) ?? '—';
+    final ocupados = sala.jugadores.length;
+    final uniendose = _uniendoCodigo == sala.codigo;
+    final otroUniendose = _uniendoCodigo != null && !uniendose;
+    final meta = portadaMetaDeJuego(sala.juegoId);
+
+    final eslogan = StringBuffer('Anfitrión: $anfitrion\n')
+      ..write('$ocupados / 4 jugadores');
+    if (sala.apuestaMonedas > 0) {
+      eslogan.write('\nApuesta: ${sala.apuestaMonedas} monedas');
+    }
+
+    void unirse() {
+      if (!uniendose && !otroUniendose) _pedirUnirse(sala);
+    }
+
+    return JuegoPortadaCard(
+      portadaAsset: meta.portadaAsset,
+      accent: meta.accent,
+      destacadoFuego: meta.destacadoFuego,
+      enabled: !otroUniendose,
+      onTap: unirse,
+      anchoFijo: ancho,
+      altoImg: altoImg,
+      altoTotal: alto,
+      pie: JuegoPortadaCardPie(
+        titulo: juego,
+        eslogan: eslogan.toString(),
+        compacto: compacto,
+        botones: HomeArcadePill(
+          label: 'UNIRSE',
+          icon: Icons.group_add_rounded,
+          colors: const [
+            Color(0xFFE1BEE7),
+            Color(0xFFBA68C8),
+            Color(0xFF7C4DFF),
+          ],
+          glow: AppColors.violeta,
+          foreground: Colors.white,
+          width: compacto ? null : 118,
+          loading: uniendose,
+          onPressed: (uniendose || otroUniendose) ? null : unirse,
+        ),
+      ),
     );
   }
 }
