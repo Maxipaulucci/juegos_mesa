@@ -749,16 +749,12 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leadingWidth: 100,
-        leading: Row(
+        titleSpacing: 8,
+        centerTitle: false,
+        title: Row(
           children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back),
-              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              onPressed: () => Navigator.maybePop(context),
-            ),
             BotonPerfil(
-              tamano: 36,
+              tamano: 42,
               onTap: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
                 setState(() {
@@ -767,9 +763,20 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                 });
               },
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.titulo,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).appBarTheme.titleTextStyle ??
+                    Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.texto,
+                          fontWeight: FontWeight.w700,
+                        ),
+              ),
+            ),
           ],
         ),
-        title: Text(widget.titulo),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 10),

@@ -114,16 +114,12 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
     return Scaffold(
       backgroundColor: AppColors.fondo,
       appBar: AppBar(
-        leadingWidth: 100,
-        leading: Row(
+        titleSpacing: 8,
+        centerTitle: false,
+        title: Row(
           children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back),
-              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              onPressed: () => Navigator.maybePop(context),
-            ),
             BotonPerfil(
-              tamano: 36,
+              tamano: 42,
               onTap: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
                 setState(() {
@@ -132,9 +128,20 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
                 });
               },
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Tutti Frutti',
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).appBarTheme.titleTextStyle ??
+                    Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.texto,
+                          fontWeight: FontWeight.w700,
+                        ),
+              ),
+            ),
           ],
         ),
-        title: const Text('Tutti Frutti'),
       ),
       body: Stack(
         children: [
