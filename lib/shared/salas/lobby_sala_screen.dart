@@ -200,23 +200,104 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
     super.dispose();
   }
 
+  Future<bool> _confirmarSalirLobby() async {
+    final apuesta = _sala.apuestaMonedas;
+    final anfitrion = _soyAnfitrion;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.carta,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          anfitrion ? '¿Salir y eliminar la sala?' : '¿Salir de la sala?',
+          style: const TextStyle(
+            color: AppColors.acento,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              anfitrion
+                  ? 'Si volvés atrás se elimina la partida online y deja de '
+                      'aparecer en la sección Salas.'
+                  : 'Si volvés atrás vas a salir de esta partida online.',
+              style: const TextStyle(color: AppColors.texto, height: 1.4),
+            ),
+            if (apuesta > 0) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Se te van a devolver automáticamente las $apuesta monedas '
+                'de la apuesta.',
+                style: TextStyle(
+                  color: AppColors.acento.withValues(alpha: 0.95),
+                  fontWeight: FontWeight.w700,
+                  height: 1.4,
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.peligro,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(anfitrion ? 'Eliminar y salir' : 'Salir'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _abandonarYSalir() async {
     if (_partidaLanzada || _yaAbandone || _saliendo) return;
+
+    final confirmar = await _confirmarSalirLobby();
+    if (!confirmar || !mounted) return;
+    if (_partidaLanzada || _yaAbandone || _saliendo) return;
+
     setState(() => _saliendo = true);
     _yaAbandone = true;
     _sub?.cancel();
     _heartbeatTimer?.cancel();
-    await _reembolsarApuestaSiCorresponde();
-    ApuestaOnlineStore.limpiar();
-    try {
-      await SalaService.instance.salir(
-        codigo: _sala.codigo,
-        miId: widget.miId,
-      );
-    } catch (_) {
-      // Igual salimos de la pantalla.
+    _lobbySyncDebounce?.cancel();
+
+    final codigo = _sala.codigo;
+    final miId = widget.miId;
+    final debeReembolsar =
+        !_partidaLanzada && _sala.apuestaMonedas > 0;
+
+    // Salir al toque: no esperar la red (si no, la flecha parece rota).
+    if (mounted) {
+      Navigator.of(context).pop();
     }
-    if (mounted) Navigator.of(context).pop();
+
+    unawaited(() async {
+      if (debeReembolsar) {
+        try {
+          await UsuarioMongoService.instance.reembolsarApuesta(
+            codigoSala: codigo,
+          );
+        } catch (_) {}
+      }
+      ApuestaOnlineStore.limpiar();
+      try {
+        await SalaService.instance.salir(codigo: codigo, miId: miId);
+      } catch (_) {}
+    }());
   }
 
   void _onSalaUpdate(Sala sala) {
