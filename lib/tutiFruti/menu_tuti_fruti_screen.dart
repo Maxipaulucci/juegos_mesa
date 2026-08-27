@@ -8,6 +8,7 @@ import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
 import 'package:app_juegos_mesa/shared/salas/crear_sala_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/shared/salas/unirse_sala_screen.dart';
+import 'package:app_juegos_mesa/shared/ui/notificacion_tope.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/tutiFruti/partida_tuti_fruti_screen.dart';
 
@@ -39,48 +40,32 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
     );
   }
 
-  void _conSesion(VoidCallback accion) {
-    if (UsuarioMongoService.instance.haySesion) {
-      accion();
-      return;
-    }
-    setState(() {
-      _accionTrasSesion = accion;
-      _mostrarCuenta = true;
-    });
-  }
-
-  void _avisarSesionParaCrearOnline() {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..hideCurrentMaterialBanner()
-      ..showMaterialBanner(
-        MaterialBanner(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          backgroundColor: const Color(0xFF2A1040),
-          content: const Text(
-            'Debés iniciar sesión primero para crear una partida online.',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-          actions: [
-            TextButton(
-              onPressed: messenger.hideCurrentMaterialBanner,
-              child: const Text('OK', style: TextStyle(color: AppColors.rosa)),
-            ),
-          ],
-        ),
-      );
+  void _avisarSesionParaOnline({required bool crear}) {
+    mostrarNotificacionTope(
+      context,
+      mensaje: crear
+          ? 'Debés iniciar sesión primero para crear una partida online.'
+          : 'Debés iniciar sesión primero para unirte a una partida online.',
+    );
   }
 
   void _intentarCrear() {
     if (!UsuarioMongoService.instance.haySesion) {
-      _avisarSesionParaCrearOnline();
+      _avisarSesionParaOnline(crear: true);
       return;
     }
     SalaFormStore.setResumenOpciones(const [
       'Las categorías y rondas las elige el anfitrión en el lobby.',
     ]);
     _abrirCrear();
+  }
+
+  void _intentarUnirse() {
+    if (!UsuarioMongoService.instance.haySesion) {
+      _avisarSesionParaOnline(crear: false);
+      return;
+    }
+    _abrirUnirse();
   }
 
   void _abrirCrear() {
@@ -129,7 +114,6 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
             BotonPerfil(
               tamano: 40,
               onTap: () {
-                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
                 setState(() {
                   _accionTrasSesion = null;
                   _mostrarCuenta = true;
@@ -198,7 +182,7 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: () => _conSesion(_abrirUnirse),
+                    onPressed: _intentarUnirse,
                     child: const Text('Unirse'),
                   ),
                   const Spacer(),

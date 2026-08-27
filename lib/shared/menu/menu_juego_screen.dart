@@ -12,6 +12,7 @@ import 'package:app_juegos_mesa/shared/orden/decidir_orden_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/crear_sala_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/shared/salas/unirse_sala_screen.dart';
+import 'package:app_juegos_mesa/shared/ui/notificacion_tope.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Estado actual del menú al lanzar una partida.
@@ -668,37 +669,13 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     return '$prefijo · $dados dados';
   }
 
-  void _conSesion(VoidCallback accion) {
-    if (UsuarioMongoService.instance.haySesion) {
-      accion();
-      return;
-    }
-    setState(() {
-      _accionTrasSesion = accion;
-      _mostrarCuenta = true;
-    });
-  }
-
-  void _avisarSesionParaCrearOnline() {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..hideCurrentMaterialBanner()
-      ..showMaterialBanner(
-        MaterialBanner(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          backgroundColor: const Color(0xFF2A1040),
-          content: const Text(
-            'Debés iniciar sesión primero para crear una partida online.',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-          actions: [
-            TextButton(
-              onPressed: messenger.hideCurrentMaterialBanner,
-              child: const Text('OK', style: TextStyle(color: AppColors.rosa)),
-            ),
-          ],
-        ),
-      );
+  void _avisarSesionParaOnline({required bool crear}) {
+    mostrarNotificacionTope(
+      context,
+      mensaje: crear
+          ? 'Debés iniciar sesión primero para crear una partida online.'
+          : 'Debés iniciar sesión primero para unirte a una partida online.',
+    );
   }
 
   void _intentarCrearSala() {
@@ -706,7 +683,15 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
       _abrirCrearSala();
       return;
     }
-    _avisarSesionParaCrearOnline();
+    _avisarSesionParaOnline(crear: true);
+  }
+
+  void _intentarUnirseSala() {
+    if (UsuarioMongoService.instance.haySesion) {
+      _abrirUnirseSala();
+      return;
+    }
+    _avisarSesionParaOnline(crear: false);
   }
 
   void _abrirCrearSala() {
@@ -764,7 +749,6 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
             BotonPerfil(
               tamano: 40,
               onTap: () {
-                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
                 setState(() {
                   _accionTrasSesion = null;
                   _mostrarCuenta = true;
@@ -856,7 +840,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       ),
                       const SizedBox(height: 10),
                       OutlinedButton(
-                        onPressed: () => _conSesion(_abrirUnirseSala),
+                        onPressed: _intentarUnirseSala,
                         child: const Text('Unirse'),
                       ),
                       const SizedBox(height: 16),
