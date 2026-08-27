@@ -101,7 +101,7 @@ class SalaService {
     required String nombreAnfitrion,
     List<String>? lobbyOpcionesResumen,
     int apuestaMonedas = 0,
-    bool publica = false,
+    bool publica = true,
   }) async {
     final data = await _post({
       'action': 'crear',

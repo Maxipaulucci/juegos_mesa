@@ -108,7 +108,7 @@ public class SalaService {
         }
         sala.setLobbyOpcionesResumen(leerResumenOpciones(body.get("lobbyOpcionesResumen")));
         sala.setApuestaMonedas(normalizarApuesta(body.get("apuestaMonedas")));
-        sala.setPublica(toBool(body.get("publica"), false));
+        sala.setPublica(toBool(body.get("publica"), true));
         repository.save(sala);
         return Map.of("sala", sala.toMap(), "miId", anfitrionId);
     }
