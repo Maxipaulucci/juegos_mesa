@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import 'package:app_juegos_mesa/generala/motor_generala.dart';
+import 'package:app_juegos_mesa/generala/standby_codec.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
-import 'package:app_juegos_mesa/generala/motor_generala.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/persistencia/standby_almacen.dart';
 
 /// Resume en memoria para partidas vs PC (se pierde al cerrar/reiniciar la app).
 class PartidaGeneralaResume {
@@ -24,10 +29,19 @@ class PartidaGeneralaResume {
 class GeneralaStandByStore {
   GeneralaStandByStore._();
 
+  static const _juegoId = MenuJuegoScreen.juegoIdGenerala;
+
   static PartidaGeneralaResume? _resume;
+
+  static bool _omitirPersistencia(PartidaGeneralaResume r) =>
+      !r.contraPc || r.partida.ganador != null;
 
   static void guardar(PartidaGeneralaResume resume) {
     _resume = resume;
+    if (_omitirPersistencia(resume)) return;
+    unawaited(
+      StandbyAlmacen.guardar(_juegoId, encodeGeneralaStandby(resume)),
+    );
   }
 
   static PartidaGeneralaResume? peek() => _resume;
@@ -55,5 +69,17 @@ class GeneralaStandByStore {
 
   static void limpiar() {
     _resume = null;
+    unawaited(StandbyAlmacen.borrar(_juegoId));
+  }
+
+  static Future<void> restaurarDesdeDisco() async {
+    final raw = await StandbyAlmacen.leer(_juegoId);
+    if (raw == null) return;
+    final resume = decodeGeneralaStandby(raw);
+    if (resume == null || _omitirPersistencia(resume)) {
+      await StandbyAlmacen.borrar(_juegoId);
+      return;
+    }
+    _resume = resume;
   }
 }

@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 
 import 'screens/app_shell.dart';
 import 'screens/home_screen.dart';
+import 'services/usuario_mongo_service.dart';
 import 'shared/carga/pantalla_carga.dart';
+import 'shared/persistencia/almacen_local.dart';
+import 'shared/persistencia/standby_restaurar.dart';
 import 'theme/app_theme.dart';
 
 bool get _esWindowsEscritorio =>
@@ -25,11 +28,46 @@ void main() {
     WidgetsBinding.instance.addPostFrameCallback((_) => apagarArbol());
   }
 
-  Widget app = const JuegosMesaApp();
-  if (_esWindowsEscritorio) {
-    app = ExcludeSemantics(child: app);
+  runApp(const _BootstrapApp());
+}
+
+/// Carga sesión y partidas vs PC guardadas antes de mostrar la UI.
+class _BootstrapApp extends StatefulWidget {
+  const _BootstrapApp();
+
+  @override
+  State<_BootstrapApp> createState() => _BootstrapAppState();
+}
+
+class _BootstrapAppState extends State<_BootstrapApp> {
+  late final Future<void> _init = _preparar();
+
+  Future<void> _preparar() async {
+    await AlmacenLocal.init();
+    await UsuarioMongoService.instance.restaurarSesionLocal();
+    await StandbyRestaurar.todos();
   }
-  runApp(app);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _init,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: buildAppTheme(),
+            home: const PantallaCarga(mensaje: 'Cargando…'),
+          );
+        }
+        Widget app = const JuegosMesaApp();
+        if (_esWindowsEscritorio) {
+          app = ExcludeSemantics(child: app);
+        }
+        return app;
+      },
+    );
+  }
 }
 
 class JuegosMesaApp extends StatelessWidget {

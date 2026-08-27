@@ -47,6 +47,16 @@ class UsuarioMongo {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'nombre': nombre,
+        'nombreUsuario': nombreUsuario,
+        'email': email,
+        'puntos': puntos,
+        'monedas': monedas,
+        if (creadoEn != null) 'creadoEn': creadoEn!.toIso8601String(),
+      };
+
   UsuarioMongo copyWith({int? monedas}) {
     return UsuarioMongo(
       id: id,

@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:app_juegos_mesa/laPapa/motor_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
+import 'package:app_juegos_mesa/laPapa/standby_codec.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/persistencia/standby_almacen.dart';
 
 /// Resume en memoria para “Jugar solo” (se pierde al cerrar/reiniciar la app).
 class PartidaPapaResume {
@@ -28,10 +32,18 @@ class PartidaPapaResume {
 class PapaStandByStore {
   PapaStandByStore._();
 
+  static const _juegoId = MenuJuegoScreen.juegoIdLaPapa;
+
   static PartidaPapaResume? _resume;
+
+  static bool _omitirPersistencia(PartidaPapaResume r) => r.partida.terminada;
 
   static void guardar(PartidaPapaResume resume) {
     _resume = resume;
+    if (_omitirPersistencia(resume)) return;
+    unawaited(
+      StandbyAlmacen.guardar(_juegoId, encodePapaStandby(resume)),
+    );
   }
 
   static PartidaPapaResume? peek() => _resume;
@@ -51,6 +63,18 @@ class PapaStandByStore {
 
   static void limpiar() {
     _resume = null;
+    unawaited(StandbyAlmacen.borrar(_juegoId));
+  }
+
+  static Future<void> restaurarDesdeDisco() async {
+    final raw = await StandbyAlmacen.leer(_juegoId);
+    if (raw == null) return;
+    final resume = decodePapaStandby(raw);
+    if (resume == null || _omitirPersistencia(resume)) {
+      await StandbyAlmacen.borrar(_juegoId);
+      return;
+    }
+    _resume = resume;
   }
 
   static bool _mismasOpciones(OpcionesPapa a, OpcionesPapa b) {

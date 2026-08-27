@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -5,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/usuario_mongo.dart';
 import '../shared/monedas/monedas_store.dart';
+import '../shared/persistencia/sesion_local.dart';
 
 /// API del backend (cuentas y ranking).
 ///
@@ -169,9 +171,9 @@ class UsuarioMongoService {
   Future<UsuarioMongo> recargarYo() async {
     final data = await _get('/api/usuarios/yo');
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
-    usuario = UsuarioMongo.fromJson(raw);
-    MonedasStore.instance.notificar();
-    return usuario!;
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
   }
 
   Future<UsuarioMongo> sumarPuntos({
@@ -183,9 +185,9 @@ class UsuarioMongoService {
       'puntos': puntos,
     });
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
-    usuario = UsuarioMongo.fromJson(raw);
-    MonedasStore.instance.notificar();
-    return usuario!;
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
   }
 
   /// +3 monedas por victoria vs PC (+3 puntos ranking si [juegoId] es válido).
@@ -194,9 +196,9 @@ class UsuarioMongoService {
       if (juegoId != null && juegoId.isNotEmpty) 'juegoId': juegoId,
     });
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
-    usuario = UsuarioMongo.fromJson(raw);
-    MonedasStore.instance.notificar();
-    return usuario!;
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
   }
 
   Future<UsuarioMongo> retenerApuesta({
@@ -210,9 +212,9 @@ class UsuarioMongoService {
       'juegoId': juegoId,
     });
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
-    usuario = UsuarioMongo.fromJson(raw);
-    MonedasStore.instance.notificar();
-    return usuario!;
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
   }
 
   Future<UsuarioMongo> reembolsarApuesta({required String codigoSala}) async {
@@ -220,9 +222,9 @@ class UsuarioMongoService {
       'codigoSala': codigoSala.trim().toUpperCase(),
     });
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
-    usuario = UsuarioMongo.fromJson(raw);
-    MonedasStore.instance.notificar();
-    return usuario!;
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
   }
 
   /// Ganador cobra el pozo (monedas + puntos ranking).
@@ -235,10 +237,10 @@ class UsuarioMongoService {
       'juegoId': juegoId,
     });
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
-    usuario = UsuarioMongo.fromJson(raw);
-    MonedasStore.instance.notificar();
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
     return (
-      usuario: usuario!,
+      usuario: u,
       pot: (data['pot'] as num?)?.toInt() ?? 0,
     );
   }
@@ -265,13 +267,41 @@ class UsuarioMongoService {
     _token = null;
     usuario = null;
     MonedasStore.instance.notificar();
+    unawaited(SesionLocal.limpiar());
+  }
+
+  /// Restaura sesión guardada y refresca datos del servidor.
+  Future<void> restaurarSesionLocal() async {
+    final data = await SesionLocal.cargar();
+    if (data == null) return;
+    _token = data.token;
+    usuario = data.usuario;
+    MonedasStore.instance.notificar();
+    try {
+      await recargarYo();
+    } catch (_) {
+      cerrarSesion();
+    }
   }
 
   UsuarioMongo _guardarSesion(Map<String, dynamic> data) {
     _token = data['token']?.toString();
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
-    usuario = UsuarioMongo.fromJson(raw);
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
+  }
+
+  void _persistirSesionEnDisco() {
+    final token = _token;
+    final u = usuario;
+    if (token == null || token.isEmpty || u == null) return;
+    unawaited(SesionLocal.guardar(token: token, usuario: u));
+  }
+
+  void _actualizarUsuario(UsuarioMongo u) {
+    usuario = u;
     MonedasStore.instance.notificar();
-    return usuario!;
+    _persistirSesionEnDisco();
   }
 }
