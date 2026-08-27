@@ -49,6 +49,39 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
     });
   }
 
+  void _avisarSesionParaCrearOnline() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentMaterialBanner()
+      ..showMaterialBanner(
+        MaterialBanner(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          backgroundColor: const Color(0xFF2A1040),
+          content: const Text(
+            'Debés iniciar sesión primero para crear una partida online.',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+          actions: [
+            TextButton(
+              onPressed: messenger.hideCurrentMaterialBanner,
+              child: const Text('OK', style: TextStyle(color: AppColors.rosa)),
+            ),
+          ],
+        ),
+      );
+  }
+
+  void _intentarCrear() {
+    if (!UsuarioMongoService.instance.haySesion) {
+      _avisarSesionParaCrearOnline();
+      return;
+    }
+    SalaFormStore.setResumenOpciones(const [
+      'Las categorías y rondas las elige el anfitrión en el lobby.',
+    ]);
+    _abrirCrear();
+  }
+
   void _abrirCrear() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -125,12 +158,7 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
                   ),
                   const Spacer(),
                   ElevatedButton(
-                    onPressed: () => _conSesion(() {
-                      SalaFormStore.setResumenOpciones(const [
-                        'Las categorías y rondas las elige el anfitrión en el lobby.',
-                      ]);
-                      _abrirCrear();
-                    }),
+                    onPressed: _intentarCrear,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.rosa,
                       foregroundColor: Colors.white,

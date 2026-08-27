@@ -678,6 +678,36 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     });
   }
 
+  void _avisarSesionParaCrearOnline() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentMaterialBanner()
+      ..showMaterialBanner(
+        MaterialBanner(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          backgroundColor: const Color(0xFF2A1040),
+          content: const Text(
+            'Debés iniciar sesión primero para crear una partida online.',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+          actions: [
+            TextButton(
+              onPressed: messenger.hideCurrentMaterialBanner,
+              child: const Text('OK', style: TextStyle(color: AppColors.rosa)),
+            ),
+          ],
+        ),
+      );
+  }
+
+  void _intentarCrearSala() {
+    if (UsuarioMongoService.instance.haySesion) {
+      _abrirCrearSala();
+      return;
+    }
+    _avisarSesionParaCrearOnline();
+  }
+
   void _abrirCrearSala() {
     final resumen = widget.resumenConfigOnline?.call();
     if (resumen != null) {
@@ -790,7 +820,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                       ),
                       const SizedBox(height: 18),
                       ElevatedButton(
-                        onPressed: () => _conSesion(_abrirCrearSala),
+                        onPressed: _intentarCrearSala,
                         child: const Text('Crear'),
                       ),
                       const SizedBox(height: 10),
