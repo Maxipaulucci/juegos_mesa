@@ -6,6 +6,7 @@ import { apiHost, apiPort, nombreDb, uri } from './env.mjs';
 import {
   exigirUsuario,
   login,
+  loginConGoogle,
   pedirRecuperacion,
   ranking,
   reenviar,
@@ -58,6 +59,7 @@ app.post('/api/usuarios/registro', registrar);
 app.post('/api/usuarios/reenviar', reenviar);
 app.post('/api/usuarios/verificar', verificar);
 app.post('/api/usuarios/login', login);
+app.post('/api/usuarios/google', loginConGoogle);
 app.post('/api/usuarios/recuperar', pedirRecuperacion);
 app.post('/api/usuarios/recuperar/reenviar', reenviarRecuperacion);
 app.post('/api/usuarios/recuperar/verificar', verificarRecuperacion);

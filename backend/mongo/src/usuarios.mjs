@@ -1,14 +1,16 @@
 import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import { randomInt } from 'node:crypto';
 import { ObjectId } from 'mongodb';
-import { jwtDias, jwtSecret } from './env.mjs';
+import { googleClientIds, jwtDias, jwtSecret } from './env.mjs';
 import { partidas, recuperacionesPendientes, registrosPendientes, usuarios } from './db.mjs';
 import { JUEGO_GLOBAL, JUEGOS, juegoValido, puntosVacios } from './juegos.mjs';
 import { enviarCodigoRegistro } from './mail.mjs';
 
 const RONDAS_HASH = 10;
 const TTL_MS = 15 * 60 * 1000;
+const googleOAuth = new OAuth2Client();
 
 export function publico(doc) {
   if (!doc) return null;
@@ -263,10 +265,139 @@ export async function login(req, res) {
   const doc = await usuarios().findOne({
     $or: [{ email: lower }, { nombreUsuarioNorm: lower }],
   });
-  if (!doc || !(await bcrypt.compare(password, doc.passwordHash || ''))) {
+  if (!doc) {
     res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     return;
   }
+  if (!doc.passwordHash) {
+    res.status(401).json({
+      error:
+        'Esta cuenta se creó con Google. Usá “Iniciar sesión con Google”.',
+    });
+    return;
+  }
+  if (!(await bcrypt.compare(password, doc.passwordHash))) {
+    res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+    return;
+  }
+  const conMonedas = await asegurarMonedasIniciales(doc);
+  res.json({ token: firmar(conMonedas._id), usuario: publico(conMonedas) });
+}
+
+async function nombreUsuarioLibreDesdeGoogle(payload) {
+  const emailLocal = String(payload.email || '')
+    .split('@')[0]
+    .replace(/[^A-Za-z0-9_]/g, '');
+  const desdeNombre = String(payload.name || '')
+    .replace(/[^A-Za-z0-9_]/g, '');
+  let base = formatoNombreUsuario(desdeNombre || emailLocal || 'Jugador');
+  if (base.length < 3) base = 'Jugador';
+  if (base.length > 16) base = base.slice(0, 16);
+
+  for (let i = 0; i < 40; i++) {
+    const candidato =
+      i === 0 ? base : formatoNombreUsuario(`${base}${i}`.slice(0, 20));
+    if (!usuarioOk(candidato)) continue;
+    const existe = await usuarios().findOne({
+      nombreUsuarioNorm: candidato.toLowerCase(),
+    });
+    if (!existe) return candidato;
+  }
+  return formatoNombreUsuario(`G${Date.now().toString(36)}`.slice(0, 20));
+}
+
+/** Login / registro con Google (mismo endpoint para ambos botones). */
+export async function loginConGoogle(req, res) {
+  if (googleClientIds.length === 0) {
+    res.status(503).json({
+      error:
+        'Google Sign-In no está configurado. Falta GOOGLE_CLIENT_IDS en el servidor.',
+    });
+    return;
+  }
+
+  const idToken = String(req.body?.idToken || '').trim();
+  if (!idToken) {
+    res.status(400).json({ error: 'Falta el token de Google.' });
+    return;
+  }
+
+  let payload;
+  try {
+    const ticket = await googleOAuth.verifyIdToken({
+      idToken,
+      audience: googleClientIds,
+    });
+    payload = ticket.getPayload();
+  } catch (e) {
+    console.error('Google token inválido:', e?.message || e);
+    res.status(401).json({ error: 'No se pudo verificar la cuenta de Google.' });
+    return;
+  }
+
+  const googleId = payload?.sub ? String(payload.sub) : '';
+  const email = String(payload?.email || '')
+    .trim()
+    .toLowerCase();
+  if (!googleId || !emailOk(email)) {
+    res.status(400).json({ error: 'La cuenta de Google no trajo un email válido.' });
+    return;
+  }
+  if (payload.email_verified === false) {
+    res.status(401).json({ error: 'Verificá tu email en Google e intentá de nuevo.' });
+    return;
+  }
+
+  let doc =
+    (await usuarios().findOne({ googleId })) ||
+    (await usuarios().findOne({ email }));
+
+  if (doc) {
+    const patch = {};
+    if (!doc.googleId) patch.googleId = googleId;
+    if (!doc.authProviders?.includes?.('google')) {
+      const prev = Array.isArray(doc.authProviders) ? doc.authProviders : [];
+      if (doc.passwordHash && !prev.includes('password')) prev.push('password');
+      if (!prev.includes('google')) prev.push('google');
+      patch.authProviders = prev;
+    }
+    if (Object.keys(patch).length > 0) {
+      await usuarios().updateOne({ _id: doc._id }, { $set: patch });
+      doc = { ...doc, ...patch };
+    }
+  } else {
+    const ahora = new Date();
+    const nombreUsuario = await nombreUsuarioLibreDesdeGoogle(payload);
+    const nuevo = {
+      nombreUsuario,
+      nombreUsuarioNorm: nombreUsuario.toLowerCase(),
+      nombre: nombreUsuario,
+      email,
+      googleId,
+      authProviders: ['google'],
+      puntos: puntosVacios(),
+      monedas: 100,
+      monedasOtorgadasEn: ahora,
+      creadoEn: ahora,
+      verificadoEn: ahora,
+    };
+    try {
+      const r = await usuarios().insertOne(nuevo);
+      nuevo._id = r.insertedId;
+      doc = nuevo;
+    } catch (e) {
+      if (e?.code === 11000) {
+        doc = await usuarios().findOne({ email });
+        if (!doc) {
+          res.status(409).json({ error: 'No se pudo crear la cuenta. Probá de nuevo.' });
+          return;
+        }
+      } else {
+        throw e;
+      }
+    }
+  }
+
   const conMonedas = await asegurarMonedasIniciales(doc);
   res.json({ token: firmar(conMonedas._id), usuario: publico(conMonedas) });
 }
@@ -296,6 +427,13 @@ export async function pedirRecuperacion(req, res) {
   const doc = await usuarios().findOne({ email });
   if (!doc) {
     res.status(404).json({ error: 'Ese email no está registrado.' });
+    return;
+  }
+  if (!doc.passwordHash) {
+    res.status(400).json({
+      error:
+        'Esta cuenta usa Google. Entrá con “Iniciar sesión con Google”; no hay contraseña para recuperar.',
+    });
     return;
   }
   try {

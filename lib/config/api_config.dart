@@ -20,3 +20,13 @@ String get kSalaApiBase {
   if (unified.isNotEmpty) return unified;
   return 'http://127.0.0.1:8080';
 }
+
+/// Client ID de Google OAuth (tipo “Aplicación web”).
+///
+/// `--dart-define=GOOGLE_CLIENT_ID=123-abc.apps.googleusercontent.com`
+String get kGoogleClientId {
+  const id = String.fromEnvironment('GOOGLE_CLIENT_ID');
+  return id.trim();
+}
+
+bool get kGoogleSignInConfigurado => kGoogleClientId.isNotEmpty;

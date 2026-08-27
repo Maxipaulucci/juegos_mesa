@@ -9,6 +9,10 @@ await usuarios().createIndex(
   { unique: true, name: 'usuario_unico' },
 );
 await usuarios().createIndex(
+  { googleId: 1 },
+  { unique: true, sparse: true, name: 'google_id_unico' },
+);
+await usuarios().createIndex(
   { [`puntos.${JUEGO_GLOBAL}`]: -1 },
   { name: 'ranking_global' },
 );

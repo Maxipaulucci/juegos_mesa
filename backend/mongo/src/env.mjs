@@ -16,3 +16,9 @@ export const resendApiKey = process.env.RESEND_API_KEY || '';
 export const mailFrom =
   process.env.MAIL_FROM ||
   'Juegos de mesa Argentos <onboarding@resend.dev>';
+
+/** Client IDs de Google OAuth (web / Android / iOS), separados por coma. */
+export const googleClientIds = String(process.env.GOOGLE_CLIENT_IDS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);

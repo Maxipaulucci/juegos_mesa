@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/cuenta/boton_google_auth.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 enum _Pestania { login, registro }
@@ -142,6 +143,49 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
       widget.onSesion?.call();
       widget.onCerrar();
     });
+  }
+
+  Future<void> _despuesDeGoogle() async {
+    widget.onExito?.call(
+      _tab == _Pestania.registro
+          ? 'Registro con Google exitoso!'
+          : 'Inicio de sesión con Google exitoso!',
+    );
+    widget.onSesion?.call();
+    widget.onCerrar();
+  }
+
+  Widget _separadorOGoogle() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Divider(
+              color: AppColors.cartaBorde.withValues(alpha: 0.9),
+              thickness: 1,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              'o',
+              style: TextStyle(
+                color: AppColors.textoSuave.withValues(alpha: 0.9),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Divider(
+              color: AppColors.cartaBorde.withValues(alpha: 0.9),
+              thickness: 1,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _abrirRecuperacion() {
@@ -438,6 +482,13 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
       ),
       const SizedBox(height: 16),
       _cta('Iniciar sesión', _cargando ? null : _login),
+      _separadorOGoogle(),
+      BotonGoogleAuth(
+        registro: false,
+        enabled: !_cargando,
+        onExito: _despuesDeGoogle,
+        onError: (msg) => setState(() => _error = msg),
+      ),
     ];
   }
 
@@ -485,6 +536,13 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
       ),
       const SizedBox(height: 16),
       _cta('Registrarse', _cargando ? null : _registrar),
+      _separadorOGoogle(),
+      BotonGoogleAuth(
+        registro: true,
+        enabled: !_cargando,
+        onExito: _despuesDeGoogle,
+        onError: (msg) => setState(() => _error = msg),
+      ),
     ];
   }
 

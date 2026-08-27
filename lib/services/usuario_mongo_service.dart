@@ -7,6 +7,7 @@ import '../config/api_config.dart';
 import '../models/usuario_mongo.dart';
 import '../shared/monedas/monedas_store.dart';
 import '../shared/persistencia/sesion_local.dart';
+import 'google_auth_service.dart';
 
 /// API del backend (cuentas y ranking).
 ///
@@ -140,6 +141,13 @@ class UsuarioMongoService {
     return _guardarSesion(data);
   }
 
+  Future<UsuarioMongo> loginConGoogle({required String idToken}) async {
+    final data = await _post('/api/usuarios/google', {
+      'idToken': idToken,
+    });
+    return _guardarSesion(data);
+  }
+
   Future<void> pedirRecuperacion({required String email}) async {
     await _post('/api/usuarios/recuperar', {'email': email.trim()});
   }
@@ -268,6 +276,7 @@ class UsuarioMongoService {
     usuario = null;
     MonedasStore.instance.notificar();
     unawaited(SesionLocal.limpiar());
+    unawaited(GoogleAuthService.instance.cerrarSesionGoogle());
   }
 
   /// Restaura sesión guardada y refresca datos del servidor.
