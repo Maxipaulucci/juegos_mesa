@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/cuenta/boton_perfil.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc_ui.dart';
@@ -748,6 +749,26 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leadingWidth: 100,
+        leading: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              onPressed: () => Navigator.maybePop(context),
+            ),
+            BotonPerfil(
+              tamano: 36,
+              onTap: () {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+                setState(() {
+                  _accionTrasSesion = null;
+                  _mostrarCuenta = true;
+                });
+              },
+            ),
+          ],
+        ),
         title: Text(widget.titulo),
         actions: [
           Padding(

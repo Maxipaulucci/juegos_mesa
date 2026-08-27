@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
+import 'package:app_juegos_mesa/shared/cuenta/boton_perfil.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
 import 'package:app_juegos_mesa/shared/salas/crear_sala_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
@@ -112,7 +113,29 @@ class _MenuTutiFrutiScreenState extends State<MenuTutiFrutiScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.fondo,
-      appBar: AppBar(title: const Text('Tutti Frutti')),
+      appBar: AppBar(
+        leadingWidth: 100,
+        leading: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              onPressed: () => Navigator.maybePop(context),
+            ),
+            BotonPerfil(
+              tamano: 36,
+              onTap: () {
+                ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+                setState(() {
+                  _accionTrasSesion = null;
+                  _mostrarCuenta = true;
+                });
+              },
+            ),
+          ],
+        ),
+        title: const Text('Tutti Frutti'),
+      ),
       body: Stack(
         children: [
           const Positioned.fill(
