@@ -77,6 +77,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final mostrarCofres = _tab != 2 && _tab != 3;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -90,11 +92,12 @@ class _AppShellState extends State<AppShell> {
               const TiendaScreen(),
             ],
           ),
-          const Positioned(
-            left: 14,
-            bottom: 10,
-            child: CofresFlotantes(),
-          ),
+          if (mostrarCofres)
+            const Positioned(
+              left: 14,
+              bottom: 10,
+              child: CofresFlotantes(),
+            ),
           const Positioned(
             right: 14,
             bottom: 10,
