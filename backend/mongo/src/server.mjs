@@ -6,7 +6,6 @@ import { apiHost, apiPort, nombreDb, uri } from './env.mjs';
 import {
   exigirUsuario,
   login,
-  loginConGoogle,
   pedirRecuperacion,
   ranking,
   reenviar,
@@ -19,6 +18,7 @@ import {
   verificarRecuperacion,
   yo,
 } from './usuarios.mjs';
+import { listarCofres, reclamarCofre } from './cofres.mjs';
 import {
   reembolsarApuesta,
   resolverApuesta,
@@ -59,7 +59,6 @@ app.post('/api/usuarios/registro', registrar);
 app.post('/api/usuarios/reenviar', reenviar);
 app.post('/api/usuarios/verificar', verificar);
 app.post('/api/usuarios/login', login);
-app.post('/api/usuarios/google', loginConGoogle);
 app.post('/api/usuarios/recuperar', pedirRecuperacion);
 app.post('/api/usuarios/recuperar/reenviar', reenviarRecuperacion);
 app.post('/api/usuarios/recuperar/verificar', verificarRecuperacion);
@@ -71,6 +70,8 @@ app.post('/api/apuestas/reembolsar', exigirUsuario, reembolsarApuesta);
 app.post('/api/apuestas/resolver', exigirUsuario, resolverApuesta);
 app.post('/api/puntos', exigirUsuario, sumarPuntos);
 app.get('/api/ranking', ranking);
+app.get('/api/cofres', exigirUsuario, listarCofres);
+app.post('/api/cofres/reclamar', exigirUsuario, reclamarCofre);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

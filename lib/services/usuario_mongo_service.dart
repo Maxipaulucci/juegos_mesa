@@ -7,7 +7,6 @@ import '../config/api_config.dart';
 import '../models/usuario_mongo.dart';
 import '../shared/monedas/monedas_store.dart';
 import '../shared/persistencia/sesion_local.dart';
-import 'google_auth_service.dart';
 
 /// API del backend (cuentas y ranking).
 ///
@@ -141,13 +140,6 @@ class UsuarioMongoService {
     return _guardarSesion(data);
   }
 
-  Future<UsuarioMongo> loginConGoogle({required String idToken}) async {
-    final data = await _post('/api/usuarios/google', {
-      'idToken': idToken,
-    });
-    return _guardarSesion(data);
-  }
-
   Future<void> pedirRecuperacion({required String email}) async {
     await _post('/api/usuarios/recuperar', {'email': email.trim()});
   }
@@ -253,6 +245,24 @@ class UsuarioMongoService {
     );
   }
 
+  /// Estado de cofres de madera (4 h) y oro (diario).
+  Future<Map<String, dynamic>> estadoCofres() async {
+    final data = await _get('/api/cofres');
+    return Map<String, dynamic>.from(data);
+  }
+
+  /// Reclama un cofre (`madera` | `oro`). Devuelve cofres actualizados y monedas sumadas.
+  Future<Map<String, dynamic>> reclamarCofre({required String tipo}) async {
+    final data = await _post('/api/cofres/reclamar', {'tipo': tipo.trim()});
+    final rawUsuario = data['usuario'];
+    if (rawUsuario is Map) {
+      _actualizarUsuario(
+        UsuarioMongo.fromJson(Map<String, dynamic>.from(rawUsuario)),
+      );
+    }
+    return Map<String, dynamic>.from(data);
+  }
+
   /// [juego] = `global` o un id de juego (`diezMil`, `escobaDel15`, …).
   Future<List<PuestoRanking>> ranking({
     String juego = 'global',
@@ -276,7 +286,6 @@ class UsuarioMongoService {
     usuario = null;
     MonedasStore.instance.notificar();
     unawaited(SesionLocal.limpiar());
-    unawaited(GoogleAuthService.instance.cerrarSesionGoogle());
   }
 
   /// Restaura sesión guardada y refresca datos del servidor.

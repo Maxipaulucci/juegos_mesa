@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/usuario_mongo_service.dart';
+import '../shared/monedas/cofres_flotantes.dart';
+import '../shared/monedas/cofres_store.dart';
 import '../shared/monedas/monedas_bubble.dart';
 import '../shared/monedas/monedas_store.dart';
 import '../shared/nav/bottom_nav_bar.dart';
@@ -34,11 +36,13 @@ class _AppShellState extends State<AppShell> {
       if (mounted) unawaited(HomeScreen.precargar(context));
     });
     MonedasStore.instance.addListener(_onMonedas);
+    CofresStore.instance.iniciar();
   }
 
   @override
   void dispose() {
     MonedasStore.instance.removeListener(_onMonedas);
+    CofresStore.instance.disposeStore();
     super.dispose();
   }
 
@@ -75,6 +79,11 @@ class _AppShellState extends State<AppShell> {
               RankingScreen(key: _rankingKey, activa: _tab == 3),
               const TiendaScreen(),
             ],
+          ),
+          const Positioned(
+            left: 14,
+            bottom: 10,
+            child: CofresFlotantes(),
           ),
           const Positioned(
             right: 14,

@@ -829,9 +829,9 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
                       ),
                     ),
             ),
-          ),
-        ],
-      ),
+              ),
+          ],
+        ),
       ),
     );
   }
