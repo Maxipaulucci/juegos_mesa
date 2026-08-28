@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/monedas/cartel_como_ganar_monedas.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -18,7 +19,10 @@ class MonedasBubble extends StatelessWidget {
         final n = MonedasStore.instance.monedas;
         return Material(
           color: Colors.transparent,
-          child: Container(
+          child: InkWell(
+            onTap: () => mostrarCartelComoGanarMonedas(context),
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: AppColors.carta,
@@ -49,6 +53,7 @@ class MonedasBubble extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           ),
         );
       },
