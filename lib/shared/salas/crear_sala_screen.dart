@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/salas/lobby_sala_screen.dart';
@@ -163,7 +164,7 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tenés $_misMonedas monedas.',
+              'Tenés ${formatoNumero(_misMonedas)} monedas.',
               style: TextStyle(
                 color: AppColors.acento.withValues(alpha: 0.95),
                 fontWeight: FontWeight.w800,
@@ -229,7 +230,7 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
               children: [
                 for (final m in montosApuestaOnline)
                   ChoiceChip(
-                    label: Text(m == 0 ? 'Sin apuesta' : '$m'),
+                    label: Text(m == 0 ? 'Sin apuesta' : formatoNumero(m)),
                     selected: _apuesta == m,
                     onSelected: _cargando
                         ? null
@@ -247,7 +248,7 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
             if (_apuesta > 0) ...[
               const SizedBox(height: 10),
               Text(
-                'Cada jugador apuesta $_apuesta. El ganador se lleva el pozo '
+                'Cada jugador apuesta ${formatoNumero(_apuesta)}. El ganador se lleva el pozo '
                 '(suma de todas las apuestas) en monedas y esa misma cantidad '
                 'suma al ranking.',
                 style: TextStyle(
@@ -272,7 +273,7 @@ class _CrearSalaScreenState extends State<CrearSalaScreen> {
                     )
                   : Text(
                       _apuesta > 0
-                          ? 'Crear sala · apostar $_apuesta'
+                          ? 'Crear sala · apostar ${formatoNumero(_apuesta)}'
                           : 'Crear sala',
                     ),
             ),

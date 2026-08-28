@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
+
 import '../theme/app_theme.dart';
 
 /// Tienda visual (sin compras reales): paquetes de monedas.
@@ -124,16 +126,7 @@ class _TarjetaPaquete extends StatelessWidget {
   final _PaqueteMonedas paquete;
   final bool compacta;
 
-  String get _monedasFmt {
-    final s = paquete.monedas.toString();
-    final buf = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      final desdeFin = s.length - i;
-      if (i > 0 && desdeFin % 3 == 0) buf.write('.');
-      buf.write(s[i]);
-    }
-    return buf.toString();
-  }
+  String get _monedasFmt => formatoNumero(paquete.monedas);
 
   void _avisar(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(

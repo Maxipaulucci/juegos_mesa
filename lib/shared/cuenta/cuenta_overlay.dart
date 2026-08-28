@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/cuenta/racha_perfil.dart';
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 enum _Pestania { login, registro }
@@ -811,7 +812,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         ),
         SizedBox(height: celular ? 10 : 12),
         Text(
-          '${u.monedas} monedas',
+          '${formatoNumero(u.monedas)} monedas',
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: AppColors.acento,

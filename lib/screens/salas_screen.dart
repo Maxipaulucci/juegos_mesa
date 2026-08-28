@@ -7,6 +7,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/shared/home/juego_portada_card.dart';
 import 'package:app_juegos_mesa/shared/home/juegos_portada_catalogo.dart';
 import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
@@ -517,7 +518,7 @@ class _SalasScreenState extends State<SalasScreen> {
     final eslogan = StringBuffer('Anfitrión: $anfitrion\n')
       ..write('$ocupados / 4 jugadores');
     if (sala.apuestaMonedas > 0) {
-      eslogan.write('\nApuesta: ${sala.apuestaMonedas} monedas');
+      eslogan.write('\nApuesta: ${formatoNumero(sala.apuestaMonedas)} monedas');
     }
 
     void unirse() {

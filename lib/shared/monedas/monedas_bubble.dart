@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/shared/monedas/cartel_como_ganar_monedas.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -43,7 +44,7 @@ class MonedasBubble extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '$n',
+                  formatoNumero(n),
                   style: const TextStyle(
                     color: AppColors.texto,
                     fontWeight: FontWeight.w900,

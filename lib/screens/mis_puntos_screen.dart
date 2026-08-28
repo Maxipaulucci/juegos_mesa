@@ -4,6 +4,7 @@ import '../config/juegos_catalogo.dart';
 import '../services/usuario_mongo_service.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
 import '../shared/cuenta/racha_perfil.dart';
+import '../shared/formato/numero_formato.dart';
 import '../theme/app_theme.dart';
 
 /// Puntuaciones del usuario en todos los juegos de la app.
@@ -321,7 +322,7 @@ class _TarjetaGlobal extends StatelessWidget {
             ),
           ),
           Text(
-            '$puntos',
+            formatoNumero(puntos),
             style: const TextStyle(
               color: AppColors.acento,
               fontWeight: FontWeight.w900,
@@ -362,7 +363,7 @@ class _FilaPuntos extends StatelessWidget {
             ),
           ),
           Text(
-            '$puntos',
+            formatoNumero(puntos),
             style: TextStyle(
               color: puntos > 0 ? AppColors.mint : AppColors.textoSuave,
               fontWeight: FontWeight.w900,

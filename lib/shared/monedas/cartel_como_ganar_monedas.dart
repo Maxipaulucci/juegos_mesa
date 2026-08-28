@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/cofre_estado.dart';
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Cartel con las formas de sumar monedas en la app.
@@ -44,8 +45,8 @@ class _CartelComoGanarMonedas extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: const [
-            _PasoMonedas(
+          children: [
+            const _PasoMonedas(
               numero: 1,
               icono: Icons.login_rounded,
               titulo: 'Iniciá sesión',
@@ -53,8 +54,8 @@ class _CartelComoGanarMonedas extends StatelessWidget {
                   'Registrate e iniciá sesión. Al verificar tu cuenta '
                   'recibís 100 monedas de bienvenida.',
             ),
-            SizedBox(height: 12),
-            _PasoMonedas(
+            const SizedBox(height: 12),
+            const _PasoMonedas(
               numero: 2,
               icono: Icons.smart_toy_outlined,
               titulo: 'Ganale a la PC',
@@ -62,30 +63,30 @@ class _CartelComoGanarMonedas extends StatelessWidget {
                   'En cualquier juego contra la computadora, si ganás '
                   'la partida sumás +3 monedas.',
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             _PasoMonedas(
               numero: 3,
               icono: Icons.inventory_2_outlined,
               titulo: 'Cofres de monedas',
               descripcion:
                   'Reclamá los cofres de la esquina inferior izquierda: '
-                  'cofre de madera +${CofresEstado.maderaMonedas} monedas '
-                  'cada 4 horas y cofre de oro +${CofresEstado.oroMonedas} '
+                  'cofre de madera +${formatoNumero(CofresEstado.maderaMonedas)} monedas '
+                  'cada 4 horas y cofre de oro +${formatoNumero(CofresEstado.oroMonedas)} '
                   'monedas por día.',
             ),
-            SizedBox(height: 12),
-            _PasoMonedas(
+            const SizedBox(height: 12),
+            const _PasoMonedas(
               numero: 4,
               icono: Icons.local_fire_department_rounded,
               iconoColor: Color(0xFFFF7043),
               titulo: 'Racha de días',
               descripcion:
                   'Entrá cada día con tu cuenta: +5 monedas diarias, '
-                  '+100 al completar 7 días seguidos y +1000 al llegar a '
+                  '+100 al completar 7 días seguidos y +1.000 al llegar a '
                   '30 días. Luego el ciclo se reinicia.',
             ),
-            SizedBox(height: 12),
-            _PasoMonedas(
+            const SizedBox(height: 12),
+            const _PasoMonedas(
               numero: 5,
               icono: Icons.shopping_cart_rounded,
               iconoColor: AppColors.acento,

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Cartel con animación de cofre cayendo, abriéndose y monedas subiendo.
@@ -279,7 +280,7 @@ class _ContadorMonedasSubiendo extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            '+$cantidad',
+            formatoMonedasGanadas(cantidad),
             style: const TextStyle(
               color: AppColors.acento,
               fontWeight: FontWeight.w900,

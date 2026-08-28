@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/cofre_estado.dart';
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/shared/monedas/cofre_reclamo_cartel.dart';
 import 'package:app_juegos_mesa/shared/monedas/cofres_store.dart';
 import 'package:app_juegos_mesa/shared/ui/notificacion_tope.dart';
@@ -444,7 +445,7 @@ class _CofreTachadoConTiempo extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '+${estado.monedas} monedas',
+            '+${formatoNumero(estado.monedas)} monedas',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.textoSuave.withValues(alpha: 0.95),
@@ -509,7 +510,7 @@ class _CofreEnBurbuja extends StatelessWidget {
 
     return Tooltip(
       message: listo
-          ? '${tipo.etiqueta}: +${estado.monedas} monedas'
+          ? '${tipo.etiqueta}: ${formatoMonedasGanadas(estado.monedas)} monedas'
           : (estado.restanteMs > 0
               ? '${tipo.etiqueta}: ${_fmtRestante(estado.restanteMs)}'
               : tipo.etiqueta),

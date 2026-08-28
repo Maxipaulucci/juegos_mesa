@@ -1,3 +1,5 @@
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
+
 class RachaLogin {
   const RachaLogin({
     required this.aplicada,
@@ -49,11 +51,11 @@ class RachaLogin {
   String get mensajeNotificacion {
     if (!aplicada || monedasSumadas <= 0) return '';
     if (bonusMes) {
-      return '¡Racha de $objetivoMes días! +$monedasSumadas monedas (mes completo).';
+      return '¡Racha de $objetivoMes días! ${formatoMonedasGanadas(monedasSumadas)} monedas (mes completo).';
     }
     if (bonusSemana) {
-      return '¡Racha de $objetivoSemana días! +$monedasSumadas monedas.';
+      return '¡Racha de $objetivoSemana días! ${formatoMonedasGanadas(monedasSumadas)} monedas.';
     }
-    return 'Racha día $diasRacha: +$monedasSumadas monedas.';
+    return 'Racha día $diasRacha: ${formatoMonedasGanadas(monedasSumadas)} monedas.';
   }
 }

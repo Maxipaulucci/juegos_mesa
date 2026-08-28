@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Cartel previo a unirse: muestra la config del anfitrión y la apuesta.
@@ -11,7 +12,7 @@ Future<bool> mostrarCartelConfigSalaOnline({
   final maxAltura = MediaQuery.sizeOf(context).height * 0.7;
   final lineas = <String>[
     if (apuestaMonedas > 0)
-      'Apuesta: $apuestaMonedas monedas por jugador '
+      'Apuesta: ${formatoNumero(apuestaMonedas)} monedas por jugador '
           '(el ganador se lleva el pozo y suma esa cantidad al ranking).'
     else
       'Sin apuesta de monedas.',
@@ -98,7 +99,7 @@ Future<bool> mostrarCartelConfigSalaOnline({
                     onPressed: () => Navigator.of(dialogContext).pop(true),
                     child: Text(
                       apuestaMonedas > 0
-                          ? 'Unirse · apostar $apuestaMonedas'
+                          ? 'Unirse · apostar ${formatoNumero(apuestaMonedas)}'
                           : 'Unirse',
                     ),
                   ),

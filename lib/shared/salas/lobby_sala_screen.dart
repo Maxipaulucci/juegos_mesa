@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/shared/monedas/apuesta_online_store.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -547,7 +548,7 @@ class _LobbySalaScreenState extends State<LobbySalaScreen> {
             if (_sala.apuestaMonedas > 0) ...[
               const SizedBox(height: 10),
               Text(
-                'Apuesta: ${_sala.apuestaMonedas} monedas por jugador. '
+                'Apuesta: ${formatoNumero(_sala.apuestaMonedas)} monedas por jugador. '
                 'El ganador se lleva el pozo y suma al ranking.',
                 style: TextStyle(
                   color: AppColors.acento.withValues(alpha: 0.95),
