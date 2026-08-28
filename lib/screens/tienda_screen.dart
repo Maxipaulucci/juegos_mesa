@@ -9,14 +9,14 @@ class TiendaScreen extends StatelessWidget {
   const TiendaScreen({super.key});
 
   static const _basicos = <_PaqueteMonedas>[
-    _PaqueteMonedas(monedas: 100, precioUsd: 0.99),
-    _PaqueteMonedas(monedas: 1000, precioUsd: 4.99),
-    _PaqueteMonedas(monedas: 10000, precioUsd: 24.99),
+    _PaqueteMonedas(monedas: 1000, precioUsd: 1),
+    _PaqueteMonedas(monedas: 7500, precioUsd: 5),
+    _PaqueteMonedas(monedas: 50000, precioUsd: 25),
   ];
 
   static const _mega = _PaqueteMonedas(
-    monedas: 100000,
-    precioUsd: 99.99,
+    monedas: 250000,
+    precioUsd: 100,
     premium: true,
   );
 
@@ -114,7 +114,12 @@ class _PaqueteMonedas {
   final double precioUsd;
   final bool premium;
 
-  String get precioFmt => precioUsd.toStringAsFixed(2);
+  String get precioFmt {
+    if (precioUsd == precioUsd.roundToDouble()) {
+      return precioUsd.toInt().toString();
+    }
+    return precioUsd.toStringAsFixed(2);
+  }
 }
 
 class _TarjetaPaquete extends StatelessWidget {
