@@ -31,104 +31,50 @@ class RachaPerfil extends StatelessWidget {
         onTap: () => mostrarCartelComoFuncionaRacha(context),
         borderRadius: BorderRadius.circular(14),
         child: Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(
-        horizontal: compacto ? 12 : 14,
-        vertical: compacto ? 10 : 12,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.carta.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _fuego.withValues(alpha: 0.55),
-          width: 1.4,
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.local_fire_department_rounded,
-                color: _fuego,
-                size: tamIcono,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$rachaDias ${rachaDias == 1 ? 'día' : 'días'}',
-                style: TextStyle(
-                  color: AppColors.texto,
-                  fontWeight: FontWeight.w900,
-                  fontSize: tamRacha,
-                ),
-              ),
-            ],
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: compacto ? 12 : 14,
+            vertical: compacto ? 10 : 12,
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Racha máxima: $maximaVisible ${maximaVisible == 1 ? 'día' : 'días'}',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textoSuave.withValues(alpha: 0.95),
-              fontWeight: FontWeight.w700,
-              fontSize: compacto ? 12 : 13,
-            ),
-          ),
-        ],
-      ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Indicador pequeño de racha (esquina superior izquierda en home).
-class RachaChipCompacto extends StatelessWidget {
-  const RachaChipCompacto({
-    super.key,
-    required this.rachaDias,
-  });
-
-  final int rachaDias;
-
-  static const _fuego = Color(0xFFFF7043);
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => mostrarCartelComoFuncionaRacha(context),
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: AppColors.carta.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(999),
+            color: AppColors.carta.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: _fuego.withValues(alpha: 0.7),
-              width: 1.3,
+              color: _fuego.withValues(alpha: 0.55),
+              width: 1.4,
             ),
-            boxShadow: neonGlow(_fuego, blur: 8),
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.local_fire_department_rounded,
-                color: _fuego,
-                size: 16,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.local_fire_department_rounded,
+                    color: _fuego,
+                    size: tamIcono,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$rachaDias ${rachaDias == 1 ? 'día' : 'días'}',
+                    style: TextStyle(
+                      color: AppColors.texto,
+                      fontWeight: FontWeight.w900,
+                      fontSize: tamRacha,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
+              const SizedBox(height: 6),
               Text(
-                '$rachaDias',
-                style: const TextStyle(
-                  color: AppColors.texto,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
+                'Racha máxima: $maximaVisible ${maximaVisible == 1 ? 'día' : 'días'}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textoSuave.withValues(alpha: 0.95),
+                  fontWeight: FontWeight.w700,
+                  fontSize: compacto ? 12 : 13,
                 ),
               ),
             ],

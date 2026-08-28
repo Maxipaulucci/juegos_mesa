@@ -30,7 +30,6 @@ import '../laPapa/textos.dart';
 import '../shared/ajustes/ajustes_overlay.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
-import '../shared/cuenta/racha_perfil.dart';
 import '../services/usuario_mongo_service.dart';
 import '../theme/app_theme.dart';
 import '../tutiFruti/menu_tuti_fruti_screen.dart';
@@ -1131,10 +1130,10 @@ class _HomeScreenState extends State<HomeScreen>
                                               color: AppColors.texto,
                                               fontWeight: FontWeight.w900,
                                               fontSize: 16,
-                        ),
-                      );
-                    },
-                  ),
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
