@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/cuenta/racha_perfil.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 enum _Pestania { login, registro }
@@ -242,7 +243,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     // Perfil: cartel compacto al contenido. Auth/recup: más alto con scroll.
     final maxW = perfil ? (celular ? 400.0 : 440.0) : 420.0;
     final maxH = perfil
-        ? (celular ? 360.0 : 420.0)
+        ? MediaQuery.sizeOf(context).height * 0.88
         : 640.0;
     final paddingModal = celular
         ? const EdgeInsets.symmetric(horizontal: 16, vertical: 20)
@@ -297,12 +298,9 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                         children: [
                           Padding(
                             padding: paddingCuerpo,
-                            // Perfil sin scroll: evita que el cartel se estire vacío.
-                            child: perfil
-                                ? _cuerpoModal()
-                                : SingleChildScrollView(
-                                    child: _cuerpoModal(),
-                                  ),
+                            child: SingleChildScrollView(
+                              child: _cuerpoModal(),
+                            ),
                           ),
                           Positioned(
                             top: 14,
@@ -820,6 +818,12 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
             fontWeight: FontWeight.w900,
             fontSize: 15,
           ),
+        ),
+        SizedBox(height: celular ? 14 : 16),
+        RachaPerfil(
+          rachaDias: u.rachaDias,
+          rachaMaxima: u.rachaMaxima,
+          compacto: celular,
         ),
         SizedBox(height: celular ? 22 : 28),
         _cta('Cerrar sesión', () {

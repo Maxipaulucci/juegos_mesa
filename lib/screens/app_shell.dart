@@ -7,6 +7,7 @@ import '../shared/monedas/cofres_flotantes.dart';
 import '../shared/monedas/cofres_store.dart';
 import '../shared/monedas/monedas_bubble.dart';
 import '../shared/monedas/monedas_store.dart';
+import '../shared/monedas/racha_login_service.dart';
 import '../shared/nav/bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'mis_puntos_screen.dart';
@@ -33,7 +34,10 @@ class _AppShellState extends State<AppShell> {
     super.initState();
     unawaited(UsuarioMongoService.instance.despertarBackend());
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(HomeScreen.precargar(context));
+      if (mounted) {
+        unawaited(HomeScreen.precargar(context));
+        RachaLoginService.instance.mostrarPendienteSiHay(context);
+      }
     });
     MonedasStore.instance.addListener(_onMonedas);
     CofresStore.instance.iniciar();
@@ -47,7 +51,13 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _onMonedas() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        RachaLoginService.instance.mostrarPendienteSiHay(context);
+      }
+    });
+    setState(() {});
   }
 
   void _onNavTap(int index) {

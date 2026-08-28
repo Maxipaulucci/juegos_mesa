@@ -6,6 +6,7 @@ import { jwtDias, jwtSecret } from './env.mjs';
 import { partidas, recuperacionesPendientes, registrosPendientes, usuarios } from './db.mjs';
 import { JUEGO_GLOBAL, JUEGOS, juegoValido, puntosVacios } from './juegos.mjs';
 import { enviarCodigoRegistro } from './mail.mjs';
+import { aplicarRachaSiCorresponde, rachaPublica } from './racha.mjs';
 
 const RONDAS_HASH = 10;
 const TTL_MS = 15 * 60 * 1000;
@@ -17,6 +18,7 @@ export function publico(doc) {
   const monedas = Number.isFinite(Number(doc.monedas))
     ? Math.max(0, Math.floor(Number(doc.monedas)))
     : 0;
+  const racha = rachaPublica(doc);
   return {
     id: String(doc._id),
     nombreUsuario,
@@ -24,6 +26,8 @@ export function publico(doc) {
     email: doc.email,
     puntos,
     monedas,
+    rachaDias: racha.diasActual,
+    rachaMaxima: racha.diasMaxima,
     creadoEn: doc.creadoEn,
   };
 }
@@ -249,7 +253,12 @@ export async function verificar(req, res) {
   }
   await registrosPendientes().deleteOne({ _id: pend._id });
   doc._id = insertedId;
-  res.status(201).json({ token: firmar(insertedId), usuario: publico(doc) });
+  const { usuario, racha } = await aplicarRachaSiCorresponde(doc);
+  res.status(201).json({
+    token: firmar(insertedId),
+    usuario: publico(usuario),
+    racha,
+  });
 }
 
 export async function login(req, res) {
@@ -268,7 +277,12 @@ export async function login(req, res) {
     return;
   }
   const conMonedas = await asegurarMonedasIniciales(doc);
-  res.json({ token: firmar(conMonedas._id), usuario: publico(conMonedas) });
+  const { usuario, racha } = await aplicarRachaSiCorresponde(conMonedas);
+  res.json({
+    token: firmar(usuario._id),
+    usuario: publico(usuario),
+    racha,
+  });
 }
 
 async function guardarCodigoRecuperacion(email) {
@@ -403,7 +417,8 @@ export async function restablecerClave(req, res) {
 
 export async function yo(req, res) {
   const conMonedas = await asegurarMonedasIniciales(req.usuario);
-  res.json({ usuario: publico(conMonedas) });
+  const { usuario, racha } = await aplicarRachaSiCorresponde(conMonedas);
+  res.json({ usuario: publico(usuario), racha });
 }
 
 /** +3 monedas y +3 puntos de ranking por ganar vs PC (solo con sesión). */

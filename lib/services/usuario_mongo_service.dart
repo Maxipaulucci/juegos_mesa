@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/usuario_mongo.dart';
 import '../shared/monedas/monedas_store.dart';
+import '../shared/monedas/racha_login_service.dart';
 import '../shared/persistencia/sesion_local.dart';
 
 /// API del backend (cuentas y ranking).
@@ -170,6 +171,7 @@ class UsuarioMongoService {
 
   Future<UsuarioMongo> recargarYo() async {
     final data = await _get('/api/usuarios/yo');
+    RachaLoginService.instance.registrarDesdeRespuesta(data);
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
     final u = UsuarioMongo.fromJson(raw);
     _actualizarUsuario(u);
@@ -303,6 +305,7 @@ class UsuarioMongoService {
   }
 
   UsuarioMongo _guardarSesion(Map<String, dynamic> data) {
+    RachaLoginService.instance.registrarDesdeRespuesta(data);
     _token = data['token']?.toString();
     final raw = Map<String, dynamic>.from(data['usuario'] as Map);
     final u = UsuarioMongo.fromJson(raw);

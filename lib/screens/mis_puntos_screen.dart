@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config/juegos_catalogo.dart';
 import '../services/usuario_mongo_service.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
+import '../shared/cuenta/racha_perfil.dart';
 import '../theme/app_theme.dart';
 
 /// Puntuaciones del usuario en todos los juegos de la app.
@@ -119,6 +120,8 @@ class MisPuntosScreenState extends State<MisPuntosScreen> {
                                   : usuario.nombre,
                               global: usuario.puntosGlobal,
                               puntos: usuario.puntos,
+                              rachaDias: usuario.rachaDias,
+                              rachaMaxima: usuario.rachaMaxima,
                               error: _error,
                               onReintentar: recargar,
                             ),
@@ -190,6 +193,8 @@ class _ListaPuntos extends StatelessWidget {
     required this.nombre,
     required this.global,
     required this.puntos,
+    required this.rachaDias,
+    required this.rachaMaxima,
     required this.error,
     required this.onReintentar,
   });
@@ -197,6 +202,8 @@ class _ListaPuntos extends StatelessWidget {
   final String nombre;
   final int global;
   final Map<String, int> puntos;
+  final int rachaDias;
+  final int rachaMaxima;
   final String? error;
   final VoidCallback onReintentar;
 
@@ -228,6 +235,11 @@ class _ListaPuntos extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         _TarjetaGlobal(nombre: nombre, puntos: global),
+        const SizedBox(height: 16),
+        RachaPerfil(
+          rachaDias: rachaDias,
+          rachaMaxima: rachaMaxima,
+        ),
         const SizedBox(height: 16),
         const Text(
           'Por juego',

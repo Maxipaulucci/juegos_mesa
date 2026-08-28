@@ -6,6 +6,8 @@ class UsuarioMongo {
     required this.puntos,
     this.nombreUsuario = '',
     this.monedas = 0,
+    this.rachaDias = 0,
+    this.rachaMaxima = 0,
     this.creadoEn,
   });
 
@@ -15,6 +17,8 @@ class UsuarioMongo {
   final String email;
   final Map<String, int> puntos;
   final int monedas;
+  final int rachaDias;
+  final int rachaMaxima;
   final DateTime? creadoEn;
 
   int puntosDe(String juego) => puntos[juego] ?? 0;
@@ -43,6 +47,8 @@ class UsuarioMongo {
       email: json['email']?.toString() ?? '',
       puntos: puntos,
       monedas: (json['monedas'] as num?)?.toInt() ?? 0,
+      rachaDias: (json['rachaDias'] as num?)?.toInt() ?? 0,
+      rachaMaxima: (json['rachaMaxima'] as num?)?.toInt() ?? 0,
       creadoEn: creado,
     );
   }
@@ -54,10 +60,16 @@ class UsuarioMongo {
         'email': email,
         'puntos': puntos,
         'monedas': monedas,
+        'rachaDias': rachaDias,
+        'rachaMaxima': rachaMaxima,
         if (creadoEn != null) 'creadoEn': creadoEn!.toIso8601String(),
       };
 
-  UsuarioMongo copyWith({int? monedas}) {
+  UsuarioMongo copyWith({
+    int? monedas,
+    int? rachaDias,
+    int? rachaMaxima,
+  }) {
     return UsuarioMongo(
       id: id,
       nombre: nombre,
@@ -65,6 +77,8 @@ class UsuarioMongo {
       email: email,
       puntos: puntos,
       monedas: monedas ?? this.monedas,
+      rachaDias: rachaDias ?? this.rachaDias,
+      rachaMaxima: rachaMaxima ?? this.rachaMaxima,
       creadoEn: creadoEn,
     );
   }
