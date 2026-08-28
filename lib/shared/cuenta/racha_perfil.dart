@@ -22,29 +22,28 @@ class RachaPerfil extends StatelessWidget {
   Widget build(BuildContext context) {
     final tamIcono = compacto ? 22.0 : 26.0;
     final tamRacha = compacto ? 18.0 : 20.0;
+    final tamAyuda = compacto ? 16.0 : 18.0;
     final maximaVisible =
         rachaMaxima >= rachaDias ? rachaMaxima : rachaDias;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => mostrarCartelComoFuncionaRacha(context),
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: compacto ? 12 : 14,
+        vertical: compacto ? 10 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.carta.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: EdgeInsets.symmetric(
-            horizontal: compacto ? 12 : 14,
-            vertical: compacto ? 10 : 12,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.carta.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _fuego.withValues(alpha: 0.55),
-              width: 1.4,
-            ),
-          ),
-          child: Column(
+        border: Border.all(
+          color: _fuego.withValues(alpha: 0.55),
+          width: 1.4,
+        ),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
@@ -79,7 +78,28 @@ class RachaPerfil extends StatelessWidget {
               ),
             ],
           ),
-        ),
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => mostrarCartelComoFuncionaRacha(context),
+                customBorder: const CircleBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    Icons.help,
+                    size: tamAyuda,
+                    color: AppColors.textoSuave,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
