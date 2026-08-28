@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
@@ -9,11 +11,61 @@ class MonedasStore extends ChangeNotifier {
   MonedasStore._();
   static final instance = MonedasStore._();
 
+  int? _monedasAnimadas;
+  bool _animandoMonedas = false;
+  int? _bonusCofre;
+  double _bonusCofreProgreso = 0;
+  bool _animacionCofreEnCurso = false;
+
   bool get visible => UsuarioMongoService.instance.haySesion;
 
   int get monedas => UsuarioMongoService.instance.usuario?.monedas ?? 0;
 
+  int get monedasMostradas =>
+      _animandoMonedas && _monedasAnimadas != null ? _monedasAnimadas! : monedas;
+
+  int? get bonusCofre => _bonusCofre;
+
+  double get bonusCofreProgreso => _bonusCofreProgreso;
+
+  bool get animandoCofre => _animacionCofreEnCurso;
+
   void notificar() => notifyListeners();
+
+  /// Tras reclamar un cofre: +N arriba de la burbuja y contador subiendo.
+  Future<void> animarSumaCofre(int sumadas) async {
+    if (sumadas <= 0) return;
+    _animacionCofreEnCurso = true;
+    final hasta = monedas;
+    final desde = (hasta - sumadas).clamp(0, hasta);
+    _bonusCofre = sumadas;
+    _bonusCofreProgreso = 0;
+    _animandoMonedas = true;
+    _monedasAnimadas = desde;
+    notifyListeners();
+
+    const pasos = 36;
+    const duracionMs = 1100;
+    final stepMs = duracionMs ~/ pasos;
+
+    for (var i = 1; i <= pasos; i++) {
+      await Future<void>.delayed(Duration(milliseconds: stepMs));
+      final t = i / pasos;
+      _monedasAnimadas = desde + ((hasta - desde) * t).round();
+      _bonusCofreProgreso = t;
+      notifyListeners();
+    }
+
+    _monedasAnimadas = hasta;
+    _animandoMonedas = false;
+    notifyListeners();
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    _bonusCofre = null;
+    _bonusCofreProgreso = 0;
+    _animacionCofreEnCurso = false;
+    notifyListeners();
+  }
 
   /// +3 monedas y +3 puntos ranking si hay sesión y el humano ganó vs PC.
   Future<void> premiarVictoriaPcSiCorresponde({

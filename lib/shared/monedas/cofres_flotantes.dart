@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:app_juegos_mesa/models/cofre_estado.dart';
+import 'package:app_juegos_mesa/shared/monedas/cofre_reclamo_cartel.dart';
 import 'package:app_juegos_mesa/shared/monedas/cofres_store.dart';
 import 'package:app_juegos_mesa/shared/ui/notificacion_tope.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -72,12 +73,14 @@ class _CofresFlotantesState extends State<CofresFlotantes> {
       final sumadas = await store.reclamar(tipo.id);
       if (!mounted) return;
       if (sumadas != null && sumadas > 0) {
-        mostrarNotificacionTope(
+        await mostrarCartelCofreReclamado(
           context,
-          mensaje: '¡+$sumadas monedas del cofre de ${tipo.etiqueta}!',
+          etiqueta: tipo.etiqueta,
+          assetCerrado: tipo.cerrado,
+          assetAbierto: tipo.abierto,
+          monedas: sumadas,
         );
       }
-      await Future<void>.delayed(const Duration(milliseconds: 1400));
     } catch (e) {
       if (mounted) {
         mostrarNotificacionTope(
@@ -98,6 +101,8 @@ class _CofresFlotantesState extends State<CofresFlotantes> {
     final estado = store.estado;
     final haySesion = store.haySesion;
     final oroListo = haySesion && estado.oro.listo;
+    final maderaListo = haySesion && estado.madera.listo;
+    final disponibles = (oroListo ? 1 : 0) + (maderaListo ? 1 : 0);
     final bloqueado =
         !haySesion || (!estado.madera.listo && !estado.oro.listo);
 
@@ -106,7 +111,7 @@ class _CofresFlotantesState extends State<CofresFlotantes> {
       final cofreEstado = oroListo ? estado.oro : estado.madera;
       return _BurbujaCofres(
         resaltada: true,
-        tachada: false,
+        badgeCount: disponibles,
         child: _CofreEnBurbuja(
           tipo: tipo,
           estado: cofreEstado,
@@ -119,27 +124,8 @@ class _CofresFlotantesState extends State<CofresFlotantes> {
 
     return _BurbujaCofres(
       resaltada: false,
-      tachada: true,
       onTap: _tocarBurbujaBloqueada,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          _CofreEnBurbuja(
-            tipo: _TipoCofre.oro,
-            estado: estado.oro,
-            abriendo: false,
-            listo: false,
-          ),
-          const SizedBox(height: 2),
-          _CofreEnBurbuja(
-            tipo: _TipoCofre.madera,
-            estado: estado.madera,
-            abriendo: false,
-            listo: false,
-          ),
-        ],
-      ),
+      child: const _CofresDivididosBloqueados(),
     );
   }
 }
@@ -147,62 +133,153 @@ class _CofresFlotantesState extends State<CofresFlotantes> {
 class _BurbujaCofres extends StatelessWidget {
   const _BurbujaCofres({
     required this.resaltada,
-    required this.tachada,
     required this.child,
     this.onTap,
+    this.badgeCount = 0,
   });
 
-  static const _cofreAncho = 52.0;
-  static const _cofreAlto = 46.0;
+  static const contenidoAncho = 52.0;
+  static const contenidoAlto = 46.0;
+  static const imgAncho = 48.0;
+  static const imgAlto = 44.0;
+  static const miniImgAncho = 30.0;
+  static const miniImgAlto = 27.0;
 
   final bool resaltada;
-  final bool tachada;
   final Widget child;
   final VoidCallback? onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.carta.withValues(alpha: 0.96),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: resaltada
-                  ? AppColors.acento.withValues(alpha: 0.9)
-                  : AppColors.cartaBorde.withValues(alpha: 0.9),
-              width: 1.6,
-            ),
-            boxShadow: resaltada
-                ? neonGlow(AppColors.acento, blur: 12)
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              child,
-              if (tachada)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _LineaBloqueoBurbujaPainter(),
-                    ),
-                  ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.carta.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: resaltada
+                      ? AppColors.acento.withValues(alpha: 0.9)
+                      : AppColors.cartaBorde.withValues(alpha: 0.9),
+                  width: 1.6,
                 ),
-            ],
+                boxShadow: resaltada
+                    ? neonGlow(AppColors.acento, blur: 12)
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+              ),
+              child: SizedBox(
+                width: contenidoAncho,
+                height: contenidoAlto,
+                child: child,
+              ),
+            ),
           ),
+          if (badgeCount > 0)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: _BadgeCofresDisponibles(cantidad: badgeCount),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgeCofresDisponibles extends StatelessWidget {
+  const _BadgeCofresDisponibles({required this.cantidad});
+
+  final int cantidad;
+
+  static const _verde = Color(0xFF43A047);
+  static const _grisNumero = Color(0xFF757575);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: _verde,
+        shape: BoxShape.circle,
+        border: Border.all(color: _verde, width: 1.6),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$cantidad',
+        style: const TextStyle(
+          color: _grisNumero,
+          fontWeight: FontWeight.w900,
+          fontSize: 11,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+/// Dos cofres achicados, cada uno en su mitad separada por la línea diagonal.
+class _CofresDivididosBloqueados extends StatelessWidget {
+  const _CofresDivididosBloqueados();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          top: 0,
+          right: 0,
+          child: _CofreMiniEnBurbuja(tipo: _TipoCofre.oro),
+        ),
+        Positioned(
+          bottom: 0,
+          left: 0,
+          child: _CofreMiniEnBurbuja(tipo: _TipoCofre.madera),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _LineaBloqueoBurbujaPainter(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CofreMiniEnBurbuja extends StatelessWidget {
+  const _CofreMiniEnBurbuja({required this.tipo});
+
+  final _TipoCofre tipo;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 30,
+      child: Center(
+        child: Image.asset(
+          tipo.cerrado,
+          width: _BurbujaCofres.miniImgAncho,
+          height: _BurbujaCofres.miniImgAlto,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
         ),
       ),
     );
@@ -219,6 +296,8 @@ class _CartelCofresBloqueados extends StatefulWidget {
 }
 
 class _CartelCofresBloqueadosState extends State<_CartelCofresBloqueados> {
+  bool _cerrando = false;
+
   @override
   void initState() {
     super.initState();
@@ -232,12 +311,16 @@ class _CartelCofresBloqueadosState extends State<_CartelCofresBloqueados> {
   }
 
   void _onCofres() {
-    if (!mounted) return;
+    if (!mounted || _cerrando) return;
     final store = CofresStore.instance;
     final estado = store.estado;
     final haySesion = store.haySesion;
     if (haySesion && (estado.madera.listo || estado.oro.listo)) {
-      Navigator.of(context).pop();
+      final nav = Navigator.of(context);
+      if (!nav.canPop()) return;
+      _cerrando = true;
+      CofresStore.instance.removeListener(_onCofres);
+      nav.pop();
       return;
     }
     setState(() {});
@@ -434,8 +517,8 @@ class _CofreEnBurbuja extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: SizedBox(
-          width: _BurbujaCofres._cofreAncho,
-          height: _BurbujaCofres._cofreAlto,
+          width: _BurbujaCofres.contenidoAncho,
+          height: _BurbujaCofres.contenidoAlto,
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
@@ -443,28 +526,13 @@ class _CofreEnBurbuja extends StatelessWidget {
               Center(
                 child: Image.asset(
                   asset,
-                  width: 48,
-                  height: 44,
+                  width: _BurbujaCofres.imgAncho,
+                  height: _BurbujaCofres.imgAlto,
                   fit: BoxFit.contain,
                   alignment: Alignment.center,
                   filterQuality: FilterQuality.medium,
                 ),
               ),
-              if (listo && !abriendo)
-                Positioned(
-                  right: 2,
-                  top: 2,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: AppColors.mint,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                      boxShadow: neonGlow(AppColors.mint, blur: 5),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -473,15 +541,15 @@ class _CofreEnBurbuja extends StatelessWidget {
   }
 }
 
-/// Línea diagonal atravesando toda la burbuja (sin sesión o ambos en cooldown).
+/// Línea diagonal que divide la burbuja en dos mitades (oro / madera).
 class _LineaBloqueoBurbujaPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = AppColors.peligro.withValues(alpha: 0.92)
-      ..strokeWidth = 3.2
+      ..strokeWidth = 2.6
       ..strokeCap = StrokeCap.round;
-    const inset = 5.0;
+    const inset = 3.0;
     canvas.drawLine(
       Offset(inset, size.height - inset),
       Offset(size.width - inset, inset),

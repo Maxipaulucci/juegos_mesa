@@ -22,3 +22,6 @@ export const googleClientIds = String(process.env.GOOGLE_CLIENT_IDS || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+
+/** Test local: cofres sin cooldown (COFRES_SIEMPRE_LISTOS=1). */
+export const cofresSiempreListos = process.env.COFRES_SIEMPRE_LISTOS === '1';

@@ -37,6 +37,15 @@ class CofreEstado {
       restanteMs: ms < 0 ? 0 : ms,
     );
   }
+
+  CofreEstado forzarListo() {
+    return CofreEstado(
+      listo: true,
+      monedas: monedas,
+      cooldownMs: cooldownMs,
+      restanteMs: 0,
+    );
+  }
 }
 
 class CofresEstado {
@@ -96,4 +105,11 @@ class CofresEstado {
   bool get hayCooldown =>
       (!madera.listo && madera.restanteMs > 0) ||
       (!oro.listo && oro.restanteMs > 0);
+
+  CofresEstado forzarListos() {
+    return CofresEstado(
+      madera: madera.forzarListo(),
+      oro: oro.forzarListo(),
+    );
+  }
 }

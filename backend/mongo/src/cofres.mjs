@@ -1,4 +1,5 @@
 import { partidas, usuarios } from './db.mjs';
+import { cofresSiempreListos } from './env.mjs';
 import { asegurarMonedasIniciales, publico } from './usuarios.mjs';
 
 export const COFRES = {
@@ -13,6 +14,14 @@ function campoReclamado(tipo) {
 export function estadoCofre(doc, tipo) {
   const cfg = COFRES[tipo];
   if (!cfg) return null;
+  if (cofresSiempreListos) {
+    return {
+      listo: true,
+      monedas: cfg.monedas,
+      cooldownMs: cfg.cooldownMs,
+      restanteMs: 0,
+    };
+  }
   const campo = campoReclamado(tipo);
   const raw = doc?.[campo];
   const ultimo = raw ? new Date(raw).getTime() : 0;
@@ -50,7 +59,7 @@ export async function reclamarCofre(req, res) {
 
   const doc = await asegurarMonedasIniciales(req.usuario);
   const estado = estadoCofre(doc, tipo);
-  if (!estado?.listo) {
+  if (!cofresSiempreListos && !estado?.listo) {
     res.status(400).json({
       error: 'Todavía no podés reclamar este cofre.',
       restanteMs: estado?.restanteMs ?? 0,

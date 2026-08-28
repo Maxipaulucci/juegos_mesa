@@ -1503,9 +1503,9 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                   },
                 ),
               ),
-            ),
-        ],
-      ),
+                        ),
+                      ],
+                    ),
     );
   }
 

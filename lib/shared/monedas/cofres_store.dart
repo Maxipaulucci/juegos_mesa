@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:app_juegos_mesa/config/cofres_config.dart';
 import 'package:app_juegos_mesa/models/cofre_estado.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
@@ -48,7 +49,7 @@ class CofresStore extends ChangeNotifier {
     notifyListeners();
     try {
       final data = await UsuarioMongoService.instance.estadoCofres();
-      _estado = CofresEstado.fromJson(data);
+      _estado = _aplicarModoTest(CofresEstado.fromJson(data));
       _ajustarTick();
     } catch (_) {
       _estado = CofresEstado.bloqueado();
@@ -63,7 +64,7 @@ class CofresStore extends ChangeNotifier {
     if (!haySesion) return null;
     try {
       final data = await UsuarioMongoService.instance.reclamarCofre(tipo: tipo);
-      _estado = CofresEstado.fromJson(data);
+      _estado = _aplicarModoTest(CofresEstado.fromJson(data));
       _ajustarTick();
       notifyListeners();
       return (data['monedasSumadas'] as num?)?.toInt();
@@ -88,5 +89,10 @@ class CofresStore extends ChangeNotifier {
   void _detenerTick() {
     _tick?.cancel();
     _tick = null;
+  }
+
+  CofresEstado _aplicarModoTest(CofresEstado estado) {
+    if (!CofresConfig.siempreListos) return estado;
+    return estado.forzarListos();
   }
 }
