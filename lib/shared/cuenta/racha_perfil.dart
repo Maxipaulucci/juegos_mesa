@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/cuenta/cartel_como_funciona_racha.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Muestra racha actual (fuego + días) y racha máxima del usuario.
@@ -24,7 +25,12 @@ class RachaPerfil extends StatelessWidget {
     final maximaVisible =
         rachaMaxima >= rachaDias ? rachaMaxima : rachaDias;
 
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => mostrarCartelComoFuncionaRacha(context),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
         horizontal: compacto ? 12 : 14,
@@ -72,6 +78,62 @@ class RachaPerfil extends StatelessWidget {
             ),
           ),
         ],
+      ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Indicador pequeño de racha (esquina superior izquierda en home).
+class RachaChipCompacto extends StatelessWidget {
+  const RachaChipCompacto({
+    super.key,
+    required this.rachaDias,
+  });
+
+  final int rachaDias;
+
+  static const _fuego = Color(0xFFFF7043);
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => mostrarCartelComoFuncionaRacha(context),
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.carta.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: _fuego.withValues(alpha: 0.7),
+              width: 1.3,
+            ),
+            boxShadow: neonGlow(_fuego, blur: 8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.local_fire_department_rounded,
+                color: _fuego,
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$rachaDias',
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
