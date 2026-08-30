@@ -44,6 +44,18 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   final _nuevaPass = TextEditingController();
   final _nuevaPass2 = TextEditingController();
 
+  final _focusLoginClave = FocusNode();
+  final _focusLoginPass = FocusNode();
+  final _focusUsuario = FocusNode();
+  final _focusEmail = FocusNode();
+  final _focusRegPass = FocusNode();
+  final _focusRegPass2 = FocusNode();
+  final _focusCodigo = FocusNode();
+  final _focusRecupEmail = FocusNode();
+  final _focusRecupCodigo = FocusNode();
+  final _focusNuevaPass = FocusNode();
+  final _focusNuevaPass2 = FocusNode();
+
   bool _ocultarPass = true;
   bool _ocultarPass2 = true;
   bool _ocultarNueva = true;
@@ -70,6 +82,17 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     _recupEmail.dispose();
     _nuevaPass.dispose();
     _nuevaPass2.dispose();
+    _focusLoginClave.dispose();
+    _focusLoginPass.dispose();
+    _focusUsuario.dispose();
+    _focusEmail.dispose();
+    _focusRegPass.dispose();
+    _focusRegPass2.dispose();
+    _focusCodigo.dispose();
+    _focusRecupEmail.dispose();
+    _focusRecupCodigo.dispose();
+    _focusNuevaPass.dispose();
+    _focusNuevaPass2.dispose();
     super.dispose();
   }
 
@@ -410,18 +433,26 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         label: 'Usuario o email',
         hint: 'Usuario o ejemplo@email.com',
         controller: _loginClave,
+        focusNode: _focusLoginClave,
         iconoIzq: Icons.email_outlined,
+        accionTeclado: TextInputAction.next,
+        onEnviar: (_) => _focusLoginPass.requestFocus(),
       ),
       const SizedBox(height: 12),
       _campo(
         label: 'Contraseña',
         hint: 'Tu contraseña',
         controller: _password,
+        focusNode: _focusLoginPass,
         ocultar: _ocultarPass,
         iconoDer: _ocultarPass
             ? Icons.visibility_outlined
             : Icons.visibility_off_outlined,
         onIconoDer: () => setState(() => _ocultarPass = !_ocultarPass),
+        accionTeclado: TextInputAction.done,
+        onEnviar: (_) {
+          if (!_cargando) _login();
+        },
       ),
       const SizedBox(height: 8),
       Align(
@@ -454,41 +485,55 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         label: 'Nombre de usuario',
         hint: 'Tu nombre',
         controller: _usuario,
+        focusNode: _focusUsuario,
         maxChars: 20,
         extraFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9_]')),
           const _CapitalizarUsuarioFormatter(),
         ],
+        accionTeclado: TextInputAction.next,
+        onEnviar: (_) => _focusEmail.requestFocus(),
       ),
       const SizedBox(height: 12),
       _campo(
         label: 'Email',
         hint: 'Ejemplo@email.com',
         controller: _email,
+        focusNode: _focusEmail,
         iconoIzq: Icons.email_outlined,
         teclado: TextInputType.emailAddress,
+        accionTeclado: TextInputAction.next,
+        onEnviar: (_) => _focusRegPass.requestFocus(),
       ),
       const SizedBox(height: 12),
       _campo(
         label: 'Contraseña',
         hint: 'Crea una contraseña',
         controller: _password,
+        focusNode: _focusRegPass,
         ocultar: _ocultarPass,
         iconoDer: _ocultarPass
             ? Icons.visibility_outlined
             : Icons.visibility_off_outlined,
         onIconoDer: () => setState(() => _ocultarPass = !_ocultarPass),
+        accionTeclado: TextInputAction.next,
+        onEnviar: (_) => _focusRegPass2.requestFocus(),
       ),
       const SizedBox(height: 12),
       _campo(
         label: 'Repetir contraseña',
         hint: 'Repite la contraseña',
         controller: _password2,
+        focusNode: _focusRegPass2,
         ocultar: _ocultarPass2,
         iconoDer: _ocultarPass2
             ? Icons.visibility_outlined
             : Icons.visibility_off_outlined,
         onIconoDer: () => setState(() => _ocultarPass2 = !_ocultarPass2),
+        accionTeclado: TextInputAction.done,
+        onEnviar: (_) {
+          if (!_cargando) _registrar();
+        },
       ),
       const SizedBox(height: 16),
       _cta('Registrarse', _cargando ? null : _registrar),
@@ -554,9 +599,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           label: 'Código de verificación',
           hint: '0 0 0 0 0 0',
           controller: _codigo,
+          focusNode: _focusCodigo,
           iconoIzq: Icons.vpn_key_outlined,
           teclado: TextInputType.number,
           maxChars: 6,
+          accionTeclado: TextInputAction.done,
+          onEnviar: (_) {
+            if (!_cargando) _verificar();
+          },
         ),
         const SizedBox(height: 16),
         _cta('VERIFICAR', _cargando ? null : _verificar),
@@ -633,8 +683,13 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           label: 'Email',
           hint: 'ejemplo@email.com',
           controller: _recupEmail,
+          focusNode: _focusRecupEmail,
           iconoIzq: Icons.email_outlined,
           teclado: TextInputType.emailAddress,
+          accionTeclado: TextInputAction.done,
+          onEnviar: (_) {
+            if (!_cargando) _enviarCodigoRecupero();
+          },
         ),
         const SizedBox(height: 16),
         _cta('Enviar código', _cargando ? null : _enviarCodigoRecupero),
@@ -692,9 +747,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           label: 'Código de verificación',
           hint: '0 0 0 0 0 0',
           controller: _codigo,
+          focusNode: _focusRecupCodigo,
           iconoIzq: Icons.vpn_key_outlined,
           teclado: TextInputType.number,
           maxChars: 6,
+          accionTeclado: TextInputAction.done,
+          onEnviar: (_) {
+            if (!_cargando) _verificarRecupero();
+          },
         ),
         const SizedBox(height: 16),
         _cta('Verificar', _cargando ? null : _verificarRecupero),
@@ -744,22 +804,30 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           label: 'Nueva contraseña:',
           hint: 'Nueva contraseña',
           controller: _nuevaPass,
+          focusNode: _focusNuevaPass,
           ocultar: _ocultarNueva,
           iconoDer: _ocultarNueva
               ? Icons.visibility_outlined
               : Icons.visibility_off_outlined,
           onIconoDer: () => setState(() => _ocultarNueva = !_ocultarNueva),
+          accionTeclado: TextInputAction.next,
+          onEnviar: (_) => _focusNuevaPass2.requestFocus(),
         ),
         const SizedBox(height: 12),
         _campo(
           label: 'Repita su nueva contraseña:',
           hint: 'Repite la nueva contraseña',
           controller: _nuevaPass2,
+          focusNode: _focusNuevaPass2,
           ocultar: _ocultarNueva2,
           iconoDer: _ocultarNueva2
               ? Icons.visibility_outlined
               : Icons.visibility_off_outlined,
           onIconoDer: () => setState(() => _ocultarNueva2 = !_ocultarNueva2),
+          accionTeclado: TextInputAction.done,
+          onEnviar: (_) {
+            if (!_cargando) _restablecer();
+          },
         ),
         const SizedBox(height: 16),
         _cta('Restablecer contraseña', _cargando ? null : _restablecer),
@@ -908,6 +976,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     required String label,
     required String hint,
     required TextEditingController controller,
+    FocusNode? focusNode,
     IconData? iconoIzq,
     IconData? iconoDer,
     VoidCallback? onIconoDer,
@@ -915,6 +984,8 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     TextInputType? teclado,
     int? maxChars,
     List<TextInputFormatter> extraFormatters = const [],
+    TextInputAction accionTeclado = TextInputAction.next,
+    ValueChanged<String>? onEnviar,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -930,9 +1001,12 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
+          focusNode: focusNode,
           obscureText: ocultar,
           enabled: !_cargando,
           keyboardType: teclado,
+          textInputAction: accionTeclado,
+          onSubmitted: onEnviar,
           inputFormatters: [
             if (maxChars != null) LengthLimitingTextInputFormatter(maxChars),
             if (teclado == TextInputType.number)
