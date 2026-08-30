@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Menú in-partida de Culo sucio v2 (REGLAS / RENDIRSE o SALIR).
@@ -30,7 +31,8 @@ class MenuPartidaCuloSucioV2 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -168,6 +170,7 @@ class MenuPartidaCuloSucioV2 extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

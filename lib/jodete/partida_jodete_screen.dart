@@ -15,6 +15,7 @@ import 'package:app_juegos_mesa/jodete/textos.dart';
 import 'package:app_juegos_mesa/jodete/victoria_jodete_overlay.dart';
 import 'package:app_juegos_mesa/escobaDel15/marcador_palitos.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -28,6 +29,7 @@ import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class PartidaJodeteScreen extends StatefulWidget {
@@ -57,7 +59,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   late bool _modoDios;
   late DificultadPc _dificultad;
   late OpcionesJodete _opciones;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
 
   CartaJodete? _seleccion;
   /// Último modo de orden aplicado con el botón (null = aún no se usó).
@@ -265,7 +267,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
       _modoDios = resume.modoDios;
       _dificultad = resume.dificultad;
       _opciones = resume.opciones;
-      _ajustes = resume.ajustesIniciales ?? const AjustesEstado();
+      _ajustes = resume.ajustesIniciales ?? AjustesStore.instance.estado;
     } else {
       _modoDios = widget.modoDios;
       _dificultad = widget.dificultad;
@@ -391,35 +393,14 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
   }
 
   void _mostrarReglas() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            reglasJodete(
-              comodines: _opciones.comodines,
-              objetivo: _partida.objetivo,
-              puntajePorCartas: _partida.puntajePorCartas,
-              apilarDoses: _partida.apilarDoses,
-              ganarConEspecial: _partida.ganarConEspecial,
-            ),
-            style: const TextStyle(color: AppColors.texto, height: 1.35),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
+    mostrarCartelReglas(
+      context,
+      reglasJodete(
+        comodines: _opciones.comodines,
+        objetivo: _partida.objetivo,
+        puntajePorCartas: _partida.puntajePorCartas,
+        apilarDoses: _partida.apilarDoses,
+        ganarConEspecial: _partida.ganarConEspecial,
       ),
     );
   }

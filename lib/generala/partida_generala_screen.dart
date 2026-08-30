@@ -21,6 +21,8 @@ import 'package:app_juegos_mesa/generala/standby_store.dart';
 import 'package:app_juegos_mesa/generala/tablero_generala.dart';
 import 'package:app_juegos_mesa/generala/textos.dart';
 import 'package:app_juegos_mesa/generala/victoria_generala_overlay.dart';
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class PartidaGeneralaScreen extends StatefulWidget {
@@ -643,34 +645,7 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
       _mostrarMenu = false;
       _confirmarRendicion = false;
     });
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-      backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            reglasGenerala(),
-            style: const TextStyle(
-              color: AppColors.texto,
-              height: 1.35,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, reglasGenerala());
   }
 
   void _abrirMenu() {
@@ -1658,7 +1633,8 @@ class _MenuOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -1795,6 +1771,7 @@ class _MenuOverlay extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -7,11 +7,14 @@ import 'package:flutter/services.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/unoSolo/guia_modo_dios_uno_solo.dart';
 import 'package:app_juegos_mesa/unoSolo/motor_uno_solo.dart';
@@ -56,7 +59,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
   late List<String> _nombres;
   late bool _modoDios;
   late OpcionesUnoSolo _opciones;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
@@ -133,7 +136,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
       return;
     }
     _nombres = List.of(widget.nombres);
-    _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
+    _ajustes = widget.ajustesIniciales ?? AjustesStore.instance.estado;
     if (_esOnline) {
       _esperandoTableroOnline = true;
       _partida = nuevaPartidaUnoSolo(nombres: _nombres, solo: false);
@@ -1014,31 +1017,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                 }),
                 onReglas: () {
                   setState(() => _mostrarMenu = false);
-                  showDialog<void>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: AppColors.carta,
-                      title: const Text(
-                        'Reglas',
-                        style: TextStyle(
-                          color: AppColors.mint,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      content: SingleChildScrollView(
-                        child: Text(
-                          reglasUnoSolo(),
-                          style: const TextStyle(color: AppColors.texto),
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Cerrar'),
-                        ),
-                      ],
-                    ),
-                  );
+                  mostrarCartelReglas(context, reglasUnoSolo());
                 },
                 onSalirORendirse: _partida.terminada
                     ? () {
@@ -1112,7 +1091,8 @@ class _MenuPartidaUnoSolo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -1250,6 +1230,7 @@ class _MenuPartidaUnoSolo extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

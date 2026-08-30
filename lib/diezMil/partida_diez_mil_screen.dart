@@ -13,6 +13,8 @@ import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'diez_mil_online_codec.dart';
@@ -556,39 +558,12 @@ class _PartidaDiezMilScreenState extends State<PartidaDiezMilScreen> {
   }
 
   void _mostrarReglas() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            reglasDe(
+    mostrarCartelReglas(context, reglasDe(
               _partida.modo,
               combosEspeciales: _partida.combosEspeciales,
               escalera: _partida.escalera,
               escaleraCircular: _partida.escaleraCircular,
-            ),
-            style: const TextStyle(
-              color: AppColors.texto,
-              height: 1.35,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+            ));
   }
 
   void _abrirMenu() {
@@ -1628,7 +1603,8 @@ class _PartidaMenuOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -1765,6 +1741,7 @@ class _PartidaMenuOverlay extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

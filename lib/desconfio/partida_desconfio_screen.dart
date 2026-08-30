@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/desconfio/standby_store.dart';
 import 'package:app_juegos_mesa/desconfio/textos.dart';
 import 'package:app_juegos_mesa/desconfio/victoria_desconfio_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -22,6 +23,7 @@ import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart'
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida local / vs PC de Desconfío.
@@ -54,7 +56,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
   late List<String> _nombres;
   late bool _modoDios;
   late DificultadPc _dificultad;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
@@ -358,31 +360,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
   }
 
   void _mostrarReglas() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.azulSuave,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            reglasDesconfio(),
-            style: const TextStyle(color: AppColors.texto, height: 1.35),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, reglasDesconfio());
   }
 
   void _elegirPalo(PaloDesconfio palo) {

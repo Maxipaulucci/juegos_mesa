@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 OverlayEntry? _notificacionTopeActual;
@@ -60,17 +61,25 @@ class _NotificacionTopeState extends State<_NotificacionTope>
   @override
   void initState() {
     super.initState();
+    final conAnim = AjustesStore.instance.animaciones;
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
-      reverseDuration: const Duration(milliseconds: 280),
+      duration: conAnim
+          ? const Duration(milliseconds: 220)
+          : Duration.zero,
+      reverseDuration: conAnim
+          ? const Duration(milliseconds: 280)
+          : Duration.zero,
+      value: conAnim ? 0 : 1,
     );
     _opacidad = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _desplazamiento = Tween<Offset>(
       begin: const Offset(0, -0.25),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    unawaited(_ctrl.forward());
+    if (conAnim) {
+      unawaited(_ctrl.forward());
+    }
     _timer = Timer(widget.duracion, _cerrar);
   }
 
@@ -80,7 +89,9 @@ class _NotificacionTopeState extends State<_NotificacionTope>
       widget.onCerrar();
       return;
     }
-    await _ctrl.reverse();
+    if (AjustesStore.instance.animaciones) {
+      await _ctrl.reverse();
+    }
     if (mounted) widget.onCerrar();
   }
 

@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/casitaRobada/standby_store.dart';
 import 'package:app_juegos_mesa/casitaRobada/textos.dart';
 import 'package:app_juegos_mesa/casitaRobada/victoria_casita_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -22,6 +23,7 @@ import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 
 /// Partida local / vs PC de Casita robada.
 class PartidaCasitaScreen extends StatefulWidget {
@@ -60,7 +62,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
 
   bool get _esLocalHotSeat => !widget.contraPc;
 
@@ -372,34 +374,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
   }
 
   void _mostrarReglas() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            reglasCasitaRobada(),
-            style: const TextStyle(
-              color: AppColors.texto,
-              height: 1.35,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, reglasCasitaRobada());
   }
 
   Future<void> _talVezTurnoPc() async {

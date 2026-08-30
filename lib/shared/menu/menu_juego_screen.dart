@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cuenta/boton_perfil.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
@@ -142,7 +143,7 @@ class MenuJuegoScreen extends StatefulWidget {
 class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
   bool _modoDios = false;
   bool _decidirOrden = false;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   DificultadPc _dificultad = DificultadPc.medio;
   late int _cantidadJugadores;
   late int _cantidadPc;

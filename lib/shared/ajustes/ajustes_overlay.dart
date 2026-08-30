@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Preferencias de la partida (aún sin audio/animaciones reales).
+/// Preferencias de audio y animaciones.
 class AjustesEstado {
   const AjustesEstado({
     this.volumenMusica = 0.8,
@@ -40,9 +42,15 @@ class AjustesOverlay extends StatelessWidget {
   final ValueChanged<AjustesEstado> onChanged;
   final VoidCallback onCerrar;
 
+  void _cambiar(AjustesEstado nuevo) {
+    AjustesStore.instance.actualizar(nuevo);
+    onChanged(nuevo);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.transparent,
       child: Stack(
         children: [
@@ -115,7 +123,7 @@ class AjustesOverlay extends StatelessWidget {
                           const SizedBox(height: 8),
                           _VolumenSlider(
                             valor: ajustes.volumenMusica,
-                            onChanged: (v) => onChanged(
+                            onChanged: (v) => _cambiar(
                               ajustes.copyWith(volumenMusica: v),
                             ),
                           ),
@@ -127,14 +135,14 @@ class AjustesOverlay extends StatelessWidget {
                           const SizedBox(height: 8),
                           _VolumenSlider(
                             valor: ajustes.volumenSonidos,
-                            onChanged: (v) => onChanged(
+                            onChanged: (v) => _cambiar(
                               ajustes.copyWith(volumenSonidos: v),
                             ),
                           ),
                           const SizedBox(height: 22),
                           _ToggleAnimaciones(
                             activo: ajustes.animaciones,
-                            onChanged: (v) => onChanged(
+                            onChanged: (v) => _cambiar(
                               ajustes.copyWith(animaciones: v),
                             ),
                           ),
@@ -147,6 +155,7 @@ class AjustesOverlay extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

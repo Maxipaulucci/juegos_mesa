@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'screens/app_shell.dart';
 import 'screens/home_screen.dart';
 import 'services/usuario_mongo_service.dart';
+import 'shared/ajustes/ajustes_store.dart';
 import 'shared/carga/pantalla_carga.dart';
 import 'shared/persistencia/almacen_local.dart';
 import 'shared/persistencia/standby_restaurar.dart';
@@ -44,6 +45,7 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
   Future<void> _preparar() async {
     await AlmacenLocal.init();
+    AjustesStore.instance.cargar();
     await UsuarioMongoService.instance.restaurarSesionLocal();
     await StandbyRestaurar.todos();
   }

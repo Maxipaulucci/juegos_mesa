@@ -9,6 +9,7 @@ import 'package:app_juegos_mesa/guerraDeCartas/standby_store.dart';
 import 'package:app_juegos_mesa/guerraDeCartas/textos.dart';
 import 'package:app_juegos_mesa/guerraDeCartas/victoria_guerra_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_inglesa_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -17,6 +18,7 @@ import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart'
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida local / vs PC de Guerra de cartas.
@@ -45,7 +47,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
   late List<String> _nombres;
   late bool _modoDios;
   late OpcionesGuerra _opciones;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
@@ -170,31 +172,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
   }
 
   void _mostrarReglas() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.azul,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            TextosGuerra.reglas(),
-            style: const TextStyle(color: AppColors.texto, height: 1.35),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, TextosGuerra.reglas());
   }
 
   void _rendirse() {

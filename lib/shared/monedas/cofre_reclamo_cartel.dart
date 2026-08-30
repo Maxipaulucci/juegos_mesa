@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -123,7 +124,12 @@ class _CartelCofreReclamadoState extends State<CartelCofreReclamado>
       curve: const Interval(0.65, 1.0, curve: Curves.easeOut),
     );
 
-    _ctrl.forward();
+    if (AjustesStore.instance.animaciones) {
+      _ctrl.forward();
+    } else {
+      _ctrl.value = 1;
+      _listoParaCerrar = true;
+    }
   }
 
   @override

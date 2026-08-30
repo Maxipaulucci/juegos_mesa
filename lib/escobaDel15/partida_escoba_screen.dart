@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -15,6 +15,7 @@ import 'package:app_juegos_mesa/escobaDel15/victoria_escoba_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -27,6 +28,7 @@ import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart'
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida de Escoba del 15.
@@ -60,7 +62,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
   late PartidaEscoba _partida;
   late List<String> _nombres;
   late OpcionesEscoba _opciones;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
@@ -347,7 +349,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
       return;
     }
     _nombres = List.of(widget.nombres);
-    _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
+    _ajustes = widget.ajustesIniciales ?? AjustesStore.instance.estado;
     _opciones = widget.opciones;
     if (_esOnline) {
       _esperandoMazoOnline = true;
@@ -1438,31 +1440,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
                 }),
                 onReglas: () {
                   setState(() => _mostrarMenu = false);
-                  showDialog<void>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: AppColors.carta,
-                      title: const Text(
-                        'Reglas',
-                        style: TextStyle(
-                          color: AppColors.mint,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      content: SingleChildScrollView(
-                        child: Text(
-                          reglasEscobaDel15(),
-                          style: const TextStyle(color: AppColors.texto),
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Cerrar'),
-                        ),
-                      ],
-                    ),
-                  );
+                  mostrarCartelReglas(context, reglasEscobaDel15());
                 },
                 onSalirORendirse: _partida.terminada
                     ? () {

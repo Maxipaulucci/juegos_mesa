@@ -15,6 +15,7 @@ import 'package:app_juegos_mesa/culoSucioV2/victoria_culo_sucio_v2_overlay.dart'
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -28,6 +29,7 @@ import 'package:app_juegos_mesa/shared/partida_ui/cambio_jugador_overlay.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 /// Partida local / vs PC / online de Culo sucio v2.
@@ -63,7 +65,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   late List<String> _nombres;
   late OpcionesCuloSucioV2 _opciones;
   late bool _modoDios;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
   bool _confirmarRendicion = false;
@@ -321,7 +323,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
       return;
     }
     _opciones = widget.opciones;
-    _ajustes = widget.ajustesIniciales ?? const AjustesEstado();
+    _ajustes = widget.ajustesIniciales ?? AjustesStore.instance.estado;
     if (_esOnline) {
       _esperandoMazoOnline = true;
       _partida = nuevaPartidaCuloSucioV2(
@@ -510,31 +512,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   }
 
   void _mostrarDialogoReglas() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            TextosCuloSucioV2.reglasCompletas(),
-            style: const TextStyle(color: AppColors.texto, height: 1.35),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, TextosCuloSucioV2.reglasCompletas());
   }
 
   void _salirAlMenu({required bool guardar}) {

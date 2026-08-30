@@ -18,6 +18,8 @@ import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 class PartidaLaPapaScreen extends StatefulWidget {
@@ -1038,34 +1040,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
       _mostrarMenu = false;
       _confirmarRendicion = false;
     });
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            reglasLaPapa(opciones: _opciones),
-            style: const TextStyle(
-              color: AppColors.texto,
-              height: 1.35,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, reglasLaPapa(opciones: _opciones));
   }
 
   void _salirAlMenu() {
@@ -1869,7 +1844,8 @@ class _MenuOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -2008,6 +1984,7 @@ class _MenuOverlay extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

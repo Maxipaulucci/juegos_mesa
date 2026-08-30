@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay_store.dart';
 import 'package:app_juegos_mesa/shared/cuenta/racha_perfil.dart';
 import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
 enum _Pestania { login, registro }
@@ -33,6 +35,8 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   _Pestania _tab = _Pestania.login;
   _VistaCuenta _vista = _VistaCuenta.auth;
   bool _verificando = false;
+  /// 1 = hacia registro · -1 = hacia login (para el desliz del AnimatedSwitcher).
+  int _dirCambioTab = 1;
 
   final _usuario = TextEditingController();
   final _email = TextEditingController();
@@ -331,7 +335,8 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           )
         : const EdgeInsets.fromLTRB(22, 62, 22, 22);
 
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.transparent,
       child: Stack(
         children: [
@@ -410,6 +415,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -423,10 +429,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
               child: _tabBtn(
                 'Iniciar sesión',
                 _tab == _Pestania.login,
-                () => setState(() {
-                  _tab = _Pestania.login;
-                  _error = null;
-                }),
+                () {
+                  if (_tab == _Pestania.login) return;
+                  setState(() {
+                    _dirCambioTab = -1;
+                    _tab = _Pestania.login;
+                    _error = null;
+                  });
+                },
               ),
             ),
             const SizedBox(width: 10),
@@ -434,10 +444,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
               child: _tabBtn(
                 'Registrarse',
                 _tab == _Pestania.registro,
-                () => setState(() {
-                  _tab = _Pestania.registro;
-                  _error = null;
-                }),
+                () {
+                  if (_tab == _Pestania.registro) return;
+                  setState(() {
+                    _dirCambioTab = 1;
+                    _tab = _Pestania.registro;
+                    _error = null;
+                  });
+                },
               ),
             ),
           ],
@@ -454,7 +468,47 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           ),
           const SizedBox(height: 10),
         ],
-        if (_tab == _Pestania.login) ..._camposLogin() else ..._camposRegistro(),
+        AnimatedSwitcher(
+          duration: AjustesStore.instance.animaciones
+              ? const Duration(milliseconds: 280)
+              : Duration.zero,
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, anim) {
+            final desliz = Tween<Offset>(
+              begin: Offset(_dirCambioTab * 0.12, 0.02),
+              end: Offset.zero,
+            ).animate(anim);
+            return FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: desliz,
+                child: child,
+              ),
+            );
+          },
+          layoutBuilder: (currentChild, previousChildren) {
+            return Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                ...previousChildren,
+                if (currentChild != null) currentChild,
+              ],
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey(_tab),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_tab == _Pestania.login)
+                  ..._camposLogin()
+                else
+                  ..._camposRegistro(),
+              ],
+            ),
+          ),
+        ),
         if (_cargando) ...[
           const SizedBox(height: 12),
           const Center(

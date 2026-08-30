@@ -22,7 +22,7 @@ import 'package:app_juegos_mesa/jodete/textos.dart';
 import 'package:app_juegos_mesa/laPapa/opciones_la_papa.dart';
 import 'package:app_juegos_mesa/laPapa/partida_la_papa_screen.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
-import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/carga/pantalla_carga.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/salas/sala_form_store.dart';
@@ -226,7 +226,7 @@ void iniciarPartidaDesdeSalaHub(
         builder: (_) => PartidaChanchoVaScreen(
           nombres: nombres,
           contraPc: true,
-          ajustesIniciales: const AjustesEstado(),
+          ajustesIniciales: AjustesStore.instance.estado,
           opciones: const OpcionesChanchoVa(),
           salaCodigo: inicio.salaCodigo,
           miNombre: inicio.miNombre,

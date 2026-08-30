@@ -7,6 +7,8 @@ import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
+import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 import 'package:app_juegos_mesa/tutiFruti/menu_tuti_fruti_screen.dart';
 import 'package:app_juegos_mesa/tutiFruti/motor_tuti_fruti.dart';
@@ -408,39 +410,7 @@ class _PartidaTutiFrutiScreenState extends State<PartidaTutiFrutiScreen> {
 
   void _abrirReglas() {
     _cerrarMenu();
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.carta,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'REGLAS · TUTTI FRUTTI',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.acento,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                reglasTutiFruti(),
-                style: const TextStyle(color: AppColors.texto, height: 1.45),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    mostrarCartelReglas(context, reglasTutiFruti());
   }
 
   Future<void> _rendirse() async {
@@ -1482,7 +1452,8 @@ class _MenuOverlayTuti extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return AnimacionOverlayEntrada(
+      child: Material(
       color: Colors.black.withValues(alpha: 0.72),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -1621,6 +1592,7 @@ class _MenuOverlayTuti extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -14,6 +14,7 @@ import 'package:app_juegos_mesa/chanchoVa/victoria_chancho_va_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -27,6 +28,7 @@ import 'package:app_juegos_mesa/shared/partida_ui/epic_backdrop.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/nombre_jugador_editable.dart';
 import 'package:app_juegos_mesa/shared/partida_ui/reiniciar_partida_pc.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 
 /// Partida de Chancho va (vs PC / online).
 class PartidaChanchoVaScreen extends StatefulWidget {
@@ -78,7 +80,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   String? _objetivoChancha;
   bool _cronoEsRespuestaChancha = false;
   final math.Random _rng = math.Random();
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   late OpcionesChanchoVa _opciones;
   bool _mostrarMenu = false;
   bool _mostrarAjustes = false;
@@ -294,7 +296,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     final resume = widget.resume;
     _ajustes = resume?.ajustesIniciales ??
         widget.ajustesIniciales ??
-        const AjustesEstado();
+        AjustesStore.instance.estado;
     _opciones = resume?.opciones ?? widget.opciones;
     _nombres = List.of(resume?.nombres ?? widget.nombres);
     if (resume != null) {
@@ -1396,34 +1398,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   }
 
   void _mostrarReglas() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            TextosChancho.reglas(),
-            style: const TextStyle(
-              color: AppColors.texto,
-              height: 1.35,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, TextosChancho.reglas());
   }
 
   PaloEspanolVisual _paloVisual(PaloChancho p) => switch (p) {

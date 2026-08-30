@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:app_juegos_mesa/shared/ui/cartel_reglas.dart';
 
 import '../casitaRobada/menu_casita_robada_screen.dart';
 import '../casitaRobada/textos.dart';
@@ -28,6 +29,7 @@ import '../jodete/textos.dart';
 import '../laPapa/menu_la_papa_screen.dart';
 import '../laPapa/textos.dart';
 import '../shared/ajustes/ajustes_overlay.dart';
+import '../shared/ajustes/ajustes_store.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
 import '../services/usuario_mongo_service.dart';
@@ -166,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _mostrarCuenta = false;
   String? _avisoExito;
   int _avisoToken = 0;
-  AjustesEstado _ajustes = const AjustesEstado();
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
   _TipoJuegoHome? _esloganAbierto;
   late final AnimationController _entrada;
   late final AnimationController _listaEntrada;
@@ -368,14 +370,25 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    final conAnim = _ajustes.animaciones;
     _entrada = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..forward();
+      duration: conAnim
+          ? const Duration(milliseconds: 1200)
+          : Duration.zero,
+      value: conAnim ? 0 : 1,
+    );
     _listaEntrada = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
+      duration: conAnim
+          ? const Duration(milliseconds: 700)
+          : Duration.zero,
+      value: conAnim ? 0 : 1,
+    );
+    if (conAnim) {
+      _entrada.forward();
+      _listaEntrada.forward();
+    }
 
     _tituloOpacidad = CurvedAnimation(
       parent: _entrada,
@@ -646,34 +659,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _mostrarDialogoReglas(String texto) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.carta,
-        title: const Text(
-          'Reglas',
-          style: TextStyle(
-            color: AppColors.mint,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Text(
-            texto,
-            style: const TextStyle(
-              color: AppColors.texto,
-              height: 1.35,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
+    mostrarCartelReglas(context, texto);
   }
 
   VoidCallback? _onReglasDe(_JuegoHome juego) {

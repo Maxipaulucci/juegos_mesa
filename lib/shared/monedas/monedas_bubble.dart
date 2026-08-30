@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/shared/monedas/cartel_como_ganar_monedas.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
@@ -29,7 +30,23 @@ class _MonedasBubbleState extends State<MonedasBubble>
     _ctrl = AnimationController(
       vsync: this,
       duration: _duracionBarrido + _pausaReflejo,
-    )..repeat();
+    );
+    AjustesStore.instance.addListener(_onAjustes);
+    _sincronizarAnimacion();
+  }
+
+  void _onAjustes() {
+    _sincronizarAnimacion();
+    if (mounted) setState(() {});
+  }
+
+  void _sincronizarAnimacion() {
+    if (AjustesStore.instance.animaciones) {
+      if (!_ctrl.isAnimating) _ctrl.repeat();
+    } else {
+      _ctrl.stop();
+      _ctrl.value = 0;
+    }
   }
 
   /// 0→1 durante el barrido; -1 en la pausa (reflejo oculto).
@@ -48,6 +65,7 @@ class _MonedasBubbleState extends State<MonedasBubble>
 
   @override
   void dispose() {
+    AjustesStore.instance.removeListener(_onAjustes);
     _ctrl.dispose();
     super.dispose();
   }
@@ -61,6 +79,11 @@ class _MonedasBubbleState extends State<MonedasBubble>
           return const SizedBox.shrink();
         }
         final n = MonedasStore.instance.monedas;
+        final conAnim = AjustesStore.instance.animaciones;
+
+        if (!conAnim) {
+          return _burbujaEstatica(n);
+        }
 
         return AnimatedBuilder(
           animation: _ctrl,
@@ -224,6 +247,48 @@ class _MonedasBubbleState extends State<MonedasBubble>
           },
         );
       },
+    );
+  }
+
+  Widget _burbujaEstatica(int n) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => mostrarCartelComoGanarMonedas(context),
+        borderRadius: _radio,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.carta,
+            borderRadius: _radio,
+            border: Border.all(
+              color: AppColors.acento.withValues(alpha: 0.9),
+              width: 1.8,
+            ),
+            boxShadow: neonGlow(AppColors.acento, blur: 12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.monetization_on_rounded,
+                color: AppColors.acento,
+                size: 22,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                formatoNumero(n),
+                style: const TextStyle(
+                  color: AppColors.texto,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
