@@ -755,26 +755,40 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         centerTitle: true,
-        leadingWidth: 108,
-        leading: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back),
-              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 48),
-              onPressed: () => Navigator.maybePop(context),
-            ),
-            BotonPerfil(
-              tamano: 40,
-              onTap: () {
-                setState(() {
-                  _accionTrasSesion = null;
-                  _mostrarCuenta = true;
-                });
-              },
-            ),
-          ],
+        toolbarHeight: 78,
+        leadingWidth: 48,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              BotonPerfil(
+                tamano: 40,
+                onTap: () {
+                  setState(() {
+                    _accionTrasSesion = null;
+                    _mostrarCuenta = true;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              Tooltip(
+                message: MaterialLocalizations.of(context).backButtonTooltip,
+                child: InkWell(
+                  onTap: () => Navigator.maybePop(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Icon(
+                      Icons.arrow_back,
+                      size: 22,
+                      color: AppColors.texto,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         title: Text(widget.titulo),
         actions: [
@@ -795,7 +809,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
           LayoutBuilder(
         builder: (context, constraints) {
           const padH = 24.0;
-          const padVTop = 12.0;
+          const padVTop = 0.0;
           const padVBot = 16.0;
           final anchoUtil = constraints.maxWidth - padH * 2;
           return Padding(
