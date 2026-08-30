@@ -991,64 +991,83 @@ class _HomeScreenState extends State<HomeScreen>
                               Padding(
                                 padding:
                                     const EdgeInsets.symmetric(horizontal: 48),
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                  ShaderMask(
-                                        blendMode: BlendMode.srcIn,
-                                        shaderCallback: (bounds) =>
-                                            const LinearGradient(
-                                          colors: [
-                                            Colors.white,
-                                            AppColors.acento,
-                                            AppColors.azul,
-                                          ],
-                    ).createShader(bounds),
-                    child: const Text(
-                                          'Juegos de mesa ',
-                      style: TextStyle(
-                        color: Colors.white,
-                                            fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                                            letterSpacing: 0.4,
-                                            height: 1.05,
-                      ),
-                    ),
-                  ),
-                                      ShaderMask(
-                                        blendMode: BlendMode.srcIn,
-                                        shaderCallback: (bounds) =>
-                                            const LinearGradient(
-                                          colors: [
-                                            AppColors.azul,
-                                            Colors.white,
-                                            AppColors.acento,
-                                            Colors.white,
-                                            AppColors.azul,
-                                          ],
-                                          stops: [
-                                            0,
-                                            0.28,
-                                            0.5,
-                                            0.72,
-                                            1,
-                                          ],
-                                        ).createShader(bounds),
-                                        child: const Text(
-                                          'Argentos',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.w900,
-                                            letterSpacing: 0.4,
-                                            height: 1.05,
-                                          ),
+                                child: Builder(
+                                  builder: (context) {
+                                    final tituloCelular = _esCelular(
+                                      MediaQuery.sizeOf(context).width,
+                                    );
+                                    final juegosDeMesa = ShaderMask(
+                                      blendMode: BlendMode.srcIn,
+                                      shaderCallback: (bounds) =>
+                                          const LinearGradient(
+                                        colors: [
+                                          Colors.white,
+                                          AppColors.acento,
+                                          AppColors.azul,
+                                        ],
+                                      ).createShader(bounds),
+                                      child: Text(
+                                        tituloCelular
+                                            ? 'Juegos de mesa'
+                                            : 'Juegos de mesa ',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 0.4,
+                                          height: 1.05,
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                    final argentos = ShaderMask(
+                                      blendMode: BlendMode.srcIn,
+                                      shaderCallback: (bounds) =>
+                                          const LinearGradient(
+                                        colors: [
+                                          AppColors.azul,
+                                          Colors.white,
+                                          AppColors.acento,
+                                          Colors.white,
+                                          AppColors.azul,
+                                        ],
+                                        stops: [
+                                          0,
+                                          0.28,
+                                          0.5,
+                                          0.72,
+                                          1,
+                                        ],
+                                      ).createShader(bounds),
+                                      child: const Text(
+                                        'Argentos',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 0.4,
+                                          height: 1.05,
+                                        ),
+                                      ),
+                                    );
+                                    return FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: tituloCelular
+                                          ? Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                juegosDeMesa,
+                                                argentos,
+                                              ],
+                                            )
+                                          : Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                juegosDeMesa,
+                                                argentos,
+                                              ],
+                                            ),
+                                    );
+                                  },
                                 ),
                               ),
                               const SizedBox(height: 4),
