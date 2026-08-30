@@ -56,6 +56,10 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   final _focusNuevaPass = FocusNode();
   final _focusNuevaPass2 = FocusNode();
 
+  final _scrollCuenta = ScrollController();
+  final _claveCtaLogin = GlobalKey();
+  final _claveCtaRegistro = GlobalKey();
+
   bool _ocultarPass = true;
   bool _ocultarPass2 = true;
   bool _ocultarNueva = true;
@@ -68,10 +72,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   void initState() {
     super.initState();
     CuentaOverlayStore.instance.abrir();
+    _focusLoginPass.addListener(_onFocusLoginPass);
+    _focusRegPass2.addListener(_onFocusRegPass2);
   }
 
   @override
   void dispose() {
+    _focusLoginPass.removeListener(_onFocusLoginPass);
+    _focusRegPass2.removeListener(_onFocusRegPass2);
     CuentaOverlayStore.instance.cerrar();
     _usuario.dispose();
     _email.dispose();
@@ -93,7 +101,37 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     _focusRecupCodigo.dispose();
     _focusNuevaPass.dispose();
     _focusNuevaPass2.dispose();
+    _scrollCuenta.dispose();
     super.dispose();
+  }
+
+  /// Solo celular: al enfocar el último campo, baja el scroll para
+  /// dejar visibles el campo anterior y el botón de enviar.
+  void _onFocusLoginPass() {
+    if (_focusLoginPass.hasFocus) _scrollCtaSiCelular(_claveCtaLogin);
+  }
+
+  void _onFocusRegPass2() {
+    if (_focusRegPass2.hasFocus) _scrollCtaSiCelular(_claveCtaRegistro);
+  }
+
+  void _scrollCtaSiCelular(GlobalKey key) {
+    if (!mounted || !_esCelular(context)) return;
+    void ir() {
+      final ctx = key.currentContext;
+      if (!mounted || ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+        alignment: 1,
+      );
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ir();
+      Future<void>.delayed(const Duration(milliseconds: 350), ir);
+    });
   }
 
   Future<void> _correr(Future<void> Function() fn) async {
@@ -272,13 +310,17 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   Widget build(BuildContext context) {
     final celular = _esCelular(context);
     final perfil = _api.haySesion;
+    final teclado = MediaQuery.viewInsetsOf(context).bottom;
     // Perfil: cartel compacto al contenido. Auth/recup: más alto con scroll.
     final maxW = perfil ? (celular ? 400.0 : 440.0) : 420.0;
     final maxH = perfil
         ? MediaQuery.sizeOf(context).height * 0.88
-        : 640.0;
+        : celular
+            ? (MediaQuery.sizeOf(context).height - teclado - 24)
+                .clamp(240.0, 640.0)
+            : 640.0;
     final paddingModal = celular
-        ? const EdgeInsets.symmetric(horizontal: 16, vertical: 20)
+        ? EdgeInsets.fromLTRB(16, 12, 16, teclado > 0 ? 8 : 20)
         : const EdgeInsets.symmetric(horizontal: 24, vertical: 28);
     final paddingCuerpo = perfil
         ? EdgeInsets.fromLTRB(
@@ -331,6 +373,9 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
                           Padding(
                             padding: paddingCuerpo,
                             child: SingleChildScrollView(
+                              controller: _scrollCuenta,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.manual,
                               child: _cuerpoModal(),
                             ),
                           ),
@@ -453,6 +498,9 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         onEnviar: (_) {
           if (!_cargando) _login();
         },
+        paddingScroll: _esCelular(context)
+            ? const EdgeInsets.only(bottom: 120)
+            : null,
       ),
       const SizedBox(height: 8),
       Align(
@@ -475,7 +523,10 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         ),
       ),
       const SizedBox(height: 16),
-      _cta('Iniciar sesión', _cargando ? null : _login),
+      KeyedSubtree(
+        key: _claveCtaLogin,
+        child: _cta('Iniciar sesión', _cargando ? null : _login),
+      ),
     ];
   }
 
@@ -534,9 +585,15 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
         onEnviar: (_) {
           if (!_cargando) _registrar();
         },
+        paddingScroll: _esCelular(context)
+            ? const EdgeInsets.only(bottom: 120)
+            : null,
       ),
       const SizedBox(height: 16),
-      _cta('Registrarse', _cargando ? null : _registrar),
+      KeyedSubtree(
+        key: _claveCtaRegistro,
+        child: _cta('Registrarse', _cargando ? null : _registrar),
+      ),
     ];
   }
 
@@ -986,6 +1043,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     List<TextInputFormatter> extraFormatters = const [],
     TextInputAction accionTeclado = TextInputAction.next,
     ValueChanged<String>? onEnviar,
+    EdgeInsets? paddingScroll,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1007,6 +1065,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           keyboardType: teclado,
           textInputAction: accionTeclado,
           onSubmitted: onEnviar,
+          scrollPadding: paddingScroll ?? const EdgeInsets.all(20),
           inputFormatters: [
             if (maxChars != null) LengthLimitingTextInputFormatter(maxChars),
             if (teclado == TextInputType.number)
