@@ -93,8 +93,8 @@ class _CartelComoGanarMonedas extends StatelessWidget {
               titulo: 'Compras en la app',
               descripcion:
                   'En la sección Tienda podés comprar paquetes de monedas: '
-                  '1.000 (US\$ 1), 7.500 (US\$ 5), 50.000 (US\$ 25) '
-                  'y el MEGA PACK de 250.000 (US\$ 100).',
+                  '1.000 (US\$ 0.99), 7.500 (US\$ 4.99), 50.000 (US\$ 24.99) '
+                  'y el MEGA PACK de 250.000 (US\$ 99.99).',
             ),
           ],
         ),

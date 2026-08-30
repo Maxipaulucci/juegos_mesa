@@ -9,14 +9,14 @@ class TiendaScreen extends StatelessWidget {
   const TiendaScreen({super.key});
 
   static const _basicos = <_PaqueteMonedas>[
-    _PaqueteMonedas(monedas: 1000, precioUsd: 1),
-    _PaqueteMonedas(monedas: 7500, precioUsd: 5),
-    _PaqueteMonedas(monedas: 50000, precioUsd: 25),
+    _PaqueteMonedas(monedas: 1000, precioUsd: 0.99),
+    _PaqueteMonedas(monedas: 7500, precioUsd: 4.99),
+    _PaqueteMonedas(monedas: 50000, precioUsd: 24.99),
   ];
 
   static const _mega = _PaqueteMonedas(
     monedas: 250000,
-    precioUsd: 100,
+    precioUsd: 99.99,
     premium: true,
   );
 
