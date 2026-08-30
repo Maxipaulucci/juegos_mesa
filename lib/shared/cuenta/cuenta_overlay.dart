@@ -31,13 +31,13 @@ class CuentaOverlay extends StatefulWidget {
   State<CuentaOverlay> createState() => _CuentaOverlayState();
 }
 
-class _CuentaOverlayState extends State<CuentaOverlay> {
+class _CuentaOverlayState extends State<CuentaOverlay>
+    with SingleTickerProviderStateMixin {
   final _api = UsuarioMongoService.instance;
   _Pestania _tab = _Pestania.login;
   _VistaCuenta _vista = _VistaCuenta.auth;
   bool _verificando = false;
-  /// 1 = hacia registro · -1 = hacia login (para el desliz del AnimatedSwitcher).
-  int _dirCambioTab = 1;
+  late final AnimationController _authTabCtrl;
 
   final _usuario = TextEditingController();
   final _email = TextEditingController();
@@ -76,9 +76,133 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   @override
   void initState() {
     super.initState();
+    _authTabCtrl = AnimationController(
+      vsync: this,
+      value: 0,
+      duration: const Duration(milliseconds: 480),
+    );
     CuentaOverlayStore.instance.abrir();
     _focusLoginPass.addListener(_onFocusLoginPass);
     _focusRegPass2.addListener(_onFocusRegPass2);
+  }
+
+  Duration get _duracionTabAuth =>
+      AjustesStore.instance.animaciones
+          ? const Duration(milliseconds: 480)
+          : Duration.zero;
+
+  void _cambiarTabAuth(_Pestania tab) {
+    if (_tab == tab) return;
+    setState(() {
+      _tab = tab;
+      _error = null;
+    });
+    final destino = tab == _Pestania.registro ? 1.0 : 0.0;
+    if (!AjustesStore.instance.animaciones) {
+      _authTabCtrl.value = destino;
+      return;
+    }
+    _authTabCtrl.animateTo(
+      destino,
+      duration: _duracionTabAuth,
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  /// Desvanecimiento escalonado al salir (t: 0 = login · 1 = registro).
+  double _opacidadSalida(int indice, double t) {
+    const paso = 0.065;
+    const ventana = 0.34;
+    final inicio = indice * paso;
+    if (t <= inicio) return 1;
+    if (t >= inicio + ventana) return 0;
+    return 1 - (t - inicio) / ventana;
+  }
+
+  /// Aparición escalonada al entrar.
+  double _opacidadEntrada(int indice, double t) {
+    const paso = 0.065;
+    const ventana = 0.34;
+    final inicio = indice * paso;
+    if (t <= inicio) return 0;
+    if (t >= inicio + ventana) return 1;
+    return (t - inicio) / ventana;
+  }
+
+  Widget _capaCamposFade({
+    required List<Widget> campos,
+    required double Function(int indice, double t) opacidad,
+    required double t,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < campos.length; i++)
+          Opacity(
+            opacity: opacidad(i, t).clamp(0.0, 1.0),
+            child: campos[i],
+          ),
+      ],
+    );
+  }
+
+  Widget _formularioAuthAnimado() {
+    final dur = _duracionTabAuth;
+    final login = _camposLogin();
+    final registro = _camposRegistro();
+
+    return AnimatedBuilder(
+      animation: _authTabCtrl,
+      builder: (context, _) {
+        final t = _authTabCtrl.value;
+        return AnimatedSize(
+          duration: dur,
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              Opacity(
+                opacity: 0,
+                child: IgnorePointer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _tab == _Pestania.login ? login : registro,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  ignoring: t > 0.5,
+                  child: _capaCamposFade(
+                    campos: login,
+                    opacidad: _opacidadSalida,
+                    t: t,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  ignoring: t < 0.5,
+                  child: _capaCamposFade(
+                    campos: registro,
+                    opacidad: _opacidadEntrada,
+                    t: t,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -107,6 +231,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
     _focusNuevaPass.dispose();
     _focusNuevaPass2.dispose();
     _scrollCuenta.dispose();
+    _authTabCtrl.dispose();
     super.dispose();
   }
 
@@ -233,6 +358,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   }
 
   void _volverLogin() {
+    _authTabCtrl.value = 0;
     setState(() {
       _vista = _VistaCuenta.auth;
       _tab = _Pestania.login;
@@ -430,14 +556,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
               child: _tabBtn(
                 'Iniciar sesión',
                 _tab == _Pestania.login,
-                () {
-                  if (_tab == _Pestania.login) return;
-                  setState(() {
-                    _dirCambioTab = -1;
-                    _tab = _Pestania.login;
-                    _error = null;
-                  });
-                },
+                () => _cambiarTabAuth(_Pestania.login),
               ),
             ),
             const SizedBox(width: 10),
@@ -445,14 +564,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
               child: _tabBtn(
                 'Registrarse',
                 _tab == _Pestania.registro,
-                () {
-                  if (_tab == _Pestania.registro) return;
-                  setState(() {
-                    _dirCambioTab = 1;
-                    _tab = _Pestania.registro;
-                    _error = null;
-                  });
-                },
+                () => _cambiarTabAuth(_Pestania.registro),
               ),
             ),
           ],
@@ -469,47 +581,7 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
           ),
           const SizedBox(height: 10),
         ],
-        AnimatedSwitcher(
-          duration: AjustesStore.instance.animaciones
-              ? const Duration(milliseconds: 280)
-              : Duration.zero,
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, anim) {
-            final desliz = Tween<Offset>(
-              begin: Offset(_dirCambioTab * 0.12, 0.02),
-              end: Offset.zero,
-            ).animate(anim);
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: desliz,
-                child: child,
-              ),
-            );
-          },
-          layoutBuilder: (currentChild, previousChildren) {
-            return Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                ...previousChildren,
-                if (currentChild != null) currentChild,
-              ],
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey(_tab),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_tab == _Pestania.login)
-                  ..._camposLogin()
-                else
-                  ..._camposRegistro(),
-              ],
-            ),
-          ),
-        ),
+        _formularioAuthAnimado(),
         if (_cargando) ...[
           const SizedBox(height: 12),
           const Center(
