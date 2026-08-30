@@ -468,11 +468,13 @@ class _CuentaOverlayState extends State<CuentaOverlay>
       child: Stack(
         children: [
           Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: widget.onCerrar,
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: 0.72),
+            child: OverlayFondoEntrada(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onCerrar,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.72),
+                ),
               ),
             ),
           ),
@@ -484,7 +486,8 @@ class _CuentaOverlayState extends State<CuentaOverlay>
                   padding: paddingModal,
                   child: GestureDetector(
                     onTap: () {},
-                    child: Container(
+                    child: OverlayCartelEntrada(
+                      child: Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
@@ -504,17 +507,24 @@ class _CuentaOverlayState extends State<CuentaOverlay>
                         children: [
                           Padding(
                             padding: paddingCuerpo,
-                            child: SingleChildScrollView(
-                              controller: _scrollCuenta,
-                              keyboardDismissBehavior:
-                                  ScrollViewKeyboardDismissBehavior.manual,
-                              child: _cuerpoModal(),
+                            child: OverlayItemEntrada(
+                              indice: 0,
+                              total: 2,
+                              child: SingleChildScrollView(
+                                controller: _scrollCuenta,
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.manual,
+                                child: _cuerpoModal(),
+                              ),
                             ),
                           ),
                           Positioned(
                             top: 14,
                             right: 8,
-                            child: Material(
+                            child: OverlayItemEntrada(
+                              indice: 1,
+                              total: 2,
+                              child: Material(
                               color: AppColors.carta,
                               shape: const CircleBorder(),
                               child: InkWell(
@@ -531,9 +541,11 @@ class _CuentaOverlayState extends State<CuentaOverlay>
                                 ),
                               ),
                             ),
+                            ),
                           ),
                         ],
                       ),
+                    ),
                     ),
                   ),
                 ),
@@ -547,7 +559,7 @@ class _CuentaOverlayState extends State<CuentaOverlay>
   }
 
   Widget _pantallaAuth() {
-    return Column(
+    return OverlayColumnaEntrada(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
@@ -1028,8 +1040,7 @@ class _CuentaOverlayState extends State<CuentaOverlay>
     final tamLetra = celular ? 26.0 : 32.0;
     final tamNick = celular ? 20.0 : 22.0;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return OverlayColumnaEntrada(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Center(

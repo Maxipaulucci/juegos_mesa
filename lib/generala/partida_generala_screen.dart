@@ -1639,143 +1639,155 @@ class _MenuOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimacionOverlayEntrada(
       child: Material(
-      color: Colors.black.withValues(alpha: 0.72),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onCerrar,
-        child: SafeArea(
-          child: Center(
-            child: GestureDetector(
-        onTap: () {},
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 380),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Container(
-          width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-              colors: [
-                          Color(0xFF3B1D6E),
-                          Color(0xFF1A0A33),
-                          Color(0xFF2A1050),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.acento, width: 2),
-                      boxShadow: neonGlow(AppColors.acento, blur: 18),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-            children: [
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'MENÚ',
-                style: TextStyle(
-                                  color: AppColors.acento,
-                                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
+        color: Colors.transparent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            OverlayFondoEntrada(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onCerrar,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.72),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {},
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: OverlayCartelEntrada(
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF3B1D6E),
+                                Color(0xFF1A0A33),
+                                Color(0xFF2A1050),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: AppColors.acento, width: 2),
+                            boxShadow: neonGlow(AppColors.acento, blur: 18),
+                          ),
+                          child: OverlayColumnaEntrada(
+                            children: [
+                              Row(
+                                children: [
+                                  const Expanded(
+                                    child: Text(
+                                      'MENÚ',
+                                      style: TextStyle(
+                                        color: AppColors.acento,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: onCerrar,
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: AppColors.texto,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                jugador.toUpperCase(),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.texto,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1,
+                                  shadows: [
+                                    Shadow(
+                                      color: AppColors.acento.withValues(alpha: 0.7),
+                                      blurRadius: 14,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                            IconButton(
-                              onPressed: onCerrar,
-                              icon: const Icon(
-                                Icons.close,
-                                color: AppColors.texto,
+                              const SizedBox(height: 6),
+                              Text(
+                                partidaTerminada
+                                    ? 'Partida terminada'
+                                    : 'Turno actual',
+                                style: TextStyle(
+                                  color: AppColors.textoSuave.withValues(alpha: 0.95),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          jugador.toUpperCase(),
-                          textAlign: TextAlign.center,
-                  style: TextStyle(
-                            color: AppColors.texto,
-                            fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                            shadows: [
-                              Shadow(
-                                color: AppColors.acento.withValues(alpha: 0.7),
-                                blurRadius: 14,
+                              const SizedBox(height: 22),
+                              _ArcadeButton(
+                                label: 'REGLAS',
+                                icon: Icons.menu_book_rounded,
+                                tono: _BotonTono.azul,
+                                onPressed: onReglas,
                               ),
+                              const SizedBox(height: 10),
+                              if (partidaTerminada || esContraPc)
+                                _ArcadeButton(
+                                  label: 'SALIR',
+                                  icon: Icons.logout_rounded,
+                                  tono: _BotonTono.rojo,
+                                  onPressed: onSalirORendirse,
+                                )
+                              else if (!confirmarRendicion)
+                                _ArcadeButton(
+                                  label: 'RENDIRSE',
+                                  icon: Icons.flag_rounded,
+                                  tono: _BotonTono.rojo,
+                                  onPressed: onSalirORendirse,
+                                )
+                              else ...[
+                                const Text(
+                                  '¿Confirmás tu derrota?',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: AppColors.peligro,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                _ArcadeButton(
+                                  label: 'CONFIRMAR RENDICIÓN',
+                                  icon: Icons.check_circle_outline,
+                                  tono: _BotonTono.rojo,
+                                  onPressed: onConfirmarRendicion,
+                                ),
+                                const SizedBox(height: 10),
+                                _ArcadeButton(
+                                  label: 'CANCELAR',
+                                  icon: Icons.close,
+                                  tono: _BotonTono.violeta,
+                                  onPressed: onCancelarRendicion,
+                                ),
+                              ],
                             ],
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          partidaTerminada ? 'Partida terminada' : 'Turno actual',
-                          style: TextStyle(
-                            color:
-                                AppColors.textoSuave.withValues(alpha: 0.95),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        _ArcadeButton(
-                          label: 'REGLAS',
-                          icon: Icons.menu_book_rounded,
-                          tono: _BotonTono.azul,
-                          onPressed: onReglas,
-                        ),
-                        const SizedBox(height: 10),
-                        if (partidaTerminada || esContraPc)
-                          _ArcadeButton(
-                            label: 'SALIR',
-                            icon: Icons.logout_rounded,
-                            tono: _BotonTono.rojo,
-                            onPressed: onSalirORendirse,
-                          )
-                        else if (!confirmarRendicion)
-                          _ArcadeButton(
-                            label: 'RENDIRSE',
-                            icon: Icons.flag_rounded,
-                            tono: _BotonTono.rojo,
-                            onPressed: onSalirORendirse,
-                          )
-                        else ...[
-                  const Text(
-                            '¿Confirmás tu derrota?',
-                            textAlign: TextAlign.center,
-                    style: TextStyle(
-                              color: AppColors.peligro,
-                      fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _ArcadeButton(
-                            label: 'CONFIRMAR RENDICIÓN',
-                            icon: Icons.check_circle_outline,
-                            tono: _BotonTono.rojo,
-                            onPressed: onConfirmarRendicion,
-                          ),
-                          const SizedBox(height: 10),
-                          _ArcadeButton(
-                            label: 'CANCELAR',
-                            icon: Icons.close,
-                            tono: _BotonTono.violeta,
-                            onPressed: onCancelarRendicion,
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
-      ),
       ),
     );
   }

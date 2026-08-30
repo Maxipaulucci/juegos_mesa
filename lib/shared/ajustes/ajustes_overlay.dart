@@ -56,11 +56,13 @@ class AjustesOverlay extends StatelessWidget {
         children: [
           // Fondo: tocar afuera cierra el menú
           Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onCerrar,
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: 0.72),
+            child: OverlayFondoEntrada(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onCerrar,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.72),
+                ),
               ),
             ),
           ),
@@ -72,7 +74,8 @@ class AjustesOverlay extends StatelessWidget {
                   padding: const EdgeInsets.all(18),
                   child: GestureDetector(
                     onTap: () {}, // absorbe el toque para no cerrar
-                    child: Container(
+                    child: OverlayCartelEntrada(
+                      child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                       decoration: BoxDecoration(
@@ -89,8 +92,7 @@ class AjustesOverlay extends StatelessWidget {
                         border: Border.all(color: AppColors.azul, width: 2),
                         boxShadow: neonGlow(AppColors.azul, blur: 18),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      child: OverlayColumnaEntrada(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Row(
@@ -148,6 +150,7 @@ class AjustesOverlay extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
                     ),
                   ),
                 ),

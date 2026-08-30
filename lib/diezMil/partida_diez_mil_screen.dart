@@ -1505,8 +1505,7 @@ class _ListaJugadoresOverlay extends StatelessWidget {
                         width: 1.5,
                       ),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                    child: OverlayColumnaEntrada(
                       children: [
                         Row(
                           children: [
@@ -1609,19 +1608,29 @@ class _PartidaMenuOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimacionOverlayEntrada(
       child: Material(
-      color: Colors.black.withValues(alpha: 0.72),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onCerrar,
-        child: SafeArea(
-          child: Center(
-            child: GestureDetector(
-              onTap: () {},
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 380),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Container(
+        color: Colors.transparent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            OverlayFondoEntrada(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onCerrar,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.72),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {},
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: OverlayCartelEntrada(
+                        child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
                     decoration: BoxDecoration(
@@ -1638,8 +1647,7 @@ class _PartidaMenuOverlay extends StatelessWidget {
                       border: Border.all(color: AppColors.acento, width: 2),
                       boxShadow: neonGlow(AppColors.acento, blur: 18),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                    child: OverlayColumnaEntrada(
                       children: [
                         Row(
                           children: [
@@ -1744,8 +1752,10 @@ class _PartidaMenuOverlay extends StatelessWidget {
               ),
             ),
           ),
+            ),
+          ),
+          ],
         ),
-      ),
       ),
     );
   }
