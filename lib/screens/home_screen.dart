@@ -42,8 +42,8 @@ import '../unoSolo/textos.dart';
 enum _CategoriaHome {
   cartasEspanolas('Cartas españolas'),
   dados('Dados'),
-  cartasInglesas('Cartas inglesas'),
-  papel('Tablero');
+  papel('Tablero'),
+  cartasInglesas('Cartas inglesas');
 
   const _CategoriaHome(this.label);
   final String label;
@@ -1230,8 +1230,8 @@ class _HomeScreenState extends State<HomeScreen>
                                         const categoriasOrden = [
                                           _CategoriaHome.cartasEspanolas,
                                           _CategoriaHome.dados,
-                                          _CategoriaHome.cartasInglesas,
                                           _CategoriaHome.papel,
+                                          _CategoriaHome.cartasInglesas,
                                         ];
 
                                         double altoDe(_JuegoHome j) {
