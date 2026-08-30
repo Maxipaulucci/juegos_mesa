@@ -130,6 +130,7 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
 
   bool _puedeRenombrar(JugadorJodete j) {
     if (_partida.terminada) return false;
+    if (renombreBloqueadoPorSesionVsPc(widget.contraPc)) return false;
     if (j.rendido) return false;
     if (j.puestoRonda != null) return false;
     return !esNombrePc(j.nombre);

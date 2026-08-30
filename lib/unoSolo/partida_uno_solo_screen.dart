@@ -521,6 +521,7 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
 
   int? get _indiceRenombrable {
     if (_partida.terminada || _nombres.isEmpty) return null;
+    if (renombreBloqueadoPorSesionVsPc(widget.solo)) return null;
     if (_esOnline) {
       final i = _nombres.indexWhere((n) => n == widget.miNombre);
       return i >= 0 ? i : null;

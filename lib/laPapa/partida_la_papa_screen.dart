@@ -14,6 +14,7 @@ import 'package:app_juegos_mesa/laPapa/victoria_la_papa_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/shared/monedas/premiar_monedas_victoria_pc.dart';
@@ -836,6 +837,7 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
   Future<void> _renombrarJugadorActual() async {
     if (_dibujando || _partida.terminada) return;
+    if (renombreBloqueadoPorSesionVsPc(widget.solo)) return;
     final index = _partida.indiceTurno % _nombres.length;
     final actual = _nombres[index];
     final ctrl = TextEditingController(text: actual);
@@ -966,7 +968,9 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
 
   Widget _chipNombre() {
     final nombre = _partida.jugadorActual;
-    final puedeRenombrar = !_dibujando && !_partida.terminada;
+    final puedeRenombrar = !_dibujando &&
+        !_partida.terminada &&
+        !renombreBloqueadoPorSesionVsPc(widget.solo);
     return Material(
       color: Colors.transparent,
       child: InkWell(

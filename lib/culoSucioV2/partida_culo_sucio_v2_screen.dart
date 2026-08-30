@@ -536,6 +536,7 @@ class _PartidaCuloSucioV2ScreenState extends State<PartidaCuloSucioV2Screen> {
   bool _puedeRenombrar(int index) {
     if (_esOnline) return false;
     if (_partida.terminada) return false;
+    if (renombreBloqueadoPorSesionVsPc(widget.contraPc)) return false;
     if (index < 0 || index >= _partida.jugadores.length) return false;
     final j = _partida.jugadores[index];
     if (j.rendido) return false;

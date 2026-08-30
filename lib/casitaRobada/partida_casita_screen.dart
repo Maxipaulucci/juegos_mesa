@@ -244,6 +244,7 @@ class _PartidaCasitaScreenState extends State<PartidaCasitaScreen> {
 
   bool _puedeRenombrar(int index) {
     if (_partida.terminada) return false;
+    if (renombreBloqueadoPorSesionVsPc(widget.contraPc)) return false;
     if (index < 0 || index >= _partida.jugadores.length) return false;
     final j = _partida.jugadores[index];
     if (j.rendido) return false;

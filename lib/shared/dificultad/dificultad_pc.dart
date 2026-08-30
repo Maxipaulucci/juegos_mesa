@@ -1,12 +1,22 @@
 /// Constantes y dificultad compartidas para partidas vs PC.
 library;
 
+import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+
 const String nombreJugadorPc = 'PC';
 
 /// True para `"PC"`, `"PC 1"`, `"PC 2"`, …
 bool esNombrePc(String nombre) =>
     nombre == nombreJugadorPc ||
     (nombre.startsWith('PC ') && nombre.length > 3);
+
+/// True si el humano no puede cambiar de nombre (sesión + vs PC / solo).
+bool renombreBloqueadoPorSesionVsPc(bool contraPcOSolo) =>
+    contraPcOSolo && UsuarioMongoService.instance.bloquearRenombreVsPc;
+
+/// Nombre del humano vs PC: cuenta si hay sesión, si no [fallback].
+String humanoVsPcConSesion({String fallback = 'Jugador 1'}) =>
+    UsuarioMongoService.instance.nombreParaPartida ?? fallback;
 
 /// Cuántos rivales PC hay en [nombres].
 int cantidadPcEnNombres(List<String> nombres) =>

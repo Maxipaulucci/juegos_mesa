@@ -166,6 +166,14 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
     ];
   }
 
+  /// Nombre del humano al lanzar vs PC / jugar solo (cuenta si hay sesión).
+  String _humanoParaVsPc({String fallback = 'Jugador 1'}) {
+    final deSesion = UsuarioMongoService.instance.nombreParaPartida;
+    if (deSesion != null) return deSesion;
+    if (_nombresRapida.isNotEmpty) return _nombresRapida.first;
+    return fallback;
+  }
+
   MenuJuegoEstado _estado({List<String>? nombres}) => MenuJuegoEstado(
         ajustes: _ajustes,
         modoDios: _modoDios,
@@ -175,6 +183,15 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
         cantidadJugadores: _cantidadJugadores,
         cantidadPc: _cantidadPc,
       );
+
+  MenuJuegoEstado _estadoVsPc({List<String>? nombres}) {
+    final humano = _humanoParaVsPc();
+    final base = nombres ?? List.of(_nombresRapida);
+    final lista = base.isEmpty
+        ? [humano]
+        : [humano, ...base.skip(1)];
+    return _estado(nombres: lista);
+  }
 
   Future<void> _abrirAjustes() async {
     await showDialog<void>(
@@ -934,7 +951,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                         OutlinedButton(
                           onPressed: () => widget.onVsPc(
                             context,
-                            _estado(nombres: const ['Jugador']),
+                            _estadoVsPc(nombres: [_humanoParaVsPc(fallback: 'Jugador')]),
                             widget.modosDados.first,
                           ),
                           child: const Text('Jugar solo'),
@@ -956,7 +973,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
                           OutlinedButton(
                             onPressed: () => widget.onVsPc(
                               context,
-                              _estado(),
+                              _estadoVsPc(),
                               widget.modosDados[i],
                             ),
                             child: Text(

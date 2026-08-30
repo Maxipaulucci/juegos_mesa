@@ -112,7 +112,10 @@ class _PartidaGeneralaScreenState extends State<PartidaGeneralaScreen> {
     if (_partida.ganador != null) return false;
     if (_partida.jugadores[index].rendido) return false;
     final nombre = _partida.jugadores[index].nombre;
-    if (widget.contraPc) return !esNombrePc(nombre);
+    if (widget.contraPc) {
+      if (renombreBloqueadoPorSesionVsPc(true)) return false;
+      return !esNombrePc(nombre);
+    }
     return widget.partidaRapida;
   }
 

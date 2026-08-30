@@ -145,6 +145,7 @@ class _PartidaDesconfioScreenState extends State<PartidaDesconfioScreen> {
 
   bool _puedeRenombrar(JugadorDesconfio j) {
     if (_partida.terminada) return false;
+    if (renombreBloqueadoPorSesionVsPc(widget.contraPc)) return false;
     if (j.rendido) return false;
     return !esNombrePc(j.nombre);
   }

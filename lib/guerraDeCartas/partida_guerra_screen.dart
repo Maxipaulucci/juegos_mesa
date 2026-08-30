@@ -189,6 +189,7 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
 
   bool _puedeRenombrar(JugadorGuerra j) {
     if (_partida.terminada || j.rendido) return false;
+    if (renombreBloqueadoPorSesionVsPc(widget.contraPc)) return false;
     return !esNombrePc(j.nombre);
   }
 

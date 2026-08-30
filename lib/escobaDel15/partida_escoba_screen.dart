@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -151,6 +151,7 @@ class _PartidaEscobaScreenState extends State<PartidaEscobaScreen> {
 
   bool _puedeRenombrar(int index) {
     if (_partida.terminada || _esOnline) return false;
+    if (renombreBloqueadoPorSesionVsPc(widget.contraPc)) return false;
     if (index < 0 || index >= _partida.jugadores.length) return false;
     return !esNombrePc(_partida.jugadores[index].nombre);
   }

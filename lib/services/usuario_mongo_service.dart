@@ -33,6 +33,19 @@ class UsuarioMongoService {
 
   bool get haySesion => _token != null && usuario != null;
 
+  /// Nombre de cuenta para partidas (nick o nombre). Null si no hay sesión.
+  String? get nombreParaPartida {
+    final u = usuario;
+    if (!haySesion || u == null) return null;
+    final nick = u.nombreUsuario.trim();
+    if (nick.isNotEmpty) return nick;
+    final nombre = u.nombre.trim();
+    return nombre.isEmpty ? null : nombre;
+  }
+
+  /// Con sesión iniciada no se puede renombrar en vs PC / jugar solo.
+  bool get bloquearRenombreVsPc => haySesion;
+
   Uri _uri(String path, [Map<String, String>? query]) {
     return Uri.parse('$kMongoApiBase$path').replace(queryParameters: query);
   }

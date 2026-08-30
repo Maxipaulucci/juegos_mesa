@@ -361,6 +361,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
   bool _puedeRenombrar(int index) {
     if (_esOnline) return false;
     if (!widget.contraPc) return false;
+    if (renombreBloqueadoPorSesionVsPc(true)) return false;
     if (_partida.terminada) return false;
     if (index < 0 || index >= _partida.jugadores.length) return false;
     final j = _partida.jugadores[index];
