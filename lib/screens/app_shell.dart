@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/usuario_mongo_service.dart';
+import '../shared/cuenta/cuenta_overlay_store.dart';
 import '../shared/monedas/cofres_flotantes.dart';
 import '../shared/monedas/cofres_store.dart';
 import '../shared/monedas/monedas_bubble.dart';
@@ -40,12 +41,14 @@ class _AppShellState extends State<AppShell> {
       }
     });
     MonedasStore.instance.addListener(_onMonedas);
+    CuentaOverlayStore.instance.addListener(_onCuentaOverlay);
     CofresStore.instance.iniciar();
   }
 
   @override
   void dispose() {
     MonedasStore.instance.removeListener(_onMonedas);
+    CuentaOverlayStore.instance.removeListener(_onCuentaOverlay);
     CofresStore.instance.disposeStore();
     super.dispose();
   }
@@ -58,6 +61,10 @@ class _AppShellState extends State<AppShell> {
       }
     });
     setState(() {});
+  }
+
+  void _onCuentaOverlay() {
+    if (mounted) setState(() {});
   }
 
   void _onNavTap(int index) {
@@ -77,7 +84,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final mostrarCofres = _tab != 2 && _tab != 3;
+    final mostrarCofres =
+        _tab != 2 && _tab != 3 && !CuentaOverlayStore.instance.abierta;
 
     return Scaffold(
       body: Stack(

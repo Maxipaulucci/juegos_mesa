@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
+import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay_store.dart';
 import 'package:app_juegos_mesa/shared/cuenta/racha_perfil.dart';
 import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
@@ -52,7 +53,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
   String _emailPendiente = '';
 
   @override
+  void initState() {
+    super.initState();
+    CuentaOverlayStore.instance.abrir();
+  }
+
+  @override
   void dispose() {
+    CuentaOverlayStore.instance.cerrar();
     _usuario.dispose();
     _email.dispose();
     _password.dispose();
