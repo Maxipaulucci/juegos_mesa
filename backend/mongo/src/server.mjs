@@ -17,6 +17,7 @@ import {
   verificar,
   verificarRecuperacion,
   yo,
+  cambiarNombreUsuario,
 } from './usuarios.mjs';
 import { listarCofres, reclamarCofre } from './cofres.mjs';
 import {
@@ -64,6 +65,11 @@ app.post('/api/usuarios/recuperar/reenviar', reenviarRecuperacion);
 app.post('/api/usuarios/recuperar/verificar', verificarRecuperacion);
 app.post('/api/usuarios/recuperar/restablecer', restablecerClave);
 app.get('/api/usuarios/yo', exigirUsuario, yo);
+app.post(
+  '/api/usuarios/cambiar-nombre',
+  exigirUsuario,
+  cambiarNombreUsuario,
+);
 app.post('/api/monedas/victoria-pc', exigirUsuario, sumarMonedasVictoriaPc);
 app.post('/api/apuestas/retener', exigirUsuario, retenerApuesta);
 app.post('/api/apuestas/reembolsar', exigirUsuario, reembolsarApuesta);

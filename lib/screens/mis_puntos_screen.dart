@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../config/juegos_catalogo.dart';
 import '../services/usuario_mongo_service.dart';
+import '../shared/cuenta/cambiar_nombre_usuario.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
 import '../shared/cuenta/racha_perfil.dart';
 import '../shared/formato/numero_formato.dart';
@@ -125,6 +126,9 @@ class MisPuntosScreenState extends State<MisPuntosScreen> {
                               rachaMaxima: usuario.rachaMaxima,
                               error: _error,
                               onReintentar: recargar,
+                              onNombreCambiado: () {
+                                if (mounted) setState(() {});
+                              },
                             ),
                 ),
               ],
@@ -198,6 +202,7 @@ class _ListaPuntos extends StatelessWidget {
     required this.rachaMaxima,
     required this.error,
     required this.onReintentar,
+    required this.onNombreCambiado,
   });
 
   final String nombre;
@@ -207,6 +212,7 @@ class _ListaPuntos extends StatelessWidget {
   final int rachaMaxima;
   final String? error;
   final VoidCallback onReintentar;
+  final VoidCallback onNombreCambiado;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +241,11 @@ class _ListaPuntos extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        _TarjetaGlobal(nombre: nombre, puntos: global),
+        _TarjetaGlobal(
+          nombre: nombre,
+          puntos: global,
+          onNombreCambiado: onNombreCambiado,
+        ),
         const SizedBox(height: 16),
         RachaPerfil(
           rachaDias: rachaDias,
@@ -262,10 +272,15 @@ class _ListaPuntos extends StatelessWidget {
 }
 
 class _TarjetaGlobal extends StatelessWidget {
-  const _TarjetaGlobal({required this.nombre, required this.puntos});
+  const _TarjetaGlobal({
+    required this.nombre,
+    required this.puntos,
+    required this.onNombreCambiado,
+  });
 
   final String nombre;
   final int puntos;
+  final VoidCallback onNombreCambiado;
 
   @override
   Widget build(BuildContext context) {
@@ -284,49 +299,61 @@ class _TarjetaGlobal extends StatelessWidget {
         border: Border.all(color: AppColors.acento, width: 1.6),
         boxShadow: neonGlow(AppColors.acento, blur: 12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: AppColors.cartaBorde,
-            child: Text(
-              nombre.isEmpty ? '?' : nombre.substring(0, 1).toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.texto,
-                fontWeight: FontWeight.w900,
-                fontSize: 20,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  nombre,
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: AppColors.cartaBorde,
+                child: Text(
+                  nombre.isEmpty ? '?' : nombre.substring(0, 1).toUpperCase(),
                   style: const TextStyle(
                     color: AppColors.texto,
                     fontWeight: FontWeight.w900,
-                    fontSize: 18,
+                    fontSize: 20,
                   ),
                 ),
-                const Text(
-                  'Puntos globales',
-                  style: TextStyle(
-                    color: AppColors.textoSuave,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nombre,
+                      style: const TextStyle(
+                        color: AppColors.texto,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const Text(
+                      'Puntos globales',
+                      style: TextStyle(
+                        color: AppColors.textoSuave,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Text(
+                formatoNumero(puntos),
+                style: const TextStyle(
+                  color: AppColors.acento,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 28,
+                ),
+              ),
+            ],
           ),
-          Text(
-            formatoNumero(puntos),
-            style: const TextStyle(
-              color: AppColors.acento,
-              fontWeight: FontWeight.w900,
-              fontSize: 28,
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OpcionCambiarNombreUsuario(
+              onCambiado: onNombreCambiado,
             ),
           ),
         ],

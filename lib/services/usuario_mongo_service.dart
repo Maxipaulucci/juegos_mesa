@@ -191,6 +191,19 @@ class UsuarioMongoService {
     return u;
   }
 
+  static const costoCambiarNombreUsuario = 500;
+
+  /// Cambia el nick cobrando [costoCambiarNombreUsuario] monedas.
+  Future<UsuarioMongo> cambiarNombreUsuario(String nombreUsuario) async {
+    final data = await _post('/api/usuarios/cambiar-nombre', {
+      'nombreUsuario': formatoNombreUsuario(nombreUsuario),
+    });
+    final raw = Map<String, dynamic>.from(data['usuario'] as Map);
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
+  }
+
   Future<UsuarioMongo> sumarPuntos({
     required String juegoId,
     required int puntos,

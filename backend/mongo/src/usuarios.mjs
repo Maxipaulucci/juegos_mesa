@@ -421,6 +421,91 @@ export async function yo(req, res) {
   res.json({ usuario: publico(usuario), racha });
 }
 
+const COSTO_CAMBIAR_NOMBRE = 500;
+
+/** Cambia el nombre de usuario cobrando monedas. */
+export async function cambiarNombreUsuario(req, res) {
+  const nombreUsuario = formatoNombreUsuario(
+    req.body?.nombreUsuario || req.body?.nombre,
+  );
+  if (!usuarioOk(nombreUsuario)) {
+    res.status(400).json({
+      error:
+        'El usuario tiene que tener 3 a 20 caracteres: letras, números o _.',
+    });
+    return;
+  }
+
+  await asegurarMonedasIniciales(req.usuario);
+  const actual = req.usuario;
+  const nombreNorm = nombreUsuario.toLowerCase();
+  const actualNorm = String(
+    actual.nombreUsuarioNorm || actual.nombreUsuario || actual.nombre || '',
+  ).toLowerCase();
+
+  if (nombreNorm === actualNorm) {
+    res.status(400).json({ error: 'Ese ya es tu nombre de usuario.' });
+    return;
+  }
+
+  const monedas = Number.isFinite(Number(actual.monedas))
+    ? Math.floor(Number(actual.monedas))
+    : 0;
+  if (monedas < COSTO_CAMBIAR_NOMBRE) {
+    res.status(400).json({
+      error: `Necesitás ${COSTO_CAMBIAR_NOMBRE} monedas (tenés ${monedas}).`,
+    });
+    return;
+  }
+
+  const ocupado = await usuarios().findOne({
+    nombreUsuarioNorm: nombreNorm,
+    _id: { $ne: actual._id },
+  });
+  if (ocupado) {
+    res.status(409).json({ error: 'Ese nombre de usuario ya está en uso.' });
+    return;
+  }
+
+  const pend = await registrosPendientes().findOne({
+    nombreUsuarioNorm: nombreNorm,
+  });
+  if (pend) {
+    res.status(409).json({ error: 'Ese nombre de usuario ya está en uso.' });
+    return;
+  }
+
+  const actualizado = await usuarios().findOneAndUpdate(
+    { _id: actual._id, monedas: { $gte: COSTO_CAMBIAR_NOMBRE } },
+    {
+      $inc: { monedas: -COSTO_CAMBIAR_NOMBRE },
+      $set: {
+        nombreUsuario,
+        nombreUsuarioNorm: nombreNorm,
+        nombre: nombreUsuario,
+        actualizadoEn: new Date(),
+      },
+    },
+    { returnDocument: 'after' },
+  );
+  const doc =
+    actualizado && actualizado.value !== undefined
+      ? actualizado.value
+      : actualizado;
+  if (!doc) {
+    res.status(400).json({
+      error: `Necesitás ${COSTO_CAMBIAR_NOMBRE} monedas.`,
+    });
+    return;
+  }
+
+  res.json({
+    ok: true,
+    costo: COSTO_CAMBIAR_NOMBRE,
+    usuario: publico(doc),
+  });
+}
+
 /** +3 monedas y +3 puntos de ranking por ganar vs PC (solo con sesión). */
 export async function sumarMonedasVictoriaPc(req, res) {
   const juegoId = String(req.body?.juegoId || '');

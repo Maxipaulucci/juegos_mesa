@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/cuenta/cambiar_nombre_usuario.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay_store.dart';
 import 'package:app_juegos_mesa/shared/cuenta/racha_perfil.dart';
 import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
@@ -984,6 +985,14 @@ class _CuentaOverlayState extends State<CuentaOverlay> {
             fontWeight: FontWeight.w900,
             fontSize: tamNick,
           ),
+        ),
+        SizedBox(height: celular ? 6 : 8),
+        OpcionCambiarNombreUsuario(
+          compacto: celular,
+          onCambiado: () {
+            if (mounted) setState(() {});
+            widget.onSesion?.call();
+          },
         ),
         const SizedBox(height: 6),
         Text(
