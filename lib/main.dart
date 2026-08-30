@@ -57,6 +57,12 @@ class _BootstrapAppState extends State<_BootstrapApp> {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.noScaling,
+              ),
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: const PantallaCarga(mensaje: 'Cargando…'),
           );
         }
@@ -80,9 +86,16 @@ class JuegosMesaApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       builder: (context, child) {
-        final page = child ?? const SizedBox.shrink();
-        if (!_esWindowsEscritorio) return page;
-        return ExcludeSemantics(child: page);
+        Widget page = MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.noScaling,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+        if (_esWindowsEscritorio) {
+          page = ExcludeSemantics(child: page);
+        }
+        return page;
       },
       home: const _SplashInicial(),
     );
