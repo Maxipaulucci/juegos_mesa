@@ -4,6 +4,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/cuenta/boton_perfil.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
@@ -783,34 +784,7 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
               alignment: Alignment.centerRight,
               child: Padding(
                 padding: const EdgeInsets.only(right: 10),
-                child: Tooltip(
-                  message: 'Ajustes',
-                  child: Material(
-                    color: AppColors.carta,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: _abrirAjustes,
-                      child: Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.rosa.withValues(alpha: 0.85),
-                            width: 1.6,
-                          ),
-                          boxShadow: neonGlow(AppColors.rosa, blur: 10),
-                        ),
-                        child: const Icon(
-                          Icons.settings,
-                          color: AppColors.texto,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                child: BotonAjustes(onPressed: _abrirAjustes),
               ),
             ),
           ),

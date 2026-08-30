@@ -30,6 +30,7 @@ import '../laPapa/menu_la_papa_screen.dart';
 import '../laPapa/textos.dart';
 import '../shared/ajustes/ajustes_overlay.dart';
 import '../shared/ajustes/ajustes_store.dart';
+import '../shared/ajustes/boton_ajustes.dart';
 import '../shared/carga/pantalla_carga.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
 import '../services/usuario_mongo_service.dart';
@@ -1148,38 +1149,9 @@ class _HomeScreenState extends State<HomeScreen>
                           Positioned(
                             top: 0,
                             right: 0,
-                            child: Tooltip(
-                              message: 'Ajustes',
-                              child: Material(
-                                color: AppColors.carta,
-                                shape: const CircleBorder(),
-                                child: InkWell(
-                                  customBorder: const CircleBorder(),
-                                  onTap: () =>
-                                      setState(() => _mostrarAjustes = true),
-                                  child: Container(
-                                    width: 42,
-                                    height: 42,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: AppColors.rosa
-                                            .withValues(alpha: 0.85),
-                                        width: 1.6,
-                                      ),
-                                      boxShadow: neonGlow(
-                                        AppColors.rosa,
-                                        blur: 10,
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.settings,
-                                      color: AppColors.texto,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            child: BotonAjustes(
+                              onPressed: () =>
+                                  setState(() => _mostrarAjustes = true),
                             ),
                           ),
                         ],

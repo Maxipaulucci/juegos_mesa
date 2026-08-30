@@ -15,6 +15,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -1528,15 +1529,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                           BotonReiniciarPartidaPc(
                             onPressed: _pedirReiniciarVsPc,
                           ),
-                        IconButton(
+                        BotonAjustes(
                           onPressed: () => setState(() {
                             _mostrarAjustes = true;
                             _mostrarMenu = false;
                           }),
-                          icon: const Icon(
-                            Icons.settings,
-                            color: AppColors.textoSuave,
-                          ),
                         ),
                       ],
                     ),
@@ -1914,15 +1911,11 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                           icon: const Icon(Icons.menu, color: AppColors.texto),
                         ),
                         const Spacer(),
-                        IconButton(
+                        BotonAjustes(
                           onPressed: () => setState(() {
                             _mostrarAjustes = true;
                             _mostrarMenu = false;
                           }),
-                          icon: const Icon(
-                            Icons.settings,
-                            color: AppColors.textoSuave,
-                          ),
                         ),
                       ],
                     ),

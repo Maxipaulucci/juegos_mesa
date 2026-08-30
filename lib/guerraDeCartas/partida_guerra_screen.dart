@@ -10,6 +10,7 @@ import 'package:app_juegos_mesa/guerraDeCartas/textos.dart';
 import 'package:app_juegos_mesa/guerraDeCartas/victoria_guerra_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_inglesa_skin.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -987,15 +988,11 @@ class _PartidaGuerraScreenState extends State<PartidaGuerraScreen> {
                             color: AppColors.textoSuave,
                           ),
                         ),
-                        IconButton(
+                        BotonAjustes(
                           onPressed: () => setState(() {
                             _mostrarAjustes = true;
                             _mostrarMenu = false;
                           }),
-                          icon: const Icon(
-                            Icons.settings,
-                            color: AppColors.textoSuave,
-                          ),
                         ),
                       ],
                     ),

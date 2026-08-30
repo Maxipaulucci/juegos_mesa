@@ -8,6 +8,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
@@ -791,13 +792,9 @@ class _PartidaUnoSoloScreenState extends State<PartidaUnoSoloScreen> {
                             color: AppColors.textoSuave,
                           ),
                         ),
-                      IconButton(
+                      BotonAjustes(
                         onPressed: () =>
                             setState(() => _mostrarAjustes = true),
-                        icon: const Icon(
-                          Icons.settings,
-                          color: AppColors.textoSuave,
-                        ),
                       ),
                     ],
                   ),

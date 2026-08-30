@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/cartas/icono_espada.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -636,15 +637,11 @@ class _PartidaCuloSucioScreenState extends State<PartidaCuloSucioScreen> {
                       ),
                       if (widget.contraPc && !_esOnline)
                         BotonReiniciarPartidaPc(onPressed: _pedirReiniciarVsPc),
-                      IconButton(
+                      BotonAjustes(
                         onPressed: () => setState(() {
                           _mostrarAjustes = true;
                           _mostrarMenu = false;
                         }),
-                        icon: const Icon(
-                          Icons.settings,
-                          color: AppColors.textoSuave,
-                        ),
                       ),
                     ],
                   ),

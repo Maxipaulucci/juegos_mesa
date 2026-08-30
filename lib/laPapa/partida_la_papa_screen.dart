@@ -14,6 +14,7 @@ import 'package:app_juegos_mesa/laPapa/victoria_la_papa_overlay.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
 import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
@@ -1421,9 +1422,8 @@ class _PartidaLaPapaScreenState extends State<PartidaLaPapaScreen> {
                           icon: const Icon(Icons.refresh_rounded,
                               color: AppColors.textoSuave),
                         ),
-                        _RoundIcon(
-                          icon: Icons.settings,
-                          onTap: _abrirAjustes,
+                        BotonAjustes(
+                          onPressed: _abrirAjustes,
                         ),
                       ],
                     ),

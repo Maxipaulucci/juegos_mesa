@@ -8,6 +8,7 @@ import 'package:app_juegos_mesa/generala/generala_online_codec.dart';
 import 'package:app_juegos_mesa/models/sala.dart';
 import 'package:app_juegos_mesa/services/sala_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/dados/dado_widget.dart';
 import 'package:app_juegos_mesa/shared/dificultad/dificultad_pc.dart';
 import 'package:app_juegos_mesa/shared/menu/menu_juego_screen.dart';
@@ -1229,7 +1230,7 @@ class _Header extends StatelessWidget {
         ),
         if (onRestart != null)
           _RoundIcon(icon: Icons.refresh_rounded, onTap: onRestart!),
-        _RoundIcon(icon: Icons.settings, onTap: onSettings),
+        BotonAjustes(onPressed: onSettings),
       ],
     );
   }

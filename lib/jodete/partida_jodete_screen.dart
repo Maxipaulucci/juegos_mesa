@@ -16,6 +16,7 @@ import 'package:app_juegos_mesa/jodete/victoria_jodete_overlay.dart';
 import 'package:app_juegos_mesa/escobaDel15/marcador_palitos.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_overlay.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
+import 'package:app_juegos_mesa/shared/ajustes/boton_ajustes.dart';
 import 'package:app_juegos_mesa/shared/cartas/animacion_orden_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/boton_ordenar_mano.dart';
 import 'package:app_juegos_mesa/shared/cartas/carta_espanola_skin.dart';
@@ -837,15 +838,11 @@ class _PartidaJodeteScreenState extends State<PartidaJodeteScreen> {
                             BotonReiniciarPartidaPc(
                               onPressed: _pedirReiniciarVsPc,
                             ),
-                          IconButton(
+                          BotonAjustes(
                             onPressed: () => setState(() {
                               _mostrarAjustes = true;
                               _mostrarMenu = false;
                             }),
-                            icon: const Icon(
-                              Icons.settings,
-                              color: AppColors.textoSuave,
-                            ),
                           ),
                         ],
                       ),
