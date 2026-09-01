@@ -309,6 +309,23 @@ class UsuarioMongoService {
     ];
   }
 
+  /// Días del mes en que el usuario inició sesión para la racha (1–31).
+  Future<List<int>> diasRachaMes({int? anio, int? mes}) async {
+    final ahora = DateTime.now();
+    final y = anio ?? ahora.year;
+    final m = mes ?? ahora.month;
+    final data = await _get('/api/usuarios/racha-calendario', {
+      'anio': '$y',
+      'mes': '$m',
+    });
+    final raw = data['dias'];
+    if (raw is! List) return const [];
+    return [
+      for (final d in raw)
+        if (d is num) d.toInt(),
+    ];
+  }
+
   void cerrarSesion() {
     _token = null;
     usuario = null;

@@ -18,6 +18,7 @@ import {
   verificarRecuperacion,
   yo,
   cambiarNombreUsuario,
+  calendarioRacha,
 } from './usuarios.mjs';
 import { listarCofres, reclamarCofre } from './cofres.mjs';
 import {
@@ -65,6 +66,7 @@ app.post('/api/usuarios/recuperar/reenviar', reenviarRecuperacion);
 app.post('/api/usuarios/recuperar/verificar', verificarRecuperacion);
 app.post('/api/usuarios/recuperar/restablecer', restablecerClave);
 app.get('/api/usuarios/yo', exigirUsuario, yo);
+app.get('/api/usuarios/racha-calendario', exigirUsuario, calendarioRacha);
 app.post(
   '/api/usuarios/cambiar-nombre',
   exigirUsuario,

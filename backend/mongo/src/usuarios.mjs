@@ -6,7 +6,7 @@ import { jwtDias, jwtSecret } from './env.mjs';
 import { partidas, recuperacionesPendientes, registrosPendientes, usuarios } from './db.mjs';
 import { JUEGO_GLOBAL, JUEGOS, juegoValido, puntosVacios } from './juegos.mjs';
 import { enviarCodigoRegistro } from './mail.mjs';
-import { aplicarRachaSiCorresponde, rachaPublica } from './racha.mjs';
+import { aplicarRachaSiCorresponde, diasLoginEnMes, rachaPublica } from './racha.mjs';
 
 const RONDAS_HASH = 10;
 const TTL_MS = 15 * 60 * 1000;
@@ -419,6 +419,35 @@ export async function yo(req, res) {
   const conMonedas = await asegurarMonedasIniciales(req.usuario);
   const { usuario, racha } = await aplicarRachaSiCorresponde(conMonedas);
   res.json({ usuario: publico(usuario), racha });
+}
+
+/** Días con login de racha en un mes (query: anio, mes). */
+export async function calendarioRacha(req, res) {
+  const anio = Number(req.query.anio);
+  const mes = Number(req.query.mes);
+  if (
+    !Number.isFinite(anio) ||
+    !Number.isFinite(mes) ||
+    mes < 1 ||
+    mes > 12 ||
+    anio < 2000 ||
+    anio > 2100
+  ) {
+    res.status(400).json({ error: 'Mes inválido.' });
+    return;
+  }
+
+  const dias = await diasLoginEnMes(req.usuario._id, anio, mes);
+  const ultimo = req.usuario?.loginRachaUltimoDia;
+  if (ultimo) {
+    const [y, m, d] = String(ultimo).split('-').map(Number);
+    if (y === anio && m === mes && d >= 1 && d <= 31) {
+      if (!dias.includes(d)) dias.push(d);
+      dias.sort((a, b) => a - b);
+    }
+  }
+
+  res.json({ anio, mes, dias });
 }
 
 const COSTO_CAMBIAR_NOMBRE = 500;

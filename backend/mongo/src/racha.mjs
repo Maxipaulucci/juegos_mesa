@@ -151,3 +151,29 @@ export async function aplicarRachaSiCorresponde(doc) {
     },
   };
 }
+
+/** Días del mes (1–31) en que el usuario inició sesión para la racha. */
+export async function diasLoginEnMes(usuarioId, anio, mes) {
+  const startUtc = new Date(Date.UTC(anio, mes - 1, 1, 3, 0, 0));
+  const endUtc = new Date(Date.UTC(anio, mes, 1, 3, 0, 0));
+
+  const docs = await partidas()
+    .find({
+      usuarioId,
+      tipo: 'rachaDiaria',
+      fecha: { $gte: startUtc, $lt: endUtc },
+    })
+    .toArray();
+
+  const dias = new Set();
+  for (const doc of docs) {
+    if (!doc?.fecha) continue;
+    const iso = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(
+      new Date(doc.fecha),
+    );
+    const [y, m, d] = iso.split('-').map(Number);
+    if (y === anio && m === mes && d >= 1 && d <= 31) dias.add(d);
+  }
+
+  return [...dias].sort((a, b) => a - b);
+}

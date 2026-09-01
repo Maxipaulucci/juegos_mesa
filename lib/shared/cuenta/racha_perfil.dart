@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:app_juegos_mesa/shared/cuenta/cartel_calendario_racha.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cartel_como_funciona_racha.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -23,6 +24,8 @@ class RachaPerfil extends StatelessWidget {
     final tamIcono = compacto ? 22.0 : 26.0;
     final tamRacha = compacto ? 18.0 : 20.0;
     final tamAyuda = compacto ? 16.0 : 18.0;
+    final tamCalendario = compacto ? 28.0 : 32.0;
+    final tamBotonCalendario = compacto ? 40.0 : 46.0;
     final maximaVisible =
         rachaMaxima >= rachaDias ? rachaMaxima : rachaDias;
 
@@ -77,6 +80,31 @@ class RachaPerfil extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          Positioned(
+            right: 28,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Material(
+                color: _fuego.withValues(alpha: 0.18),
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => mostrarCartelCalendarioRacha(context),
+                  customBorder: const CircleBorder(),
+                  child: SizedBox(
+                    width: tamBotonCalendario,
+                    height: tamBotonCalendario,
+                    child: Icon(
+                      Icons.calendar_month_rounded,
+                      size: tamCalendario,
+                      color: _fuego,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
           Positioned(
             top: -2,
