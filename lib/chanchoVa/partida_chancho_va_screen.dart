@@ -167,6 +167,21 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
     };
   }
 
+  bool _esCelular(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 600;
+
+  double _alturaMinMesaRivales({required bool compacto}) {
+    final ops = _oponentes;
+    if (ops.isEmpty) return 0;
+    final cardH = compacto ? 48.0 : 60.0;
+    final overlap = compacto ? 8.0 : 10.0;
+    final maxCartas = ops
+        .map((j) => j.mano.length)
+        .fold<int>(0, (a, b) => math.max(a, b));
+    if (maxCartas <= 0) return cardH + 24;
+    return cardH + (maxCartas - 1) * overlap + 24;
+  }
+
   bool get _humanoActivo => !_yo.eliminado;
 
   bool get _esTurnoHumanoAnuncio {
@@ -1560,14 +1575,33 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                       ),
                     ],
                     Expanded(
-                      child: Builder(
-                        builder: (context) {
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: math.max(
+                                  constraints.maxHeight,
+                                  _alturaMinMesaRivales(
+                                    compacto: _esCelular(context),
+                                  ),
+                                ),
+                                minWidth: constraints.maxWidth,
+                              ),
+                              child: Builder(
+                                builder: (context) {
+                          final celular = _esCelular(context);
                           final asientos = _asientosOponentes;
                           final cartel = _cartelAnuncioActivo;
-                          Widget manoMesa(JugadorChancho j, {required bool lateral}) {
+                          Widget manoMesa(
+                            JugadorChancho j, {
+                            required bool lateral,
+                            bool compacto = false,
+                          }) {
                             return _ManoMesaChancho(
                               jugador: j,
                               lateral: lateral,
+                              compacto: compacto,
                               bocaArriba: _modoDiosActivo && _esPc(j),
                               esAnunciante:
                                   j.nombre == _partida.jugadorActual.nombre &&
@@ -1581,8 +1615,70 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                             );
                           }
 
+                          final cartelCentro = cartel == null
+                              ? const SizedBox.shrink()
+                              : LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return Center(
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth: constraints.maxWidth,
+                                          ),
+                                          child: cartel,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+
+                          if (celular) {
+                            final ops = _oponentes;
+                            return SizedBox(
+                              height: _alturaMinMesaRivales(compacto: true),
+                              width: double.infinity,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                alignment: Alignment.center,
+                                children: [
+                                Positioned.fill(
+                                  child: Align(
+                                    alignment: Alignment.center,
+                                    child: cartelCentro,
+                                  ),
+                                ),
+                                if (ops.isNotEmpty)
+                                  Positioned(
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        for (var i = 0;
+                                            i < ops.length;
+                                            i++) ...[
+                                          if (i > 0) const SizedBox(width: 4),
+                                          Expanded(
+                                            child: manoMesa(
+                                              ops[i],
+                                              lateral: false,
+                                              compacto: true,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            );
+                          }
+
                           return Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (asientos.izquierda != null) ...[
                                 SizedBox(
@@ -1596,6 +1692,7 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                               ],
                               Expanded(
                                 child: Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     if (asientos.arriba != null) ...[
                                       manoMesa(
@@ -1604,27 +1701,19 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                                       ),
                                       const SizedBox(height: 6),
                                     ],
-                                    Expanded(
-                                      child: cartel == null
-                                          ? const SizedBox.shrink()
-                                          : LayoutBuilder(
-                                              builder: (context, constraints) {
-                                                return Center(
-                                                  child: FittedBox(
-                                                    fit: BoxFit.scaleDown,
-                                                    child: ConstrainedBox(
-                                                      constraints:
-                                                          BoxConstraints(
-                                                        maxWidth:
-                                                            constraints
-                                                                .maxWidth,
-                                                      ),
-                                                      child: cartel,
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                    SizedBox(
+                                      height: math.max(
+                                        72,
+                                        _alturaMinMesaRivales(
+                                          compacto: false,
+                                        ) -
+                                            (asientos.arriba != null ? 70 : 0),
+                                      ),
+                                      width: double.infinity,
+                                      child: Align(
+                                        alignment: Alignment.center,
+                                        child: cartelCentro,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1641,37 +1730,50 @@ class _PartidaChanchoVaScreenState extends State<PartidaChanchoVaScreen>
                               ],
                             ],
                           );
+                                },
+                              ),
+                            ),
+                          );
                         },
                       ),
                     ),
-                    Stack(
-                      alignment: Alignment.center,
-                      clipBehavior: Clip.none,
-                      children: [
-                        Text(
-                          '${TextosChancho.tuMano}: ${_yo.nombre}',
-                          style: const TextStyle(
-                            color: AppColors.mint,
-                            fontWeight: FontWeight.w800,
+                    Builder(
+                      builder: (context) {
+                        final celular = _esCelular(context);
+                        final botonOrdenar = BotonOrdenarMano(
+                          size: 38,
+                          onPressed: mano.length < 2 ||
+                                  _partida.terminada ||
+                                  !_humanoActivo
+                              ? null
+                              : _ciclarOrdenMano,
+                        );
+
+                        return SizedBox(
+                          height: 40,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Text(
+                                celular
+                                    ? TextosChancho.tuMano
+                                    : '${TextosChancho.tuMano}: ${_yo.nombre}',
+                                style: const TextStyle(
+                                  color: AppColors.mint,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 10),
+                                  child: botonOrdenar,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Positioned(
-                          // Separado del asiento lateral derecho (mano PC).
-                          right: 92,
-                          top: -6,
-                          bottom: -6,
-                          child: Center(
-                            child: BotonOrdenarMano(
-                              size: 34,
-                              onPressed: mano.length < 2 ||
-                                      _partida.terminada ||
-                                      !_humanoActivo
-                                  ? null
-                                  : _ciclarOrdenMano,
-                            ),
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                     if (_textoElegirCartas != null) ...[
                       const SizedBox(height: 4),
@@ -2313,6 +2415,7 @@ class _ManoMesaChancho extends StatelessWidget {
     required this.esAnunciante,
     required this.confirmoPase,
     required this.paloVisual,
+    this.compacto = false,
   });
 
   final JugadorChancho jugador;
@@ -2321,9 +2424,13 @@ class _ManoMesaChancho extends StatelessWidget {
   final bool esAnunciante;
   final bool confirmoPase;
   final PaloEspanolVisual Function(PaloChancho) paloVisual;
+  final bool compacto;
 
   static const double _w = 42;
   static const double _h = 60;
+
+  double get _cardW => compacto ? 34.0 : _w;
+  double get _cardH => compacto ? 48.0 : _h;
 
   @override
   Widget build(BuildContext context) {
@@ -2340,7 +2447,7 @@ class _ManoMesaChancho extends StatelessWidget {
       style: TextStyle(
         color: esAnunciante ? AppColors.acento : AppColors.textoSuave,
         fontWeight: FontWeight.w800,
-        fontSize: 11,
+        fontSize: compacto ? 10 : 11,
       ),
     );
 
@@ -2351,8 +2458,8 @@ class _ManoMesaChancho extends StatelessWidget {
         palo: paloVisual(c.palo),
         bocaArriba: bocaArriba,
         compacta: true,
-        width: _w,
-        height: _h,
+        width: _cardW,
+        height: _cardH,
       );
     }
 
@@ -2370,34 +2477,33 @@ class _ManoMesaChancho extends StatelessWidget {
             ),
           )
         : lateral
-            ? LayoutBuilder(
-                builder: (context, constraints) {
+            ? Builder(
+                builder: (context) {
                   final overlap = cartas.length <= 4
-                      ? 10.0
-                      : (constraints.maxHeight / cartas.length)
-                          .clamp(8.0, 14.0);
-                  final totalH = _h + (cartas.length - 1) * overlap;
-                  return Center(
-                    child: SizedBox(
-                      height: totalH.clamp(0, constraints.maxHeight),
-                      width: _w + 4,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          for (var i = 0; i < cartas.length; i++)
-                            Positioned(
-                              top: i * overlap,
-                              left: 2,
-                              child: cartaWidget(cartas[i]),
-                            ),
-                        ],
-                      ),
+                      ? (compacto ? 8.0 : 10.0)
+                      : 10.0;
+                  final totalH = cartas.isEmpty
+                      ? 0.0
+                      : _cardH + (cartas.length - 1) * overlap;
+                  return SizedBox(
+                    height: totalH,
+                    width: _cardW + 4,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        for (var i = 0; i < cartas.length; i++)
+                          Positioned(
+                            top: i * overlap,
+                            left: 2,
+                            child: cartaWidget(cartas[i]),
+                          ),
+                      ],
                     ),
                   );
                 },
               )
             : SizedBox(
-                height: _h + 4,
+                height: _cardH + 4,
                 width: double.infinity,
                 child: Center(
                   child: SingleChildScrollView(
@@ -2431,6 +2537,7 @@ class _ManoMesaChancho extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: lateral
               ? Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(
                       height: 14,
@@ -2441,7 +2548,7 @@ class _ManoMesaChancho extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Expanded(child: mano),
+                    mano,
                   ],
                 )
               : Column(
