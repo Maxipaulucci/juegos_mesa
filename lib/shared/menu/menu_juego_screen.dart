@@ -759,35 +759,48 @@ class _MenuJuegoScreenState extends State<MenuJuegoScreen> {
         leadingWidth: 48,
         leading: Padding(
           padding: const EdgeInsets.only(left: 4),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              BotonPerfil(
-                tamano: 40,
-                onTap: () {
-                  setState(() {
-                    _accionTrasSesion = null;
-                    _mostrarCuenta = true;
-                  });
-                },
-              ),
-              const SizedBox(height: 8),
-              Tooltip(
-                message: MaterialLocalizations.of(context).backButtonTooltip,
-                child: InkWell(
-                  onTap: () => Navigator.maybePop(context),
-                  borderRadius: BorderRadius.circular(8),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: Icon(
-                      Icons.arrow_back,
-                      size: 22,
-                      color: AppColors.texto,
+          child: SizedBox(
+            width: 44,
+            height: 78,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  top: (78 - 40) / 2,
+                  left: 0,
+                  child: BotonPerfil(
+                    tamano: 40,
+                    onTap: () {
+                      setState(() {
+                        _accionTrasSesion = null;
+                        _mostrarCuenta = true;
+                      });
+                    },
+                  ),
+                ),
+                Positioned(
+                  top: (78 - 40) / 2 + 40 + 8,
+                  left: 0,
+                  child: Tooltip(
+                    message:
+                        MaterialLocalizations.of(context).backButtonTooltip,
+                    child: InkWell(
+                      onTap: () => Navigator.maybePop(context),
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Icon(
+                          Icons.arrow_back,
+                          size: 22,
+                          color: AppColors.texto,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         title: Text(widget.titulo),
