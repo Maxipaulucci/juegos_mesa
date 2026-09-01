@@ -2,76 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
-import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
-import 'package:app_juegos_mesa/shared/monedas/monedas_store.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
-/// Botón / fila para abrir el diálogo de cambio de nombre (500 monedas).
-class OpcionCambiarNombreUsuario extends StatelessWidget {
-  const OpcionCambiarNombreUsuario({
-    super.key,
-    this.onCambiado,
-    this.compacto = false,
-    this.textAlign = TextAlign.start,
-  });
-
-  final VoidCallback? onCambiado;
-  final bool compacto;
-  final TextAlign textAlign;
-
-  static const costo = UsuarioMongoService.costoCambiarNombreUsuario;
-
-  @override
-  Widget build(BuildContext context) {
-    const estiloLink = TextStyle(
-      color: AppColors.textoSuave,
-      fontSize: 12,
-      fontStyle: FontStyle.italic,
-    );
-
-    return TextButton(
-      onPressed: () => mostrarDialogoCambiarNombreUsuario(
-        context,
-        onCambiado: onCambiado,
-      ),
-      style: TextButton.styleFrom(
-        padding: EdgeInsets.zero,
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        foregroundColor: AppColors.textoSuave.withValues(alpha: 0.85),
-      ),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: 'Cambiar nombre de usuario - ',
-              style: estiloLink.copyWith(
-                color: AppColors.textoSuave.withValues(alpha: 0.85),
-              ),
-            ),
-            TextSpan(
-              text: '${formatoNumero(costo)} monedas',
-              style: const TextStyle(
-                color: AppColors.acento,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-        textAlign: textAlign,
-      ),
-    );
-  }
-}
-
-Future<bool> mostrarDialogoCambiarNombreUsuario(
-  BuildContext context, {
-  VoidCallback? onCambiado,
-}) async {
+/// Diálogo para confirmar la eliminación escribiendo el nombre de usuario.
+Future<bool> mostrarDialogoEliminarCuenta(BuildContext context) async {
   final api = UsuarioMongoService.instance;
-  final actual = api.nombreParaPartida ?? '';
-  final ctrl = TextEditingController(text: actual);
+  final nombreActual = api.nombreParaPartida ?? '';
+  final ctrl = TextEditingController();
   String? error;
   var cargando = false;
 
@@ -81,27 +18,14 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
     builder: (dialogContext) {
       return StatefulBuilder(
         builder: (context, setDialogState) {
+          final coincide = nombreActual.isNotEmpty &&
+              formatoNombreUsuario(ctrl.text).toLowerCase() ==
+                  nombreActual.toLowerCase();
+
           Future<void> confirmar() async {
-            final raw = ctrl.text.trim();
-            if (!usuarioNombreValido(raw)) {
+            if (!coincide) {
               setDialogState(() {
-                error =
-                    '3 a 20 caracteres: letras, números o _.';
-              });
-              return;
-            }
-            final formateado = formatoNombreUsuario(raw);
-            if (formateado.toLowerCase() == actual.toLowerCase()) {
-              setDialogState(() {
-                error = 'Ese ya es tu nombre de usuario.';
-              });
-              return;
-            }
-            if (api.usuario != null &&
-                api.usuario!.monedas < OpcionCambiarNombreUsuario.costo) {
-              setDialogState(() {
-                error =
-                    'Necesitás ${formatoNumero(OpcionCambiarNombreUsuario.costo)} monedas.';
+                error = 'El nombre de usuario no coincide.';
               });
               return;
             }
@@ -111,8 +35,7 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
               error = null;
             });
             try {
-              await api.cambiarNombreUsuario(formateado);
-              MonedasStore.instance.notificar();
+              await api.eliminarCuenta(ctrl.text);
               if (dialogContext.mounted) {
                 Navigator.of(dialogContext).pop(true);
               }
@@ -131,9 +54,9 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
               borderRadius: BorderRadius.circular(20),
             ),
             title: const Text(
-              'Cambiar nombre de usuario',
+              'Eliminar cuenta',
               style: TextStyle(
-                color: AppColors.acento,
+                color: AppColors.peligro,
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
               ),
@@ -142,15 +65,24 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const Text(
+                  'Esta acción es permanente. Se borrarán tus puntos, '
+                  'monedas y racha.',
+                  style: TextStyle(
+                    color: AppColors.texto,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Text(
-                  'Cuesta ${formatoNumero(OpcionCambiarNombreUsuario.costo)} monedas.',
+                  'Escribí tu nombre de usuario ($nombreActual) para confirmar:',
                   style: const TextStyle(
                     color: AppColors.textoSuave,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 TextField(
                   controller: ctrl,
                   enabled: !cargando,
@@ -164,16 +96,18 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
                   ],
                   style: const TextStyle(color: AppColors.texto),
                   decoration: const InputDecoration(
-                    labelText: 'Nuevo nombre',
+                    labelText: 'Nombre de usuario',
                     counterStyle: TextStyle(color: AppColors.textoSuave),
                   ),
                   onChanged: (_) {
                     if (error != null) {
                       setDialogState(() => error = null);
+                    } else {
+                      setDialogState(() {});
                     }
                   },
                   onSubmitted: (_) {
-                    if (!cargando) confirmar();
+                    if (!cargando && coincide) confirmar();
                   },
                 ),
                 if (error != null) ...[
@@ -194,7 +128,7 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
                       height: 28,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: AppColors.acento,
+                        color: AppColors.peligro,
                       ),
                     ),
                   ),
@@ -209,11 +143,11 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
                 child: const Text('Cancelar'),
               ),
               TextButton(
-                onPressed: cargando ? null : confirmar,
-                child: Text(
-                  'Confirmar · ${formatoNumero(OpcionCambiarNombreUsuario.costo)}',
-                  style: const TextStyle(
-                    color: AppColors.acento,
+                onPressed: cargando || !coincide ? null : confirmar,
+                child: const Text(
+                  'Eliminar',
+                  style: TextStyle(
+                    color: AppColors.peligro,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -226,9 +160,5 @@ Future<bool> mostrarDialogoCambiarNombreUsuario(
   );
 
   ctrl.dispose();
-  if (ok == true) {
-    onCambiado?.call();
-    return true;
-  }
-  return false;
+  return ok == true;
 }

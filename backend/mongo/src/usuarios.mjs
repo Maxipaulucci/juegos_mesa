@@ -6,7 +6,7 @@ import { jwtDias, jwtSecret } from './env.mjs';
 import { partidas, recuperacionesPendientes, registrosPendientes, usuarios } from './db.mjs';
 import { JUEGO_GLOBAL, JUEGOS, juegoValido, puntosVacios } from './juegos.mjs';
 import { enviarCodigoRegistro } from './mail.mjs';
-import { aplicarRachaSiCorresponde, diasLoginEnMes, rachaPublica } from './racha.mjs';
+import { aplicarRachaSiCorresponde, diasLoginEnMes, motivoNoReestablecerRacha, puedeReestablecerRacha, rachaPublica, reestablecerRachaAnterior } from './racha.mjs';
 
 const RONDAS_HASH = 10;
 const TTL_MS = 15 * 60 * 1000;
@@ -28,6 +28,7 @@ export function publico(doc) {
     monedas,
     rachaDias: racha.diasActual,
     rachaMaxima: racha.diasMaxima,
+    rachaAnterior: Number(doc?.loginRachaAnterior) || 0,
     creadoEn: doc.creadoEn,
   };
 }
@@ -450,6 +451,27 @@ export async function calendarioRacha(req, res) {
   res.json({ anio, mes, dias });
 }
 
+/** Reestablece la racha anterior cobrando monedas. */
+export async function reestablecerRachaUsuario(req, res) {
+  await asegurarMonedasIniciales(req.usuario);
+  try {
+    if (!puedeReestablecerRacha(req.usuario)) {
+      res.status(400).json({
+        error:
+          motivoNoReestablecerRacha(req.usuario) ||
+          'No podés reestablecer la racha ahora.',
+      });
+      return;
+    }
+    const usuario = await reestablecerRachaAnterior(req.usuario);
+    res.json({ usuario: publico(usuario) });
+  } catch (err) {
+    res.status(400).json({
+      error: err?.message || 'No se pudo reestablecer la racha.',
+    });
+  }
+}
+
 const COSTO_CAMBIAR_NOMBRE = 500;
 
 /** Cambia el nombre de usuario cobrando monedas. */
@@ -533,6 +555,30 @@ export async function cambiarNombreUsuario(req, res) {
     costo: COSTO_CAMBIAR_NOMBRE,
     usuario: publico(doc),
   });
+}
+
+/** Elimina la cuenta tras confirmar el nombre de usuario. */
+export async function eliminarCuenta(req, res) {
+  const confirmacion = formatoNombreUsuario(req.body?.nombreUsuario || '');
+  const actual = req.usuario;
+  const nombreActual = String(actual.nombreUsuario || actual.nombre || '');
+  const confirmNorm = confirmacion.toLowerCase();
+  const actualNorm = String(
+    actual.nombreUsuarioNorm || nombreActual,
+  ).toLowerCase();
+
+  if (!confirmacion || confirmNorm !== actualNorm) {
+    res.status(400).json({ error: 'El nombre de usuario no coincide.' });
+    return;
+  }
+
+  const email = String(actual.email || '').trim().toLowerCase();
+  await usuarios().deleteOne({ _id: actual._id });
+  if (email) {
+    await recuperacionesPendientes().deleteMany({ email });
+  }
+
+  res.json({ ok: true });
 }
 
 /** +3 monedas y +3 puntos de ranking por ganar vs PC (solo con sesión). */

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
+import '../config/racha_config.dart';
 import '../models/usuario_mongo.dart';
 import '../shared/monedas/monedas_store.dart';
 import '../shared/monedas/racha_login_service.dart';
@@ -192,6 +193,16 @@ class UsuarioMongoService {
   }
 
   static const costoCambiarNombreUsuario = 500;
+  static const costoReestablecerRacha = RachaConfig.costoReestablecerRacha;
+
+  /// Reestablece la racha anterior cobrando [costoReestablecerRacha] monedas.
+  Future<UsuarioMongo> reestablecerRachaAnterior() async {
+    final data = await _post('/api/usuarios/reestablecer-racha', {});
+    final raw = Map<String, dynamic>.from(data['usuario'] as Map);
+    final u = UsuarioMongo.fromJson(raw);
+    _actualizarUsuario(u);
+    return u;
+  }
 
   /// Cambia el nick cobrando [costoCambiarNombreUsuario] monedas.
   Future<UsuarioMongo> cambiarNombreUsuario(String nombreUsuario) async {
@@ -202,6 +213,14 @@ class UsuarioMongoService {
     final u = UsuarioMongo.fromJson(raw);
     _actualizarUsuario(u);
     return u;
+  }
+
+  /// Elimina la cuenta tras confirmar el nombre de usuario.
+  Future<void> eliminarCuenta(String nombreUsuario) async {
+    await _post('/api/usuarios/eliminar', {
+      'nombreUsuario': formatoNombreUsuario(nombreUsuario),
+    });
+    cerrarSesion();
   }
 
   Future<UsuarioMongo> sumarPuntos({

@@ -7,4 +7,5 @@ class RachaConfig {
   static const bonusMes = 1000;
   static const diasSemana = 7;
   static const diasMes = 30;
+  static const costoReestablecerRacha = 1500;
 }

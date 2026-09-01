@@ -8,6 +8,7 @@ class UsuarioMongo {
     this.monedas = 0,
     this.rachaDias = 0,
     this.rachaMaxima = 0,
+    this.rachaAnterior = 0,
     this.creadoEn,
   });
 
@@ -19,6 +20,7 @@ class UsuarioMongo {
   final int monedas;
   final int rachaDias;
   final int rachaMaxima;
+  final int rachaAnterior;
   final DateTime? creadoEn;
 
   int puntosDe(String juego) => puntos[juego] ?? 0;
@@ -49,6 +51,7 @@ class UsuarioMongo {
       monedas: (json['monedas'] as num?)?.toInt() ?? 0,
       rachaDias: (json['rachaDias'] as num?)?.toInt() ?? 0,
       rachaMaxima: (json['rachaMaxima'] as num?)?.toInt() ?? 0,
+      rachaAnterior: (json['rachaAnterior'] as num?)?.toInt() ?? 0,
       creadoEn: creado,
     );
   }
@@ -62,6 +65,7 @@ class UsuarioMongo {
         'monedas': monedas,
         'rachaDias': rachaDias,
         'rachaMaxima': rachaMaxima,
+        'rachaAnterior': rachaAnterior,
         if (creadoEn != null) 'creadoEn': creadoEn!.toIso8601String(),
       };
 
@@ -69,6 +73,7 @@ class UsuarioMongo {
     int? monedas,
     int? rachaDias,
     int? rachaMaxima,
+    int? rachaAnterior,
   }) {
     return UsuarioMongo(
       id: id,
@@ -79,6 +84,7 @@ class UsuarioMongo {
       monedas: monedas ?? this.monedas,
       rachaDias: rachaDias ?? this.rachaDias,
       rachaMaxima: rachaMaxima ?? this.rachaMaxima,
+      rachaAnterior: rachaAnterior ?? this.rachaAnterior,
       creadoEn: creadoEn,
     );
   }

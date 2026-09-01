@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../config/juegos_catalogo.dart';
 import '../services/usuario_mongo_service.dart';
+import '../shared/ajustes/ajustes_overlay.dart';
+import '../shared/ajustes/ajustes_store.dart';
+import '../shared/ajustes/boton_ajustes.dart';
+import '../shared/cuenta/boton_perfil.dart';
 import '../shared/cuenta/cambiar_nombre_usuario.dart';
 import '../shared/cuenta/cuenta_overlay.dart';
+import '../shared/cuenta/eliminar_cuenta.dart';
 import '../shared/cuenta/racha_perfil.dart';
 import '../shared/formato/numero_formato.dart';
 import '../theme/app_theme.dart';
@@ -21,6 +26,8 @@ class MisPuntosScreenState extends State<MisPuntosScreen> {
   bool _cargando = false;
   String? _error;
   bool _mostrarCuenta = false;
+  bool _mostrarAjustes = false;
+  AjustesEstado _ajustes = AjustesStore.instance.estado;
 
   @override
   void initState() {
@@ -47,6 +54,17 @@ class MisPuntosScreenState extends State<MisPuntosScreen> {
         _error = e.toString().replaceFirst('Bad state: ', '');
       });
     }
+  }
+
+  void _cerrarSesion() {
+    _api.cerrarSesion();
+    setState(() => _error = null);
+  }
+
+  Future<void> _eliminarCuenta() async {
+    final eliminada = await mostrarDialogoEliminarCuenta(context);
+    if (!mounted || !eliminada) return;
+    setState(() => _error = null);
   }
 
   @override
@@ -78,29 +96,56 @@ class MisPuntosScreenState extends State<MisPuntosScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 12),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    'Mi cuenta',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.texto,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    'Tus puntos en cada juego',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textoSuave,
-                      fontWeight: FontWeight.w600,
-                    ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Column(
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 48),
+                            child: Text(
+                              'Mi cuenta',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.texto,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 48),
+                            child: Text(
+                              'Tus puntos en cada juego',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.textoSuave,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        child: BotonPerfil(
+                          onTap: () => setState(() => _mostrarCuenta = true),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: BotonAjustes(
+                          onPressed: () =>
+                              setState(() => _mostrarAjustes = true),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -120,20 +165,56 @@ class MisPuntosScreenState extends State<MisPuntosScreen> {
                               nombre: usuario.nombreUsuario.isNotEmpty
                                   ? usuario.nombreUsuario
                                   : usuario.nombre,
+                              email: usuario.email,
                               global: usuario.puntosGlobal,
                               puntos: usuario.puntos,
                               rachaDias: usuario.rachaDias,
                               rachaMaxima: usuario.rachaMaxima,
+                              rachaAnterior: usuario.rachaAnterior,
                               error: _error,
                               onReintentar: recargar,
                               onNombreCambiado: () {
                                 if (mounted) setState(() {});
                               },
+                              onRachaRestablecida: () {
+                                if (mounted) setState(() {});
+                              },
                             ),
                 ),
+                if (haySesion) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _BotonAccionCuenta(
+                          label: 'Cerrar sesión',
+                          relleno: AppColors.azul,
+                          onTap: _cerrarSesion,
+                        ),
+                        const SizedBox(height: 10),
+                        _BotonAccionCuenta(
+                          label: 'Eliminar cuenta',
+                          borde: AppColors.peligro,
+                          texto: AppColors.peligro,
+                          onTap: _eliminarCuenta,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
+          if (_mostrarAjustes)
+            Positioned.fill(
+              child: AjustesOverlay(
+                ajustes: _ajustes,
+                onChanged: (a) => setState(() => _ajustes = a),
+                onCerrar: () => setState(() => _mostrarAjustes = false),
+              ),
+            ),
           if (_mostrarCuenta)
             Positioned.fill(
               child: CuentaOverlay(
@@ -145,6 +226,64 @@ class MisPuntosScreenState extends State<MisPuntosScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _BotonAccionCuenta extends StatelessWidget {
+  const _BotonAccionCuenta({
+    required this.label,
+    required this.onTap,
+    this.relleno,
+    this.borde,
+    this.texto,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final Color? relleno;
+  final Color? borde;
+  final Color? texto;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorTexto = relleno != null
+        ? const Color(0xFF0B1A2E)
+        : (texto ?? AppColors.texto);
+
+    return Material(
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: relleno,
+            borderRadius: BorderRadius.circular(12),
+            border: borde != null
+                ? Border.all(color: borde!, width: 1.6)
+                : null,
+            boxShadow: relleno == AppColors.azul
+                ? neonGlow(AppColors.azul, blur: 10)
+                : null,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colorTexto,
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -196,23 +335,29 @@ class _SinSesion extends StatelessWidget {
 class _ListaPuntos extends StatelessWidget {
   const _ListaPuntos({
     required this.nombre,
+    required this.email,
     required this.global,
     required this.puntos,
     required this.rachaDias,
     required this.rachaMaxima,
+    required this.rachaAnterior,
     required this.error,
     required this.onReintentar,
     required this.onNombreCambiado,
+    required this.onRachaRestablecida,
   });
 
   final String nombre;
+  final String email;
   final int global;
   final Map<String, int> puntos;
   final int rachaDias;
   final int rachaMaxima;
+  final int rachaAnterior;
   final String? error;
   final VoidCallback onReintentar;
   final VoidCallback onNombreCambiado;
+  final VoidCallback onRachaRestablecida;
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +388,7 @@ class _ListaPuntos extends StatelessWidget {
         ],
         _TarjetaGlobal(
           nombre: nombre,
+          email: email,
           puntos: global,
           onNombreCambiado: onNombreCambiado,
         ),
@@ -250,10 +396,12 @@ class _ListaPuntos extends StatelessWidget {
         RachaPerfil(
           rachaDias: rachaDias,
           rachaMaxima: rachaMaxima,
+          rachaAnterior: rachaAnterior,
+          onRachaRestablecida: onRachaRestablecida,
         ),
         const SizedBox(height: 16),
         const Text(
-          'Por juego',
+          'Puntos globales por juego',
           style: TextStyle(
             color: AppColors.textoSuave,
             fontWeight: FontWeight.w800,
@@ -274,35 +422,41 @@ class _ListaPuntos extends StatelessWidget {
 class _TarjetaGlobal extends StatelessWidget {
   const _TarjetaGlobal({
     required this.nombre,
+    required this.email,
     required this.puntos,
     required this.onNombreCambiado,
   });
 
   final String nombre;
+  final String email;
   final int puntos;
   final VoidCallback onNombreCambiado;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.acento.withValues(alpha: 0.28),
-            AppColors.carta,
-          ],
-        ),
-        border: Border.all(color: AppColors.acento, width: 1.6),
-        boxShadow: neonGlow(AppColors.acento, blur: 12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.carta,
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                AppColors.acento.withValues(alpha: 0.08),
+                AppColors.carta,
+              ],
+              stops: const [0.0, 0.42],
+            ),
+            border: Border.all(
+              color: AppColors.acento.withValues(alpha: 0.45),
+              width: 1.4,
+            ),
+          ),
+          child: Row(
             children: [
               CircleAvatar(
                 radius: 26,
@@ -349,15 +503,54 @@ class _TarjetaGlobal extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OpcionCambiarNombreUsuario(
-              onCambiado: onNombreCambiado,
+        ),
+        const SizedBox(height: 6),
+        OpcionCambiarNombreUsuario(
+          onCambiado: onNombreCambiado,
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Mail registrado',
+          style: TextStyle(
+            color: AppColors.texto,
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.azul.withValues(alpha: 0.45),
             ),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.email_outlined,
+                color: AppColors.azul,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  email.isEmpty ? '—' : email,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

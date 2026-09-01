@@ -10,6 +10,7 @@ import '../shared/monedas/cofres_store.dart';
 import '../shared/monedas/monedas_bubble.dart';
 import '../shared/monedas/monedas_store.dart';
 import '../shared/monedas/racha_login_service.dart';
+import '../shared/nav/app_nav_store.dart';
 import '../shared/nav/bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'mis_puntos_screen.dart';
@@ -62,6 +63,7 @@ class _AppShellState extends State<AppShell>
     MonedasStore.instance.addListener(_onMonedas);
     CuentaOverlayStore.instance.addListener(_onCuentaOverlay);
     AjustesStore.instance.addListener(_onAjustes);
+    AppNavStore.instance.addListener(_onNavPendiente);
     CofresStore.instance.iniciar();
   }
 
@@ -71,6 +73,7 @@ class _AppShellState extends State<AppShell>
     MonedasStore.instance.removeListener(_onMonedas);
     CuentaOverlayStore.instance.removeListener(_onCuentaOverlay);
     AjustesStore.instance.removeListener(_onAjustes);
+    AppNavStore.instance.removeListener(_onNavPendiente);
     CofresStore.instance.disposeStore();
     super.dispose();
   }
@@ -96,6 +99,15 @@ class _AppShellState extends State<AppShell>
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
+    });
+  }
+
+  void _onNavPendiente() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final tab = AppNavStore.instance.consumirTabPendiente();
+      if (tab != null) _onNavTap(tab);
     });
   }
 

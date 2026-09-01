@@ -5,8 +5,10 @@ import 'package:app_juegos_mesa/services/usuario_mongo_service.dart';
 import 'package:app_juegos_mesa/shared/ajustes/ajustes_store.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cambiar_nombre_usuario.dart';
 import 'package:app_juegos_mesa/shared/cuenta/cuenta_overlay_store.dart';
+import 'package:app_juegos_mesa/shared/cuenta/eliminar_cuenta.dart';
 import 'package:app_juegos_mesa/shared/cuenta/racha_perfil.dart';
 import 'package:app_juegos_mesa/shared/formato/numero_formato.dart';
+import 'package:app_juegos_mesa/shared/nav/app_nav_store.dart';
 import 'package:app_juegos_mesa/shared/ui/animacion_overlay_entrada.dart';
 import 'package:app_juegos_mesa/theme/app_theme.dart';
 
@@ -1053,7 +1055,6 @@ class _CuentaOverlayState extends State<CuentaOverlay>
     final celular = _esCelular(context);
     final radioAvatar = celular ? 36.0 : 44.0;
     final tamLetra = celular ? 26.0 : 32.0;
-    final tamNick = celular ? 20.0 : 22.0;
 
     return OverlayColumnaEntrada(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1073,52 +1074,49 @@ class _CuentaOverlayState extends State<CuentaOverlay>
           ),
         ),
         SizedBox(height: celular ? 14 : 18),
-        Text(
-          nick,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: AppColors.texto,
-            fontWeight: FontWeight.w900,
-            fontSize: tamNick,
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _campoSoloLectura(
+              label: 'Nombre de usuario',
+              valor: nick,
+            ),
+            const SizedBox(height: 6),
+            OpcionCambiarNombreUsuario(
+              compacto: celular,
+              onCambiado: () {
+                if (mounted) setState(() {});
+                widget.onSesion?.call();
+              },
+            ),
+          ],
         ),
-        SizedBox(height: celular ? 6 : 8),
-        OpcionCambiarNombreUsuario(
-          compacto: celular,
-          onCambiado: () {
-            if (mounted) setState(() {});
-            widget.onSesion?.call();
-          },
-        ),
-        const SizedBox(height: 6),
-        Text(
-          u.email,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: AppColors.textoSuave,
-            fontSize: celular ? 13 : 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: celular ? 10 : 12),
-        Text(
-          '${formatoNumero(u.monedas)} monedas',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: AppColors.acento,
-            fontWeight: FontWeight.w900,
-            fontSize: 15,
-          ),
+        SizedBox(height: celular ? 12 : 14),
+        _campoSoloLectura(
+          label: 'Mail registrado',
+          valor: u.email,
+          iconoIzq: Icons.email_outlined,
+          maxLineas: 2,
         ),
         SizedBox(height: celular ? 14 : 16),
         RachaPerfil(
           rachaDias: u.rachaDias,
           rachaMaxima: u.rachaMaxima,
+          rachaAnterior: u.rachaAnterior,
           compacto: celular,
+          onRachaRestablecida: () {
+            if (mounted) setState(() {});
+            widget.onSesion?.call();
+          },
+        ),
+        SizedBox(height: celular ? 14 : 16),
+        _contenedorPuntosGlobales(
+          puntos: u.puntosGlobal,
+          celular: celular,
+        ),
+        const SizedBox(height: 6),
+        _OpcionVerPuntosPorJuego(
+          onTap: () => _irAPerfilDesdeOverlay(context),
         ),
         SizedBox(height: celular ? 22 : 28),
         _cta('Cerrar sesión', () {
@@ -1126,7 +1124,66 @@ class _CuentaOverlayState extends State<CuentaOverlay>
           widget.onSesion?.call();
           widget.onCerrar();
         }),
+        SizedBox(height: celular ? 10 : 12),
+        _ctaPeligro('Eliminar cuenta', () async {
+          final eliminada = await mostrarDialogoEliminarCuenta(context);
+          if (!mounted || !eliminada) return;
+          widget.onSesion?.call();
+          widget.onCerrar();
+        }),
       ],
+    );
+  }
+
+  void _irAPerfilDesdeOverlay(BuildContext context) {
+    widget.onCerrar();
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.popUntil((route) => route.isFirst);
+    }
+    AppNavStore.instance.irAPerfil();
+  }
+
+  Widget _contenedorPuntosGlobales({
+    required int puntos,
+    required bool celular,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: celular ? 14 : 16,
+        vertical: celular ? 14 : 16,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.carta.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.acento.withValues(alpha: 0.45),
+          width: 1.4,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Puntos globales',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textoSuave.withValues(alpha: 0.95),
+              fontWeight: FontWeight.w800,
+              fontSize: celular ? 12 : 13,
+            ),
+          ),
+          SizedBox(height: celular ? 8 : 10),
+          Text(
+            formatoNumero(puntos),
+            style: TextStyle(
+              color: AppColors.acento,
+              fontWeight: FontWeight.w900,
+              fontSize: celular ? 28 : 32,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1187,6 +1244,89 @@ class _CuentaOverlayState extends State<CuentaOverlay>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _ctaPeligro(String label, VoidCallback? onTap) {
+    return Material(
+      color: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.peligro, width: 1.6),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.peligro,
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _campoSoloLectura({
+    required String label,
+    required String valor,
+    IconData? iconoIzq,
+    int maxLineas = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.texto,
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.azul.withValues(alpha: 0.45),
+            ),
+          ),
+          child: Row(
+            children: [
+              if (iconoIzq != null) ...[
+                Icon(iconoIzq, color: AppColors.azul, size: 20),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Text(
+                  valor.isEmpty ? '—' : valor,
+                  maxLines: maxLineas,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.texto,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1272,6 +1412,33 @@ class _CuentaOverlayState extends State<CuentaOverlay>
           ),
         ),
       ],
+    );
+  }
+}
+
+class _OpcionVerPuntosPorJuego extends StatelessWidget {
+  const _OpcionVerPuntosPorJuego({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.zero,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: AppColors.textoSuave.withValues(alpha: 0.85),
+      ),
+      child: Text(
+        'Ver puntos globales por juego',
+        style: TextStyle(
+          color: AppColors.textoSuave.withValues(alpha: 0.85),
+          fontSize: 12,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
     );
   }
 }

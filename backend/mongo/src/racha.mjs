@@ -6,6 +6,7 @@ export const RACHA = {
   mes: 1000,
   diasSemana: 7,
   diasMes: 30,
+  costoReestablecer: 1500,
 };
 
 const TZ = 'America/Argentina/Buenos_Aires';
@@ -72,8 +73,16 @@ export async function procesarRachaDiaria(doc) {
   }
 
   let dias = 1;
+  let rachaAnterior = Number(doc?.loginRachaAnterior) || 0;
   if (ultimo && esDiaConsecutivo(ultimo, hoy)) {
-    dias = diasPrevios >= RACHA.diasMes ? 1 : diasPrevios + 1;
+    if (diasPrevios >= RACHA.diasMes) {
+      rachaAnterior = diasPrevios;
+      dias = 1;
+    } else {
+      dias = diasPrevios + 1;
+    }
+  } else if (ultimo && diasPrevios > 0) {
+    rachaAnterior = diasPrevios;
   }
 
   let monedas = RACHA.diaria;
@@ -101,6 +110,7 @@ export async function procesarRachaDiaria(doc) {
         loginRachaDias: dias,
         loginRachaUltimoDia: hoy,
         loginRachaMaxima: maxima,
+        loginRachaAnterior: rachaAnterior,
         actualizadoEn: ahora,
       },
     },
@@ -176,4 +186,80 @@ export async function diasLoginEnMes(usuarioId, anio, mes) {
   }
 
   return [...dias].sort((a, b) => a - b);
+}
+
+/** Si el usuario puede pagar para recuperar la racha anterior. */
+export function puedeReestablecerRacha(doc) {
+  const anterior = Number(doc?.loginRachaAnterior) || 0;
+  const actual = rachaPublica(doc).diasActual;
+  return anterior > 1 || anterior > actual;
+}
+
+export function motivoNoReestablecerRacha(doc) {
+  if (puedeReestablecerRacha(doc)) return null;
+  const anterior = Number(doc?.loginRachaAnterior) || 0;
+  const actual = rachaPublica(doc).diasActual;
+  if (anterior <= 0) {
+    return 'No tenés una racha anterior guardada para reestablecer.';
+  }
+  if (anterior <= 1 && actual >= anterior) {
+    return 'Solo podés reestablecer si tu racha anterior es mayor a 1 día o mayor que tu racha actual.';
+  }
+  return 'Tu racha anterior no supera los requisitos para reestablecerla.';
+}
+
+/** Cobra monedas y restaura loginRachaDias al valor de loginRachaAnterior. */
+export async function reestablecerRachaAnterior(doc) {
+  if (!puedeReestablecerRacha(doc)) {
+    const motivo = motivoNoReestablecerRacha(doc);
+    throw new Error(motivo || 'No podés reestablecer la racha ahora.');
+  }
+
+  const anterior = Number(doc?.loginRachaAnterior) || 0;
+  const actual = rachaPublica(doc).diasActual;
+  const costo = RACHA.costoReestablecer;
+  const monedas = Number.isFinite(Number(doc.monedas))
+    ? Math.floor(Number(doc.monedas))
+    : 0;
+  if (monedas < costo) {
+    throw new Error(`Necesitás ${costo} monedas (tenés ${monedas}).`);
+  }
+
+  const hoy = hoyLocal();
+  const maxima = Math.max(Number(doc?.loginRachaMaxima) || 0, anterior);
+  const ahora = new Date();
+
+  const actualizado = await usuarios().findOneAndUpdate(
+    { _id: doc._id, monedas: { $gte: costo } },
+    {
+      $inc: { monedas: -costo },
+      $set: {
+        loginRachaDias: anterior,
+        loginRachaUltimoDia: hoy,
+        loginRachaMaxima: maxima,
+        loginRachaAnterior: actual,
+        actualizadoEn: ahora,
+      },
+    },
+    { returnDocument: 'after' },
+  );
+
+  const usuario =
+    actualizado && actualizado.value !== undefined
+      ? actualizado.value
+      : actualizado;
+  if (!usuario) {
+    throw new Error('No se pudo reestablecer la racha.');
+  }
+
+  await partidas().insertOne({
+    usuarioId: doc._id,
+    tipo: 'reestablecerRacha',
+    monedas: -costo,
+    diasRacha: anterior,
+    diasRachaAnterior: actual,
+    fecha: ahora,
+  });
+
+  return usuario;
 }
