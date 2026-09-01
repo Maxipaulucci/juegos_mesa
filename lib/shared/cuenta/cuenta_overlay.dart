@@ -72,6 +72,7 @@ class _CuentaOverlayState extends State<CuentaOverlay>
   bool _cargando = false;
   String? _error;
   String _emailPendiente = '';
+  bool _registradoEnStore = false;
 
   @override
   void initState() {
@@ -81,7 +82,11 @@ class _CuentaOverlayState extends State<CuentaOverlay>
       value: 0,
       duration: const Duration(milliseconds: 480),
     );
-    CuentaOverlayStore.instance.abrir();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      CuentaOverlayStore.instance.abrir();
+      _registradoEnStore = true;
+    });
     _focusLoginPass.addListener(_onFocusLoginPass);
     _focusRegPass2.addListener(_onFocusRegPass2);
   }
@@ -168,7 +173,9 @@ class _CuentaOverlayState extends State<CuentaOverlay>
                 child: IgnorePointer(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: _tab == _Pestania.login ? login : registro,
+                    children: _tab == _Pestania.login
+                        ? _camposLogin(incluirClaveCta: false)
+                        : _camposRegistro(incluirClaveCta: false),
                   ),
                 ),
               ),
@@ -209,7 +216,9 @@ class _CuentaOverlayState extends State<CuentaOverlay>
   void dispose() {
     _focusLoginPass.removeListener(_onFocusLoginPass);
     _focusRegPass2.removeListener(_onFocusRegPass2);
-    CuentaOverlayStore.instance.cerrar();
+    if (_registradoEnStore) {
+      CuentaOverlayStore.instance.cerrar();
+    }
     _usuario.dispose();
     _email.dispose();
     _password.dispose();
@@ -611,7 +620,7 @@ class _CuentaOverlayState extends State<CuentaOverlay>
     );
   }
 
-  List<Widget> _camposLogin() {
+  List<Widget> _camposLogin({bool incluirClaveCta = true}) {
     return [
       _campo(
         label: 'Usuario o email',
@@ -662,14 +671,17 @@ class _CuentaOverlayState extends State<CuentaOverlay>
         ),
       ),
       const SizedBox(height: 16),
-      KeyedSubtree(
-        key: _claveCtaLogin,
-        child: _cta('Iniciar sesión', _cargando ? null : _login),
-      ),
+      if (incluirClaveCta)
+        KeyedSubtree(
+          key: _claveCtaLogin,
+          child: _cta('Iniciar sesión', _cargando ? null : _login),
+        )
+      else
+        _cta('Iniciar sesión', _cargando ? null : _login),
     ];
   }
 
-  List<Widget> _camposRegistro() {
+  List<Widget> _camposRegistro({bool incluirClaveCta = true}) {
     return [
       _campo(
         label: 'Nombre de usuario',
@@ -729,10 +741,13 @@ class _CuentaOverlayState extends State<CuentaOverlay>
             : null,
       ),
       const SizedBox(height: 16),
-      KeyedSubtree(
-        key: _claveCtaRegistro,
-        child: _cta('Registrarse', _cargando ? null : _registrar),
-      ),
+      if (incluirClaveCta)
+        KeyedSubtree(
+          key: _claveCtaRegistro,
+          child: _cta('Registrarse', _cargando ? null : _registrar),
+        )
+      else
+        _cta('Registrarse', _cargando ? null : _registrar),
     ];
   }
 
