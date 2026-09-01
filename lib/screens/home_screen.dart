@@ -2247,102 +2247,35 @@ class _EsloganExpandible extends StatelessWidget {
   }
 
   Widget _layoutCelular(BoxConstraints constraints, Duration dur) {
-    final tamFuente = estilo.fontSize ?? 10.5;
-    final radioPunto = math.max(1.1, tamFuente * 0.105);
-    final pasoPuntos = radioPunto * 2.9;
-    final puntosW = radioPunto * 2 + pasoPuntos * 2 + 2;
     final anchoTexto = math.max(0.0, constraints.maxWidth);
-    final tp = TextPainter(
+    final tpColapsado = TextPainter(
       text: TextSpan(text: texto, style: estilo),
       textAlign: TextAlign.center,
       textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '…',
     )..layout(maxWidth: anchoTexto);
-    final lineas = tp.computeLineMetrics();
-    final altoLinea = lineas.isEmpty
-        ? (estilo.fontSize ?? 10.5) * (estilo.height ?? 1.3)
-        : lineas.first.height;
-    final baseTexto = lineas.isEmpty ? altoLinea : lineas.first.baseline;
-    final desborda = lineas.length > 1;
-
-    var finPrimera = 0.0;
-    if (texto.isNotEmpty && desborda) {
-      final rango = tp.getLineBoundary(const TextPosition(offset: 0));
-      var fin = rango.end.clamp(0, texto.length);
-      while (fin > rango.start &&
-          fin > 0 &&
-          (texto[fin - 1] == ' ' || texto[fin - 1] == '\n')) {
-        fin--;
-      }
-      if (fin > rango.start) {
-        final cajas = tp.getBoxesForSelection(
-          TextSelection(
-            baseOffset: fin - 1,
-            extentOffset: fin,
-          ),
-        );
-        if (cajas.isNotEmpty) {
-          finPrimera = math.max(cajas.first.left, cajas.first.right);
-        } else {
-          finPrimera = tp.getOffsetForCaret(
-            TextPosition(
-              offset: fin,
-              affinity: TextAffinity.upstream,
-            ),
-            Rect.zero,
-          ).dx;
-        }
-      }
-    }
-
-    final extraItalica =
-        estilo.fontStyle == FontStyle.italic ? tamFuente * 0.42 : 1.5;
-    final xPuntos = finPrimera + extraItalica;
+    final desborda = tpColapsado.didExceedMaxLines;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            AnimatedSize(
-              duration: dur,
-              curve: Curves.easeInOutCubic,
-              alignment: Alignment.topCenter,
-              clipBehavior: Clip.hardEdge,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: expandido ? tp.height : altoLinea,
-                ),
-                child: ClipRect(
-                  child: SizedBox(
-                    width: anchoTexto,
-                    child: Text(
-                      texto,
-                      textAlign: TextAlign.center,
-                      style: estilo,
-                    ),
-                  ),
-                ),
-              ),
+        AnimatedSize(
+          duration: dur,
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.hardEdge,
+          child: SizedBox(
+            width: anchoTexto,
+            child: Text(
+              texto,
+              textAlign: TextAlign.center,
+              maxLines: expandido ? null : 1,
+              overflow:
+                  expandido ? TextOverflow.visible : TextOverflow.ellipsis,
+              style: estilo,
             ),
-            if (!expandido && desborda)
-              Positioned(
-                left: xPuntos.clamp(0.0, math.max(0.0, anchoTexto - puntosW)),
-                top: 0,
-                height: altoLinea,
-                width: puntosW,
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _TresPuntosPainter(
-                      color: estilo.color ?? AppColors.textoSuave,
-                      radio: radioPunto,
-                      paso: pasoPuntos,
-                      baseline: baseTexto,
-                    ),
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
         if (desborda || expandido)
           IgnorePointer(
